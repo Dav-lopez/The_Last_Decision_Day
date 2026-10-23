@@ -41,3 +41,30 @@ jobs:
       - name: Tear down containers (preserve volumes)
         if: always()
         run: docker compose down
+  migration-validation:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: tld_migration_ci
+          POSTGRES_USER: tld_ci
+          POSTGRES_PASSWORD: ci_only_not_production
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tld_ci -d tld_migration_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      ConnectionStrings__GameDb: Host=localhost;Port=5432;Database=tld_migration_ci;Username=tld_ci;Password=ci_only_not_production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet restore services/api/TheLastDecision.Api.csproj
+      - run: dotnet tool restore
+      - name: Generate and apply migration against disposable PostgreSQL
+        run: bash scripts/verify-ef-migration.sh
