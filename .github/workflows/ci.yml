@@ -30,6 +30,10 @@ jobs:
       - run: npm install
       - run: npm run typecheck
       - run: npm run build
+      - name: Test Cloudflare Pages API proxy
+        run: node --test tests/pages-proxy.test.mjs
+      - name: Bundle Cloudflare Pages Functions
+        run: npx --yes wrangler@4.45.0 pages functions build functions --outfile /tmp/tld-pages-worker.mjs
   docker-smoke:
     runs-on: ubuntu-latest
     steps:

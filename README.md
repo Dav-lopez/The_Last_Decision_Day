@@ -1,10 +1,14 @@
 # The Last Decision
 
-Day 1 infrastructure scaffold for a planned life-simulation game: ASP.NET Core 10, EF Core, PostgreSQL, SignalR, React, TypeScript, Phaser, nginx, and Docker Compose.
+An in-development life-simulation prototype using ASP.NET Core 10, EF Core, PostgreSQL, SignalR, React, TypeScript and Phaser. Current features include invitation-based identity, character creation, starter attributes and audit records, and **school activity previews**. A complete playable gameplay loop is not yet implemented.
 
-## Windows prerequisites
+## Cloud development (no local Docker required)
 
-Install Git for Windows, Docker Desktop (Linux containers), .NET 10 SDK, and Node.js 22. Open PowerShell at the repository root.
+Follow [the free cloud deployment guide](docs/free-cloud-deployment.md) for Cloudflare Pages, Neon PostgreSQL and an eligible Oracle Cloud Always Free VM. Cloud accounts, a DNS hostname and manual backend provisioning are required. This repository does not automatically provision or deploy those services.
+
+## Optional Windows Docker development
+
+Install Git for Windows, Docker Desktop (Linux containers), .NET 10 SDK and Node.js 22.
 
 ```powershell
 Copy-Item .env.example .env
@@ -12,21 +16,23 @@ docker compose up --build -d
 .\tests\smoke-pre-migration.ps1
 ```
 
-Open http://localhost:8080. Before the first migration, the API liveness endpoint returns HTTP 200 and readiness returns HTTP 503. This is expected; the database is reachable but the schema has not been initialized.
+Open http://localhost:8080. Before applying migrations, the liveness endpoint should return 200 and readiness should return 503.
 
-## Database migrations
+### Apply existing committed migrations
+
+**Do not regenerate the initial migration.** The EF migrations are committed to the repository. Start PostgreSQL and configure the connection string for the host environment before applying:
 
 ```powershell
 dotnet tool restore
-.\scripts\add-initial-migration.ps1
 docker compose up -d postgres
+$env:ConnectionStrings__GameDb = "Host=localhost;Port=5432;Database=thelastdecision;Username=tld;Password=change-this-local-password"
 dotnet ef database update --project services/api
 ```
 
-The migration-generation step creates source files that **must be reviewed and committed**. The local database must be available when applying migrations. After applying the migration, readiness should return HTTP 200. Never use `docker compose down -v` unless intentionally deleting your local PostgreSQL data.
+Use the actual credentials from your local `.env` file. After applying migrations, `/api/v1/health/ready` should return HTTP 200. Do not use `docker compose down -v` unless you intend to delete local database data.
 
-## CI and development status
+## CI and readiness
 
-GitHub Actions builds the API and frontend, verifies the EF CLI tool, and performs a Docker Compose pre-migration smoke test. The tests do **not** demonstrate that migrations apply or that gameplay works. A committed initial migration, migration integration tests, authentication, authorization, invite/18+ registration, wallet transactions, and progression remain future milestones.
+GitHub Actions builds and tests the API and frontend, runs Docker smoke checks, and validates committed migrations against disposable PostgreSQL. The cloud deployment PR also adds Cloudflare Pages proxy tests and a Functions bundling check. CI success **does not** prove a deployed cloud environment or end-to-end gameplay readiness.
 
-**Security:** Local development only. Do not expose this stack publicly or commit the `.env` file.
+**Security:** The development stack must not be exposed publicly without reviewing HTTPS, invitations, session security, API access, secrets, backups, and deployment configuration. Never commit `.env` or cloud credentials.
