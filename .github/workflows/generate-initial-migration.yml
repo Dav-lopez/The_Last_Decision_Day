@@ -1,0 +1,35 @@
+name: Generate initial EF migration on feature branch
+on:
+  push:
+    branches:
+      - feature/commit-ef-migration
+permissions:
+  contents: write
+jobs:
+  generate:
+    if: github.ref == 'refs/heads/feature/commit-ef-migration'
+    runs-on: ubuntu-latest
+    env:
+      ConnectionStrings__GameDb: Host=localhost;Port=5432;Database=thelastdecision;Username=tld;Password=ci_only_not_production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/commit-ef-migration
+          persist-credentials: true
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet restore services/api/TheLastDecision.Api.csproj
+      - run: dotnet tool restore
+      - name: Generate migration if missing
+        shell: bash
+        run: |
+          set -euo pipefail
+          if find services/api/Infrastructure/Persistence/Migrations -maxdepth 1 -name '*_InitialCreate.cs' -print -quit 2>/dev/null | grep -q .; then
+            echo 'Initial migration already committed.'
+            exit 0
+          fi
+          dotnet ef migrations add InitialCreate --project services/api/TheLastDecision.Api.csproj --startup-project services/api/TheLastDecision.Api.csproj --output-dir Infrastructure/Persistence/Migrations
+          git add services/api/Infrastructure/Persistence/Migrations
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'chore(db): commit generated initial EF Core migration'
+          git push origin HEAD:feature/commit-ef-migration
