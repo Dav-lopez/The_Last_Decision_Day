@@ -17,3 +17,16 @@ try
     throw new Exception("FAIL: invalid email accepted");
 }
 catch (ArgumentException) { Console.WriteLine("PASS: invalid email rejected"); }
+
+var proxyOptions = new Microsoft.AspNetCore.HttpOverrides.ForwardedHeadersOptions();
+TheLastDecision.Api.Identity.TrustedProxyHeaders.Configure(proxyOptions);
+Assert(proxyOptions.ForwardLimit == 1, "forwarded header chain limited to one hop");
+Assert(proxyOptions.ForwardedHeaders ==
+    (Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
+     Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto),
+    "only client address and scheme forwarding enabled");
+Assert(proxyOptions.KnownProxies.Count == 2 &&
+    proxyOptions.KnownProxies.Contains(System.Net.IPAddress.Loopback) &&
+    proxyOptions.KnownProxies.Contains(System.Net.IPAddress.IPv6Loopback),
+    "only loopback proxies trusted");
+Assert(proxyOptions.KnownIPNetworks.Count == 0, "no arbitrary forwarded networks trusted");
