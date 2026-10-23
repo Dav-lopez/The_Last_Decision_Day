@@ -1,3 +1,6 @@
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Identity;
+using TheLastDecision.Api.Identity;
 using Microsoft.EntityFrameworkCore;
 using TheLastDecision.Api;
 using TheLastDecision.Api.School;
@@ -9,8 +12,34 @@ if (string.IsNullOrWhiteSpace(connectionString))
 
 builder.Services.AddDbContext<GameDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddSignalR();
+builder.Services.AddAuthentication("GameCookie").AddCookie("GameCookie", options =>
+{
+    options.Cookie.Name = "__Host-tld-session";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.Path = "/";
+    options.LoginPath = "/api/v1/auth/login";
+    options.Events.OnRedirectToLogin = ctx =>
+    {
+        ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return Task.CompletedTask;
+    };
+    options.Events.OnRedirectToAccessDenied = ctx =>
+    {
+        ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+        return Task.CompletedTask;
+    };
+});
+builder.Services.AddAuthorization();
+builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-TOKEN");
+builder.Services.AddScoped<IPasswordHasher<GameUser>, PasswordHasher<GameUser>>();
 
 var app = builder.Build();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseAntiforgery();
+app.MapIdentityEndpoints();
 app.MapGet("/api/v1/health/live", () => Results.Ok(new { status = "alive" }));
 app.MapGet("/api/v1/health/ready", async (GameDbContext db, ILogger<Program> logger, CancellationToken ct) =>
 {
