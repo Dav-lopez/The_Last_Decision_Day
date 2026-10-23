@@ -14,6 +14,7 @@ jobs:
       - run: dotnet build services/api/TheLastDecision.Api.csproj --no-restore
       - run: dotnet tool restore
       - run: dotnet ef --version
+      - run: dotnet run --project tests/SchoolRules.Tests/SchoolRules.Tests.csproj
   web:
     runs-on: ubuntu-latest
     defaults:
