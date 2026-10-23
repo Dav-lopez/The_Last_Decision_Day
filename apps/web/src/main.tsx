@@ -4,6 +4,8 @@ import Phaser from 'phaser';
 import './style.css';
 
 type Profile = { id: string; displayName: string; gameAge: number; attributes: Record<string, number>; coins: number };
+type SchoolActivity = { id: string; title: string; description: string; timeCost: number; changes: { attribute: string; delta: number }[] };
+type ActivityPreview = { activityId: string; timeCost: number; before: Record<string, number>; after: Record<string, number> };
 type Session = { userId: string; email: string };
 type Mode = 'login' | 'register';
 
@@ -42,6 +44,8 @@ function App() {
   const scene = useRef<HTMLDivElement>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [activities, setActivities] = useState<SchoolActivity[]>([]);
+  const [preview, setPreview] = useState<ActivityPreview | null>(null);
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -76,6 +80,23 @@ function App() {
     })();
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!profile) return;
+    let active = true;
+    request<SchoolActivity[]>('/api/v1/school/activities')
+      .then(items => { if (active) setActivities(items); })
+      .catch(() => { if (active) setMessage('Unable to load school activities.'); });
+    return () => { active = false; };
+  }, [profile]);
+
+  async function previewActivity(activityId: string) {
+    setMessage(''); setPreview(null);
+    try {
+      const result = await request<ActivityPreview>(`/api/v1/school/activities/${encodeURIComponent(activityId)}/preview`);
+      setPreview(result);
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Preview unavailable.'); }
+  }
 
   async function authenticate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -141,7 +162,18 @@ function App() {
           <p>Age {profile.gameAge} · {profile.coins} COIN</p>
           <div className="stats">{Object.entries(profile.attributes).map(([name, value]) =>
             <div key={name}><strong>{name}</strong><span>{value}/100</span></div>)}</div>
-          <p>School activities and the city experience are coming next.</p>
+          <h3>School activities</h3>
+          <p>Explore how your choices could affect your attributes. Previews do not change your character.</p>
+          <div className="activity-list">{activities.map(activity => <article key={activity.id}>
+            <h4>{activity.title}</h4><p>{activity.description} · {activity.timeCost} time units</p>
+            <button type="button" onClick={() => void previewActivity(activity.id)}>Preview outcome</button>
+          </article>)}</div>
+          {preview && <div className="preview" aria-live="polite">
+            <h4>Projected outcome</h4>
+            {Object.entries(preview.after).map(([name, value]) =>
+              <p key={name}>{name}: {preview.before[name]} → {value}</p>)}
+            <p>No changes have been saved.</p>
+          </div>
         </>}
       </>}
       {message && <p className="error" role="alert">{message}</p>}

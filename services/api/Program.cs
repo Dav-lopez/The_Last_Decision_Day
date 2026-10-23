@@ -58,6 +58,7 @@ app.UseAuthorization();
 app.UseAntiforgery();
 app.MapIdentityEndpoints();
 app.MapCharacterEndpoints();
+app.MapSchoolPreviewEndpoints();
 app.MapGet("/api/v1/health/live", () => Results.Ok(new { status = "alive" }));
 app.MapGet("/api/v1/health/ready", async (GameDbContext db, ILogger<Program> logger, CancellationToken ct) =>
 {
