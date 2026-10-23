@@ -21,8 +21,8 @@ public static class IdentityEndpoints
             var tokens = antiforgery.GetAndStoreTokens(context);
             return Results.Ok(new { token = tokens.RequestToken });
         });
-        group.MapPost("/register", Register).RequireAntiforgery();
-        group.MapPost("/login", Login).RequireAntiforgery();
+        group.MapPost("/register", Register).RequireAntiforgery().RequireRateLimiting("auth");
+        group.MapPost("/login", Login).RequireAntiforgery().RequireRateLimiting("auth");
         group.MapPost("/logout", Logout).RequireAuthorization().RequireAntiforgery();
         group.MapGet("/me", (ClaimsPrincipal principal) =>
         {
