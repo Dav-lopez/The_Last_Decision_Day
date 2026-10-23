@@ -1,0 +1,4 @@
+# Replace api.example.com with the hostname whose DNS A record points to your OCI VM.
+api.example.com {
+    reverse_proxy 127.0.0.1:5000
+}
