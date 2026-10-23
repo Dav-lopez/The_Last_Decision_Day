@@ -68,5 +68,5 @@ jobs:
           dotnet-version: '10.0.x'
       - run: dotnet restore services/api/TheLastDecision.Api.csproj
       - run: dotnet tool restore
-      - name: Generate and apply migration against disposable PostgreSQL
+      - name: Validate committed migration and apply to disposable PostgreSQL
         run: bash scripts/verify-ef-migration.sh
