@@ -103,8 +103,8 @@ builder.Services.AddAntiforgery(options =>
 builder.Services.AddScoped<IPasswordHasher<GameUser>, PasswordHasher<GameUser>>();
 
 var app = builder.Build();
-app.UseRateLimiter();
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 app.UseAntiforgery();
 app.MapIdentityEndpoints();
