@@ -14,6 +14,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
     throw new InvalidOperationException("ConnectionStrings:GameDb must be configured.");
 
 builder.Services.AddDbContext<GameDbContext>(options => options.UseNpgsql(connectionString));
+builder.Services.AddScoped<AttributeService>();
 builder.Services.AddSignalR();
 builder.Services.AddAuthentication("GameCookie").AddCookie("GameCookie", options =>
 {

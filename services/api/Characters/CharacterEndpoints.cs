@@ -9,8 +9,6 @@ public sealed record CharacterProfile(Guid Id, string DisplayName, int GameAge,
 
 public static class CharacterEndpoints
 {
-    private static readonly string[] AttributeNames = ["Intelligence", "Discipline", "Stress", "Reputation"];
-
     public static void MapCharacterEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/v1/characters").RequireAuthorization();
@@ -27,7 +25,7 @@ public static class CharacterEndpoints
     }
 
     private static async Task<IResult> Create(CreateCharacterRequest request, ClaimsPrincipal principal,
-        GameDbContext db, CancellationToken ct)
+        GameDbContext db, AttributeService attributes, CancellationToken ct)
     {
         if (!TryUserId(principal, out var userId)) return Results.Unauthorized();
         var name = request.DisplayName?.Trim() ?? "";
@@ -41,15 +39,7 @@ public static class CharacterEndpoints
 
         var character = new Character { UserId = userId, DisplayName = name, GameAge = request.GameAge };
         db.Characters.Add(character);
-        var initial = new Dictionary<string, int>
-        {
-            ["Intelligence"] = 25, ["Discipline"] = 25, ["Stress"] = 0, ["Reputation"] = 25
-        };
-        foreach (var attribute in initial)
-            db.CharacterAttributes.Add(new CharacterAttribute
-            {
-                CharacterId = character.Id, Name = attribute.Key, Value = attribute.Value
-            });
+        var initial = attributes.Initialize(character.Id, character.Id);
         db.Wallets.Add(new Wallet { CharacterId = character.Id, Currency = "COIN", Balance = 0 });
 
         try
