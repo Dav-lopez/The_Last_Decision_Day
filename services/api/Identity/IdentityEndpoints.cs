@@ -21,9 +21,9 @@ public static class IdentityEndpoints
             var tokens = antiforgery.GetAndStoreTokens(context);
             return Results.Ok(new { token = tokens.RequestToken });
         });
-        group.MapPost("/register", Register).RequireAntiforgery().RequireRateLimiting("auth");
-        group.MapPost("/login", Login).RequireAntiforgery().RequireRateLimiting("auth");
-        group.MapPost("/logout", Logout).RequireAuthorization().RequireAntiforgery();
+        group.MapPost("/register", Register).AddEndpointFilter(ValidateCsrf).RequireRateLimiting("auth");
+        group.MapPost("/login", Login).AddEndpointFilter(ValidateCsrf).RequireRateLimiting("auth");
+        group.MapPost("/logout", Logout).RequireAuthorization().AddEndpointFilter(ValidateCsrf);
         group.MapGet("/me", (ClaimsPrincipal principal) =>
         {
             var id = principal.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -31,6 +31,15 @@ public static class IdentityEndpoints
                 ? Results.Ok(new { userId, email = principal.FindFirstValue(ClaimTypes.Email) })
                 : Results.Unauthorized();
         }).RequireAuthorization();
+    }
+
+    internal static async ValueTask<object?> ValidateCsrf(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
+    {
+        var antiforgery = context.HttpContext.RequestServices
+            .GetRequiredService<Microsoft.AspNetCore.Antiforgery.IAntiforgery>();
+        if (!await antiforgery.IsRequestValidAsync(context.HttpContext))
+            return Results.BadRequest(new { error = "Invalid CSRF token." });
+        return await next(context);
     }
 
     private static async Task<IResult> Register(RegisterRequest request, GameDbContext db,

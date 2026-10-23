@@ -15,7 +15,7 @@ public static class CharacterEndpoints
     {
         var group = app.MapGroup("/api/v1/characters").RequireAuthorization();
         group.MapGet("/me", GetMine);
-        group.MapPost("", Create).RequireAntiforgery();
+        group.MapPost("", Create).AddEndpointFilter(global::TheLastDecision.Api.Identity.IdentityEndpoints.ValidateCsrf);
     }
 
     private static async Task<IResult> GetMine(ClaimsPrincipal principal, GameDbContext db, CancellationToken ct)
