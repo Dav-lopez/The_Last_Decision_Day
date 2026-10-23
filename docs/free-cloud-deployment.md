@@ -50,7 +50,8 @@ Architecture: Cloudflare Pages (React/Phaser and same-origin /api proxy) → HTT
 
 ## 4. Security and limitations
 - Cloudflare Pages Functions proxy uses a fixed HTTPS origin; no user-controlled destination. Do not point it at untrusted servers. Redirects are not followed automatically.
-- The API is served over Caddy HTTPS; its .NET listener is bound to localhost. Review API proxy headers and origin validation before broad public access.
+- The API is served over Caddy HTTPS; its .NET listener is bound to localhost. ASP.NET Core accepts only one forwarded hop from the loopback Caddy proxy; never expose port 5000 or add untrusted proxies to the allowlist. Caddy must remain the only HTTP ingress to the API. Review origin validation before broad public access.
+- **Rate-limit limitation:** When Cloudflare Pages Functions forwards requests to Caddy, the observed remote address may be a Cloudflare egress address rather than the original browser IP. Multiple players could therefore share an unauthenticated auth rate-limit bucket. Do not trust browser-provided `X-Forwarded-For` or `CF-Connecting-IP` without a separately verified trusted-proxy chain. Plan Cloudflare edge rate limiting and abuse testing before public launch.
 - The current API uses secure SameSite=Strict cookies; same-origin Pages proxy preserves the intended cookie model for HTTP requests. SignalR `/hubs/world` is **not proxied by this increment** and needs separate WebSocket support and authentication validation.
 - No automatic backend deploy or secrets distribution is configured. Deploying is manual until a secure SSH-based workflow is reviewed.
 - Cloudflare Pages Free has monthly build limits; Neon Free has compute/storage limits; OCI Always Free VM allocation depends on region capacity and account eligibility. Check provider dashboards before incurring any charges.
