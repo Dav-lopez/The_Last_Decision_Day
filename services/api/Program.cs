@@ -1,3 +1,4 @@
+using TheLastDecision.Api.Characters;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
@@ -56,6 +57,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 app.MapIdentityEndpoints();
+app.MapCharacterEndpoints();
 app.MapGet("/api/v1/health/live", () => Results.Ok(new { status = "alive" }));
 app.MapGet("/api/v1/health/ready", async (GameDbContext db, ILogger<Program> logger, CancellationToken ct) =>
 {
