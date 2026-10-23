@@ -12,9 +12,8 @@ if find "$MIGRATIONS" -maxdepth 1 -name '*_InitialCreate.cs' -print -quit 2>/dev
   # Fail CI if entity changes are made without an accompanying migration.
   dotnet ef migrations has-pending-model-changes --project "$PROJECT" --startup-project "$PROJECT"
 else
-  echo "No committed initial migration found. Generating a temporary migration for validation."
-  dotnet ef migrations add InitialCreate --project "$PROJECT" --startup-project "$PROJECT" \
-    --output-dir Infrastructure/Persistence/Migrations
+  echo "ERROR: Committed InitialCreate migration is missing; refusing to generate one in CI." >&2
+  exit 1
 fi
 
 dotnet ef database update --project "$PROJECT" --startup-project "$PROJECT"
