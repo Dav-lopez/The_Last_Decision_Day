@@ -68,6 +68,17 @@ builder.Services.AddAuthentication("GameCookie").AddCookie("GameCookie", options
 builder.Services.AddAuthorization();
 builder.Services.AddRateLimiter(options =>
 {
+    options.AddPolicy("school", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddPolicy("auth", context =>
         RateLimitPartition.GetFixedWindowLimiter(
@@ -99,6 +110,7 @@ app.UseAntiforgery();
 app.MapIdentityEndpoints();
 app.MapCharacterEndpoints();
 app.MapSchoolPreviewEndpoints();
+app.MapSchoolExecutionEndpoints();
 app.MapGet("/api/v1/health/live", () => Results.Ok(new { status = "alive" }));
 app.MapGet("/api/v1/health/ready", async (GameDbContext db, ILogger<Program> logger, CancellationToken ct) =>
 {
