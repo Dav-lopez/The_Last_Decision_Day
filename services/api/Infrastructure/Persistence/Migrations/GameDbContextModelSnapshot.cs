@@ -22,6 +22,53 @@ namespace TheLastDecision.Api.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("TheLastDecision.Api.AttributeEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AfterValue")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("BeforeValue")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("CharacterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CharacterId", "CreatedAt");
+
+                    b.HasIndex("CorrelationId");
+
+                    b.ToTable("AttributeEvents", t =>
+                        {
+                            t.HasCheckConstraint("CK_AttributeEvent_After_Range", "\"AfterValue\" BETWEEN 0 AND 100");
+
+                            t.HasCheckConstraint("CK_AttributeEvent_Before_Range", "\"BeforeValue\" IS NULL OR \"BeforeValue\" BETWEEN 0 AND 100");
+                        });
+                });
+
             modelBuilder.Entity("TheLastDecision.Api.Character", b =>
                 {
                     b.Property<Guid>("Id")
@@ -30,7 +77,8 @@ namespace TheLastDecision.Api.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<int>("GameAge")
                         .HasColumnType("integer");
@@ -43,7 +91,10 @@ namespace TheLastDecision.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId")
                         .IsUnique();
 
-                    b.ToTable("Characters");
+                    b.ToTable("Characters", t =>
+                        {
+                            t.HasCheckConstraint("CK_Character_DisplayName_Length", "char_length(\"DisplayName\") BETWEEN 2 AND 32");
+                        });
                 });
 
             modelBuilder.Entity("TheLastDecision.Api.CharacterAttribute", b =>
@@ -73,6 +124,46 @@ namespace TheLastDecision.Api.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_Attribute_Range", "\"Value\" >= 0 AND \"Value\" <= 100");
                         });
+                });
+
+            modelBuilder.Entity("TheLastDecision.Api.IdempotencyRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("ResponseJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Scope", "Key")
+                        .IsUnique();
+
+                    b.ToTable("IdempotencyRecords");
                 });
 
             modelBuilder.Entity("TheLastDecision.Api.Identity.GameInvite", b =>
@@ -163,6 +254,8 @@ namespace TheLastDecision.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("Wallets", t =>
                         {
                             t.HasCheckConstraint("CK_Wallet_Currency", "\"Currency\" = 'COIN'");
+
+                            t.HasCheckConstraint("CK_Wallet_Nonnegative_Balance", "\"Balance\" >= 0");
                         });
                 });
 
@@ -170,6 +263,9 @@ namespace TheLastDecision.Api.Infrastructure.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CorrelationId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
@@ -185,17 +281,31 @@ namespace TheLastDecision.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<Guid>("WalletId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("IdempotencyKey")
+                    b.HasIndex("CorrelationId");
+
+                    b.HasIndex("WalletId", "IdempotencyKey")
                         .IsUnique();
 
-                    b.HasIndex("WalletId");
-
                     b.ToTable("WalletTransactions");
+                });
+
+            modelBuilder.Entity("TheLastDecision.Api.AttributeEvent", b =>
+                {
+                    b.HasOne("TheLastDecision.Api.Character", null)
+                        .WithMany()
+                        .HasForeignKey("CharacterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("TheLastDecision.Api.Character", b =>
