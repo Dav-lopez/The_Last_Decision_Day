@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication;
 using TheLastDecision.Api.Characters;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -22,6 +23,24 @@ builder.Services.AddAuthentication("GameCookie").AddCookie("GameCookie", options
     options.Cookie.SameSite = SameSiteMode.Strict;
     options.Cookie.Path = "/";
     options.LoginPath = "/api/v1/auth/login";
+    options.Events.OnValidatePrincipal = async context =>
+    {
+        var id = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(id, out var userId))
+        {
+            context.RejectPrincipal();
+            await context.HttpContext.SignOutAsync("GameCookie");
+            return;
+        }
+        var db = context.HttpContext.RequestServices.GetRequiredService<GameDbContext>();
+        var enabled = await db.Users.AsNoTracking()
+            .AnyAsync(user => user.Id == userId && !user.IsDisabled);
+        if (!enabled)
+        {
+            context.RejectPrincipal();
+            await context.HttpContext.SignOutAsync("GameCookie");
+        }
+    };
     options.Events.OnRedirectToLogin = ctx =>
     {
         ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -48,7 +67,15 @@ builder.Services.AddRateLimiter(options =>
                 AutoReplenishment = true
             }));
 });
-builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-TOKEN");
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-CSRF-TOKEN";
+    options.Cookie.Name = "__Host-tld-csrf";
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.HttpOnly = true;
+    options.Cookie.Path = "/";
+});
 builder.Services.AddScoped<IPasswordHasher<GameUser>, PasswordHasher<GameUser>>();
 
 var app = builder.Build();
