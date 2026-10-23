@@ -1,0 +1,24 @@
+[Unit]
+Description=The Last Decision ASP.NET Core API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tld
+Group=tld
+WorkingDirectory=/opt/the-last-decision/api
+ExecStart=/opt/the-last-decision/api/TheLastDecision.Api
+Restart=on-failure
+RestartSec=5
+Environment=ASPNETCORE_URLS=http://127.0.0.1:5000
+Environment=ASPNETCORE_ENVIRONMENT=Production
+EnvironmentFile=/etc/the-last-decision/api.env
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/the-last-decision
+
+[Install]
+WantedBy=multi-user.target
