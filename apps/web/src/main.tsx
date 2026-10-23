@@ -173,7 +173,7 @@ function App() {
             {Object.entries(preview.after).map(([name, value]) =>
               <p key={name}>{name}: {preview.before[name]} → {value}</p>)}
             <p>No changes have been saved.</p>
-          </div>
+          </div>}
         </>}
       </>}
       {message && <p className="error" role="alert">{message}</p>}
