@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authentication;
 using TheLastDecision.Api.Characters;
 using System.Threading.RateLimiting;
@@ -24,6 +25,8 @@ if (!string.IsNullOrWhiteSpace(keyDirectory))
         .SetApplicationName("TheLastDecision")
         .PersistKeysToFileSystem(new DirectoryInfo(keyDirectory));
 }
+
+builder.Services.Configure<ForwardedHeadersOptions>(TrustedProxyHeaders.Configure);
 
 builder.Services.AddDbContext<GameDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddScoped<AttributeService>();
@@ -103,6 +106,8 @@ builder.Services.AddAntiforgery(options =>
 builder.Services.AddScoped<IPasswordHasher<GameUser>, PasswordHasher<GameUser>>();
 
 var app = builder.Build();
+// Apply trusted forwarding metadata before authentication, rate limiting, and redirects.
+app.UseForwardedHeaders();
 app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();
