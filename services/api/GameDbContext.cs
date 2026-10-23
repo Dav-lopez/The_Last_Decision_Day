@@ -1,9 +1,12 @@
+using TheLastDecision.Api.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace TheLastDecision.Api;
 
 public sealed class GameDbContext(DbContextOptions<GameDbContext> options) : DbContext(options)
 {
+    public DbSet<GameUser> Users => Set<GameUser>();
+    public DbSet<GameInvite> Invites => Set<GameInvite>();
     public DbSet<Character> Characters => Set<Character>();
     public DbSet<CharacterAttribute> CharacterAttributes => Set<CharacterAttribute>();
     public DbSet<Wallet> Wallets => Set<Wallet>();
@@ -11,6 +14,15 @@ public sealed class GameDbContext(DbContextOptions<GameDbContext> options) : DbC
 
     protected override void OnModelCreating(ModelBuilder b)
     {
+        b.Entity<GameUser>().HasIndex(x => x.EmailNormalized).IsUnique();
+        b.Entity<GameUser>().Property(x => x.EmailNormalized).HasMaxLength(254).IsRequired();
+        b.Entity<GameUser>().Property(x => x.PasswordHash).IsRequired();
+        b.Entity<GameUser>().Property(x => x.DateOfBirth).IsRequired();
+        b.Entity<GameInvite>().HasIndex(x => x.TokenHash).IsUnique();
+        b.Entity<GameInvite>().Property(x => x.TokenHash).HasMaxLength(128).IsRequired();
+        b.Entity<GameInvite>().HasOne<GameUser>().WithMany().HasForeignKey(x => x.RedeemedByUserId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<GameInvite>().HasIndex(x => x.RedeemedByUserId).IsUnique();
+        b.Entity<Character>().HasOne<GameUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
         b.Entity<Character>().HasIndex(x => x.UserId).IsUnique();
         b.Entity<CharacterAttribute>().HasIndex(x => new { x.CharacterId, x.Name }).IsUnique();
         b.Entity<CharacterAttribute>().ToTable(t => t.HasCheckConstraint("CK_Attribute_Range", "\"Value\" >= 0 AND \"Value\" <= 100"));
