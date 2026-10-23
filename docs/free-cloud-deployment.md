@@ -6,7 +6,7 @@ Architecture: Cloudflare Pages (React/Phaser and same-origin /api proxy) → HTT
 
 ## 1. Neon (free PostgreSQL)
 1. Sign up at https://console.neon.tech/ and create a project on the Free plan, preferably near your OCI region.
-2. Copy the **direct** PostgreSQL connection string (not a pooled connection string for EF migrations). Keep it private. For Npgsql, configure a connection string such as `Host=...;Database=...;Username=...;Password=...;SSL Mode=Require`. Use Neon's TLS instructions and certificate verification where supported.
+2. Copy the **direct** PostgreSQL connection string (not a pooled connection string for EF migrations). Keep it private. For Npgsql, configure a connection string such as `Host=...;Database=...;Username=...;Password=...;SSL Mode=VerifyFull`. Use Neon's TLS instructions and certificate verification where supported.
 3. Never put credentials in GitHub commits, Pages environment variables, frontend code, or screenshots. Store the connection string only in the VM environment file.
 
 ## 2. Oracle Cloud VM (Always Free eligible)
@@ -18,15 +18,17 @@ Architecture: Cloudflare Pages (React/Phaser and same-origin /api proxy) → HTT
    ```bash
    sudo useradd --system --home /opt/the-last-decision --shell /usr/sbin/nologin tld
    sudo install -d -o tld -g tld /opt/the-last-decision/api
+   sudo install -d -o tld -g tld -m 700 /var/lib/the-last-decision/keys
    sudo install -d -m 700 /etc/the-last-decision
    sudo touch /etc/the-last-decision/api.env
    sudo chmod 600 /etc/the-last-decision/api.env
    ```
 6. Add the following line to `/etc/the-last-decision/api.env` with the **real** Neon connection string (do not commit this file):
    ```ini
-   ConnectionStrings__GameDb=Host=YOUR_HOST;Database=YOUR_DB;Username=YOUR_USER;Password=YOUR_PASSWORD;SSL Mode=Require
+   ConnectionStrings__GameDb=Host=YOUR_HOST;Database=YOUR_DB;Username=YOUR_USER;Password=YOUR_PASSWORD;SSL Mode=VerifyFull
+   DataProtection__KeysDirectory=/var/lib/the-last-decision/keys
    ```
-   Protect the environment file with root ownership. Avoid shell history containing passwords.
+   Protect the environment file with root ownership. Avoid shell history containing passwords. The data-protection key ring is persisted in a service-user-only directory so cookie sessions survive VM restarts; back up the keys securely and protect them at rest. EF migration commands need the database connection string but not the key directory.
 7. Clone the repository to a temporary working directory on the VM. After PR merge, build the API for your architecture:
    ```bash
    dotnet restore services/api/TheLastDecision.Api.csproj
