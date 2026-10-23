@@ -18,7 +18,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=/opt/the-last-decision
+ReadWritePaths=/var/lib/the-last-decision/keys
 
 [Install]
 WantedBy=multi-user.target
