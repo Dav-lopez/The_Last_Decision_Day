@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TheLastDecision.Api;
+using TheLastDecision.Api.School;
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("GameDb");
@@ -40,5 +41,6 @@ app.MapGet("/api/v1/health/ready", async (GameDbContext db, ILogger<Program> log
         return Results.Json(new { status = "unavailable", database = "connected", schema = "error" }, statusCode: 503);
     }
 });
+app.MapGet("/api/v1/school/activities", () => Results.Ok(SchoolActivities.Catalog));
 app.MapHub<WorldHub>("/hubs/world");
 app.Run();
