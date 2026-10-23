@@ -12,6 +12,8 @@ jobs:
           dotnet-version: '10.0.x'
       - run: dotnet restore services/api/TheLastDecision.Api.csproj
       - run: dotnet build services/api/TheLastDecision.Api.csproj --no-restore
+      - run: dotnet tool restore
+      - run: dotnet ef --version
   web:
     runs-on: ubuntu-latest
     defaults:
@@ -25,3 +27,17 @@ jobs:
       - run: npm install
       - run: npm run typecheck
       - run: npm run build
+  docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start local stack
+        run: docker compose up --build -d
+      - name: Pre-migration smoke test
+        run: bash tests/smoke-pre-migration.sh
+      - name: Show service logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail=100
+      - name: Tear down containers (preserve volumes)
+        if: always()
+        run: docker compose down
