@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Authentication;
 using TheLastDecision.Api.Characters;
 using System.Threading.RateLimiting;
@@ -12,6 +13,17 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("GameDb");
 if (string.IsNullOrWhiteSpace(connectionString))
     throw new InvalidOperationException("ConnectionStrings:GameDb must be configured.");
+
+// Keep authentication/antiforgery key material stable across VM restarts.
+// The configured directory must be writable only by the API service account.
+var keyDirectory = builder.Configuration["DataProtection:KeysDirectory"];
+if (!string.IsNullOrWhiteSpace(keyDirectory))
+{
+    Directory.CreateDirectory(keyDirectory);
+    builder.Services.AddDataProtection()
+        .SetApplicationName("TheLastDecision")
+        .PersistKeysToFileSystem(new DirectoryInfo(keyDirectory));
+}
 
 builder.Services.AddDbContext<GameDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddScoped<AttributeService>();
