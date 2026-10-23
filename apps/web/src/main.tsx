@@ -6,6 +6,7 @@ import './style.css';
 type Profile = { id: string; displayName: string; gameAge: number; attributes: Record<string, number>; coins: number };
 type SchoolActivity = { id: string; title: string; description: string; timeCost: number; changes: { attribute: string; delta: number }[] };
 type ActivityPreview = { activityId: string; timeCost: number; before: Record<string, number>; after: Record<string, number> };
+type SchoolExecutionResult = ActivityPreview & { correlationId: string };
 type Session = { userId: string; email: string };
 type Mode = 'login' | 'register';
 
@@ -42,6 +43,7 @@ async function post<T>(path: string, payload?: unknown): Promise<T> {
 
 function App() {
   const scene = useRef<HTMLDivElement>(null);
+  const pendingAction = useRef<{ activityId: string; key: string } | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [activities, setActivities] = useState<SchoolActivity[]>([]);
@@ -98,6 +100,28 @@ function App() {
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Preview unavailable.'); }
   }
 
+  async function executeActivity(activityId: string) {
+    setBusy(true); setMessage('');
+    try {
+      const key = pendingAction.current?.activityId === activityId
+        ? pendingAction.current.key : crypto.randomUUID();
+      pendingAction.current = { activityId, key };
+      const token = await csrf();
+      const outcome = await request<SchoolExecutionResult>(
+        `/api/v1/school/activities/${encodeURIComponent(activityId)}/execute`, {
+          method: 'POST',
+          headers: { 'X-CSRF-TOKEN': token, 'Idempotency-Key': key },
+        });
+      setProfile(current => current ? { ...current, attributes: outcome.after } : current);
+      setPreview(null);
+      pendingAction.current = null;
+      setMessage('Activity completed. Your updated attributes were saved.');
+    } catch (error) {
+      setMessage((error instanceof Error ? error.message : 'Unable to complete activity.') +
+        ' You can retry the same activity safely.');
+    } finally { setBusy(false); }
+  }
+
   async function authenticate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true); setMessage('');
@@ -107,6 +131,12 @@ function App() {
       const result = await post<Session>(`/api/v1/auth/${mode}`, data);
       setSession(result);
       setProfile(null);
+      if (mode === 'login') {
+        const response = await fetch('/api/v1/characters/me', { credentials: 'same-origin' });
+        if (response.ok) setProfile(await response.json() as Profile);
+        else if (response.status !== 404)
+          setMessage('Signed in, but the character profile could not be loaded. Refresh to retry.');
+      }
       setPassword('');
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Authentication failed.'); }
     finally { setBusy(false); }
@@ -124,7 +154,7 @@ function App() {
 
   async function logout() {
     setBusy(true); setMessage('');
-    try { await post<void>('/api/v1/auth/logout'); setSession(null); setProfile(null); }
+    try { await post<void>('/api/v1/auth/logout'); setSession(null); setProfile(null); pendingAction.current = null; }
     catch (error) { setMessage(error instanceof Error ? error.message : 'Logout failed.'); }
     finally { setBusy(false); }
   }
@@ -163,10 +193,11 @@ function App() {
           <div className="stats">{Object.entries(profile.attributes).map(([name, value]) =>
             <div key={name}><strong>{name}</strong><span>{value}/100</span></div>)}</div>
           <h3>School activities</h3>
-          <p>Explore how your choices could affect your attributes. Previews do not change your character.</p>
+          <p>Preview an outcome or complete an activity to save attribute changes. Time cost is informational; there is not yet a daily time budget.</p>
           <div className="activity-list">{activities.map(activity => <article key={activity.id}>
             <h4>{activity.title}</h4><p>{activity.description} · {activity.timeCost} time units</p>
-            <button type="button" onClick={() => void previewActivity(activity.id)}>Preview outcome</button>
+            <button type="button" disabled={busy} onClick={() => void previewActivity(activity.id)}>Preview outcome</button>
+            <button type="button" disabled={busy} onClick={() => void executeActivity(activity.id)}>Do activity</button>
           </article>)}</div>
           {preview && <div className="preview" aria-live="polite">
             <h4>Projected outcome</h4>
