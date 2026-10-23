@@ -5,7 +5,15 @@ BASE="${1:-http://localhost:8080}"
 fail=0
 check() {
   local name="$1" expected="$2" url="$3" method="${4:-GET}" actual
-  actual="$(curl --silent --output /dev/null --write-out '%{http_code}' --retry 12 --retry-connrefused --retry-delay 2 --max-time 10 -X "$method" "$url")" || actual="000"
+  # Compose can report containers started before nginx/web/API are ready.
+  # Retry the expected HTTP status (including the intentional 503) instead of
+  # relying on curl's transport-only retry rules.
+  actual="000"
+  for attempt in {1..30}; do
+    actual="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 5 -X "$method" "$url")" || actual="000"
+    [[ "$actual" == "$expected" ]] && break
+    sleep 2
+  done
   if [[ "$actual" == "$expected" ]]; then
     printf 'PASS %s (%s)\n' "$name" "$actual"
   else
