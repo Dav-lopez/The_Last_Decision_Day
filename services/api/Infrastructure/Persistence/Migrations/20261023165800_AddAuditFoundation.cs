@@ -70,6 +70,26 @@ namespace TheLastDecision.Api.Infrastructure.Persistence.Migrations
                 },
                 constraints: table => { table.PrimaryKey("PK_IdempotencyRecords", x => x.Id); });
 
+            // Existing characters need a truthful baseline rather than invented
+            // historical changes. Their current values become initial audit events.
+            migrationBuilder.Sql("""
+                INSERT INTO "AttributeEvents"
+                    ("Id", "CharacterId", "Name", "BeforeValue", "AfterValue", "Reason", "CorrelationId", "CreatedAt")
+                SELECT gen_random_uuid(), "CharacterId", "Name", NULL, "Value",
+                    'audit_baseline', "CharacterId", now()
+                FROM "CharacterAttributes";
+                """);
+
+            // Preserve attribution for legacy transactions without retaining
+            // default metadata that could silently mask future callers.
+            migrationBuilder.Sql("""
+                UPDATE "WalletTransactions"
+                SET "CorrelationId" = "Id"
+                WHERE "CorrelationId" = '00000000-0000-0000-0000-000000000000';
+                """);
+            migrationBuilder.Sql("ALTER TABLE \"WalletTransactions\" ALTER COLUMN \"CorrelationId\" DROP DEFAULT;");
+            migrationBuilder.Sql("ALTER TABLE \"WalletTransactions\" ALTER COLUMN \"Reason\" DROP DEFAULT;");
+
             migrationBuilder.CreateIndex(
                 name: "IX_AttributeEvents_CharacterId_CreatedAt", table: "AttributeEvents",
                 columns: new[] { "CharacterId", "CreatedAt" });
