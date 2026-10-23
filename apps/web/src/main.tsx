@@ -7,6 +7,7 @@ type Profile = { id: string; displayName: string; gameAge: number; attributes: R
 type SchoolActivity = { id: string; title: string; description: string; timeCost: number; changes: { attribute: string; delta: number }[] };
 type ActivityPreview = { activityId: string; timeCost: number; before: Record<string, number>; after: Record<string, number> };
 type SchoolExecutionResult = ActivityPreview & { correlationId: string };
+type SchoolHistoryEntry = SchoolExecutionResult & { completedAt: string };
 type Session = { userId: string; email: string };
 type Mode = 'login' | 'register';
 
@@ -47,6 +48,10 @@ function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [activities, setActivities] = useState<SchoolActivity[]>([]);
+  const [history, setHistory] = useState<SchoolHistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
+  const [historyVersion, setHistoryVersion] = useState(0);
   const [preview, setPreview] = useState<ActivityPreview | null>(null);
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
@@ -92,6 +97,21 @@ function App() {
     return () => { active = false; };
   }, [profile]);
 
+  useEffect(() => {
+    if (!profile?.id) {
+      setHistory([]);
+      setHistoryError('');
+      return;
+    }
+    let active = true;
+    setHistoryLoading(true);
+    request<SchoolHistoryEntry[]>('/api/v1/school/history')
+      .then(items => { if (active) { setHistory(items); setHistoryError(''); } })
+      .catch(() => { if (active) setHistoryError('Unable to load saved school activities.'); })
+      .finally(() => { if (active) setHistoryLoading(false); });
+    return () => { active = false; };
+  }, [profile?.id, historyVersion]);
+
   async function previewActivity(activityId: string) {
     setMessage(''); setPreview(null);
     try {
@@ -115,6 +135,7 @@ function App() {
       setProfile(current => current ? { ...current, attributes: outcome.after } : current);
       setPreview(null);
       pendingAction.current = null;
+      setHistoryVersion(version => version + 1);
       setMessage('Activity completed. Your updated attributes were saved.');
     } catch (error) {
       setMessage((error instanceof Error ? error.message : 'Unable to complete activity.') +
@@ -205,6 +226,23 @@ function App() {
               <p key={name}>{name}: {preview.before[name]} → {value}</p>)}
             <p>No changes have been saved.</p>
           </div>}
+          <h3>Recent decisions</h3>
+          <p>Your last 20 completed school activities, saved across sessions.</p>
+          {historyLoading && <p>Loading activity history…</p>}
+          {historyError && <p className="error" role="alert">{historyError}</p>}
+          {!historyLoading && !historyError && history.length === 0 && <p>No completed activities yet.</p>}
+          <ol className="history-list">
+            {history.map(item => <li key={item.correlationId}>
+              <strong>{activities.find(activity => activity.id === item.activityId)?.title ?? item.activityId}</strong>
+              <time dateTime={item.completedAt}>{new Date(item.completedAt).toLocaleString()}</time>
+              <span>{item.timeCost} time units (informational)</span>
+              <ul>{Object.entries(item.after)
+                .filter(([name, value]) => item.before[name] !== value)
+                .map(([name, value]) => <li key={name}>{name}: {item.before[name]} → {value}</li>)}</ul>
+              {Object.entries(item.after).every(([name, value]) => item.before[name] === value) &&
+                <small>No attribute change (already at limit).</small>}
+            </li>)}
+          </ol>
         </>}
       </>}
       {message && <p className="error" role="alert">{message}</p>}
