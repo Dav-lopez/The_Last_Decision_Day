@@ -13,7 +13,7 @@ Architecture: Cloudflare Pages (React/Phaser and same-origin /api proxy) → HTT
 1. Register at https://cloud.oracle.com/ and create an Always Free-eligible Ubuntu VM in your **home region**. Ampere A1 Arm64 or E2 Micro x64 can work; match the .NET runtime identifier to your VM architecture. Capacity is not guaranteed; never select a paid shape by accident.
 2. Add an SSH public key; restrict SSH port 22 to your IP in OCI network rules. Allow inbound TCP 80/443 for Caddy. Do not expose port 5000 or PostgreSQL.
 3. SSH to the VM. Install .NET 10 SDK (for EF tooling), Caddy, and Git from official repositories. Ensure Ubuntu architecture is supported. Install `dotnet-ef` via the repository's tool manifest (`dotnet tool restore`).
-4. Set DNS A record for a hostname you control (e.g. `api.example.com`) to the VM public IPv4 address. Caddy obtains HTTPS certificates once DNS and ports 80/443 are working.
+4. Set DNS A record for a hostname you control (e.g. `api.example.com`) to the VM public IPv4 address. **No paid domain required:** an available free subdomain from https://www.duckdns.org/ (e.g. `your-tld-api.duckdns.org`) can point to the VM public IP; create the name in DuckDNS and update its IP to the VM address. Keep your DuckDNS token private. Replace `api.example.com` in the Caddy configuration and Pages `API_ORIGIN` with that exact hostname. Caddy obtains HTTPS certificates once DNS and ports 80/443 are working. Certificate issuance and free hostname availability are not guaranteed.
 5. Create a dedicated non-login user and restricted directories:
    ```bash
    sudo useradd --system --home /opt/the-last-decision --shell /usr/sbin/nologin tld
@@ -55,3 +55,7 @@ Architecture: Cloudflare Pages (React/Phaser and same-origin /api proxy) → HTT
 - No automatic backend deploy or secrets distribution is configured. Deploying is manual until a secure SSH-based workflow is reviewed.
 - Cloudflare Pages Free has monthly build limits; Neon Free has compute/storage limits; OCI Always Free VM allocation depends on region capacity and account eligibility. Check provider dashboards before incurring any charges.
 - The VM and database are not yet provisioned by this PR. CI builds and migrations against disposable test PostgreSQL do not prove a live cloud deployment.
+
+## 5. Cloudflare proxy validation before merging
+
+The web CI job runs `node --test tests/pages-proxy.test.mjs` to check API URL forwarding, cookies/CSRF headers, and fail-closed origin validation. It also runs `npx --yes wrangler@4.45.0 pages functions build functions --outfile /tmp/tld-pages-worker.mjs` to compile the Pages Function. These checks do not replace an actual Pages deployment test. For optional local Pages emulation after `npm run build`, run `npx wrangler pages dev dist --binding=API_ORIGIN=https://YOUR_API_HOSTNAME` from `apps/web`; it does not require local Docker when the backend is already hosted.
