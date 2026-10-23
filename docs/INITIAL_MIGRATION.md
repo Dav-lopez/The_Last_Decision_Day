@@ -1,27 +1,43 @@
 # Initial EF Core migration
 
-The current repository has **no committed EF Core initial migration**. Readiness must remain HTTP 503 until the schema is initialized.
+The initial migration is committed under `services/api/Infrastructure/Persistence/Migrations/`.
+It creates users, invite tokens, characters, four constrained character attributes,
+wallets and wallet transactions, with their foreign keys and uniqueness constraints.
+Do not generate another `InitialCreate` migration.
 
-## Generate and verify
+## Apply to an existing or new database
 
-With .NET 10 SDK, Docker Desktop and the repository root as your working directory:
+Use the .NET 10 SDK, Docker, and a properly configured PostgreSQL connection string.
+From the repository root:
 
-```powershell
-Copy-Item .env.example .env
+```bash
 docker compose up -d postgres
 dotnet tool restore
-$env:ConnectionStrings__GameDb = "Host=localhost;Port=5432;Database=thelastdecision;Username=tld;Password=change-this-local-password"
-dotnet ef migrations add InitialCreate --project services/api --startup-project services/api --output-dir Infrastructure/Persistence/Migrations
+export ConnectionStrings__GameDb='Host=localhost;Port=5432;Database=thelastdecision;Username=tld;Password=<your-local-password>'
 dotnet ef database update --project services/api --startup-project services/api
 docker compose up --build -d
+bash tests/smoke-post-migration.sh
 ```
 
-Replace the example password with your own local database credentials. Ensure it matches your .env configuration.
+The password must match your local `.env` file; do not commit real credentials.
+Migration application is a deliberate deployment step, not an API startup side effect.
+`/api/v1/health/ready` must return HTTP 503 until the database is migrated,
+then HTTP 200 when all known migrations are applied.
 
-Inspect the generated migration for Character, CharacterAttribute, Wallet and WalletTransaction tables, their keys, foreign keys, uniqueness constraints, and check constraints. Commit both the migration and the EF model snapshot. Do not generate a second InitialCreate migration.
+## Future schema changes
 
-## Validation
+After modifying `GameDbContext` or entity types, create a *new* named migration:
 
-Run the pre-migration smoke test against a fresh database before applying migrations. Once applied, run `bash tests/smoke-post-migration.sh` or inspect `/api/v1/health/ready` for HTTP 200. Avoid `docker compose down -v` unless intentionally deleting local data.
+```bash
+dotnet ef migrations add DescriptiveChange --project services/api --startup-project services/api --output-dir Infrastructure/Persistence/Migrations
+```
 
-**Note:** These instructions are not a substitute for a committed migration; do not mark this milestone complete until the generated files and integration tests are present.
+Commit the generated migration, designer, and updated model snapshot together.
+The CI migration-validation job checks for pending model changes and applies the
+committed migrations against disposable PostgreSQL. It is not a substitute for
+application-level integration tests, backup/restore procedures, or deployment rehearsal.
+
+## Data safety
+
+Never run `docker compose down -v` on a database with data you want to retain.
+Review destructive migrations and take a backup before applying them to persistent data.
