@@ -1,4 +1,4 @@
-name: Who Did That - Contest Game
+name: Who Did That - Flask Multiplayer CI
 on:
   pull_request:
     paths:
@@ -16,10 +16,33 @@ jobs:
         working-directory: games/who-did-that
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v5
         with:
-          node-version: "22"
-      - run: npm install --no-audit --no-fund
-      - run: node --check server.js
-      - run: node --check public/app.js
-      - run: npm test
+          python-version: "3.12"
+      - name: Install runtime dependencies
+        run: pip install -r requirements.txt
+      - name: Check backend and frontend syntax
+        run: |
+          python -m py_compile app.py
+          node --check public/app.js
+      - name: Run multiplayer game integration tests
+        run: python -m unittest discover -s test -p "test_*.py" -v
+      - name: Start Flask and verify health endpoint
+        run: |
+          python app.py > /tmp/who-did-that.log 2>&1 &
+          GAME_PID=$!
+          trap 'kill $GAME_PID || true' EXIT
+          python - <<'PY'
+          import time
+          import urllib.request
+          for attempt in range(30):
+              try:
+                  with urllib.request.urlopen("http://127.0.0.1:3000/health", timeout=3) as r:
+                      assert r.status == 200
+                      print(r.read().decode())
+                      break
+              except Exception:
+                  time.sleep(0.25)
+          else:
+              raise RuntimeError("Health check did not respond")
+          PY
