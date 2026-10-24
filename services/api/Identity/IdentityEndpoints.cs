@@ -89,9 +89,18 @@ public static class IdentityEndpoints
         catch (ArgumentException) { return Results.Unauthorized(); }
         if (string.IsNullOrEmpty(request.Password)) return Results.Unauthorized();
         var user = await db.Users.FirstOrDefaultAsync(x => x.EmailNormalized == email, ct);
-        if (user is null || user.IsDisabled ||
-            hasher.VerifyHashedPassword(user, user.PasswordHash, request.Password) == PasswordVerificationResult.Failed)
+        var verification = LoginPasswordVerification.Verify(hasher, user, request.Password);
+        if (verification == PasswordVerificationResult.Failed || user is null)
             return Results.Unauthorized();
+
+        // ASP.NET Identity can recognize older password hash formats or work factors.
+        // Upgrade only after successful verification; never replace hashes on failure.
+        if (verification == PasswordVerificationResult.SuccessRehashNeeded)
+        {
+            user.PasswordHash = hasher.HashPassword(user, request.Password);
+            await db.SaveChangesAsync(ct);
+        }
+
         await SignIn(context, user);
         return Results.Ok(new AuthResult(user.Id, user.EmailNormalized));
     }

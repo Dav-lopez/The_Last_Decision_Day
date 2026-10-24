@@ -30,3 +30,48 @@ Assert(proxyOptions.KnownProxies.Count == 2 &&
     proxyOptions.KnownProxies.Contains(System.Net.IPAddress.IPv6Loopback),
     "only loopback proxies trusted");
 Assert(proxyOptions.KnownIPNetworks.Count == 0, "no arbitrary forwarded networks trusted");
+
+var countingHasher = new CountingPasswordHasher();
+Assert(LoginPasswordVerification.Verify(countingHasher, null, "wrong-password") ==
+    Microsoft.AspNetCore.Identity.PasswordVerificationResult.Failed &&
+    countingHasher.Verifications == 1,
+    "unknown account runs a decoy hash verification and is rejected");
+var disabledUser = new GameUser { IsDisabled = true, PasswordHash = "test" };
+Assert(LoginPasswordVerification.Verify(countingHasher, disabledUser, "wrong-password") ==
+    Microsoft.AspNetCore.Identity.PasswordVerificationResult.Failed &&
+    countingHasher.Verifications == 2,
+    "disabled account verifies password but cannot authenticate");
+
+var defaultHasher = new Microsoft.AspNetCore.Identity.PasswordHasher<GameUser>();
+var activeUser = new GameUser();
+activeUser.PasswordHash = defaultHasher.HashPassword(activeUser, "correct-horse-battery-staple");
+Assert(LoginPasswordVerification.Verify(defaultHasher, activeUser, "incorrect") ==
+    Microsoft.AspNetCore.Identity.PasswordVerificationResult.Failed,
+    "wrong password rejected");
+Assert(LoginPasswordVerification.Verify(defaultHasher, activeUser, "correct-horse-battery-staple") ==
+    Microsoft.AspNetCore.Identity.PasswordVerificationResult.Success,
+    "valid modern password accepted");
+var legacyHasher = new Microsoft.AspNetCore.Identity.PasswordHasher<GameUser>(
+    Microsoft.Extensions.Options.Options.Create(new Microsoft.AspNetCore.Identity.PasswordHasherOptions
+    {
+        CompatibilityMode = Microsoft.AspNetCore.Identity.PasswordHasherCompatibilityMode.IdentityV2
+    }));
+activeUser.PasswordHash = legacyHasher.HashPassword(activeUser, "legacy-password");
+Assert(LoginPasswordVerification.Verify(defaultHasher, activeUser, "legacy-password") ==
+    Microsoft.AspNetCore.Identity.PasswordVerificationResult.SuccessRehashNeeded,
+    "legacy password hash triggers upgrade after successful verification");
+Assert(LoginPasswordVerification.Verify(defaultHasher, activeUser, "wrong") ==
+    Microsoft.AspNetCore.Identity.PasswordVerificationResult.Failed,
+    "wrong password never triggers a hash upgrade");
+
+sealed class CountingPasswordHasher : Microsoft.AspNetCore.Identity.IPasswordHasher<GameUser>
+{
+    public int Verifications { get; private set; }
+    public string HashPassword(GameUser user, string password) => "test";
+    public Microsoft.AspNetCore.Identity.PasswordVerificationResult VerifyHashedPassword(
+        GameUser user, string hashedPassword, string providedPassword)
+    {
+        Verifications++;
+        return Microsoft.AspNetCore.Identity.PasswordVerificationResult.Success;
+    }
+}
