@@ -74,7 +74,7 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("school", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-                ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                ?? TrustedEdgeClientIp.RateLimitKey(context),
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 20,
@@ -85,7 +85,7 @@ builder.Services.AddRateLimiter(options =>
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddPolicy("auth", context =>
         RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            partitionKey: TrustedEdgeClientIp.RateLimitKey(context),
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 10,
@@ -106,6 +106,14 @@ builder.Services.AddAntiforgery(options =>
 builder.Services.AddScoped<IPasswordHasher<GameUser>, PasswordHasher<GameUser>>();
 
 var app = builder.Build();
+// Check the direct peer before forwarding middleware changes RemoteIpAddress.
+// Only a loopback Caddy connection with a matching Pages edge secret can supply
+// the original browser IP for the auth and anonymous school rate-limit buckets.
+app.Use(async (context, next) =>
+{
+    TrustedEdgeClientIp.Capture(context, app.Configuration["EdgeProxy:SharedSecret"]);
+    await next();
+});
 // Apply trusted forwarding metadata before authentication, rate limiting, and redirects.
 app.UseForwardedHeaders();
 app.UseAuthentication();
