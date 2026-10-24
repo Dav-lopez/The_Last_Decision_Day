@@ -21,9 +21,10 @@ public static class SchoolTimeBudget
         var spent = 0;
         foreach (var entry in history)
         {
-            var activity = SchoolActivities.Catalog.FirstOrDefault(a => a.Id == entry.ActivityId);
-            // Fail closed if a persisted execution is malformed; do not grant free time.
-            if (activity is null || entry.TimeCost != activity.TimeCost || entry.TimeCost <= 0)
+            // Charge the cost committed at execution time, not today's catalog price.
+            // Catalog changes and retired activities must not invalidate prior actions.
+            // Reject nonpositive or implausibly large persisted costs rather than granting free time.
+            if (string.IsNullOrWhiteSpace(entry.ActivityId) || entry.TimeCost <= 0 || entry.TimeCost > DailyLimit)
                 throw new InvalidDataException("Invalid saved school activity.");
             spent = checked(spent + entry.TimeCost);
         }
