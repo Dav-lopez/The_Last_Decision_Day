@@ -91,6 +91,18 @@ public static class SchoolExecutionEndpoints
                 "school:" + activityId, correlationId, ct);
             var response = new SchoolExecutionResult(activityId, preview.TimeCost,
                 preview.Before, preview.After, correlationId);
+            // The completed action and its attribute events commit in the same transaction.
+            // The idempotency record below is only for replay protection.
+            db.SchoolActivityExecutions.Add(new SchoolActivityExecution
+            {
+                CharacterId = character.Id,
+                ActivityId = activityId,
+                TimeCost = response.TimeCost,
+                CorrelationId = correlationId,
+                CreatedAt = now,
+                BeforeJson = JsonSerializer.Serialize(response.Before, JsonOptions),
+                AfterJson = JsonSerializer.Serialize(response.After, JsonOptions)
+            });
             db.IdempotencyRecords.Add(new IdempotencyRecord
             {
                 Scope = scope,
