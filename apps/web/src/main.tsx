@@ -2,13 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import Phaser from 'phaser';
 import './style.css';
+import { canStartSchoolActivity, millisecondsUntilReset, type SchoolTimeBalance } from './schoolTime';
 
 type Profile = { id: string; displayName: string; gameAge: number; attributes: Record<string, number>; coins: number };
 type SchoolActivity = { id: string; title: string; description: string; timeCost: number; changes: { attribute: string; delta: number }[] };
 type ActivityPreview = { activityId: string; timeCost: number; before: Record<string, number>; after: Record<string, number> };
 type SchoolExecutionResult = ActivityPreview & { correlationId: string };
 type SchoolHistoryEntry = SchoolExecutionResult & { completedAt: string };
-type SchoolTimeBalance = { dailyLimit: number; spent: number; remaining: number; resetsAt: string };
 type Session = { userId: string; email: string };
 type Mode = 'login' | 'register';
 
@@ -119,11 +119,35 @@ function App() {
     if (!profile?.id) { setTimeBalance(null); setTimeError(''); return; }
     let active = true;
     setTimeBalance(null);
+    setTimeError('');
     request<SchoolTimeBalance>('/api/v1/school/time')
       .then(balance => { if (active) { setTimeBalance(balance); setTimeError(''); } })
       .catch(() => { if (active) setTimeError('Unable to load school time. Refresh to retry.'); });
     return () => { active = false; };
   }, [profile?.id, historyVersion]);
+
+  // Refresh server-authoritative school time after UTC midnight, including when a
+  // background tab sleeps through the timer. Never use yesterday's budget to
+  // enable new activity buttons while a fresh balance is loading.
+  useEffect(() => {
+    if (!profile?.id || !timeBalance) return;
+    const delay = millisecondsUntilReset(timeBalance);
+    if (delay === null) return;
+
+    const refreshIfExpired = () => {
+      if (millisecondsUntilReset(timeBalance) === 0)
+        setHistoryVersion(version => version + 1);
+    };
+    const timer = window.setTimeout(refreshIfExpired, Math.min(delay + 100, 2_147_483_647));
+    const onVisible = () => { if (!document.hidden) refreshIfExpired(); };
+    window.addEventListener('focus', refreshIfExpired);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('focus', refreshIfExpired);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [profile?.id, timeBalance?.resetsAt]);
 
   async function previewActivity(activityId: string) {
     setMessage(''); setPreview(null);
@@ -236,7 +260,7 @@ function App() {
           <div className="activity-list">{activities.map(activity => <article key={activity.id}>
             <h4>{activity.title}</h4><p>{activity.description} · {activity.timeCost} time units</p>
             <button type="button" disabled={busy} onClick={() => void previewActivity(activity.id)}>Preview outcome</button>
-            <button type="button" disabled={busy || !timeBalance || timeBalance.remaining < activity.timeCost} onClick={() => void executeActivity(activity.id)}>Do activity ({activity.timeCost} time)</button>
+            <button type="button" disabled={busy || !canStartSchoolActivity(timeBalance, activity.timeCost)} onClick={() => void executeActivity(activity.id)}>Do activity ({activity.timeCost} time)</button>
           </article>)}</div>
           {preview && <div className="preview" aria-live="polite">
             <h4>Projected outcome</h4>
