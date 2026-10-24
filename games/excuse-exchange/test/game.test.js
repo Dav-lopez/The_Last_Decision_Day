@@ -6,35 +6,43 @@ const { WebSocket } = require("ws");
 const { server, rooms } = require("../server.js");
 let port;
 const clients = [];
-test.before(async () => {
-  server.listen(0, "127.0.0.1");
-  await once(server, "listening");
-  port = server.address().port;
-});
-test.after(async () => {
-  for (const ws of clients) ws.terminate();
-  await new Promise(resolve => server.close(resolve));
-});
+const queues = new WeakMap();
+const notifications = new WeakMap();
 async function socket() {
   const ws = new WebSocket("ws://127.0.0.1:" + port + "/ws");
   clients.push(ws);
+  queues.set(ws, []);
+  notifications.set(ws, new Set());
+  ws.on("message", bytes => {
+    try {
+      const queue = queues.get(ws);
+      queue.push(JSON.parse(bytes.toString()));
+      if (queue.length > 150) queue.shift();
+      for (const notify of [...notifications.get(ws)]) notify();
+    } catch {}
+  });
   await once(ws, "open");
   return ws;
 }
 function post(ws, message) { ws.send(JSON.stringify(message)); }
 function waitFor(ws, predicate, timeout = 4000) {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      ws.off("message", onMessage);
-      reject(new Error("WebSocket message timed out"));
-    }, timeout);
-    function onMessage(bytes) {
-      let data;
-      try { data = JSON.parse(bytes.toString()); } catch { return; }
-      if (!predicate(data)) return;
-      clearTimeout(timer); ws.off("message", onMessage); resolve(data);
+    const queue = queues.get(ws);
+    let timer;
+    function check() {
+      const index = queue.findIndex(predicate);
+      if (index < 0) return;
+      const value = queue.splice(index, 1)[0];
+      clearTimeout(timer);
+      notifications.get(ws).delete(check);
+      resolve(value);
     }
-    ws.on("message", onMessage);
+    notifications.get(ws).add(check);
+    timer = setTimeout(() => {
+      notifications.get(ws).delete(check);
+      reject(new Error("WebSocket message timed out (cached messages: " + queue.map(p => p.type + ":" + (p.phase || "")).join(",") + ")"));
+    }, timeout);
+    check();
   });
 }
 function uid() { return "t-" + Math.random().toString(36).slice(2) + "-" + Date.now(); }
