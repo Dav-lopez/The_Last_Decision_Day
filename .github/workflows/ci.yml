@@ -77,3 +77,5 @@ jobs:
       - run: dotnet tool restore
       - name: Validate committed migration and apply to disposable PostgreSQL
         run: bash scripts/verify-ef-migration.sh
+      - name: Test PostgreSQL gameplay persistence and idempotency
+        run: dotnet run --project tests/PostgresIntegration.Tests/PostgresIntegration.Tests.csproj
