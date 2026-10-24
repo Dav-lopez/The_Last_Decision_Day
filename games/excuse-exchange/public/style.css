@@ -152,6 +152,16 @@ input::placeholder, textarea::placeholder { color: #7b849f; }
   font-weight: 800; letter-spacing: .08em; }
 .wildcard strong { background: #48395e; color: var(--yellow); padding: 8px 12px; border-radius: 8px; }
 .wildcard span { font-size: 11px; font-weight: 500; color: #b3bbd1; letter-spacing: 0; }
+.role-secret { margin-top: 20px; background: #343154; border: 1px solid #8576bf;
+  padding: 18px 20px; border-radius: 13px; box-shadow: inset 4px 0 0 var(--pink); }
+.role-kicker { display: block; color: var(--pink); font-size: 10px; font-weight: 800;
+  letter-spacing: .12em; margin-bottom: 8px; }
+.role-secret strong { display: block; font-family: "Space Grotesk",sans-serif; font-size: 23px;
+  letter-spacing: -.04em; color: #f5e9ff; }
+.role-secret p { margin: 6px 0 0; font-size: 13px; }
+.role-secret p b { color: var(--yellow); }
+.role-reveal { margin-top: 15px; padding-top: 10px; border-top: 1px dashed #676182;
+  color: var(--pink); font-size: 10px; font-weight: 800; letter-spacing: .09em; }
 .write-box { background: #252a49; padding: 23px; border-radius: 19px; }
 .write-box label { font-weight: 800; font-size: 10px; letter-spacing: .13em; display: block; margin-bottom: 12px; }
 textarea { resize: vertical; min-height: 115px; font-size: 17px; line-height: 1.55; }
