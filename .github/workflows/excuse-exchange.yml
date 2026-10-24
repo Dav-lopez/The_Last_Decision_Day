@@ -1,0 +1,27 @@
+name: The Excuse Exchange - Multiplayer CI
+
+on:
+  push:
+    paths:
+      - "games/excuse-exchange/**"
+      - ".github/workflows/excuse-exchange.yml"
+  pull_request:
+    paths:
+      - "games/excuse-exchange/**"
+      - ".github/workflows/excuse-exchange.yml"
+jobs:
+  game:
+    name: realtime gameplay tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: games/excuse-exchange
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-audit --no-fund
+      - run: node --check server.js
+      - run: node --check public/app.js
+      - run: npm test
