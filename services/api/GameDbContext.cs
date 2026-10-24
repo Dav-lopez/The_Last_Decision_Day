@@ -13,6 +13,7 @@ public sealed class GameDbContext(DbContextOptions<GameDbContext> options) : DbC
     public DbSet<WalletTransaction> WalletTransactions => Set<WalletTransaction>();
     public DbSet<AttributeEvent> AttributeEvents => Set<AttributeEvent>();
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
+    public DbSet<SchoolActivityExecution> SchoolActivityExecutions => Set<SchoolActivityExecution>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -59,6 +60,15 @@ public sealed class GameDbContext(DbContextOptions<GameDbContext> options) : DbC
         b.Entity<IdempotencyRecord>().Property(x => x.Key).HasMaxLength(128).IsRequired();
         b.Entity<IdempotencyRecord>().Property(x => x.RequestHash).HasMaxLength(128).IsRequired();
         b.Entity<IdempotencyRecord>().Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+        b.Entity<SchoolActivityExecution>().HasOne<Character>().WithMany().HasForeignKey(x => x.CharacterId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<SchoolActivityExecution>().HasIndex(x => x.CorrelationId).IsUnique();
+        b.Entity<SchoolActivityExecution>().HasIndex(x => new { x.CharacterId, x.CreatedAt, x.Id }).IsDescending(false, true, true);
+        b.Entity<SchoolActivityExecution>().Property(x => x.ActivityId).HasMaxLength(64).IsRequired();
+        b.Entity<SchoolActivityExecution>().Property(x => x.BeforeJson).IsRequired();
+        b.Entity<SchoolActivityExecution>().Property(x => x.AfterJson).IsRequired();
+        b.Entity<SchoolActivityExecution>().Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+        b.Entity<SchoolActivityExecution>().ToTable(t => t.HasCheckConstraint("CK_SchoolExecution_ValidCharge", "\"TimeCost\" BETWEEN 1 AND 8"));
+        b.Entity<SchoolActivityExecution>().ToTable(t => t.HasCheckConstraint("CK_SchoolExecution_ActivityId", "char_length(\"ActivityId\") BETWEEN 1 AND 64"));
     }
 }
 public sealed class Character
@@ -112,4 +122,17 @@ public sealed class IdempotencyRecord
     public string? ResponseJson { get; set; }
     public Guid CorrelationId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>Durable completed school action; independent of retry-key retention.</summary>
+public sealed class SchoolActivityExecution
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CharacterId { get; set; }
+    public string ActivityId { get; set; } = "";
+    public int TimeCost { get; set; }
+    public Guid CorrelationId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public string BeforeJson { get; set; } = "";
+    public string AfterJson { get; set; } = "";
 }

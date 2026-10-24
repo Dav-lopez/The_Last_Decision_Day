@@ -16,17 +16,20 @@ public static class SchoolTimeBudget
     public static DateTimeOffset StartOfUtcDay(DateTimeOffset now) =>
         new(now.UtcDateTime.Date, TimeSpan.Zero);
 
-    public static SchoolTimeBalance Calculate(IEnumerable<SchoolActivityHistoryEntry> history, DateTimeOffset now)
+    public static SchoolTimeBalance Calculate(IEnumerable<SchoolActivityHistoryEntry> history, DateTimeOffset now) =>
+        CalculateCharges(history.Select(e => (e.ActivityId, e.TimeCost)), now);
+
+    public static SchoolTimeBalance CalculateCharges(
+        IEnumerable<(string ActivityId, int TimeCost)> charges, DateTimeOffset now)
     {
         var spent = 0;
-        foreach (var entry in history)
+        foreach (var (activityId, timeCost) in charges)
         {
-            // Charge the cost committed at execution time, not today's catalog price.
-            // Catalog changes and retired activities must not invalidate prior actions.
-            // Reject nonpositive or implausibly large persisted costs rather than granting free time.
-            if (string.IsNullOrWhiteSpace(entry.ActivityId) || entry.TimeCost <= 0 || entry.TimeCost > DailyLimit)
+            // Historical costs are immutable even if the catalog changes.
+            if (string.IsNullOrWhiteSpace(activityId) || timeCost <= 0 || timeCost > DailyLimit)
                 throw new InvalidDataException("Invalid saved school activity.");
-            spent = checked(spent + entry.TimeCost);
+            try { spent = checked(spent + timeCost); }
+            catch (OverflowException) { throw new InvalidDataException("Invalid saved school time total."); }
         }
         return new SchoolTimeBalance(DailyLimit, spent, Math.Max(0, DailyLimit - spent),
             StartOfUtcDay(now).AddDays(1));
@@ -40,26 +43,12 @@ public static class SchoolTimeBudget
     {
         var start = StartOfUtcDay(now);
         var end = start.AddDays(1);
-        var scope = "school:" + characterId.ToString("N");
-        var records = await db.IdempotencyRecords.AsNoTracking()
-            .Where(r => r.Scope == scope && r.CreatedAt >= start && r.CreatedAt < end)
-            // Only the persisted result and verification metadata are needed to calculate time.
-            .Select(r => new IdempotencyRecord
-            {
-                ResponseJson = r.ResponseJson,
-                CorrelationId = r.CorrelationId,
-                CreatedAt = r.CreatedAt
-            })
+        // Durable rows are the source of truth; retry records may be expired safely.
+        var charges = await db.SchoolActivityExecutions.AsNoTracking()
+            .Where(r => r.CharacterId == characterId && r.CreatedAt >= start && r.CreatedAt < end)
+            .Select(r => new { r.ActivityId, r.TimeCost })
             .ToListAsync(ct);
-        var history = new List<SchoolActivityHistoryEntry>(records.Count);
-        foreach (var record in records)
-        {
-            var parsed = SchoolHistoryEndpoints.Parse(record);
-            if (parsed is null)
-                throw new InvalidDataException("Invalid saved school activity.");
-            history.Add(parsed);
-        }
-        return Calculate(history, now);
+        return CalculateCharges(charges.Select(r => (r.ActivityId, r.TimeCost)), now);
     }
 
     public static void MapSchoolTimeEndpoints(this WebApplication app)

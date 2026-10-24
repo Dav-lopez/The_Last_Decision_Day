@@ -232,6 +232,55 @@ namespace TheLastDecision.Api.Infrastructure.Persistence.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("TheLastDecision.Api.SchoolActivityExecution", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ActivityId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("AfterJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("CharacterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<int>("TimeCost")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CharacterId", "CreatedAt", "Id")
+                        .IsDescending(false, true, true);
+
+                    b.HasIndex("CorrelationId")
+                        .IsUnique();
+
+                    b.ToTable("SchoolActivityExecutions", t =>
+                        {
+                            t.HasCheckConstraint("CK_SchoolExecution_ActivityId", "char_length(\"ActivityId\") BETWEEN 1 AND 64");
+
+                            t.HasCheckConstraint("CK_SchoolExecution_ValidCharge", "\"TimeCost\" BETWEEN 1 AND 8");
+                        });
+                });
+
             modelBuilder.Entity("TheLastDecision.Api.Wallet", b =>
                 {
                     b.Property<Guid>("Id")
@@ -335,6 +384,15 @@ namespace TheLastDecision.Api.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("RedeemedByUserId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("TheLastDecision.Api.SchoolActivityExecution", b =>
+                {
+                    b.HasOne("TheLastDecision.Api.Character", null)
+                        .WithMany()
+                        .HasForeignKey("CharacterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("TheLastDecision.Api.Wallet", b =>
