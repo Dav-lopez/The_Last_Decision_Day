@@ -32,6 +32,16 @@ const scenarios = [
   "A time traveler has demanded a refund for next Tuesday."
 ];
 const wildcards = ["banana", "grandma", "glitter", "spaghetti", "goose", "socks", "wifi", "potato", "unicorn", "microwave", "pigeon", "taxes"];
+const roleDeck = [
+  { name: "COMPANY LAWYER", hint: "Work the word allegedly into your excuse.", keyword: "allegedly", emoji: "⚖️" },
+  { name: "ALIEN CONSULTANT", hint: "Blame aliens at least once.", keyword: "aliens", emoji: "👽" },
+  { name: "UNPAID INTERN", hint: "Use the word intern in your defense.", keyword: "intern", emoji: "☕" },
+  { name: "RECEIPT WIZARD", hint: "Somehow mention a receipt.", keyword: "receipt", emoji: "🧾" },
+  { name: "GOOSE NEGOTIATOR", hint: "Involve a goose in the cover-up.", keyword: "goose", emoji: "🪿" },
+  { name: "PR MANAGER", hint: "Issue a statement as part of your excuse.", keyword: "statement", emoji: "📢" },
+  { name: "IT SUPPORT", hint: "Suggest a restart somewhere.", keyword: "restart", emoji: "💻" },
+  { name: "BUDGET DETECTIVE", hint: "Bring up an invoice.", keyword: "invoice", emoji: "💰" }
+];
 const botNames = ["Captain Oops", "Auntie Chaos", "Professor Panic"];
 const botExcuses = [
   "The banana was acting CEO and signed the paperwork in glitter.",
@@ -76,6 +86,7 @@ function publicState(room, playerId) {
     isHost: room.hostId === playerId, yourName: player?.name || "",
     submitted: room.answers.has(playerId), voted: room.votes.has(playerId),
     answerCount: room.answers.size, voteCount: room.votes.size,
+    yourRole: room.roles?.get(playerId) || null,
     choices: ["vote", "reveal", "final"].includes(room.phase) ? entries(room) : [],
     yourAnswerId: room.answers.get(playerId)?.publicId || null,
     results: room.phase === "reveal" || room.phase === "final" ? room.results : null
@@ -102,7 +113,7 @@ function newRoom(ws, msg) {
   const room = {
     code: roomCode, hostId: token, players: new Map([[token, player]]),
     phase: "lobby", round: 0, prompt: "", wildcard: "", endsAt: null,
-    answers: new Map(), votes: new Map(), results: null, touched: Date.now(), used: new Set()
+    answers: new Map(), votes: new Map(), roles: new Map(), results: null, touched: Date.now(), used: new Set()
   };
   rooms.set(roomCode, room);
   ws.roomCode = roomCode; ws.playerId = token;
@@ -158,9 +169,17 @@ function startRound(room) {
   room.answers = new Map();
   room.votes = new Map();
   room.results = null;
+  room.roles = new Map();
+  const shuffled = [...roleDeck];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(i + 1);
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  let roleIndex = 0;
+  for (const p of room.players.values()) room.roles.set(p.id, shuffled[roleIndex++ % shuffled.length]);
   for (const p of room.players.values()) if (p.bot) {
     const base = botExcuses[crypto.randomInt(botExcuses.length)];
-    const text = base + " Also, " + room.wildcard + ".";
+    const text = base + " Also, " + room.wildcard + ". And " + room.roles.get(p.id).keyword + ".";
     room.answers.set(p.id, { text: text.slice(0, 180), publicId: crypto.randomUUID() });
   }
   broadcast(room);
@@ -194,11 +213,13 @@ function reveal(room) {
   for (const [id, answer] of room.answers) {
     const votes = counts.get(answer.publicId) || 0;
     const bonus = answer.text.toLowerCase().includes(room.wildcard.toLowerCase()) ? 1 : 0;
-    const gained = votes * 3 + bonus;
+    const role = room.roles.get(id);
+    const roleBonus = role && answer.text.toLowerCase().includes(role.keyword) ? 2 : 0;
+    const gained = votes * 3 + bonus + roleBonus;
     const player = room.players.get(id);
     if (player) player.score += gained;
     results.push({ id: answer.publicId, author: player?.name || "Unknown",
-      authorId: id, text: answer.text, votes, bonus, gained });
+      authorId: id, text: answer.text, votes, bonus, role: role?.name || "", roleBonus, gained });
   }
   results.sort((a, b) => b.votes - a.votes || b.gained - a.gained);
   room.results = results;
