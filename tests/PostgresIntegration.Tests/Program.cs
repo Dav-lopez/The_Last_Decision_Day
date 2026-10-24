@@ -102,8 +102,8 @@ await using (var transaction = await db.Database.BeginTransactionAsync())
         TimeCost = 3,
         CorrelationId = correlation,
         CreatedAt = completedAt,
-        BeforeJson = "{\\"Intelligence\\":20}",
-        AfterJson = "{\\"Intelligence\\":25}"
+        BeforeJson = "{\"Intelligence\":20}",
+        AfterJson = "{\"Intelligence\":25}"
     };
     db.SchoolActivityExecutions.Add(action);
     var retry = new IdempotencyRecord {
