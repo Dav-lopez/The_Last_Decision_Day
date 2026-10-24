@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using TheLastDecision.Api;
+using TheLastDecision.Api.Identity;
+using TheLastDecision.Api.School;
 
 var connection = Environment.GetEnvironmentVariable("ConnectionStrings__GameDb");
 if (string.IsNullOrWhiteSpace(connection))
@@ -79,6 +81,77 @@ await using (var indexConnection = new NpgsqlConnection(connection))
         indexDefinition.Contains(@"""CreatedAt"" DESC", StringComparison.Ordinal) &&
         indexDefinition.Contains(@"""Id"" DESC", StringComparison.Ordinal),
         "PostgreSQL has scope-prefixed, newest-first school read index");
+}
+
+// Durable execution rows must remain queryable after retry records are removed.
+var testUser = new GameUser {
+    EmailNormalized = "SCHOOL-" + Guid.NewGuid().ToString("N") + "@EXAMPLE.TEST",
+    PasswordHash = "test-only-hash",
+    DateOfBirth = new DateOnly(1990, 1, 1)
+};
+var testCharacter = new Character { UserId = testUser.Id, DisplayName = "School Test" };
+var completedAt = DateTimeOffset.UtcNow;
+var correlation = Guid.NewGuid();
+await using (var transaction = await db.Database.BeginTransactionAsync())
+{
+    db.Users.Add(testUser);
+    db.Characters.Add(testCharacter);
+    var action = new SchoolActivityExecution {
+        CharacterId = testCharacter.Id,
+        ActivityId = "retired-activity",
+        TimeCost = 3,
+        CorrelationId = correlation,
+        CreatedAt = completedAt,
+        BeforeJson = "{\\"Intelligence\\":20}",
+        AfterJson = "{\\"Intelligence\\":25}"
+    };
+    db.SchoolActivityExecutions.Add(action);
+    var retry = new IdempotencyRecord {
+        Scope = "school:" + testCharacter.Id.ToString("N"),
+        Key = Guid.NewGuid().ToString("N"),
+        RequestHash = "integration-request",
+        CorrelationId = correlation,
+        CreatedAt = completedAt,
+        ResponseJson = "{}"
+    };
+    db.IdempotencyRecords.Add(retry);
+    await db.SaveChangesAsync();
+    db.ChangeTracker.Clear();
+
+    var balance = await SchoolTimeBudget.LoadAsync(db, testCharacter.Id, completedAt, CancellationToken.None);
+    Check(balance.Spent == 3 && balance.Remaining == 5,
+        "Daily time derives from durable completed actions, including retired catalog items");
+    var historyRow = await db.SchoolActivityExecutions.AsNoTracking()
+        .SingleAsync(x => x.CorrelationId == correlation);
+    var historyEntry = SchoolHistoryEndpoints.Parse(historyRow);
+    Check(historyEntry is not null && historyEntry.ActivityId == "retired-activity" &&
+        historyEntry.Before["Intelligence"] == 20 && historyEntry.After["Intelligence"] == 25,
+        "Durable school history preserves attribute snapshots");
+
+    db.IdempotencyRecords.Remove(await db.IdempotencyRecords.SingleAsync(x => x.Id == retry.Id));
+    await db.SaveChangesAsync();
+    db.ChangeTracker.Clear();
+    balance = await SchoolTimeBudget.LoadAsync(db, testCharacter.Id, completedAt, CancellationToken.None);
+    Check(balance.Spent == 3 && await db.SchoolActivityExecutions.AnyAsync(x => x.CorrelationId == correlation),
+        "Purging retry protection cannot erase completed school time or history");
+    await transaction.RollbackAsync();
+}
+db.ChangeTracker.Clear();
+Check(!await db.SchoolActivityExecutions.AnyAsync(x => x.CorrelationId == correlation),
+    "Rolling back school execution transaction removes durable action");
+await using (var indexConnection = new NpgsqlConnection(connection))
+{
+    await indexConnection.OpenAsync();
+    await using var indexCommand = new NpgsqlCommand(
+        "SELECT indexdef FROM pg_indexes WHERE schemaname = current_schema() " +
+        "AND tablename = 'SchoolActivityExecutions' " +
+        "AND indexname = 'IX_SchoolActivityExecutions_CharacterId_CreatedAt_Id'", indexConnection);
+    var indexDefinition = (string?)await indexCommand.ExecuteScalarAsync();
+    Check(indexDefinition is not null &&
+        indexDefinition.Contains(@"""CharacterId""", StringComparison.Ordinal) &&
+        indexDefinition.Contains(@"""CreatedAt"" DESC", StringComparison.Ordinal) &&
+        indexDefinition.Contains(@"""Id"" DESC", StringComparison.Ordinal),
+        "Durable school history has a per-character newest-first PostgreSQL index");
 }
 
 Console.WriteLine("PostgreSQL gameplay persistence integration checks passed.");
