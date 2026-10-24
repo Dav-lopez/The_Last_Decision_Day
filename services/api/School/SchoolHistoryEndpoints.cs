@@ -36,23 +36,12 @@ public static class SchoolHistoryEndpoints
         if (characterId is null)
             return Results.NotFound(new { error = "Create a character first." });
 
-        // Scope is derived exclusively from the authenticated user's character.
-        // Read the persisted idempotency responses: they represent completed actions,
-        // including activities that changed no attributes because values were capped.
-        var scope = "school:" + characterId.Value.ToString("N");
-        var records = await db.IdempotencyRecords.AsNoTracking()
-            .Where(r => r.Scope == scope && r.ResponseJson != null)
+        // Durable history survives idempotency-key retention and catalog changes.
+        var records = await db.SchoolActivityExecutions.AsNoTracking()
+            .Where(r => r.CharacterId == characterId.Value)
             .OrderByDescending(r => r.CreatedAt)
             .ThenByDescending(r => r.Id)
             .Take(MaxHistoryItems)
-            // Avoid fetching request hashes, keys and other unused persistence columns.
-            .Select(r => new IdempotencyRecord
-            {
-                Id = r.Id,
-                ResponseJson = r.ResponseJson,
-                CorrelationId = r.CorrelationId,
-                CreatedAt = r.CreatedAt
-            })
             .ToListAsync(ct);
 
         var history = new List<SchoolActivityHistoryEntry>(records.Count);
@@ -69,7 +58,24 @@ public static class SchoolHistoryEndpoints
         return Results.Ok(history);
     }
 
-    // Exposed for regression tests without requiring a live database.
+    // Parse persisted snapshots; no lookup against the current catalog.
+    public static SchoolActivityHistoryEntry? Parse(SchoolActivityExecution record)
+    {
+        try
+        {
+            var before = JsonSerializer.Deserialize<Dictionary<string, int>>(record.BeforeJson, JsonOptions);
+            var after = JsonSerializer.Deserialize<Dictionary<string, int>>(record.AfterJson, JsonOptions);
+            if (before is null || after is null || string.IsNullOrWhiteSpace(record.ActivityId) ||
+                record.TimeCost <= 0 || record.TimeCost > SchoolTimeBudget.DailyLimit ||
+                record.CorrelationId == Guid.Empty)
+                return null;
+            return new SchoolActivityHistoryEntry(record.ActivityId, record.TimeCost,
+                before, after, record.CorrelationId, record.CreatedAt);
+        }
+        catch (JsonException) { return null; }
+    }
+
+    // Legacy parser retained for regression coverage and migration diagnostics.
     public static SchoolActivityHistoryEntry? Parse(IdempotencyRecord record)
     {
         if (string.IsNullOrWhiteSpace(record.ResponseJson))
