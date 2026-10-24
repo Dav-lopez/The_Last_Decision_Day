@@ -75,9 +75,9 @@ await using (var indexConnection = new NpgsqlConnection(connection))
         "AND indexname = 'IX_IdempotencyRecords_Scope_CreatedAt_Id'", indexConnection);
     var indexDefinition = (string?)await indexCommand.ExecuteScalarAsync();
     Check(indexDefinition is not null &&
-        indexDefinition.Contains("\\\"Scope\\\"", StringComparison.Ordinal) &&
-        indexDefinition.Contains("\\\"CreatedAt\\\" DESC", StringComparison.Ordinal) &&
-        indexDefinition.Contains("\\\"Id\\\" DESC", StringComparison.Ordinal),
+        indexDefinition.Contains(@"""Scope""", StringComparison.Ordinal) &&
+        indexDefinition.Contains(@"""CreatedAt"" DESC", StringComparison.Ordinal) &&
+        indexDefinition.Contains(@"""Id"" DESC", StringComparison.Ordinal),
         "PostgreSQL has scope-prefixed, newest-first school read index");
 }
 
