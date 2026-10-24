@@ -42,6 +42,13 @@ public static class SchoolTimeBudget
         var scope = "school:" + characterId.ToString("N");
         var records = await db.IdempotencyRecords.AsNoTracking()
             .Where(r => r.Scope == scope && r.CreatedAt >= start && r.CreatedAt < end)
+            // Only the persisted result and verification metadata are needed to calculate time.
+            .Select(r => new IdempotencyRecord
+            {
+                ResponseJson = r.ResponseJson,
+                CorrelationId = r.CorrelationId,
+                CreatedAt = r.CreatedAt
+            })
             .ToListAsync(ct);
         var history = new List<SchoolActivityHistoryEntry>(records.Count);
         foreach (var record in records)
