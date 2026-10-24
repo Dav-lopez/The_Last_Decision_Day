@@ -6,6 +6,17 @@ const { WebSocket } = require("ws");
 const { server, rooms } = require("../server.js");
 let port;
 const clients = [];
+test.before(async () => {
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  port = server.address().port;
+});
+test.after(async () => {
+  for (const ws of clients) ws.terminate();
+  await new Promise(resolve => server.close(resolve));
+});
 const queues = new WeakMap();
 const notifications = new WeakMap();
 async function socket() {
