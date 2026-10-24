@@ -15,8 +15,10 @@ services:
     build: {context: ., dockerfile: infrastructure/docker/api.Dockerfile}
     environment:
       ASPNETCORE_URLS: http://+:8080
+      DataProtection__KeysDirectory: /app/keys
       ConnectionStrings__GameDb: Host=postgres;Database=${POSTGRES_DB:-thelastdecision};Username=${POSTGRES_USER:-tld};Password=${POSTGRES_PASSWORD:-change-this-local-password}
     depends_on: {postgres: {condition: service_healthy}}
+    volumes: [api_data_protection_keys:/app/keys]
   web:
     build: {context: ., dockerfile: infrastructure/docker/web.Dockerfile}
   proxy:
@@ -24,4 +26,6 @@ services:
     ports: ["8080:80"]
     volumes: ["./infrastructure/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro"]
     depends_on: [web, api]
-volumes: {postgres_data: {}}
+volumes:
+  postgres_data:
+  api_data_protection_keys:
