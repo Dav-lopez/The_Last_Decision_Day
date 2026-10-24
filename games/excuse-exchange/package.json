@@ -1,0 +1,17 @@
+{
+  "name": "the-excuse-exchange",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Realtime no-login party game: absurd crisis, anonymous alibis, and group voting.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.3"
+  }
+}
