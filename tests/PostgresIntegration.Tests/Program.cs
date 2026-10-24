@@ -230,7 +230,7 @@ await using (var auditTx = await db.Database.BeginTransactionAsync())
     try
     {
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE \\"AttributeEvents\\" SET \\"AfterValue\\" = 26 WHERE \\"Id\\" = {auditEvent.Id}");
+            $@"UPDATE ""AttributeEvents"" SET ""AfterValue"" = 26 WHERE ""Id"" = {auditEvent.Id}");
         throw new Exception("FAIL: PostgreSQL permitted an audit event UPDATE");
     }
     catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.CheckViolation)
@@ -243,7 +243,7 @@ await using (var auditTx = await db.Database.BeginTransactionAsync())
     try
     {
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"DELETE FROM \\"AttributeEvents\\" WHERE \\"Id\\" = {auditEvent.Id}");
+            $@"DELETE FROM ""AttributeEvents"" WHERE ""Id"" = {auditEvent.Id}");
         throw new Exception("FAIL: PostgreSQL permitted an audit event DELETE");
     }
     catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.CheckViolation)
