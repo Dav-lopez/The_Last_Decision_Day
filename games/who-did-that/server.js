@@ -215,7 +215,7 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, {
       "Content-Type": item[1], "Cache-Control": "no-cache",
       "X-Content-Type-Options": "nosniff",
-      "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' ws: wss:; object-src 'none'; frame-ancestors 'none'"
+      "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ws: wss:; object-src 'none'; frame-ancestors 'none'"
     });
     res.end(data);
   });
