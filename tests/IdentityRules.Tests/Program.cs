@@ -31,6 +31,17 @@ Assert(proxyOptions.KnownProxies.Count == 2 &&
     "only loopback proxies trusted");
 Assert(proxyOptions.KnownIPNetworks.Count == 0, "no arbitrary forwarded networks trusted");
 
+Assert(RegistrationDatabaseErrors.IsConflictSqlState("40001"),
+    "registration treats serialization failure as a retryable conflict");
+Assert(RegistrationDatabaseErrors.IsConflictSqlState("40P01"),
+    "registration treats PostgreSQL deadlock as a retryable conflict");
+Assert(RegistrationDatabaseErrors.IsConflictSqlState("23505"),
+    "registration treats uniqueness race as a conflict");
+Assert(!RegistrationDatabaseErrors.IsConflictSqlState("08006") &&
+       !RegistrationDatabaseErrors.IsConflictSqlState("23503") &&
+       !RegistrationDatabaseErrors.IsConflictSqlState(null),
+    "registration does not hide unrelated database failures as conflicts");
+
 var countingHasher = new CountingPasswordHasher();
 Assert(LoginPasswordVerification.Verify(countingHasher, null, "wrong-password") ==
     Microsoft.AspNetCore.Identity.PasswordVerificationResult.Failed &&
