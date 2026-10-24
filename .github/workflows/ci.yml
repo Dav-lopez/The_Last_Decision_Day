@@ -77,7 +77,13 @@ jobs:
           dotnet-version: '10.0.x'
       - run: dotnet restore services/api/TheLastDecision.Api.csproj
       - run: dotnet tool restore
+      - name: Apply pre-ledger migrations to disposable PostgreSQL
+        run: dotnet ef database update 20261024093500_SchoolActivityReadIndex --project services/api/TheLastDecision.Api.csproj --startup-project services/api/TheLastDecision.Api.csproj
+      - name: Seed a legacy completed action before ledger migration
+        run: dotnet run --project tests/PostgresIntegration.Tests/PostgresIntegration.Tests.csproj -- --seed-legacy-school
       - name: Validate committed migration and apply to disposable PostgreSQL
         run: bash scripts/verify-ef-migration.sh
-      - name: Test PostgreSQL gameplay persistence and idempotency
+      - name: Test PostgreSQL gameplay persistence and historical backfill
+        env:
+          TEST_LEGACY_BACKFILL: '1'
         run: dotnet run --project tests/PostgresIntegration.Tests/PostgresIntegration.Tests.csproj
