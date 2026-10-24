@@ -65,4 +65,20 @@ db.ChangeTracker.Clear();
 Check(!await db.IdempotencyRecords.AnyAsync(x => x.Scope == scope),
     "Duplicate-key failure does not persist partial gameplay writes");
 
+// Assert that the committed migration created the physical PostgreSQL index.
+await using (var indexConnection = new NpgsqlConnection(connection))
+{
+    await indexConnection.OpenAsync();
+    await using var indexCommand = new NpgsqlCommand(
+        "SELECT indexdef FROM pg_indexes WHERE schemaname = current_schema() " +
+        "AND tablename = 'IdempotencyRecords' " +
+        "AND indexname = 'IX_IdempotencyRecords_Scope_CreatedAt_Id'", indexConnection);
+    var indexDefinition = (string?)await indexCommand.ExecuteScalarAsync();
+    Check(indexDefinition is not null &&
+        indexDefinition.Contains("\\\"Scope\\\"", StringComparison.Ordinal) &&
+        indexDefinition.Contains("\\\"CreatedAt\\\" DESC", StringComparison.Ordinal) &&
+        indexDefinition.Contains("\\\"Id\\\" DESC", StringComparison.Ordinal),
+        "PostgreSQL has scope-prefixed, newest-first school read index");
+}
+
 Console.WriteLine("PostgreSQL gameplay persistence integration checks passed.");
