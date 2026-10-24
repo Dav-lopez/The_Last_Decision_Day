@@ -45,6 +45,14 @@ public static class SchoolHistoryEndpoints
             .OrderByDescending(r => r.CreatedAt)
             .ThenByDescending(r => r.Id)
             .Take(MaxHistoryItems)
+            // Avoid fetching request hashes, keys and other unused persistence columns.
+            .Select(r => new IdempotencyRecord
+            {
+                Id = r.Id,
+                ResponseJson = r.ResponseJson,
+                CorrelationId = r.CorrelationId,
+                CreatedAt = r.CreatedAt
+            })
             .ToListAsync(ct);
 
         var history = new List<SchoolActivityHistoryEntry>(records.Count);
