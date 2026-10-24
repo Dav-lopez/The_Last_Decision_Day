@@ -37,7 +37,8 @@ public static class SchoolExecutionEndpoints
             requestId == Guid.Empty)
             return Results.BadRequest(new { error = "Provide an Idempotency-Key UUID for this action." });
 
-        if (!SchoolActivities.Catalog.Any(a => a.Id == activityId))
+        var activity = SchoolActivities.Catalog.FirstOrDefault(a => a.Id == activityId);
+        if (activity is null)
             return Results.NotFound(new { error = "Unknown school activity." });
 
         try
@@ -60,6 +61,18 @@ public static class SchoolExecutionEndpoints
                     return Results.Conflict(new { error = "Action response is not available." });
                 return Results.Content(previous.ResponseJson, "application/json", Encoding.UTF8);
             }
+
+            // Check time after idempotent replay so a successful retry remains valid
+            // even when the player's daily budget is exhausted.
+            var now = DateTimeOffset.UtcNow;
+            SchoolTimeBalance balance;
+            try { balance = await SchoolTimeBudget.LoadAsync(db, character.Id, now, ct); }
+            catch (InvalidDataException)
+            {
+                return Results.Conflict(new { error = "Saved school time could not be verified." });
+            }
+            if (!SchoolTimeBudget.CanExecute(balance, activity))
+                return Results.Conflict(new { error = "Not enough school time remaining today. Try again after the UTC reset." });
 
             var current = await db.CharacterAttributes.AsNoTracking()
                 .Where(x => x.CharacterId == character.Id)
@@ -84,6 +97,7 @@ public static class SchoolExecutionEndpoints
                 Key = key,
                 RequestHash = hash,
                 CorrelationId = correlationId,
+                CreatedAt = now,
                 ResponseJson = JsonSerializer.Serialize(response, JsonOptions)
             });
             await db.SaveChangesAsync(ct);
