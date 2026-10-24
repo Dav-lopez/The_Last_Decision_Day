@@ -15,7 +15,7 @@ This is intentionally an isolated game in the games/excuse-exchange folder. It d
 3. Two or more friends join on their own devices, no account or installation required. Up to eight participants.
 4. Host starts. Everybody writes an outrageous excuse for the absurd crisis. The round has a 60-second timer.
 5. The server hides authors during anonymous voting. Everyone gets 30 seconds to vote for someone else's alibi.
-6. Votes earn 3 points each for the alibi's author. Sneaking in the random wildcard word earns a 1-point bonus.
+6. Votes earn 3 points each for the alibi's author. Sneaking in the wildcard word earns 1 point. Every round each player gets a different private comic role (Company Lawyer, Alien Consultant, etc.) with a secret keyword challenge worth 2 more points. Roles are revealed after voting.
 7. Scores are revealed, then the host moves to the next round. After five rounds the highest-scoring suspect wins.
 8. Try Solo creates three clearly labeled bot opponents for an instant interactive demo. Bot replies are prewritten, not AI-generated.
 
@@ -56,4 +56,4 @@ IMPORTANT: The contest rules PDF lists an earlier entry deadline (October 30, 20
 
 ## Suggested Handshake description
 
-The Excuse Exchange is a fast-paced social party game where 3–8 players invent hilarious cover stories for impossible disasters. Anonymous real-time voting, surprise wildcard words, and server-authoritative scores make each five-round match a comedy event. Players join instantly from any browser with a shareable room code. A solo mode with three comic bot contestants lets anyone experience a full match immediately.
+The Excuse Exchange is a fast-paced social party game where 3–8 players invent hilarious cover stories for impossible disasters. Anonymous real-time voting, rotating secret roles, surprise wildcard words, and server-authoritative scores make each five-round match a comedy event. Players join instantly from any browser with a shareable room code. A solo mode with three comic bot contestants lets anyone experience a full match immediately.
