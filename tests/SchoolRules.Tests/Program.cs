@@ -65,6 +65,27 @@ persisted.ResponseJson = "{not valid json";
 Check(SchoolHistoryEndpoints.Parse(persisted) is null,
     "History safely rejects malformed persisted responses");
 
+// Durable snapshots are independent of retry records and current catalog entries.
+var durable = new TheLastDecision.Api.SchoolActivityExecution
+{
+    CharacterId = Guid.NewGuid(),
+    ActivityId = "retired-activity",
+    TimeCost = 3,
+    CorrelationId = Guid.NewGuid(),
+    CreatedAt = completedAt,
+    BeforeJson = System.Text.Json.JsonSerializer.Serialize(
+        new Dictionary<string, int> { ["Intelligence"] = 25 }),
+    AfterJson = System.Text.Json.JsonSerializer.Serialize(
+        new Dictionary<string, int> { ["Intelligence"] = 30 })
+};
+var durableHistory = SchoolHistoryEndpoints.Parse(durable);
+Check(durableHistory is not null && durableHistory.ActivityId == "retired-activity" &&
+    durableHistory.TimeCost == 3 && durableHistory.After["Intelligence"] == 30,
+    "Durable history preserves charged cost and attributes for retired activities");
+durable.BeforeJson = "{broken";
+Check(SchoolHistoryEndpoints.Parse(durable) is null,
+    "Durable history rejects malformed attribute snapshots");
+
 // Daily budget is deterministic, UTC-based, and derived from committed actions.
 var utcNow = new DateTimeOffset(2026, 10, 23, 23, 59, 0, TimeSpan.Zero);
 var emptyBudget = SchoolTimeBudget.Calculate([], utcNow);
