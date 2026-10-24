@@ -150,7 +150,11 @@ function renderWrite() {
     '<h1>' + esc(state.prompt) + '</h1><div class="crisis-decoration">?!</div></div>',
     '<div class="mission-card"><div class="mission-top"><span>YOUR MISSION</span><strong>GET AWAY WITH IT.</strong></div>',
     '<p>Write a ridiculous excuse for how this happened. Convince the room you are 100% innocent.</p>',
-    '<div class="wildcard">✳ BONUS WORD <strong>' + esc(state.wildcard.toUpperCase()) + '</strong><span>+1 point if you sneak it in</span></div></div>',
+    '<div class="wildcard">✳ BONUS WORD <strong>' + esc(state.wildcard.toUpperCase()) + '</strong><span>+1 point if you sneak it in</span></div>',
+    state.yourRole ? '<div class="role-secret"><span class="role-kicker">🔒 YOUR SECRET ROLE — DO NOT TELL THEM</span>' +
+      '<strong>' + esc(state.yourRole.emoji) + ' ' + esc(state.yourRole.name) + '</strong>' +
+      '<p>' + esc(state.yourRole.hint) + ' <b>+2 points</b> if you pull it off.</p></div>' : '',
+    '</div>',
     state.submitted
       ? '<div class="submitted-box"><span>✓</span><h2>ALIBI FILED.</h2><p>Your secret is safe until voting. ' +
         state.answerCount + '/' + state.players.length + ' suspects have submitted.</p></div>'
@@ -185,7 +189,8 @@ function renderReveal() {
     '<article class="result-card ' + (i === 0 ? 'winner-result' : '') + '">' +
     '<div class="result-head"><span>' + (i === 0 ? '🏆 TOP ALIBI' : 'EXHIBIT ' + (i + 1)) + '</span><b>+' + r.gained + ' PTS</b></div>' +
     '<p>“' + esc(r.text) + '”</p><div class="result-foot"><strong>' + esc(r.author) + '</strong>' +
-    '<span>' + r.votes + ' votes · ' + (r.bonus ? 'wildcard bonus ✓' : 'no bonus') + '</span></div></article>'
+    '<span>' + r.votes + ' votes · ' + (r.bonus ? '+1 wildcard' : 'no wildcard') + ' · ' + (r.roleBonus ? '+2 secret role' : 'role missed') + '</span></div>' +
+    '<div class="role-reveal">SECRET ROLE: ' + esc(r.role || 'Unknown') + '</div></article>'
   ).join("");
   app.innerHTML = [
     '<section class="screen"><div class="eyebrow">THE VERDICT IS IN</div>',
