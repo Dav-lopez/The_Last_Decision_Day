@@ -56,25 +56,27 @@ public static class SchoolTimeBudget
 
     public static void MapSchoolTimeEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/v1/school/time", async (
-            ClaimsPrincipal principal, GameDbContext db, CancellationToken ct) =>
+        app.MapGet("/api/v1/school/time", GetTime).RequireAuthorization();
+    }
+
+    private static async Task<IResult> GetTime(
+        ClaimsPrincipal principal, GameDbContext db, CancellationToken ct)
+    {
+        if (!Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+            return Results.Unauthorized();
+        var characterId = await db.Characters.AsNoTracking()
+            .Where(c => c.UserId == userId)
+            .Select(c => (Guid?)c.Id)
+            .SingleOrDefaultAsync(ct);
+        if (characterId is null)
+            return Results.NotFound(new { error = "Create a character first." });
+        try
         {
-            if (!Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
-                return Results.Unauthorized();
-            var characterId = await db.Characters.AsNoTracking()
-                .Where(c => c.UserId == userId)
-                .Select(c => (Guid?)c.Id)
-                .SingleOrDefaultAsync(ct);
-            if (characterId is null)
-                return Results.NotFound(new { error = "Create a character first." });
-            try
-            {
-                return Results.Ok(await LoadAsync(db, characterId.Value, DateTimeOffset.UtcNow, ct));
-            }
-            catch (InvalidDataException)
-            {
-                return Results.Conflict(new { error = "Saved school time could not be verified." });
-            }
-        }).RequireAuthorization();
+            return Results.Ok(await LoadAsync(db, characterId.Value, DateTimeOffset.UtcNow, ct));
+        }
+        catch (InvalidDataException)
+        {
+            return Results.Conflict(new { error = "Saved school time could not be verified." });
+        }
     }
 }
