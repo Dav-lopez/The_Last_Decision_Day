@@ -12,7 +12,7 @@ let player = {
 let ws, game = null, popupTimer, lastPhase = "";
 function html(v) {
   return String(v ?? "").replace(/[&<>"']/g, c =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&quot;", "'": "&#39;" }[c]));
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 function notify(msg) {
   toastEl.textContent = msg; toastEl.classList.add("show");
