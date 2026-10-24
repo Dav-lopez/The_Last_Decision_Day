@@ -3,11 +3,23 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import ts from 'typescript';
 
-const source = readFileSync(new URL('../functions/api/[[path]].ts', import.meta.url), 'utf8');
-const compiled = ts.transpileModule(source, {
+// Compile the shared proxy and both route entrypoints without depending on a
+// deployed Cloudflare environment. The Pages bundling CI step checks routing.
+const transpile = source => ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText;
-const { onRequest } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
+const moduleUrl = source => 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
+const proxySource = readFileSync(new URL('../functions/_lib/proxy.ts', import.meta.url), 'utf8');
+const proxyUrl = moduleUrl(transpile(proxySource));
+async function loadRoute(path) {
+  const routeSource = readFileSync(new URL(path, import.meta.url), 'utf8');
+  const compiled = transpile(routeSource);
+  const linked = compiled.replace(/from ['"]\.\.\/_lib\/proxy['"]/, `from '${proxyUrl}'`);
+  assert.notEqual(linked, compiled, `route ${path} must import the shared secured proxy`);
+  return (await import(moduleUrl(linked))).onRequest;
+}
+const onRequest = await loadRoute('../functions/api/[[path]].ts');
+const onHubRequest = await loadRoute('../functions/hubs/[[path]].ts');
 const edgeEnv = { API_ORIGIN: 'https://api.example.com', EDGE_PROXY_SECRET: 's'.repeat(48) };
 
 test('proxies same-origin API requests to fixed HTTPS origin, preserving path and query', async () => {
@@ -82,4 +94,45 @@ test('fails closed without a strong edge secret or a Cloudflare client address',
     headers: { 'cf-connecting-ip': '203.0.113.17, 198.51.100.1' },
   }), env: edgeEnv });
   assert.equal(invalidIp.status, 503);
+});
+
+test('SignalR negotiate and WebSocket upgrades share the authenticated edge proxy', async () => {
+  const originalFetch = globalThis.fetch;
+  const forwarded = [];
+  globalThis.fetch = async request => {
+    forwarded.push(request);
+    // Node's Response does not model a 101 WebSocket handshake; this test
+    // verifies upstream forwarding, not an established WebSocket connection.
+    return new Response('forwarded');
+  };
+  try {
+    const negotiate = new Request('https://game.pages.dev/hubs/world/negotiate?negotiateVersion=1', {
+      method: 'POST',
+      headers: { 'cf-connecting-ip': '203.0.113.24', cookie: '__Host-tld-session=abc',
+        'x-tld-edge-secret': 'spoofed', 'x-tld-client-ip': '198.51.100.1' },
+    });
+    assert.equal((await onHubRequest({ request: negotiate, env: edgeEnv })).status, 200);
+    assert.equal(forwarded[0].url, 'https://api.example.com/hubs/world/negotiate?negotiateVersion=1');
+    assert.equal(forwarded[0].method, 'POST');
+    assert.equal(forwarded[0].headers.get('cookie'), '__Host-tld-session=abc');
+    assert.equal(forwarded[0].headers.get('x-tld-client-ip'), '203.0.113.24');
+    assert.equal(forwarded[0].headers.get('x-tld-edge-secret'), edgeEnv.EDGE_PROXY_SECRET);
+
+    const upgrade = new Request('https://game.pages.dev/hubs/world?id=connection-1', {
+      headers: { upgrade: 'websocket', connection: 'Upgrade',
+        'cf-connecting-ip': '2001:db8::3', cookie: '__Host-tld-session=abc' },
+    });
+    assert.equal((await onHubRequest({ request: upgrade, env: edgeEnv })).status, 200);
+    assert.equal(forwarded[1].url, 'https://api.example.com/hubs/world?id=connection-1');
+    assert.equal(forwarded[1].headers.get('upgrade'), 'websocket');
+    assert.equal(forwarded[1].headers.get('cookie'), '__Host-tld-session=abc');
+    assert.equal(forwarded[1].headers.get('x-tld-client-ip'), '2001:db8::3');
+
+    const noEdgeIp = await onHubRequest({
+      request: new Request('https://game.pages.dev/hubs/world'),
+      env: edgeEnv,
+    });
+    assert.equal(noEdgeIp.status, 503);
+    assert.equal(forwarded.length, 2);
+  } finally { globalThis.fetch = originalFetch; }
 });
