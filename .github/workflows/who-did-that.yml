@@ -1,0 +1,25 @@
+name: Who Did That - Contest Game
+on:
+  pull_request:
+    paths:
+      - "games/who-did-that/**"
+      - ".github/workflows/who-did-that.yml"
+  push:
+    paths:
+      - "games/who-did-that/**"
+      - ".github/workflows/who-did-that.yml"
+jobs:
+  multiplayer:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: games/who-did-that
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-audit --no-fund
+      - run: node --check server.js
+      - run: node --check public/app.js
+      - run: npm test
