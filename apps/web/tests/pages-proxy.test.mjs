@@ -14,7 +14,7 @@ const proxyUrl = moduleUrl(transpile(proxySource));
 async function loadRoute(path) {
   const routeSource = readFileSync(new URL(path, import.meta.url), 'utf8');
   const compiled = transpile(routeSource);
-  const linked = compiled.replace(/from ['"]\\.\\.\\/_lib\\/proxy['"]/, `from '${proxyUrl}'`);
+  const linked = compiled.replace(/from ['"]\.\.\/_lib\/proxy['"]/, `from '${proxyUrl}'`);
   assert.notEqual(linked, compiled, `route ${path} must import the shared secured proxy`);
   return (await import(moduleUrl(linked))).onRequest;
 }
