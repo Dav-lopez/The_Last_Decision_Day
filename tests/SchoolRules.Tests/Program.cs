@@ -82,10 +82,17 @@ Check(exhausted.Spent == 8 && exhausted.Remaining == 0,
 Check(!SchoolTimeBudget.CanExecute(exhausted, SchoolActivities.Catalog[0]),
     "Exhausted budget rejects further study");
 var partiallyUsed = SchoolTimeBudget.Calculate(schoolHistory.Take(3), utcNow);
-Check(!SchoolTimeBudget.CanExecute(partiallyUsed, SchoolActivities.Catalog[0]) == false,
-    "Two remaining time units permit a study activity");
 Check(SchoolTimeBudget.CanExecute(partiallyUsed, SchoolActivities.Catalog[0]),
     "Two-unit activity fits exact remaining budget");
+var sevenSpent = SchoolTimeBudget.Calculate(schoolHistory.Take(3).Concat(
+    [new SchoolActivityHistoryEntry("rest", 1,
+        new Dictionary<string, int>(), new Dictionary<string, int>(), Guid.NewGuid(), utcNow)]), utcNow);
+Check(sevenSpent.Remaining == 1 && !SchoolTimeBudget.CanExecute(sevenSpent, SchoolActivities.Catalog[0]) &&
+    SchoolTimeBudget.CanExecute(sevenSpent, SchoolActivities.Catalog[3]),
+    "One remaining unit permits rest but rejects study");
+Check(SchoolTimeBudget.StartOfUtcDay(new DateTimeOffset(2026, 10, 23, 18, 0, 0, TimeSpan.FromHours(-5))) ==
+    new DateTimeOffset(2026, 10, 23, 0, 0, 0, TimeSpan.Zero),
+    "UTC day boundaries are independent of client time zone");
 try
 {
     SchoolTimeBudget.Calculate([new SchoolActivityHistoryEntry("study", 0,
