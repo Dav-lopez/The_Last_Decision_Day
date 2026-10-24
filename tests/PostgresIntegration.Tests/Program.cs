@@ -205,4 +205,61 @@ await using (var indexConnection = new NpgsqlConnection(connection))
         "Durable school history has a per-character newest-first PostgreSQL index");
 }
 
+// Audit events are immutable at the PostgreSQL boundary, not just by convention.
+// Exercise both forbidden statements against a real persisted event. Savepoints
+// let us recover from the expected SQL error without masking later assertions.
+var auditUser = new GameUser {
+    EmailNormalized = "AUDIT-" + Guid.NewGuid().ToString("N") + "@EXAMPLE.TEST",
+    PasswordHash = "test-only-hash",
+    DateOfBirth = new DateOnly(1990, 1, 1)
+};
+var auditCharacter = new Character { UserId = auditUser.Id, DisplayName = "Audit Test" };
+var auditEvent = new AttributeEvent {
+    CharacterId = auditCharacter.Id, Name = "Intelligence",
+    BeforeValue = 20, AfterValue = 25, Reason = "test_school",
+    CorrelationId = Guid.NewGuid()
+};
+await using (var auditTx = await db.Database.BeginTransactionAsync())
+{
+    db.Users.Add(auditUser);
+    db.Characters.Add(auditCharacter);
+    db.AttributeEvents.Add(auditEvent);
+    await db.SaveChangesAsync();
+
+    await auditTx.CreateSavepointAsync("before_audit_update");
+    try
+    {
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE \\"AttributeEvents\\" SET \\"AfterValue\\" = 26 WHERE \\"Id\\" = {auditEvent.Id}");
+        throw new Exception("FAIL: PostgreSQL permitted an audit event UPDATE");
+    }
+    catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.CheckViolation)
+    {
+        Console.WriteLine("PASS: PostgreSQL rejects audit event UPDATE");
+    }
+    await auditTx.RollbackToSavepointAsync("before_audit_update");
+
+    await auditTx.CreateSavepointAsync("before_audit_delete");
+    try
+    {
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"DELETE FROM \\"AttributeEvents\\" WHERE \\"Id\\" = {auditEvent.Id}");
+        throw new Exception("FAIL: PostgreSQL permitted an audit event DELETE");
+    }
+    catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.CheckViolation)
+    {
+        Console.WriteLine("PASS: PostgreSQL rejects audit event DELETE");
+    }
+    await auditTx.RollbackToSavepointAsync("before_audit_delete");
+
+    var preserved = await db.AttributeEvents.AsNoTracking()
+        .SingleAsync(e => e.Id == auditEvent.Id);
+    Check(preserved.AfterValue == 25 && preserved.BeforeValue == 20,
+        "Rejected audit mutations leave original values intact");
+    await auditTx.RollbackAsync();
+}
+db.ChangeTracker.Clear();
+Check(!await db.AttributeEvents.AnyAsync(e => e.Id == auditEvent.Id),
+    "Audit immutability test leaves no persistent fixtures");
+
 Console.WriteLine("PostgreSQL gameplay persistence integration checks passed.");
