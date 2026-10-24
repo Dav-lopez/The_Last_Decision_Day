@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <meta name="theme-color" content="#130f28"/>
+  <meta name="description" content="A ridiculous party game. Vote secretly for your friends and find out WHO DID THAT?!"/>
+  <title>WHO DID THAT?! — the party game</title>
+  <link rel="stylesheet" href="/style.css"/>
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true"><div class="orb a"></div><div class="orb b"></div></div>
+  <header class="topbar">
+    <div class="logo"><span class="logo-icon">?!</span><span>WHO DID <em>THAT?!</em></span></div>
+    <div class="live"><span class="dot"></span><span id="connection">CONNECTING</span></div>
+  </header>
+  <main id="app" class="wrap" aria-live="polite">
+    <div class="loading">Starting the chaos…</div>
+  </main>
+  <footer class="footer"><span>NO FINGERPRINTS. ONLY FINGER POINTING.</span><span>5 ROUNDS · 2–8 FRIENDS · 0 DOWNLOADS</span></footer>
+  <aside id="toast" class="toast" role="status" aria-live="polite"></aside>
+</body>
+</html>
