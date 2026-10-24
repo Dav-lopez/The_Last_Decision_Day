@@ -44,6 +44,8 @@ jobs:
         run: docker compose up --build -d
       - name: Pre-migration smoke test
         run: bash tests/smoke-pre-migration.sh
+      - name: Verify Docker Data Protection volume survives API restart
+        run: bash tests/smoke-dataprotection.sh
       - name: Show service logs on failure
         if: failure()
         run: docker compose logs --no-color --tail=100

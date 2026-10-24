@@ -5,5 +5,7 @@ RUN dotnet publish services/api/TheLastDecision.Api.csproj -c Release -o /out
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 COPY --from=build /out .
+RUN mkdir -p /app/keys && chown -R $APP_UID:$APP_UID /app/keys
+USER $APP_UID
 EXPOSE 8080
 ENTRYPOINT ["dotnet","TheLastDecision.Api.dll"]
