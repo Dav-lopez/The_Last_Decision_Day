@@ -45,7 +45,7 @@ Architecture: Cloudflare Pages (React/Phaser and same-origin /api proxy) → HTT
 3. Root directory: `apps/web`; build command: `npm run build`; output directory: `dist`; set `NODE_VERSION=22`.
 4. Add Pages environment variable `API_ORIGIN=https://api.example.com` (no trailing path). This is an origin, **not a secret**. Set it separately for production and preview environments.
 5. Pages Functions under `apps/web/functions/api/[[path]].ts` forward same-origin `/api/*` requests to the configured HTTPS backend. Authentication cookies stay on the Pages domain, avoiding cross-site cookie issues. **Do not add a browser-side database credential or change fetch to a cross-origin API URL.**
-6. Deploy. Verify `https://YOUR_PROJECT.pages.dev/api/v1/health/live` and `.../ready` are 200, then test login, CSRF, invitation registration, character creation and school preview manually. The current frontend has no full school execution UI.
+6. Deploy. Verify `https://YOUR_PROJECT.pages.dev/api/v1/health/live` and `.../ready` are 200, then test login, CSRF, invitation registration, character creation and school preview manually. School execution, history, and daily UTC time-budget UI are present, but still require browser-based integration verification.
 7. Cloudflare preview branches must not share production data for destructive testing. Prefer a separate Neon development branch/database and corresponding staging API before enabling external testers.
 
 ## 4. Security and limitations
@@ -57,6 +57,12 @@ Architecture: Cloudflare Pages (React/Phaser and same-origin /api proxy) → HTT
 - Cloudflare Pages Free has monthly build limits; Neon Free has compute/storage limits; OCI Always Free VM allocation depends on region capacity and account eligibility. Check provider dashboards before incurring any charges.
 - The VM and database are not yet provisioned by this PR. CI builds and migrations against disposable test PostgreSQL do not prove a live cloud deployment.
 
-## 5. Cloudflare proxy validation before merging
+## 5. School time-budget behavior
+
+Each character has eight school time units per UTC day. Successful actions consume their catalog cost (one or two units) and are counted from committed idempotency records; a retry using the same key replays the original response without charging again. The server checks the remaining balance inside a serializable transaction before saving an action. The browser displays the remaining balance from authenticated `GET /api/v1/school/time` and offers a refresh control. Existing activities completed earlier in the same UTC day count toward the allowance. No EF schema change is required.
+
+Manual integration tests still needed: run actions until exhausted, retry an earlier idempotency key, attempt concurrent actions with distinct keys near the limit, confirm reset at UTC midnight, verify another account cannot see the budget, and check the UI after refresh/relogin. A successful CI build alone does not prove these behaviors.
+
+## 6. Cloudflare proxy validation before merging
 
 The web CI job runs `node --test tests/pages-proxy.test.mjs` to check API URL forwarding, cookies/CSRF headers, and fail-closed origin validation. It also runs `npx --yes wrangler@4.45.0 pages functions build functions --outfile /tmp/tld-pages-worker.mjs` to compile the Pages Function. These checks do not replace an actual Pages deployment test. For optional local Pages emulation after `npm run build`, run `npx wrangler pages dev dist --binding=API_ORIGIN=https://YOUR_API_HOSTNAME` from `apps/web`; it does not require local Docker when the backend is already hosted.
