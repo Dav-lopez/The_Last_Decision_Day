@@ -8,6 +8,7 @@ type SchoolActivity = { id: string; title: string; description: string; timeCost
 type ActivityPreview = { activityId: string; timeCost: number; before: Record<string, number>; after: Record<string, number> };
 type SchoolExecutionResult = ActivityPreview & { correlationId: string };
 type SchoolHistoryEntry = SchoolExecutionResult & { completedAt: string };
+type SchoolTimeBalance = { dailyLimit: number; spent: number; remaining: number; resetsAt: string };
 type Session = { userId: string; email: string };
 type Mode = 'login' | 'register';
 
@@ -52,6 +53,8 @@ function App() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState('');
   const [historyVersion, setHistoryVersion] = useState(0);
+  const [timeBalance, setTimeBalance] = useState<SchoolTimeBalance | null>(null);
+  const [timeError, setTimeError] = useState('');
   const [preview, setPreview] = useState<ActivityPreview | null>(null);
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
@@ -109,6 +112,16 @@ function App() {
       .then(items => { if (active) { setHistory(items); setHistoryError(''); } })
       .catch(() => { if (active) setHistoryError('Unable to load saved school activities.'); })
       .finally(() => { if (active) setHistoryLoading(false); });
+    return () => { active = false; };
+  }, [profile?.id, historyVersion]);
+
+  useEffect(() => {
+    if (!profile?.id) { setTimeBalance(null); setTimeError(''); return; }
+    let active = true;
+    setTimeBalance(null);
+    request<SchoolTimeBalance>('/api/v1/school/time')
+      .then(balance => { if (active) { setTimeBalance(balance); setTimeError(''); } })
+      .catch(() => { if (active) setTimeError('Unable to load school time. Refresh to retry.'); });
     return () => { active = false; };
   }, [profile?.id, historyVersion]);
 
@@ -175,7 +188,7 @@ function App() {
 
   async function logout() {
     setBusy(true); setMessage('');
-    try { await post<void>('/api/v1/auth/logout'); setSession(null); setProfile(null); pendingAction.current = null; }
+    try { await post<void>('/api/v1/auth/logout'); setSession(null); setProfile(null); setTimeBalance(null); pendingAction.current = null; }
     catch (error) { setMessage(error instanceof Error ? error.message : 'Logout failed.'); }
     finally { setBusy(false); }
   }
@@ -214,11 +227,16 @@ function App() {
           <div className="stats">{Object.entries(profile.attributes).map(([name, value]) =>
             <div key={name}><strong>{name}</strong><span>{value}/100</span></div>)}</div>
           <h3>School activities</h3>
-          <p>Preview an outcome or complete an activity to save attribute changes. Time cost is informational; there is not yet a daily time budget.</p>
+          <p>Preview an outcome or complete an activity to save attribute changes. School time resets at midnight UTC.</p>
+          <div className="school-time" aria-live="polite">
+            {timeBalance ? <p><strong>{timeBalance.remaining} / {timeBalance.dailyLimit} time units remaining today.</strong> Resets {new Date(timeBalance.resetsAt).toLocaleString()}.</p> :
+              <p>{timeError || 'Loading school time…'}</p>}
+            <button type="button" disabled={busy} onClick={() => setHistoryVersion(version => version + 1)}>Refresh school time</button>
+          </div>
           <div className="activity-list">{activities.map(activity => <article key={activity.id}>
             <h4>{activity.title}</h4><p>{activity.description} · {activity.timeCost} time units</p>
             <button type="button" disabled={busy} onClick={() => void previewActivity(activity.id)}>Preview outcome</button>
-            <button type="button" disabled={busy} onClick={() => void executeActivity(activity.id)}>Do activity</button>
+            <button type="button" disabled={busy || !timeBalance || timeBalance.remaining < activity.timeCost} onClick={() => void executeActivity(activity.id)}>Do activity ({activity.timeCost} time)</button>
           </article>)}</div>
           {preview && <div className="preview" aria-live="polite">
             <h4>Projected outcome</h4>
@@ -235,7 +253,7 @@ function App() {
             {history.map(item => <li key={item.correlationId}>
               <strong>{activities.find(activity => activity.id === item.activityId)?.title ?? item.activityId}</strong>
               <time dateTime={item.completedAt}>{new Date(item.completedAt).toLocaleString()}</time>
-              <span>{item.timeCost} time units (informational)</span>
+              <span>{item.timeCost} time units spent</span>
               <ul>{Object.entries(item.after)
                 .filter(([name, value]) => item.before[name] !== value)
                 .map(([name, value]) => <li key={name}>{name}: {item.before[name]} → {value}</li>)}</ul>

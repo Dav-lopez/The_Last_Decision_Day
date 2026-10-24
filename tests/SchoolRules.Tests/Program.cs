@@ -64,3 +64,40 @@ Check(SchoolHistoryEndpoints.Parse(persisted) is null,
 persisted.ResponseJson = "{not valid json";
 Check(SchoolHistoryEndpoints.Parse(persisted) is null,
     "History safely rejects malformed persisted responses");
+
+// Daily budget is deterministic, UTC-based, and derived from committed actions.
+var utcNow = new DateTimeOffset(2026, 10, 23, 23, 59, 0, TimeSpan.Zero);
+var emptyBudget = SchoolTimeBudget.Calculate([], utcNow);
+Check(emptyBudget.DailyLimit == 8 && emptyBudget.Spent == 0 && emptyBudget.Remaining == 8,
+    "New UTC day starts with eight time units");
+Check(emptyBudget.ResetsAt == new DateTimeOffset(2026, 10, 24, 0, 0, 0, TimeSpan.Zero),
+    "School budget resets at midnight UTC");
+var schoolHistory = new List<SchoolActivityHistoryEntry>();
+for (var i = 0; i < 4; i++)
+    schoolHistory.Add(new SchoolActivityHistoryEntry("study", 2,
+        new Dictionary<string, int>(), new Dictionary<string, int>(), Guid.NewGuid(), utcNow));
+var exhausted = SchoolTimeBudget.Calculate(schoolHistory, utcNow);
+Check(exhausted.Spent == 8 && exhausted.Remaining == 0,
+    "Four study activities exhaust the daily budget");
+Check(!SchoolTimeBudget.CanExecute(exhausted, SchoolActivities.Catalog[0]),
+    "Exhausted budget rejects further study");
+var partiallyUsed = SchoolTimeBudget.Calculate(schoolHistory.Take(3), utcNow);
+Check(SchoolTimeBudget.CanExecute(partiallyUsed, SchoolActivities.Catalog[0]),
+    "Two-unit activity fits exact remaining budget");
+var sevenSpent = SchoolTimeBudget.Calculate(schoolHistory.Take(3).Concat(
+    [new SchoolActivityHistoryEntry("rest", 1,
+        new Dictionary<string, int>(), new Dictionary<string, int>(), Guid.NewGuid(), utcNow)]), utcNow);
+Check(sevenSpent.Remaining == 1 && !SchoolTimeBudget.CanExecute(sevenSpent, SchoolActivities.Catalog[0]) &&
+    SchoolTimeBudget.CanExecute(sevenSpent, SchoolActivities.Catalog[3]),
+    "One remaining unit permits rest but rejects study");
+Check(SchoolTimeBudget.StartOfUtcDay(new DateTimeOffset(2026, 10, 23, 18, 0, 0, TimeSpan.FromHours(-5))) ==
+    new DateTimeOffset(2026, 10, 23, 0, 0, 0, TimeSpan.Zero),
+    "UTC day boundaries are independent of client time zone");
+try
+{
+    SchoolTimeBudget.Calculate([new SchoolActivityHistoryEntry("study", 0,
+        new Dictionary<string, int>(), new Dictionary<string, int>(), Guid.NewGuid(), utcNow)], utcNow);
+    throw new Exception("FAIL: Corrupt school time was accepted");
+}
+catch (InvalidDataException) { Console.WriteLine("PASS: Corrupt school time fails closed"); }
+
