@@ -160,6 +160,9 @@ namespace TheLastDecision.Api.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Scope", "CreatedAt", "Id")
+                        .IsDescending(false, true, true);
+
                     b.HasIndex("Scope", "Key")
                         .IsUnique();
 
