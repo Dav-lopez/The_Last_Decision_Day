@@ -14,7 +14,7 @@ export const onRequest: PagesFunction<Env> = async ({ request, env }) => {
   if (!env.EDGE_PROXY_SECRET || new TextEncoder().encode(env.EDGE_PROXY_SECRET).length < 32)
     return new Response('Edge proxy secret is not configured', { status: 503 });
   const clientIp = request.headers.get('cf-connecting-ip');
-  if (!clientIp || clientIp.includes(',') || clientIp.includes('\\n') || clientIp.includes('\\r'))
+  if (!clientIp || clientIp.length > 64 || !/^[0-9a-fA-F:.]+$/.test(clientIp))
     return new Response('Cloudflare client address is unavailable', { status: 503 });
   const incoming = new URL(request.url);
   const target = new URL(incoming.pathname + incoming.search, origin);
