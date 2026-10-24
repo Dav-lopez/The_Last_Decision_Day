@@ -1,24 +1,36 @@
 #!/usr/bin/env bash
-# Confirm antiforgery/Data Protection key material persists across API restarts.
-# This checks the key ring, not a successful login (the DB is not migrated here).
+# Verify the configured Data Protection volume is writable by the API process
+# and survives an API container restart. This does not exercise an HTTPS login.
 set -euo pipefail
 
 BASE="${1:-http://localhost:8080}"
 
-# Requesting a CSRF token forces ASP.NET Core to initialize the key ring.
-curl --fail --silent --show-error --retry 10 --retry-delay 1 --retry-connrefused \
-  "$BASE/api/v1/auth/csrf" > /dev/null
+# Local Docker serves HTTP. The secure __Host- antiforgery cookie deliberately
+# rejects HTTP requests, so do not call /auth/csrf to initialize a key here.
+configured="$(docker compose exec -T api printenv DataProtection__KeysDirectory | tr -d '\r')"
+if [[ "$configured" != "/app/keys" ]]; then
+  echo "FAIL: Data Protection key directory is not /app/keys" >&2
+  exit 1
+fi
+
+probe=".smoke-dataprotection-$$"
+cleanup() {
+  docker compose exec -T api sh -c "rm -f /app/keys/$probe" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+# Writing as the unprivileged runtime user tests volume ownership as well.
+before="$(docker compose exec -T api sh -c "umask 077; printf 'key-volume-persistence-test\\n' > /app/keys/$probe; sha256sum /app/keys/$probe" | tr -d '\r')"
+if [[ -z "$before" ]]; then
+  echo "FAIL: Could not write the Data Protection volume" >&2
+  exit 1
+fi
 
 key_checksums() {
   docker compose exec -T api sh -c \
     'find /app/keys -maxdepth 1 -type f -name "key-*.xml" -exec sha256sum {} \;' | sort
 }
-
-before="$(key_checksums)"
-if [[ -z "$before" ]]; then
-  echo "FAIL: No persisted Data Protection key was created" >&2
-  exit 1
-fi
+keys_before="$(key_checksums)"
 
 docker compose restart api > /dev/null
 
@@ -34,9 +46,14 @@ if [[ "$status" != "200" ]]; then
   exit 1
 fi
 
-after="$(key_checksums)"
+after="$(docker compose exec -T api sh -c "sha256sum /app/keys/$probe" | tr -d '\r')"
 if [[ "$before" != "$after" ]]; then
-  echo "FAIL: Data Protection key files changed or disappeared after restart" >&2
+  echo "FAIL: Data Protection volume content did not survive API restart" >&2
   exit 1
 fi
-echo "PASS: Data Protection key files survive API restart"
+if [[ "$(key_checksums)" != "$keys_before" ]]; then
+  echo "FAIL: Existing Data Protection key files changed across API restart" >&2
+  exit 1
+fi
+
+echo "PASS: API can write the Data Protection volume and content survives restart"
