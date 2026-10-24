@@ -31,6 +31,40 @@ Assert(proxyOptions.KnownProxies.Count == 2 &&
     "only loopback proxies trusted");
 Assert(proxyOptions.KnownIPNetworks.Count == 0, "no arbitrary forwarded networks trusted");
 
+var edgeSecret = new string('s', 48);
+var verifiedEdge = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+verifiedEdge.Connection.RemoteIpAddress = System.Net.IPAddress.Loopback;
+verifiedEdge.Request.Headers[TrustedEdgeClientIp.IpHeader] = "203.0.113.17";
+verifiedEdge.Request.Headers[TrustedEdgeClientIp.SecretHeader] = edgeSecret;
+TrustedEdgeClientIp.Capture(verifiedEdge, edgeSecret);
+Assert(TrustedEdgeClientIp.RateLimitKey(verifiedEdge) == "203.0.113.17",
+    "verified Pages client IP gets its own rate-limit bucket");
+
+var untrustedEdge = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+untrustedEdge.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("198.51.100.7");
+untrustedEdge.Request.Headers[TrustedEdgeClientIp.IpHeader] = "203.0.113.17";
+untrustedEdge.Request.Headers[TrustedEdgeClientIp.SecretHeader] = edgeSecret;
+TrustedEdgeClientIp.Capture(untrustedEdge, edgeSecret);
+Assert(TrustedEdgeClientIp.RateLimitKey(untrustedEdge) == "198.51.100.7",
+    "public connections cannot spoof the verified edge IP");
+
+var wrongSecretEdge = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+wrongSecretEdge.Connection.RemoteIpAddress = System.Net.IPAddress.Loopback;
+wrongSecretEdge.Request.Headers[TrustedEdgeClientIp.IpHeader] = "203.0.113.17";
+wrongSecretEdge.Request.Headers[TrustedEdgeClientIp.SecretHeader] = new string('x', 48);
+TrustedEdgeClientIp.Capture(wrongSecretEdge, edgeSecret);
+Assert(TrustedEdgeClientIp.RateLimitKey(wrongSecretEdge) == "127.0.0.1",
+    "incorrect shared secret does not authenticate a forwarded IP");
+
+var malformedEdge = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+malformedEdge.Connection.RemoteIpAddress = System.Net.IPAddress.Loopback;
+malformedEdge.Request.Headers[TrustedEdgeClientIp.IpHeader] = "203.0.113.17, 198.51.100.1";
+malformedEdge.Request.Headers[TrustedEdgeClientIp.SecretHeader] = edgeSecret;
+TrustedEdgeClientIp.Capture(malformedEdge, edgeSecret);
+Assert(TrustedEdgeClientIp.RateLimitKey(malformedEdge) == "127.0.0.1",
+    "chained or malformed client IP is rejected");
+
+
 Assert(RegistrationDatabaseErrors.IsConflictSqlState("40001"),
     "registration treats serialization failure as a retryable conflict");
 Assert(RegistrationDatabaseErrors.IsConflictSqlState("40P01"),
