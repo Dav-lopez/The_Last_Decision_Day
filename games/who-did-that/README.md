@@ -1,46 +1,59 @@
-# WHO DID THAT?!
-A very simple, funny, animated multiplayer party game, with no login or installation.
+# WHO DID THAT?! — Secret Decisions
 
-## One-minute explanation
-A host creates a room and shares its five-character code. Friends join (2–8 people). Everyone sees the same silly question, such as "Who would argue with a GPS and somehow win?" Each person has 25 seconds to secretly vote for someone else. The game reveals who got accused, accompanied by confetti. Accusations add points to the target. After five rounds the player receiving the most votes wins the title **Most Accused**.
+A funny, lightweight real-time multiplayer game. The Flask prototype lives in its own folder and does not depend on The Last Decision.
 
-- Create room / join room via code or invite URL
-- Real-time WebSocket sync and authoritative server-side tally
-- Secret votes, no voting for yourself, round countdown, automatic reveal
-- Bright, mobile-friendly animated UI: pointing finger, floating face, pulse, cards, vote bars, confetti
-- Play with 3 demo bots, clearly marked DEMO, or 2–8 real people
-- No accounts, install, character system, database, or complex roles
+## How it works
 
-## Run
-Node 20+.
+1. Create or join a room with a nickname and a five-character code. Supports 2–8 people.
+2. Everyone sees a silly decision scenario and secretly chooses A, B, or C (35 seconds).
+3. The game shows only anonymous option totals. Each player predicts which option every other player secretly chose (40 seconds).
+4. The game simultaneously reveals decisions and awards **2 points per correct guess**, **1 point to any player who fooled a guesser**.
+5. Repeat for five rounds; the highest-scoring player is Master Bluffer. Ties are possible.
+
+A clearly labeled solo demo includes three random-choice bot opponents. No passwords, databases, installs, or third-party AI calls.
+
+## Run locally
+
+Python 3.10+ required.
 
     cd games/who-did-that
-    npm install
-    npm test
-    npm start
+    python -m pip install -r requirements.txt
+    python -m unittest discover -s test -p "test_*.py" -v
+    python app.py
 
-Open http://localhost:3000. To test multiplayer, open the room link in another browser or on a phone connected to your machine's network.
+Open http://localhost:3000.
 
-## Deploy
-Deploy this folder as an always-on Node web service with WebSocket support, using:
-- root directory: games/who-did-that
-- build: npm install
-- start: npm start
-- health endpoint: /health
-- Node version: 22 or later (20+ supported)
+## Realtime design
 
-Keep one service instance. Room state is in server memory and will reset after a restart; without a shared store, multiple instances must not be used. Rooms expire after 60 minutes of inactivity. Host passes to the next connected person if they disconnect. Use HTTPS/WSS on the actual public URL.
+Flask HTTP APIs accept room creation, joining, secret decisions, guesses and transitions. Server-Sent Events (SSE) push synchronized updates to all joined browsers. The backend owns session identity, hidden choices, scoring, round deadlines, and automatic missing-choice fallback. Browsers never receive other players' choices until the reveal. Automatic reconnection uses a temporary player token stored in browser session storage.
 
-**GitHub doesn't deploy this automatically.** Publish a URL using your own hosting account, verify phones can join and WebSockets work, and submit that URL to Handshake with the required project title, description, and cover image.
+## Deploy a public URL
+
+Deploy the games/who-did-that directory as a Python web service on Render or Railway. A blueprint is provided in render.yaml.
+
+- Install command: pip install -r requirements.txt
+- Start: gunicorn --workers 1 --threads 32 --worker-class gthread --timeout 0 --bind 0.0.0.0:$PORT app:app
+- Health endpoint: /health
+
+**Keep exactly one worker and one instance.** Rooms and scores are held in memory and reset on restart. The chosen host must support persistent HTTP streaming and public HTTPS. The Flask development server is for local testing only.
 
 ## Contest submission
-**Project name:** WHO DID THAT?!
 
-**Description:** "Who Did That?!" is an instant party game where friends accuse each other of the most ridiculous things. Start a room, share a code, and get ready for five rounds of hilarious questions. Everyone votes anonymously, the answers pop onto the screen in an animated reveal, and the most accused friend wins. Free, fast, and playable on any phone or laptop—no sign-in or install needed.
-
-**Time caution:** The Handshake mission page advertises October 31, 2026; the official challenge rules PDF states October 30 at 11:59 PM Pacific. Submit by the earlier deadline unless Handshake confirms otherwise.
+A GitHub PR is not a live deployment or a Handshake submission. The mission requires a public playable URL, cover image, project title, and description. The official rules PDF specifies October 30, 2026, at 11:59 PM Pacific, earlier than October 31 advertised on the mission page. Submit by the earlier deadline.
 
 Official rules: https://go.joinhandshake.com/rs/390-ZTF-353/images/%5BAI_Skills_Studio_Challenge%5D_Contest_Official_Rules.pdf?version=0
 
-## Validation
-GitHub workflow runs a five-round bot demo and a full 3-human-client WebSocket synchronized round, including score totals and rejection of self-voting. A passing automated test does not replace a real, deployed, physical-device smoke test. Check browser responsiveness, no account required, invite links, reconnect, time expiry, and real phone touch interactions before submitting.
+Suggested pitch:
+
+> WHO DID THAT?! is a hilarious browser party game where 2–8 friends privately decide what they would do in ridiculous situations, then guess which choice each friend made. Get 2 points for accurate guesses or 1 point whenever you fool a friend. Five fast rounds, animated reveals, instant room codes, no accounts, and an interactive solo demo.
+
+## Verification
+
+- [x] Flask server-side game phases, hidden decisions, anonymous choice totals, per-player guesses and authoritative points
+- [x] Animated UI, responsive design, confetti, browser reconnection, room invite links
+- [x] Python integration tests and GitHub Actions workflow configured
+- [ ] CI green for current branch
+- [ ] Live 3-browser / phone test after deploying to public HTTPS URL
+- [ ] Create cover image, capture demo and submit through Handshake
+
+Known limits: one worker and in-memory state, temporary player tokens in the SSE request URL, random bots, and a timer delay if a player disconnects. This is a contest prototype, not a production social platform.
