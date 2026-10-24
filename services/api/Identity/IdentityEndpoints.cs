@@ -96,10 +96,12 @@ public static class IdentityEndpoints
         return Results.Ok(new AuthResult(user.Id, user.EmailNormalized));
     }
 
-    private static async Task<IResult> Logout(HttpContext context)
+    // A RequestDelegate must set the HTTP response itself; returning Task<IResult>
+    // here would discard Results.NoContent() (ASP0016).
+    private static async Task Logout(HttpContext context)
     {
         await context.SignOutAsync("GameCookie");
-        return Results.NoContent();
+        context.Response.StatusCode = StatusCodes.Status204NoContent;
     }
 
     private static async Task SignIn(HttpContext context, GameUser user)

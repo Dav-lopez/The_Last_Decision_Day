@@ -18,7 +18,7 @@ try
 }
 catch (ArgumentException) { Console.WriteLine("PASS: invalid email rejected"); }
 
-var proxyOptions = new Microsoft.AspNetCore.HttpOverrides.ForwardedHeadersOptions();
+var proxyOptions = new Microsoft.AspNetCore.Builder.ForwardedHeadersOptions();
 TheLastDecision.Api.Identity.TrustedProxyHeaders.Configure(proxyOptions);
 Assert(proxyOptions.ForwardLimit == 1, "forwarded header chain limited to one hop");
 Assert(proxyOptions.ForwardedHeaders ==
