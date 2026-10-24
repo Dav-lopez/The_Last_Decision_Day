@@ -90,6 +90,14 @@ var sevenSpent = SchoolTimeBudget.Calculate(schoolHistory.Take(3).Concat(
 Check(sevenSpent.Remaining == 1 && !SchoolTimeBudget.CanExecute(sevenSpent, SchoolActivities.Catalog[0]) &&
     SchoolTimeBudget.CanExecute(sevenSpent, SchoolActivities.Catalog[3]),
     "One remaining unit permits rest but rejects study");
+var historicalCost = SchoolTimeBudget.Calculate([
+    new SchoolActivityHistoryEntry("study", 3, new Dictionary<string, int>(),
+        new Dictionary<string, int>(), Guid.NewGuid(), utcNow),
+    new SchoolActivityHistoryEntry("retired-activity", 1, new Dictionary<string, int>(),
+        new Dictionary<string, int>(), Guid.NewGuid(), utcNow)
+], utcNow);
+Check(historicalCost.Spent == 4 && historicalCost.Remaining == 4,
+    "Historical costs and retired activities remain valid after catalog changes");
 Check(SchoolTimeBudget.StartOfUtcDay(new DateTimeOffset(2026, 10, 23, 18, 0, 0, TimeSpan.FromHours(-5))) ==
     new DateTimeOffset(2026, 10, 23, 0, 0, 0, TimeSpan.Zero),
     "UTC day boundaries are independent of client time zone");
