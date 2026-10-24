@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using System.Text.Json;
 using TheLastDecision.Api;
 using TheLastDecision.Api.Identity;
 using TheLastDecision.Api.School;
@@ -14,6 +15,39 @@ if (!builder.Database.Contains("ci", StringComparison.OrdinalIgnoreCase) &&
 
 var options = new DbContextOptionsBuilder<GameDbContext>().UseNpgsql(connection).Options;
 await using var db = new GameDbContext(options);
+// Fixed identifiers are used only in the disposable CI database for the
+// pre-migration backfill rehearsal.
+var legacyCharacterId = Guid.Parse("b1a1f41c-46d9-42a8-a35d-99b06700c101");
+var legacyCorrelationId = Guid.Parse("b1a1f41c-46d9-42a8-a35d-99b06700c102");
+if (args.Contains("--seed-legacy-school"))
+{
+    var legacyUser = new GameUser {
+        Id = Guid.Parse("b1a1f41c-46d9-42a8-a35d-99b06700c100"),
+        EmailNormalized = "LEGACY-SCHOOL-BACKFILL@EXAMPLE.TEST",
+        PasswordHash = "test-only-hash",
+        DateOfBirth = new DateOnly(1990, 1, 1)
+    };
+    db.Users.Add(legacyUser);
+    db.Characters.Add(new Character {
+        Id = legacyCharacterId, UserId = legacyUser.Id, DisplayName = "Legacy School"
+    });
+    var legacyResult = new SchoolExecutionResult("study", 2,
+        new Dictionary<string, int> { ["Intelligence"] = 20 },
+        new Dictionary<string, int> { ["Intelligence"] = 25 },
+        legacyCorrelationId);
+    db.IdempotencyRecords.Add(new IdempotencyRecord {
+        Scope = "school:" + legacyCharacterId.ToString("N"),
+        Key = Guid.NewGuid().ToString("N"),
+        RequestHash = "legacy-school-backfill-test",
+        CorrelationId = legacyCorrelationId,
+        CreatedAt = new DateTimeOffset(2026, 10, 24, 16, 0, 0, TimeSpan.Zero),
+        ResponseJson = JsonSerializer.Serialize(legacyResult,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web))
+    });
+    await db.SaveChangesAsync();
+    Console.WriteLine("Seeded legacy completed school action before ledger migration.");
+    return;
+}
 if ((await db.Database.GetPendingMigrationsAsync()).Any())
     throw new InvalidOperationException("Apply committed migrations before running integration tests.");
 
@@ -21,6 +55,23 @@ static void Check(bool ok, string name)
 {
     if (!ok) throw new Exception("FAIL: " + name);
     Console.WriteLine("PASS: " + name);
+}
+
+if (Environment.GetEnvironmentVariable("TEST_LEGACY_BACKFILL") == "1")
+{
+    var migrated = await db.SchoolActivityExecutions.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.CorrelationId == legacyCorrelationId);
+    Check(migrated is not null && migrated.CharacterId == legacyCharacterId &&
+        migrated.ActivityId == "study" && migrated.TimeCost == 2,
+        "Committed migration backfills the historical action with original charged time");
+    var historical = migrated is null ? null : SchoolHistoryEndpoints.Parse(migrated);
+    Check(historical is not null && historical.Before["Intelligence"] == 20 &&
+        historical.After["Intelligence"] == 25,
+        "Backfilled school action preserves original attribute snapshots");
+    var historicalTime = await SchoolTimeBudget.LoadAsync(db, legacyCharacterId,
+        new DateTimeOffset(2026, 10, 24, 16, 1, 0, TimeSpan.Zero), CancellationToken.None);
+    Check(historicalTime.Spent == 2,
+        "Backfilled school action counts toward its original UTC-day time budget");
 }
 
 var scope = "school:" + Guid.NewGuid().ToString("N");
