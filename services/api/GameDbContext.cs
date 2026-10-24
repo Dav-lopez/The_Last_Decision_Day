@@ -52,6 +52,9 @@ public sealed class GameDbContext(DbContextOptions<GameDbContext> options) : DbC
         b.Entity<AttributeEvent>().ToTable(t => t.HasCheckConstraint("CK_AttributeEvent_After_Range", "\"AfterValue\" BETWEEN 0 AND 100"));
         b.Entity<AttributeEvent>().ToTable(t => t.HasCheckConstraint("CK_AttributeEvent_Before_Range", "\"BeforeValue\" IS NULL OR \"BeforeValue\" BETWEEN 0 AND 100"));
         b.Entity<IdempotencyRecord>().HasIndex(x => new { x.Scope, x.Key }).IsUnique();
+        // Scope-prefixed UTC history/time queries; newest records first.
+        b.Entity<IdempotencyRecord>().HasIndex(x => new { x.Scope, x.CreatedAt, x.Id })
+            .IsDescending(false, true, true);
         b.Entity<IdempotencyRecord>().Property(x => x.Scope).HasMaxLength(64).IsRequired();
         b.Entity<IdempotencyRecord>().Property(x => x.Key).HasMaxLength(128).IsRequired();
         b.Entity<IdempotencyRecord>().Property(x => x.RequestHash).HasMaxLength(128).IsRequired();
