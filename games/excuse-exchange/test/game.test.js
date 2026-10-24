@@ -69,8 +69,8 @@ test("demo completes five live rounds and returns a final leaderboard", async ()
   post(ws, { type: "start" });
   for (let round = 1; round <= 5; round++) {
     const writing = await waitFor(ws, p => p.type === "state" && p.phase === "write" && p.round === round);
-    assert.ok(writing.prompt && writing.wildcard);
-    post(ws, { type: "submit", text: "The " + writing.wildcard + " did it, Your Honour. I was at lunch." });
+    assert.ok(writing.prompt && writing.wildcard && writing.yourRole?.name);
+    post(ws, { type: "submit", text: "The " + writing.wildcard + " and " + writing.yourRole.keyword + " did it, Your Honour." });
     const voting = await waitFor(ws, p => p.type === "state" && p.phase === "vote" && p.round === round);
     assert.equal(voting.choices.length, 4);
     assert.equal(voting.answerCount, 4);
@@ -79,7 +79,7 @@ test("demo completes five live rounds and returns a final leaderboard", async ()
     const result = await waitFor(ws, p => p.type === "state" && p.phase === "reveal" && p.round === round);
     assert.equal(result.results.length, 4);
     assert.equal(result.results.reduce((a, p) => a + p.votes, 0), 4);
-    assert.ok(result.results.some(p => p.author === "Player One" && p.bonus === 1));
+    assert.ok(result.results.some(p => p.author === "Player One" && p.bonus === 1 && p.roleBonus === 2));
     post(ws, { type: "next" });
   }
   const final = await waitFor(ws, p => p.type === "state" && p.phase === "final");
@@ -108,6 +108,7 @@ test("three connected players synchronize and self-votes are rejected", async ()
   const [va, vb, vc] = await Promise.all([a,b,c].map(ws => waitFor(ws, p => p.type === "state" && p.phase === "vote")));
   assert.deepEqual(va.choices.map(p => p.id), vb.choices.map(p => p.id));
   assert.equal(va.choices.length, 3);
+  assert.equal(new Set([va.yourRole.name, vb.yourRole.name, vc.yourRole.name]).size, 3);
   post(a, { type: "vote", answerId: va.yourAnswerId });
   const refusal = await waitFor(a, p => p.type === "error");
   assert.match(refusal.message, /another player/);
