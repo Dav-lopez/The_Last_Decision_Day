@@ -278,7 +278,7 @@ const server = http.createServer((req, res) => {
   fs.readFile(path.join(root, file[0]), (err, data) => {
     if (err) { res.writeHead(500); res.end("Server error"); return; }
     res.writeHead(200, { "Content-Type": file[1], "Cache-Control": "no-cache",
-      "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data:; base-uri 'none'; object-src 'none'; frame-ancestors 'none'" });
+      "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ws: wss:; img-src 'self' data:; base-uri 'none'; object-src 'none'; frame-ancestors 'none'" });
     res.end(data);
   });
 });
