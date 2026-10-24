@@ -29,7 +29,7 @@ $env:ConnectionStrings__GameDb = "Host=localhost;Port=5432;Database=thelastdecis
 dotnet ef database update --project services/api
 ```
 
-Use the actual credentials from your local `.env` file. After applying migrations, `/api/v1/health/ready` should return HTTP 200. Do not use `docker compose down -v` unless you intend to delete local database data.
+Use the actual credentials from your local `.env` file. After applying migrations, `/api/v1/health/ready` should return HTTP 200. The API's Data Protection keys are stored in the `api_data_protection_keys` Docker named volume, so authentication and antiforgery tokens can survive API container restarts. Do not use `docker compose down -v` unless you intend to delete local database data **and** invalidate existing authentication/antiforgery tokens by removing their encryption keys.
 
 ## CI and readiness
 
