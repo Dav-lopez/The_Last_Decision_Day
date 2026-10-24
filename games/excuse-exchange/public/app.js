@@ -197,7 +197,8 @@ function renderReveal() {
     scoreboard() + '</div></div>',
     state.isHost ? '<button class="button button-primary button-wide" data-action="next">' +
       (state.round >= state.maxRounds ? 'SEE THE FINAL VERDICT →' : 'NEXT DISASTER →') + '</button>' :
-      '<div class="wait-banner">Waiting for the host to open the next case…</div></section>'
+      '<div class="wait-banner">Waiting for the host to open the next case…</div>',
+    '</section>'
   ].join("");
 }
 function renderFinal() {
