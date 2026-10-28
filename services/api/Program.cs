@@ -9,8 +9,10 @@ using TheLastDecision.Api.Identity;
 using Microsoft.EntityFrameworkCore;
 using TheLastDecision.Api;
 using TheLastDecision.Api.School;
+using TheLastDecision.Api.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
+RequestObservability.ConfigureLogging(builder);
 var connectionString = builder.Configuration.GetConnectionString("GameDb");
 if (string.IsNullOrWhiteSpace(connectionString))
     throw new InvalidOperationException("ConnectionStrings:GameDb must be configured.");
@@ -106,6 +108,7 @@ builder.Services.AddAntiforgery(options =>
 builder.Services.AddScoped<IPasswordHasher<GameUser>, PasswordHasher<GameUser>>();
 
 var app = builder.Build();
+app.UseRequestObservability();
 // Check the direct peer before forwarding middleware changes RemoteIpAddress.
 // Only a loopback Caddy connection with a matching Pages edge secret can supply
 // the original browser IP for the auth and anonymous school rate-limit buckets.
