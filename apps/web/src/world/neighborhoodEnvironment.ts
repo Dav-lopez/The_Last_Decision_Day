@@ -1,5 +1,5 @@
-import { Color3, Mesh, MeshBuilder, Scene, StandardMaterial, VertexData } from '@babylonjs/core';
-import { HOUSE_SITES, gableRoofGeometry, houseStreetFeatures } from './suburbLayout.mjs';
+import { Color3, MeshBuilder, Scene, StandardMaterial } from '@babylonjs/core';
+import { HOUSE_SITES, SIDEWALK_WIDTH, streetFurniture } from './suburbLayout.mjs';
 
 /** Original lightweight neighborhood architecture; no external assets or network requests. */
 export function addPlayableNeighborhoodDetails(scene: Scene): void {
@@ -43,86 +43,48 @@ export function addPlayableNeighborhoodDetails(scene: Scene): void {
     detail('house front steps', 1.7, 0.18, 0.75, x, 0.09, -2.16, stone);
     for (const dx of [-1.8, 1.8]) detail('garden hedge', 0.45, 0.6, 1.8, x + dx, 0.3, -1.65, hedge);
   }
-  // The houses previously read as rectangular blocks with flat roofs. Add
-  // true gabled roof silhouettes, street-facing garage doors, and connected
-  // driveways without replacing the existing collision geometry.
-  const shingles = mat('suburban charcoal shingles', '#55575b');
-  const siding = mat('suburban cream gable siding', '#d6c8b6');
-  siding.backFaceCulling = false;
-  const garage = mat('suburban garage door', '#d8d8d2');
-  const garageSeams = mat('suburban garage panel joints', '#979b9b');
-  const frontDoor = mat('suburban front doors', '#5e4a41');
-  const asphaltDriveway = mat('suburban concrete driveway', '#aaa9a2');
-  const porchLight = mat('suburban porch lamps', '#f3d9a1');
-  porchLight.emissiveColor = new Color3(0.25, 0.19, 0.08);
-  const roof = gableRoofGeometry();
-
-  // Continuous sidewalks on either side of the road; driveways are drawn
-  // slightly above them to make the crossing unambiguous.
-  for (const sidewalkX of [-2.5, 2.5]) {
-    detail('American residential sidewalk', 0.65, 0.04, 24, sidewalkX, 0.02, 0, stone);
-    for (const z of [-9, -5, -1, 3, 7]) {
-      detail('sidewalk expansion joint', 0.65, 0.006, 0.026, sidewalkX, 0.043, z, garageSeams);
-    }
-  }
+  // Separate pedestrian space from the road, completing the US residential
+  // streetscape. The house architecture is owned by the independent PR #76.
+  const curb = mat('American curb concrete', '#c6c3ba');
+  const mailboxPaint = mat('suburban mailbox charcoal', '#454e57');
+  const mailboxFlag = mat('mailbox red flag', '#b54d42');
+  const plantingSoil = mat('front yard garden soil', '#66584a');
+  const shrubs = [
+    mat('suburban shrub dark', '#315e3e'),
+    mat('suburban shrub bright', '#4f7c4b'),
+  ];
 
   for (const site of HOUSE_SITES) {
-    const { streetWallX, garageFacadeX, drivewayX, drivewayLength } = houseStreetFeatures(site);
-
-    // Each pitched roof uses two lightweight sloped rectangular planes.
-    // Its ridge runs along the house depth, like a typical US detached home.
-    for (const side of [-1, 1]) {
-      const panel = MeshBuilder.CreateBox('suburban pitched shingle roof', {
-        width: roof.panelWidth + 0.04, height: 0.13, depth: 5.5,
-      }, scene);
-      panel.position.set(site.x + side * 1.225, roof.panelCenterY, site.z);
-      panel.rotation.z = -side * roof.pitchRadians;
-      panel.material = shingles;
+    const { sidewalkX, mailboxX, mailboxZ } = streetFurniture(site);
+    detail('American residential sidewalk', SIDEWALK_WIDTH, 0.045, 24,
+      sidewalkX, 0.023, 0, stone);
+    // Narrow curb separates asphalt from the pedestrian path.
+    detail('street concrete curb', 0.1, 0.075, 24,
+      sidewalkX + site.roadSide * 0.34, 0.038, 0, curb);
+    for (const z of [-9, -5, -1, 3, 7]) {
+      detail('sidewalk expansion joint', SIDEWALK_WIDTH, 0.006, 0.026,
+        sidewalkX, 0.049, z, mailboxPaint);
     }
 
-    // Close both ends of the roof with actual triangular gable walls.
-    const positions: number[] = [];
-    const indices: number[] = [];
-    for (const z of [site.z + 2.46, site.z - 2.46]) {
-      const base = positions.length / 3;
-      positions.push(
-        site.x - 2.1, 3.55, z,
-        site.x + 2.1, 3.55, z,
-        site.x, roof.ridgeY - 0.06, z,
-      );
-      indices.push(base, base + 1, base + 2);
-    }
-    const normals: number[] = [];
-    VertexData.ComputeNormals(positions, indices, normals);
-    const gable = new Mesh('suburban triangular gable', scene);
-    const geometry = new VertexData();
-    geometry.positions = positions;
-    geometry.indices = indices;
-    geometry.normals = normals;
-    geometry.applyToMesh(gable);
-    gable.material = siding;
+    // US-style curbside mailbox with a contrasting red flag.
+    const post = MeshBuilder.CreateCylinder('residential mailbox post',
+      { height: 1.05, diameter: 0.105, tessellation: 8 }, scene);
+    post.position.set(mailboxX, 0.525, mailboxZ);
+    post.material = wood;
+    detail('residential mailbox body', 0.38, 0.28, 0.65,
+      mailboxX, 1.16, mailboxZ, mailboxPaint);
+    detail('residential mailbox red flag', 0.035, 0.19, 0.1,
+      mailboxX + site.roadSide * 0.21, 1.22, mailboxZ - 0.13, mailboxFlag);
 
-    // A paved driveway connects the actual street edge to the garage wall.
-    detail('suburban driveway', drivewayLength, 0.045, 2.75,
-      drivewayX, 0.038, site.z - 0.12, asphaltDriveway);
-
-    // The garage faces the street (x axis), not the house's rear wall.
-    detail('suburban garage door', 0.095, 2.35, 2.55,
-      garageFacadeX, 1.22, site.z - 0.12, garage);
-    for (const y of [0.5, 0.98, 1.46, 1.94]) {
-      detail('garage door horizontal panel seam', 0.105, 0.028, 2.49,
-        garageFacadeX + site.roadSide * 0.018, y, site.z - 0.12, garageSeams);
-    }
-
-    // Front porch details remain clear from the default third-person camera.
-    detail('suburban front door', 0.95, 2.15, 0.085,
-      site.x, 1.075, site.z + 2.56, frontDoor);
-    const knob = MeshBuilder.CreateSphere('front door handle', { diameter: 0.095, segments: 8 }, scene);
-    knob.position.set(site.x + 0.31, 1.02, site.z + 2.625);
-    knob.material = garageSeams;
-    for (const dx of [-0.63, 0.63]) {
-      detail('porch wall light', 0.13, 0.26, 0.12,
-        site.x + dx, 2.34, site.z + 2.56, porchLight);
+    // Mulched planting beds and low, irregular shrubs in the front yards.
+    detail('residential mulch garden bed', 2.25, 0.025, 0.62,
+      site.x, 0.024, site.z + 3.38, plantingSoil);
+    for (const [index, dx] of [-0.7, 0.0, 0.7].entries()) {
+      const bush = MeshBuilder.CreateIcoSphere('front garden irregular shrub',
+        { radius: 0.32 + index * 0.035, subdivisions: 1 }, scene);
+      bush.position.set(site.x + dx, 0.33, site.z + 3.38);
+      bush.scaling.y = 0.85;
+      bush.material = shrubs[index % shrubs.length];
     }
   }
 
