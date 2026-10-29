@@ -42,6 +42,7 @@ function App() {
   const pendingAction = useRef<{ activityId: string; key: string } | null>(null);
   const actionGate = useRef(createSchoolActionGate());
   const [session, setSession] = useState<Session | null>(null);
+  const [guestDemo, setGuestDemo] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [activities, setActivities] = useState<SchoolActivity[]>([]);
   const [history, setHistory] = useState<SchoolHistoryEntry[]>([]);
@@ -191,6 +192,7 @@ function App() {
       pendingAction.current = null;
       setPreview(null); setActivities([]); setHistory([]); setTimeBalance(null);
       setSession(result);
+      setGuestDemo(false);
       setProfile(null);
       if (mode === 'login') {
         const response = await fetch('/api/v1/characters/me', { credentials: 'same-origin' });
@@ -228,8 +230,9 @@ function App() {
 
   return <main className="page">
     <header><h1>The Last Decision</h1><p>Your life. Your choices. Your consequences.</p></header>
-    {profile ? <Suspense fallback={<div className="hero hero-placeholder" role="status">Loading your 3D neighborhood…</div>}>
-      <WorldScene key={profile.id} characterId={profile.id} displayName={profile.displayName}
+    {(profile || guestDemo) ? <Suspense fallback={<div className="hero hero-placeholder" role="status">Loading your 3D neighborhood…</div>}>
+      <WorldScene key={profile?.id ?? 'guest-demo'} characterId={profile?.id ?? 'guest-demo'}
+        displayName={profile?.displayName ?? 'Guest explorer'} demoMode={!profile}
         onSchoolEnter={() => schoolSection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
         activities={activities} timeRemaining={timeBalance?.remaining ?? null} busy={busy}
         canExecuteActivity={cost => !busy && canStartSchoolActivity(timeBalance, cost)}
@@ -242,11 +245,16 @@ function App() {
         <p>Create your character, explore the neighborhood, and begin your life.</p>
       </div>}
     <section className="panel" aria-live="polite">
-      {loading ? <p>Loading your account…</p> : !session ? <>
+      {loading ? <p>Loading your account…</p> : guestDemo && !session ? <>
+        <h2>Explore the neighborhood</h2>
+        <p>This is a free, local 3D preview. Walk to the school, rotate the camera, and customize your avatar. School activities, accounts, and progress saving require a connected server and an invitation.</p>
+        <button type="button" onClick={() => setGuestDemo(false)}>Exit demo and sign in</button>
+      </> : !session ? <>
         <div className="tabs">
           <button type="button" aria-pressed={mode === 'login'} onClick={() => setMode('login')}>Sign in</button>
           <button type="button" aria-pressed={mode === 'register'} onClick={() => setMode('register')}>Use invitation</button>
         </div>
+        <button type="button" onClick={() => { setGuestDemo(true); setMessage(''); }}>Try the 3D demo without signing in</button>
         <form onSubmit={authenticate}>
           <label>Email<input type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required /></label>
           <label>Password<input type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={mode === 'register' ? 12 : undefined} value={password} onChange={e => setPassword(e.target.value)} required /></label>
