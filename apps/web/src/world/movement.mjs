@@ -1,6 +1,11 @@
 /** Pure movement and interaction rules shared by desktop and touch inputs. */
 export const WORLD_RADIUS = 11.5;
 export const SCHOOL_DOOR = Object.freeze({ x: 0, z: -5.5 });
+export const TREE_TRUNKS = Object.freeze([
+  { x: -8, z: 3 }, { x: 8, z: 3 },
+  { x: -8, z: 8 }, { x: 8, z: 8 },
+  { x: -4.8, z: -8.4 }, { x: 4.8, z: -8.4 },
+]);
 export const SOLID_AREAS = Object.freeze([
   { minX: -3.9, maxX: 3.9, minZ: -11.5, maxZ: -6.75 }, // school
   { minX: -10.5, maxX: -6.3, minZ: -7.5, maxZ: -2.6 }, // homes
@@ -30,27 +35,40 @@ export function movementVector(keys, cameraForward = { x: 0, z: -1 }) {
 
 function blocked(x, z) {
   const radius = 0.38;
-  return SOLID_AREAS.some(area =>
+  const insideBuilding = SOLID_AREAS.some(area =>
     x + radius > area.minX && x - radius < area.maxX &&
     z + radius > area.minZ && z - radius < area.maxZ);
+  // Tree trunks are cylinders (diameter 0.42) rather than rectangular walls.
+  // A small extra margin prevents the player capsule clipping through bark.
+  return insideBuilding || TREE_TRUNKS.some(tree =>
+    Math.hypot(x - tree.x, z - tree.z) < radius + 0.21 + 0.04);
 }
 
 export function stepPosition(position, keys, elapsedSeconds, speed = 4, cameraForward = { x: 0, z: -1 }) {
   if (!Number.isFinite(elapsedSeconds) || elapsedSeconds <= 0 ||
       !Number.isFinite(speed) || speed <= 0) return { ...position };
-  // A suspended tab cannot teleport a character through a building on resume.
-  const dt = Math.min(elapsedSeconds, 0.05);
+  // Cap catch-up movement and sweep in short increments to avoid tunneling
+  // through tree trunks or building corners during a slow frame.
+  const distance = Math.min(speed * Math.min(elapsedSeconds, 0.05), 1.2);
   const vector = movementVector(keys, cameraForward);
-  const x = Math.max(-WORLD_RADIUS + 0.4,
-    Math.min(WORLD_RADIUS - 0.4, position.x + vector.x * speed * dt));
-  const z = Math.max(-WORLD_RADIUS + 0.4,
-    Math.min(WORLD_RADIUS - 0.4, position.z + vector.z * speed * dt));
-  // Slide along obstacles instead of stopping entirely at corners.
-  const nextX = blocked(x, position.z) ? position.x : x;
-  const nextZ = blocked(nextX, z) ? position.z : z;
-  return { x: nextX, z: nextZ };
+  const steps = Math.max(1, Math.ceil(distance / 0.15));
+  const stride = distance / steps;
+  let next = { ...position };
+  for (let i = 0; i < steps; i++) {
+    const x = Math.max(-WORLD_RADIUS + 0.4,
+      Math.min(WORLD_RADIUS - 0.4, next.x + vector.x * stride));
+    const z = Math.max(-WORLD_RADIUS + 0.4,
+      Math.min(WORLD_RADIUS - 0.4, next.z + vector.z * stride));
+    // Resolve each axis separately so the avatar slides along obstacles.
+    const nextX = blocked(x, next.z) ? next.x : x;
+    const nextZ = blocked(nextX, z) ? next.z : z;
+    next = { x: nextX, z: nextZ };
+  }
+  return next;
 }
 
 export function isNearSchool(position) {
-  return Math.hypot(position.x - SCHOOL_DOOR.x, position.z - SCHOOL_DOOR.z) <= 2.4;
+  // The interaction belongs to the front doorway, not the school side walls.
+  return Math.abs(position.x - SCHOOL_DOOR.x) <= 1.45 &&
+    Math.abs(position.z - SCHOOL_DOOR.z) <= 1.6;
 }
