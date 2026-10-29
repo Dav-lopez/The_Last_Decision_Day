@@ -21,9 +21,17 @@ public static class RequestMetrics
     {
         // Callers must pass a matched server-defined route template, not Request.Path.
         // Keep dimensions bounded to avoid accidental per-player time series.
+        // HTTP method is client-controlled. Collapse unknown verbs into a single bucket
+        // so arbitrary method names cannot create unbounded metric dimensions.
+        var normalizedMethod = method switch
+        {
+            "GET" or "HEAD" or "POST" or "PUT" or "PATCH" or "DELETE" or
+            "OPTIONS" or "TRACE" or "CONNECT" => method,
+            _ => "OTHER"
+        };
         var tags = new TagList
         {
-            { "http.request.method", method },
+            { "http.request.method", normalizedMethod },
             { "http.route", route },
             { "http.response.status_code", statusCode }
         };
