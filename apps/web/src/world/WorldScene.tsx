@@ -6,7 +6,20 @@ import {
 import { isNearSchool, movementVector, stepPosition, type PlanarPosition } from './movement.mjs';
 import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mjs';
 
-type WorldProps = { characterId: string; displayName: string; onSchoolEnter: () => void };
+type SchoolActivityView = { id: string; title: string; description: string; timeCost: number };
+type SchoolPreview = { activityId: string; before: Record<string, number>; after: Record<string, number> };
+type WorldProps = {
+  characterId: string;
+  displayName: string;
+  onSchoolEnter: () => void;
+  activities: ReadonlyArray<SchoolActivityView>;
+  timeRemaining: number | null;
+  busy: boolean;
+  canExecuteActivity: (timeCost: number) => boolean;
+  onPreviewActivity: (activityId: string) => void;
+  onExecuteActivity: (activityId: string) => void;
+  preview: SchoolPreview | null;
+};
 const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift']);
 
 function surface(scene: Scene, name: string, color: string): StandardMaterial {
@@ -104,11 +117,15 @@ function createAvatar(scene: Scene) {
 }
 
 /** The WebGL view is optional: login and school actions remain usable if 3D fails. */
-export default function WorldScene({ characterId, displayName, onSchoolEnter }: WorldProps) {
+export default function WorldScene({
+  characterId, displayName, onSchoolEnter, activities, timeRemaining, busy,
+  canExecuteActivity, onPreviewActivity, onExecuteActivity, preview,
+}: WorldProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pressed = useRef(new Set<string>());
   const [error, setError] = useState('');
   const [nearSchool, setNearSchool] = useState(false);
+  const [schoolOpen, setSchoolOpen] = useState(false);
   const [look, setLook] = useState<Look>(() => readLook(characterId));
   const avatarRef = useRef<ReturnType<typeof createAvatar> | null>(null);
 
@@ -230,6 +247,10 @@ export default function WorldScene({ characterId, displayName, onSchoolEnter }: 
     }
   }, [characterId, look]);
 
+  useEffect(() => {
+    if (!nearSchool) setSchoolOpen(false);
+  }, [nearSchool]);
+
   const touch = (key: string, down: boolean, event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
     if (down) {
@@ -260,7 +281,35 @@ export default function WorldScene({ characterId, displayName, onSchoolEnter }: 
       {!error && <canvas ref={canvasRef} tabIndex={0} aria-label={`3D world for ${displayName}; click to focus, use WASD or arrow keys to move`} />}
       {error ? <p className="world-fallback" role="status">{error}</p> : <>
         <div className="world-caption"><strong>{displayName}</strong> · Neighborhood demo</div>
-        {nearSchool && <button type="button" className="world-enter" onClick={onSchoolEnter}>Enter school</button>}
+        {nearSchool && <button type="button" className="world-enter"
+          aria-expanded={schoolOpen} aria-controls="school-game-panel"
+          onClick={() => setSchoolOpen(current => !current)}>
+          {schoolOpen ? 'Close school' : 'Enter school'}
+        </button>}
+        {nearSchool && schoolOpen && <section className="world-school-panel" id="school-game-panel" aria-label="School activities in game">
+          <h3>School</h3>
+          <p>{timeRemaining === null ? 'Loading your school time…' : `${timeRemaining} time units remaining today.`}</p>
+          {activities.length === 0 && <p>No school activities available yet.</p>}
+          <div className="world-school-activities">
+            {activities.map(activity =>
+              <article key={activity.id}>
+                <h4>{activity.title}</h4>
+                <p>{activity.description} · {activity.timeCost} time units</p>
+                <div className="world-school-actions">
+                  <button type="button" disabled={busy} onClick={() => onPreviewActivity(activity.id)}>Preview</button>
+                  <button type="button" disabled={busy || !canExecuteActivity(activity.timeCost)}
+                    onClick={() => onExecuteActivity(activity.id)}>Do activity</button>
+                </div>
+                {preview?.activityId === activity.id && <div className="world-school-preview" aria-live="polite">
+                  <strong>Projected outcome (not saved)</strong>
+                  {Object.entries(preview.after)
+                    .filter(([name, value]) => preview.before[name] !== value)
+                    .map(([name, value]) => <p key={name}>{name}: {preview.before[name]} → {value}</p>)}
+                </div>}
+              </article>)}
+          </div>
+          <button type="button" className="world-full-school" onClick={onSchoolEnter}>Open full school dashboard</button>
+        </section>}
       </>}
     </div>
     {!error && <div className="world-controls">

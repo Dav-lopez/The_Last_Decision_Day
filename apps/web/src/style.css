@@ -43,3 +43,17 @@
 .world-swatch[aria-pressed=true]{border-color:#f2d48b;box-shadow:0 0 0 1px #f2d48b}
 .world-swatch-dot{width:15px;height:15px;border-radius:50%;display:inline-block;flex-shrink:0;background:var(--swatch);border:1px solid #fff6}
 @media(max-width:640px){.world-looks{grid-template-columns:1fr}}
+
+/* The 3D entrance reuses existing server-backed school actions without duplicating API logic. */
+.world-school-panel{position:absolute;top:56px;right:14px;width:min(390px,calc(100% - 28px));max-height:calc(100% - 116px);overflow:auto;padding:15px;background:#13253bf2;border:1px solid #9bb9d5;border-radius:12px;z-index:3;box-shadow:0 10px 30px #0008;color:#f6f9ff}
+.world-school-panel h3{margin:0 0 7px}
+.world-school-panel p{color:#d1e0f1;font-size:.85rem;margin:5px 0 10px}
+.world-school-activities{display:grid;gap:10px}
+.world-school-activities article{padding:10px;background:#213750;border:1px solid #405d79;border-radius:8px}
+.world-school-activities h4{margin:0;font-size:.95rem}
+.world-school-actions{display:flex;gap:7px;flex-wrap:wrap}
+.world-school-actions button{padding:8px 10px;font-size:.83rem}
+.world-school-preview{border-top:1px solid #546e89;margin-top:10px;padding-top:8px;font-size:.8rem}
+.world-school-preview p{margin:3px 0}
+.world-full-school{margin-top:12px;width:100%;padding:9px 12px;font-size:.85rem;background:#c8dcf4}
+@media(max-width:520px){.world-school-panel{right:7px;top:55px;width:calc(100% - 14px);padding:10px}}
