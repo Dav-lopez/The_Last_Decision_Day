@@ -4,8 +4,9 @@ import {
   MeshBuilder, Scene, StandardMaterial, TransformNode, Vector3,
 } from '@babylonjs/core';
 import { isNearSchool, movementVector, stepPosition, type PlanarPosition } from './movement.mjs';
+import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mjs';
 
-type WorldProps = { displayName: string; onSchoolEnter: () => void };
+type WorldProps = { characterId: string; displayName: string; onSchoolEnter: () => void };
 const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift']);
 
 function surface(scene: Scene, name: string, color: string): StandardMaterial {
@@ -65,7 +66,7 @@ function createNeighborhood(scene: Scene) {
   }
 }
 
-function createAvatar(scene: Scene): TransformNode {
+function createAvatar(scene: Scene) {
   const root = new TransformNode('player', scene);
   const jacket = surface(scene, 'character jacket', '#5f83d8');
   const face = surface(scene, 'character skin', '#996b4f');
@@ -85,21 +86,31 @@ function createAvatar(scene: Scene): TransformNode {
   cap.position.y = 2.31;
   cap.material = hair;
   cap.parent = root;
-  for (const x of [-0.2, 0.2]) {
+  const legs = [-0.2, 0.2].map(x => {
     const leg = MeshBuilder.CreateCapsule('character leg', { height: 0.7, radius: 0.14 }, scene);
     leg.position.set(x, 0.38, 0);
     leg.material = trousers;
     leg.parent = root;
-  }
-  return root;
+    return leg;
+  });
+  const arms = [-0.49, 0.49].map(x => {
+    const arm = MeshBuilder.CreateCapsule('character arm', { height: 0.84, radius: 0.15 }, scene);
+    arm.position.set(x, 1.23, 0);
+    arm.material = jacket;
+    arm.parent = root;
+    return arm;
+  });
+  return { root, jacket, face, hair, legs, arms };
 }
 
 /** The WebGL view is optional: login and school actions remain usable if 3D fails. */
-export default function WorldScene({ displayName, onSchoolEnter }: WorldProps) {
+export default function WorldScene({ characterId, displayName, onSchoolEnter }: WorldProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pressed = useRef(new Set<string>());
   const [error, setError] = useState('');
   const [nearSchool, setNearSchool] = useState(false);
+  const [look, setLook] = useState<Look>(() => readLook(characterId));
+  const avatarRef = useRef<ReturnType<typeof createAvatar> | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -120,7 +131,12 @@ export default function WorldScene({ displayName, onSchoolEnter }: WorldProps) {
       const directional = new DirectionalLight('sun', new Vector3(-0.4, -1, -0.6), scene);
       directional.intensity = 0.7;
       createNeighborhood(scene);
-      const avatar = createAvatar(scene);
+      const avatarParts = createAvatar(scene);
+      avatarRef.current = avatarParts;
+      const { root: avatar } = avatarParts;
+      avatarParts.jacket.diffuseColor = Color3.FromHexString(colorFor('outfit', look.outfit));
+      avatarParts.face.diffuseColor = Color3.FromHexString(colorFor('skin', look.skin));
+      avatarParts.hair.diffuseColor = Color3.FromHexString(colorFor('hair', look.hair));
       let position: PlanarPosition = { x: 0, z: 3.8 };
       avatar.position.set(position.x, 0, position.z);
       const camera = new ArcRotateCamera('third-person camera', Math.PI / 2, 1.2, 11,
@@ -167,8 +183,14 @@ export default function WorldScene({ displayName, onSchoolEnter }: WorldProps) {
           avatar.rotation.y = Math.atan2(direction.x, -direction.z);
           elapsed += delta * 13;
           avatar.position.y = Math.abs(Math.sin(elapsed)) * 0.06;
+          const swing = Math.sin(elapsed) * 0.55;
+          avatarParts.legs[0].rotation.x = swing;
+          avatarParts.legs[1].rotation.x = -swing;
+          avatarParts.arms[0].rotation.x = -swing * 0.6;
+          avatarParts.arms[1].rotation.x = swing * 0.6;
         } else {
           avatar.position.y = 0;
+          for (const limb of [...avatarParts.legs, ...avatarParts.arms]) limb.rotation.x = 0;
         }
         const nextNear = isNearSchool(position);
         if (nextNear !== previousNear) {
@@ -188,12 +210,25 @@ export default function WorldScene({ displayName, onSchoolEnter }: WorldProps) {
         window.removeEventListener('blur', clear);
         window.removeEventListener('resize', resize);
         engine?.dispose();
+        avatarRef.current = null;
       };
     } catch {
       engine?.dispose();
+      avatarRef.current = null;
       setError('Unable to load the 3D world. Your character and school activities are still available below.');
     }
   }, []);
+
+  // Cosmetics are deliberately browser-local during the demo; progression remains on the API.
+  useEffect(() => {
+    writeLook(characterId, look);
+    const parts = avatarRef.current;
+    if (parts) {
+      parts.jacket.diffuseColor = Color3.FromHexString(colorFor('outfit', look.outfit));
+      parts.face.diffuseColor = Color3.FromHexString(colorFor('skin', look.skin));
+      parts.hair.diffuseColor = Color3.FromHexString(colorFor('hair', look.hair));
+    }
+  }, [characterId, look]);
 
   const touch = (key: string, down: boolean, event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -239,5 +274,26 @@ export default function WorldScene({ displayName, onSchoolEnter }: WorldProps) {
         </div>
       </div>
     </div>}
+    {!error && <section className="world-customize" aria-label="Customize character appearance">
+      <h3>Character appearance</h3>
+      <div className="world-looks">
+        {(['skin', 'hair', 'outfit'] as const).map(part =>
+          <fieldset key={part}>
+            <legend>{part === 'skin' ? 'Skin tone' : part === 'hair' ? 'Hair color' : 'Outfit'}</legend>
+            <div className="world-swatch-list">
+              {LOOKS[part].map(choice =>
+                <button key={choice.id} type="button" className="world-swatch"
+                  aria-label={`${choice.label} ${part}`}
+                  aria-pressed={look[part] === choice.id}
+                  title={choice.label}
+                  style={{ '--swatch': choice.hex } as React.CSSProperties}
+                  onClick={() => setLook(current => ({ ...current, [part]: choice.id }))}>
+                  <span className="world-swatch-dot" aria-hidden="true" /><span>{choice.label}</span>
+                </button>)}
+            </div>
+          </fieldset>)}
+      </div>
+      <p>Outfit and appearance choices are saved in this browser only. Server-synced customization is coming later.</p>
+    </section>}
   </div>;
 }
