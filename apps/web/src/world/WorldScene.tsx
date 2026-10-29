@@ -1,11 +1,25 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent, type CSSProperties } from 'react';
 import {
   ArcRotateCamera, Color3, Color4, DirectionalLight, Engine, HemisphericLight,
   MeshBuilder, Scene, StandardMaterial, TransformNode, Vector3,
 } from '@babylonjs/core';
 import { isNearSchool, movementVector, stepPosition, type PlanarPosition } from './movement.mjs';
+import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mjs';
 
-type WorldProps = { displayName: string; onSchoolEnter: () => void };
+type SchoolActivityView = { id: string; title: string; description: string; timeCost: number };
+type SchoolPreview = { activityId: string; before: Record<string, number>; after: Record<string, number> };
+type WorldProps = {
+  characterId: string;
+  displayName: string;
+  onSchoolEnter: () => void;
+  activities: ReadonlyArray<SchoolActivityView>;
+  timeRemaining: number | null;
+  busy: boolean;
+  canExecuteActivity: (timeCost: number) => boolean;
+  onPreviewActivity: (activityId: string) => void;
+  onExecuteActivity: (activityId: string) => void;
+  preview: SchoolPreview | null;
+};
 const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift']);
 
 function surface(scene: Scene, name: string, color: string): StandardMaterial {
@@ -65,7 +79,7 @@ function createNeighborhood(scene: Scene) {
   }
 }
 
-function createAvatar(scene: Scene): TransformNode {
+function createAvatar(scene: Scene) {
   const root = new TransformNode('player', scene);
   const jacket = surface(scene, 'character jacket', '#5f83d8');
   const face = surface(scene, 'character skin', '#996b4f');
@@ -85,21 +99,35 @@ function createAvatar(scene: Scene): TransformNode {
   cap.position.y = 2.31;
   cap.material = hair;
   cap.parent = root;
-  for (const x of [-0.2, 0.2]) {
+  const legs = [-0.2, 0.2].map(x => {
     const leg = MeshBuilder.CreateCapsule('character leg', { height: 0.7, radius: 0.14 }, scene);
     leg.position.set(x, 0.38, 0);
     leg.material = trousers;
     leg.parent = root;
-  }
-  return root;
+    return leg;
+  });
+  const arms = [-0.49, 0.49].map(x => {
+    const arm = MeshBuilder.CreateCapsule('character arm', { height: 0.84, radius: 0.15 }, scene);
+    arm.position.set(x, 1.23, 0);
+    arm.material = jacket;
+    arm.parent = root;
+    return arm;
+  });
+  return { root, jacket, face, hair, legs, arms };
 }
 
 /** The WebGL view is optional: login and school actions remain usable if 3D fails. */
-export default function WorldScene({ displayName, onSchoolEnter }: WorldProps) {
+export default function WorldScene({
+  characterId, displayName, onSchoolEnter, activities, timeRemaining, busy,
+  canExecuteActivity, onPreviewActivity, onExecuteActivity, preview,
+}: WorldProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pressed = useRef(new Set<string>());
   const [error, setError] = useState('');
   const [nearSchool, setNearSchool] = useState(false);
+  const [schoolOpen, setSchoolOpen] = useState(false);
+  const [look, setLook] = useState<Look>(() => readLook(characterId));
+  const avatarRef = useRef<ReturnType<typeof createAvatar> | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -120,7 +148,12 @@ export default function WorldScene({ displayName, onSchoolEnter }: WorldProps) {
       const directional = new DirectionalLight('sun', new Vector3(-0.4, -1, -0.6), scene);
       directional.intensity = 0.7;
       createNeighborhood(scene);
-      const avatar = createAvatar(scene);
+      const avatarParts = createAvatar(scene);
+      avatarRef.current = avatarParts;
+      const { root: avatar } = avatarParts;
+      avatarParts.jacket.diffuseColor = Color3.FromHexString(colorFor('outfit', look.outfit));
+      avatarParts.face.diffuseColor = Color3.FromHexString(colorFor('skin', look.skin));
+      avatarParts.hair.diffuseColor = Color3.FromHexString(colorFor('hair', look.hair));
       let position: PlanarPosition = { x: 0, z: 3.8 };
       avatar.position.set(position.x, 0, position.z);
       const camera = new ArcRotateCamera('third-person camera', Math.PI / 2, 1.2, 11,
@@ -167,8 +200,14 @@ export default function WorldScene({ displayName, onSchoolEnter }: WorldProps) {
           avatar.rotation.y = Math.atan2(direction.x, -direction.z);
           elapsed += delta * 13;
           avatar.position.y = Math.abs(Math.sin(elapsed)) * 0.06;
+          const swing = Math.sin(elapsed) * 0.55;
+          avatarParts.legs[0].rotation.x = swing;
+          avatarParts.legs[1].rotation.x = -swing;
+          avatarParts.arms[0].rotation.x = -swing * 0.6;
+          avatarParts.arms[1].rotation.x = swing * 0.6;
         } else {
           avatar.position.y = 0;
+          for (const limb of [...avatarParts.legs, ...avatarParts.arms]) limb.rotation.x = 0;
         }
         const nextNear = isNearSchool(position);
         if (nextNear !== previousNear) {
@@ -188,12 +227,29 @@ export default function WorldScene({ displayName, onSchoolEnter }: WorldProps) {
         window.removeEventListener('blur', clear);
         window.removeEventListener('resize', resize);
         engine?.dispose();
+        avatarRef.current = null;
       };
     } catch {
       engine?.dispose();
+      avatarRef.current = null;
       setError('Unable to load the 3D world. Your character and school activities are still available below.');
     }
   }, []);
+
+  // Cosmetics are deliberately browser-local during the demo; progression remains on the API.
+  useEffect(() => {
+    writeLook(characterId, look);
+    const parts = avatarRef.current;
+    if (parts) {
+      parts.jacket.diffuseColor = Color3.FromHexString(colorFor('outfit', look.outfit));
+      parts.face.diffuseColor = Color3.FromHexString(colorFor('skin', look.skin));
+      parts.hair.diffuseColor = Color3.FromHexString(colorFor('hair', look.hair));
+    }
+  }, [characterId, look]);
+
+  useEffect(() => {
+    if (!nearSchool) setSchoolOpen(false);
+  }, [nearSchool]);
 
   const touch = (key: string, down: boolean, event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -225,7 +281,35 @@ export default function WorldScene({ displayName, onSchoolEnter }: WorldProps) {
       {!error && <canvas ref={canvasRef} tabIndex={0} aria-label={`3D world for ${displayName}; click to focus, use WASD or arrow keys to move`} />}
       {error ? <p className="world-fallback" role="status">{error}</p> : <>
         <div className="world-caption"><strong>{displayName}</strong> · Neighborhood demo</div>
-        {nearSchool && <button type="button" className="world-enter" onClick={onSchoolEnter}>Enter school</button>}
+        {nearSchool && <button type="button" className="world-enter"
+          aria-expanded={schoolOpen} aria-controls="school-game-panel"
+          onClick={() => setSchoolOpen(current => !current)}>
+          {schoolOpen ? 'Close school' : 'Enter school'}
+        </button>}
+        {nearSchool && schoolOpen && <section className="world-school-panel" id="school-game-panel" aria-label="School activities in game">
+          <h3>School</h3>
+          <p>{timeRemaining === null ? 'Loading your school time…' : `${timeRemaining} time units remaining today.`}</p>
+          {activities.length === 0 && <p>No school activities available yet.</p>}
+          <div className="world-school-activities">
+            {activities.map(activity =>
+              <article key={activity.id}>
+                <h4>{activity.title}</h4>
+                <p>{activity.description} · {activity.timeCost} time units</p>
+                <div className="world-school-actions">
+                  <button type="button" disabled={busy} onClick={() => onPreviewActivity(activity.id)}>Preview</button>
+                  <button type="button" disabled={busy || !canExecuteActivity(activity.timeCost)}
+                    onClick={() => onExecuteActivity(activity.id)}>Do activity</button>
+                </div>
+                {preview?.activityId === activity.id && <div className="world-school-preview" aria-live="polite">
+                  <strong>Projected outcome (not saved)</strong>
+                  {Object.entries(preview.after)
+                    .filter(([name, value]) => preview.before[name] !== value)
+                    .map(([name, value]) => <p key={name}>{name}: {preview.before[name]} → {value}</p>)}
+                </div>}
+              </article>)}
+          </div>
+          <button type="button" className="world-full-school" onClick={onSchoolEnter}>Open full school dashboard</button>
+        </section>}
       </>}
     </div>
     {!error && <div className="world-controls">
@@ -239,5 +323,26 @@ export default function WorldScene({ displayName, onSchoolEnter }: WorldProps) {
         </div>
       </div>
     </div>}
+    {!error && <section className="world-customize" aria-label="Customize character appearance">
+      <h3>Character appearance</h3>
+      <div className="world-looks">
+        {(['skin', 'hair', 'outfit'] as const).map(part =>
+          <fieldset key={part}>
+            <legend>{part === 'skin' ? 'Skin tone' : part === 'hair' ? 'Hair color' : 'Outfit'}</legend>
+            <div className="world-swatch-list">
+              {LOOKS[part].map(choice =>
+                <button key={choice.id} type="button" className="world-swatch"
+                  aria-label={`${choice.label} ${part}`}
+                  aria-pressed={look[part] === choice.id}
+                  title={choice.label}
+                  style={{ '--swatch': choice.hex } as CSSProperties}
+                  onClick={() => setLook(current => ({ ...current, [part]: choice.id }))}>
+                  <span className="world-swatch-dot" aria-hidden="true" /><span>{choice.label}</span>
+                </button>)}
+            </div>
+          </fieldset>)}
+      </div>
+      <p>Outfit and appearance choices are saved in this browser only. Server-synced customization is coming later.</p>
+    </section>}
   </div>;
 }
