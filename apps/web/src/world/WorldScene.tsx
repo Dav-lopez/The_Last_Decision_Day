@@ -4,6 +4,7 @@ import {
   MeshBuilder, Scene, ShadowGenerator, StandardMaterial, TransformNode, Vector3,
 } from '@babylonjs/core';
 import { loadRiggedAvatar, type RiggedAvatar } from './riggedAvatar';
+import type { Emotion } from './facialEmotions';
 import { loadSchoolEnvironment } from './schoolEnvironment';
 import { smoothHumanHeading, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
 import { isNearSchool, stepPosition, type PlanarPosition } from './movement.mjs';
@@ -335,6 +336,8 @@ export default function WorldScene({
   const lookRef = useRef(look);
   const avatarRef = useRef<ReturnType<typeof createAvatar> | null>(null);
   const riggedRef = useRef<RiggedAvatar | null>(null);
+  const [previewEmotion, setPreviewEmotion] = useState<Emotion>('neutral');
+  const previewEmotionRef = useRef<Emotion>('neutral');
   const [modelStatus, setModelStatus] = useState('Loading character…');
   const [cameraMode, setCameraMode] = useState<'follow' | 'overhead'>('follow');
   const cameraModeRef = useRef<'follow' | 'overhead'>('follow');
@@ -410,6 +413,7 @@ export default function WorldScene({
         if (!human) return;
         riggedRef.current = human;
         human.applyLook(lookRef.current);
+        human.setEmotion(previewEmotionRef.current);
         avatar.position.y = 0;
         for (const mesh of placeholderMeshes) {
           mesh.setEnabled(false);
@@ -662,6 +666,17 @@ export default function WorldScene({
         Camera: {cameraMode === 'follow' ? 'Third person' : 'Overhead'} · Switch (C)
       </button>
     </div>}
+    {!error && <section aria-label="Preview character expressions" className="world-customize">
+      <h3>Expression preview</h3>
+      <div className="world-looks" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+        {(['neutral', 'happy', 'sad', 'angry', 'fear', 'embarrassed', 'exerted'] as const).map(emotion =>
+          <button key={emotion} type="button" aria-pressed={previewEmotion === emotion}
+            onClick={() => { previewEmotionRef.current = emotion; setPreviewEmotion(emotion); riggedRef.current?.setEmotion(emotion); }}>
+            {emotion.charAt(0).toUpperCase() + emotion.slice(1)}
+          </button>)}
+      </div>
+      <p>Expression previews require a character model with facial blendshapes. The current model may not visibly respond.</p>
+    </section>}
     {!error && <section className="world-customize" aria-label="Customize character appearance">
       <h3>Character appearance</h3>
       <div className="world-looks">
