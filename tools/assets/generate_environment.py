@@ -34,7 +34,8 @@ def clear():
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.object.delete(use_global=False)
 
-def tree(folder):\n    # Blender Z-up geometry exports as glTF Y-up for Babylon.js.
+def tree(folder):
+    # Blender Z-up geometry exports as glTF Y-up for Babylon.js.
     clear()
     bark = material("bark", (.22,.13,.075))
     leaves = [material("foliage_%d" % i, c) for i,c in enumerate([(.12,.30,.10),(.18,.38,.12),(.22,.43,.14)])]
@@ -53,7 +54,8 @@ def tree(folder):\n    # Blender Z-up geometry exports as glTF Y-up for Babylon.
         obj.data.materials.append(leaves[i % len(leaves)])
     export("oak", folder)
 
-def house(folder):\n    # Keep the house grounded on Blender Z=0; glTF export maps it to Babylon Y=0.
+def house(folder):
+    # Keep the house grounded on Blender Z=0; glTF export maps it to Babylon Y=0.
     clear()
     wall=material("warm siding",(.66,.63,.55))
     roof=material("charcoal roof",(.21,.23,.26))
