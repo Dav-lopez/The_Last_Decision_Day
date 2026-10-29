@@ -1,6 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import Phaser from 'phaser';
 import './style.css';
 import { canStartSchoolActivity, millisecondsUntilReset, type SchoolTimeBalance } from './schoolTime';
 
@@ -12,13 +11,7 @@ type SchoolHistoryEntry = SchoolExecutionResult & { completedAt: string };
 type Session = { userId: string; email: string };
 type Mode = 'login' | 'register';
 
-class IntroScene extends Phaser.Scene {
-  constructor() { super('intro'); }
-  create(): void {
-    this.add.text(45, 55, 'THE LAST DECISION', { fontSize: '32px', color: '#ffffff' });
-    this.add.text(45, 112, 'Your life. Your choices. Your consequences.', { fontSize: '18px', color: '#ffffff' });
-  }
-}
+const WorldScene = lazy(() => import('./world/WorldScene'));
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(path, { credentials: 'same-origin', ...options });
@@ -44,7 +37,7 @@ async function post<T>(path: string, payload?: unknown): Promise<T> {
 }
 
 function App() {
-  const scene = useRef<HTMLDivElement>(null);
+  const schoolSection = useRef<HTMLHeadingElement>(null);
   const pendingAction = useRef<{ activityId: string; key: string } | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -66,15 +59,6 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!scene.current) return;
-    const game = new Phaser.Game({
-      type: Phaser.AUTO, parent: scene.current, width: 800, height: 450,
-      backgroundColor: '#14213d', scene: IntroScene,
-    });
-    return () => game.destroy(true);
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -219,7 +203,19 @@ function App() {
 
   return <main className="page">
     <header><h1>The Last Decision</h1><p>Your life. Your choices. Your consequences.</p></header>
-    <div className="hero" ref={scene} aria-label="The Last Decision game intro" />
+    {profile ? <Suspense fallback={<div className="hero hero-placeholder" role="status">Loading your 3D neighborhood…</div>}>
+      <WorldScene key={profile.id} characterId={profile.id} displayName={profile.displayName}
+        onSchoolEnter={() => schoolSection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        activities={activities} timeRemaining={timeBalance?.remaining ?? null} busy={busy}
+        canExecuteActivity={cost => !busy && canStartSchoolActivity(timeBalance, cost)}
+        onPreviewActivity={id => void previewActivity(id)}
+        onExecuteActivity={id => void executeActivity(id)}
+        preview={preview} />
+    </Suspense> :
+      <div className="hero hero-placeholder" aria-label="The Last Decision introduction">
+        <h2>Every decision changes your story.</h2>
+        <p>Create your character, explore the neighborhood, and begin your life.</p>
+      </div>}
     <section className="panel" aria-live="polite">
       {loading ? <p>Loading your account…</p> : !session ? <>
         <div className="tabs">
@@ -250,7 +246,7 @@ function App() {
           <p>Age {profile.gameAge} · {profile.coins} COIN</p>
           <div className="stats">{Object.entries(profile.attributes).map(([name, value]) =>
             <div key={name}><strong>{name}</strong><span>{value}/100</span></div>)}</div>
-          <h3>School activities</h3>
+          <h3 ref={schoolSection}>School activities</h3>
           <p>Preview an outcome or complete an activity to save attribute changes. School time resets at midnight UTC.</p>
           <div className="school-time" aria-live="polite">
             {timeBalance ? <p><strong>{timeBalance.remaining} / {timeBalance.dailyLimit} time units remaining today.</strong> Resets {new Date(timeBalance.resetsAt).toLocaleString()}.</p> :
