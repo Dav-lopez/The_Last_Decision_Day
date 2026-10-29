@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent, type CSSProperties } from 'react';
 import {
-  ArcRotateCamera, Color3, Color4, DirectionalLight, Engine, HemisphericLight,
+  ArcRotateCamera, Color3, Color4, DirectionalLight, DynamicTexture, Engine, HemisphericLight,
   MeshBuilder, Scene, ShadowGenerator, StandardMaterial, TransformNode, Vector3,
 } from '@babylonjs/core';
 import { loadRiggedAvatar, type RiggedAvatar } from './riggedAvatar';
@@ -51,9 +51,41 @@ function createNeighborhood(scene: Scene) {
 
   const ground = MeshBuilder.CreateGround('park', { width: 24, height: 24 }, scene);
   ground.material = grass;
+  // Subtle physically based texture variation using a deterministic generated
+  // image. No third-party texture licensing or network request is required.
+  const lawnTexture = new DynamicTexture('suburban lawn detail', { width: 256, height: 256 }, scene, false);
+  const lawnContext = lawnTexture.getContext();
+  lawnContext.fillStyle = '#6d9664';
+  lawnContext.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 1800; i++) {
+    const x = (i * 73 + Math.floor(i / 17) * 31) % 256;
+    const y = (i * 131 + Math.floor(i / 11) * 19) % 256;
+    lawnContext.fillStyle = i % 3 === 0 ? '#517e4d' : i % 3 === 1 ? '#86a979' : '#739a68';
+    lawnContext.fillRect(x, y, 1 + i % 3, 2 + i % 4);
+  }
+  lawnTexture.update();
+  lawnTexture.uScale = 12;
+  lawnTexture.vScale = 12;
+  grass.diffuseTexture = lawnTexture;
+  grass.diffuseColor = Color3.White();
   const road = MeshBuilder.CreateGround('neighborhood road', { width: 4.2, height: 24 }, scene);
   road.position.y = 0.015;
   road.material = street;
+  const asphaltTexture = new DynamicTexture('asphalt grain', { width: 256, height: 256 }, scene, false);
+  const asphaltContext = asphaltTexture.getContext();
+  asphaltContext.fillStyle = '#5c6063';
+  asphaltContext.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 2600; i++) {
+    const x = (i * 89 + Math.floor(i / 13) * 37) % 256;
+    const y = (i * 157 + Math.floor(i / 7) * 29) % 256;
+    asphaltContext.fillStyle = i % 3 === 0 ? '#464c4f' : i % 3 === 1 ? '#777b7a' : '#686e70';
+    asphaltContext.fillRect(x, y, 1 + i % 2, 1 + i % 2);
+  }
+  asphaltTexture.update();
+  asphaltTexture.uScale = 2;
+  asphaltTexture.vScale = 10;
+  street.diffuseTexture = asphaltTexture;
+  street.diffuseColor = Color3.White();
   const walkway = MeshBuilder.CreateGround('school walkway', { width: 2.5, height: 5 }, scene);
   walkway.position.set(0, 0.03, -4.5);
   walkway.material = path;
