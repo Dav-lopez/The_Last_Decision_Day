@@ -57,3 +57,9 @@
 .world-school-preview p{margin:3px 0}
 .world-full-school{margin-top:12px;width:100%;padding:9px 12px;font-size:.85rem;background:#c8dcf4}
 @media(max-width:520px){.world-school-panel{right:7px;top:55px;width:calc(100% - 14px);padding:10px}}
+
+/* Two-thumb mobile controls: a separate hold-to-sprint key and resilient touch capture. */
+.world-control-buttons{display:flex;align-items:center;justify-content:center;gap:18px;flex-shrink:0}
+.world-run .world-pad-key{min-width:72px;min-height:72px;border-radius:18px;background:#ffe0a0}
+.world-run .world-pad-key:active{background:#ffd07a}
+@media(max-width:640px){.world-control-buttons{justify-content:space-evenly;width:100%;gap:12px}.world-run .world-pad-key{min-width:76px;min-height:76px}}

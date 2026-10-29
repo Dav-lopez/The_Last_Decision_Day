@@ -4,6 +4,7 @@ import {
   MeshBuilder, Scene, StandardMaterial, TransformNode, Vector3,
 } from '@babylonjs/core';
 import { isNearSchool, movementVector, stepPosition, type PlanarPosition } from './movement.mjs';
+import { createMovementInput } from './inputState.mjs';
 import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mjs';
 
 type SchoolActivityView = { id: string; title: string; description: string; timeCost: number };
@@ -122,7 +123,9 @@ export default function WorldScene({
   canExecuteActivity, onPreviewActivity, onExecuteActivity, preview,
 }: WorldProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pressed = useRef(new Set<string>());
+  const inputRef = useRef(createMovementInput());
+  const nearSchoolRef = useRef(false);
+  const schoolOpenRef = useRef(false);
   const [error, setError] = useState('');
   const [nearSchool, setNearSchool] = useState(false);
   const [schoolOpen, setSchoolOpen] = useState(false);
@@ -166,18 +169,27 @@ export default function WorldScene({
 
       const normalizeKey = (key: string) => key.length === 1 ? key.toLowerCase() : key;
       const onKeyDown = (event: KeyboardEvent) => {
+        // Escape must also work when a button inside the school overlay has focus.
+        if (event.key === 'Escape' && schoolOpenRef.current) {
+          event.preventDefault();
+          setSchoolOpen(false);
+          return;
+        }
         if (document.activeElement !== canvas) return;
         const key = normalizeKey(event.key);
         if (MOVE_KEYS.has(key)) {
           event.preventDefault();
-          pressed.current.add(key);
+          inputRef.current.press(`keyboard:${key}`, key);
+        } else if (key === 'e' && nearSchoolRef.current && !event.repeat) {
+          event.preventDefault();
+          setSchoolOpen(open => !open);
         }
       };
       const onKeyUp = (event: KeyboardEvent) => {
         const key = normalizeKey(event.key);
-        if (MOVE_KEYS.has(key)) pressed.current.delete(key);
+        if (MOVE_KEYS.has(key)) inputRef.current.release(`keyboard:${key}`);
       };
-      const clear = () => pressed.current.clear();
+      const clear = () => inputRef.current.clear();
       const focus = () => canvas.focus();
       const resize = () => engine?.resize();
       canvas.addEventListener('pointerdown', focus);
@@ -193,8 +205,8 @@ export default function WorldScene({
         // Controls follow the orbit camera: W always walks away from the viewer.
         const cameraDirection = camera.getForwardRay().direction;
         const cameraForward = { x: cameraDirection.x, z: cameraDirection.z };
-        const next = stepPosition(position, pressed.current, delta, pressed.current.has('Shift') ? 6 : 4, cameraForward);
-        const direction = movementVector(pressed.current, cameraForward);
+        const next = schoolOpenRef.current ? position : stepPosition(position, inputRef.current.pressed, delta, inputRef.current.pressed.has('Shift') ? 6 : 4, cameraForward);
+        const direction = movementVector(inputRef.current.pressed, cameraForward);
         const moving = next.x !== position.x || next.z !== position.z;
         position = next;
         avatar.position.x = position.x;
@@ -213,6 +225,7 @@ export default function WorldScene({
           for (const limb of [...avatarParts.legs, ...avatarParts.arms]) limb.rotation.x = 0;
         }
         const nextNear = isNearSchool(position);
+        nearSchoolRef.current = nextNear;
         if (nextNear !== previousNear) {
           previousNear = nextNear;
           setNearSchool(nextNear);
@@ -223,7 +236,7 @@ export default function WorldScene({
       engine.resize();
 
       return () => {
-        pressed.current.clear();
+        inputRef.current.clear();
         canvas.removeEventListener('pointerdown', focus);
         window.removeEventListener('keydown', onKeyDown);
         window.removeEventListener('keyup', onKeyUp);
@@ -254,20 +267,27 @@ export default function WorldScene({
     if (!nearSchool) setSchoolOpen(false);
   }, [nearSchool]);
 
+  useEffect(() => {
+    schoolOpenRef.current = schoolOpen;
+    if (schoolOpen) inputRef.current.clear();
+  }, [schoolOpen]);
+
   const touch = (key: string, down: boolean, event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
+    const source = `pointer:${event.pointerId}`;
     if (down) {
       event.currentTarget.setPointerCapture(event.pointerId);
-      pressed.current.add(key);
+      inputRef.current.press(source, key);
     } else {
-      pressed.current.delete(key);
+      inputRef.current.release(source);
     }
   };
   const keyboardTouch = (key: string, down: boolean, event: ReactKeyboardEvent<HTMLButtonElement>) => {
     if (event.key === ' ' || event.key === 'Enter') {
       event.preventDefault();
-      if (down) pressed.current.add(key);
-      else pressed.current.delete(key);
+      const source = `pad:${key}:${event.key}`;
+      if (down) inputRef.current.press(source, key);
+      else inputRef.current.release(source);
     }
   };
   const directionButton = (symbol: string, key: string, label: string) =>
@@ -275,9 +295,10 @@ export default function WorldScene({
       onPointerDown={event => touch(key, true, event)}
       onPointerUp={event => touch(key, false, event)}
       onPointerCancel={event => touch(key, false, event)}
-      onLostPointerCapture={() => pressed.current.delete(key)}
+      onLostPointerCapture={event => inputRef.current.release(`pointer:${event.pointerId}`)}
       onKeyDown={event => keyboardTouch(key, true, event)}
-      onKeyUp={event => keyboardTouch(key, false, event)}>{symbol}</button>;
+      onKeyUp={event => keyboardTouch(key, false, event)}
+      onBlur={() => { inputRef.current.release(`pad:${key}: `); inputRef.current.release(`pad:${key}:Enter`); }}>{symbol}</button>;
 
   return <div className="world-root" aria-label="Playable 3D neighborhood">
     <div className="world-viewport">
@@ -316,14 +337,17 @@ export default function WorldScene({
       </>}
     </div>
     {!error && <div className="world-controls">
-      <p>Click the world, then move relative to the camera with WASD or arrow keys. Hold Shift to run. Drag to rotate the camera. Walk to the school entrance.</p>
-      <div className="world-pad" aria-label="Touch movement controls">
-        <div className="world-pad-top">{directionButton('▲', 'ArrowUp', 'Move forward')}</div>
-        <div className="world-pad-bottom">
-          {directionButton('◀', 'ArrowLeft', 'Move left')}
-          {directionButton('▼', 'ArrowDown', 'Move backward')}
-          {directionButton('▶', 'ArrowRight', 'Move right')}
+      <p>Click the world, then move relative to the camera with WASD or arrow keys. Hold Shift or the Run button to sprint. Drag to rotate the camera. At the school entrance, press E or tap Enter school; Escape closes the panel.</p>
+      <div className="world-control-buttons">
+        <div className="world-pad" aria-label="Touch movement controls">
+          <div className="world-pad-top">{directionButton('▲', 'ArrowUp', 'Move forward')}</div>
+          <div className="world-pad-bottom">
+            {directionButton('◀', 'ArrowLeft', 'Move left')}
+            {directionButton('▼', 'ArrowDown', 'Move backward')}
+            {directionButton('▶', 'ArrowRight', 'Move right')}
+          </div>
         </div>
+        <div className="world-run">{directionButton('RUN', 'Shift', 'Hold to sprint')}</div>
       </div>
     </div>}
     {!error && <section className="world-customize" aria-label="Customize character appearance">
