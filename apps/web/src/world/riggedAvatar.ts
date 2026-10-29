@@ -1,11 +1,13 @@
 import { Color3, PBRMaterial, Scene, SceneLoader, TransformNode } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
 import { colorFor, type Look } from './appearance.mjs';
+import { faceTarget, approachFace, type Emotion } from './facialEmotions';
 import { blendHumanWeights, classifyHumanMotion, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
 
 export type RiggedAvatar = {
   root: TransformNode;
   applyLook: (look: Look) => void;
+  setEmotion: (emotion: Emotion) => void;
   update: (speed: number, deltaSeconds: number) => void;
   dispose: () => void;
 };
@@ -77,9 +79,15 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
       group.start(true);
       group.setWeightForAllAnimatables(weights[state]);
     }
+    let emotion: Emotion = 'neutral';
+    const facialTargets = container.meshes.flatMap(mesh => {
+      const manager = mesh.morphTargetManager;
+      return manager ? Array.from({ length: manager.numTargets }, (_, i) => manager.getTarget(i)) : [];
+    });
     let disposed = false;
     return {
       root,
+      setEmotion(next) { emotion = next; },
       applyLook(look) {
         for (const material of container.materials) {
           if (!(material instanceof PBRMaterial)) continue;
@@ -91,6 +99,9 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
       },
       update(speed, deltaSeconds) {
         if (disposed) return;
+        for (const morph of facialTargets) {
+          morph.influence = approachFace(morph.influence, faceTarget(emotion, morph.name), deltaSeconds);
+        }
         const target = classifyHumanMotion(speed);
         if (target !== transition.target) transition = { from: { ...weights }, target, elapsed: 0 };
         transition.elapsed = Math.min(0.2, transition.elapsed + deltaSeconds);
