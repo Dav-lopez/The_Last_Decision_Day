@@ -5,10 +5,17 @@ import { schoolWaypoint } from '../src/world/schoolWayfinding.mjs';
 
 test('keyboard and on-screen directional controls use the same normalized movement', () => {
   assert.deepEqual(movementVector(new Set(['w'])), { x: 0, z: -1 });
-  assert.deepEqual(movementVector(new Set(['ArrowRight'])), { x: 1, z: 0 });
+  assert.deepEqual(movementVector(new Set(['ArrowRight'])), { x: -1, z: 0 });
   const diagonal = movementVector(new Set(['w', 'd']));
   assert.ok(Math.abs(Math.hypot(diagonal.x, diagonal.z) - 1) < 0.00001);
   assert.deepEqual(movementVector(new Set()), { x: 0, z: 0 });
+});
+
+test('left and right controls are opposite and remain camera-relative', () => {
+  assert.deepEqual(movementVector(new Set(['ArrowLeft'])), { x: 1, z: 0 });
+  assert.deepEqual(movementVector(new Set(['ArrowRight'])), { x: -1, z: 0 });
+  assert.deepEqual(movementVector(new Set(['a']), { x: 0, z: 1 }), { x: -1, z: 0 });
+  assert.deepEqual(movementVector(new Set(['d']), { x: 0, z: 1 }), { x: 1, z: 0 });
 });
 
 test('movement clamps elapsed time, rejecting invalid deltas and speed', () => {
@@ -19,7 +26,7 @@ test('movement clamps elapsed time, rejecting invalid deltas and speed', () => {
 });
 
 test('character stays inside world bounds', () => {
-  const pos = stepPosition({ x: WORLD_RADIUS - 0.4, z: 0 }, new Set(['d']), 0.05);
+  const pos = stepPosition({ x: WORLD_RADIUS - 0.4, z: 0 }, new Set(['a']), 0.05);
   assert.ok(pos.x <= WORLD_RADIUS - 0.4);
 });
 
@@ -39,7 +46,7 @@ test('diagonal movement can slide along a building instead of tunneling through'
 
 test('camera-relative controls follow orbit heading without changing walking speed', () => {
   assert.deepEqual(movementVector(new Set(['w']), { x: -1, z: 0 }), { x: -1, z: 0 });
-  assert.deepEqual(movementVector(new Set(['d']), { x: -1, z: 0 }), { x: 0, z: -1 });
+  assert.deepEqual(movementVector(new Set(['d']), { x: -1, z: 0 }), { x: 0, z: 1 });
   assert.deepEqual(movementVector(new Set(['s']), { x: -1, z: 0 }), { x: 1, z: 0 });
   const diagonal = movementVector(new Set(['w', 'd']), { x: -1, z: 0 });
   assert.ok(Math.abs(Math.hypot(diagonal.x, diagonal.z) - 1) < 1e-10);
@@ -64,7 +71,7 @@ test('tree trunks have capsule-sized collision and cannot be crossed at sprint s
 
 test('tree collision allows sliding and leaves the central school walkway clear', () => {
   let position = { x: -8.7, z: 3.7 };
-  for (let i = 0; i < 15; i++) position = stepPosition(position, new Set(['d', 'w']), 0.05);
+  for (let i = 0; i < 15; i++) position = stepPosition(position, new Set(['a', 'w']), 0.05);
   assert.ok(Math.hypot(position.x + 8, position.z - 3) >= 0.63 - 1e-8);
   let walkway = { x: 0, z: 3.8 };
   for (let i = 0; i < 50; i++) walkway = stepPosition(walkway, new Set(['w']), 0.05);
