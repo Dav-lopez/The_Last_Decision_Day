@@ -32,6 +32,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:movement
       - run: npm run test:appearance
+      - run: npm run test:human
       - run: npm run build
       - name: Test Cloudflare Pages API proxy
         run: node --test tests/pages-proxy.test.mjs
