@@ -42,6 +42,17 @@ Check(samples.All(x => x.Tags.Count == 3 &&
     x.Tags["http.response.status_code"]?.ToString() == "409"),
     "Only bounded HTTP dimensions are exported");
 
+// Unknown HTTP verbs are attacker-controlled and must not create unique metric tags.
+RequestMetrics.Record("CUSTOM-ATTACK-123", "unmatched", 405, 1.0);
+Check(samples.Count == 4 && samples.Skip(2).All(x =>
+    x.Tags["http.request.method"]?.ToString() == "OTHER" &&
+    x.Tags["http.route"]?.ToString() == "unmatched" &&
+    x.Tags["http.response.status_code"]?.ToString() == "405"),
+    "Unknown HTTP methods collapse into the OTHER metric bucket");
+RequestMetrics.Record("get", "unmatched", 405, 1.0);
+Check(samples.Skip(4).All(x => x.Tags["http.request.method"]?.ToString() == "OTHER"),
+    "Noncanonical method casing cannot expand metric cardinality");
+
 var builder = WebApplication.CreateBuilder();
 builder.WebHost.ConfigureKestrel(options => options.Listen(IPAddress.Loopback, 0));
 builder.Logging.ClearProviders();
