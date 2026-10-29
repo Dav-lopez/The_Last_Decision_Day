@@ -27,8 +27,10 @@ export function movementVector(keys, cameraForward = { x: 0, z: -1 }) {
   const validHeading = Number.isFinite(headingLength) && headingLength > 0.000001;
   const forwardX = validHeading ? cameraForward.x / headingLength : 0;
   const forwardZ = validHeading ? cameraForward.z / headingLength : -1;
-  const x = strafe * -forwardZ + advance * forwardX;
-  const z = strafe * forwardX + advance * forwardZ;
+  // The ArcRotateCamera view's screen-right axis is (forwardZ, -forwardX).
+  // Keep the on-screen arrows aligned with the visible character movement.
+  const x = strafe * forwardZ + advance * forwardX;
+  const z = strafe * -forwardX + advance * forwardZ;
   const length = Math.hypot(x, z);
   return length ? { x: x / length || 0, z: z / length || 0 } : { x: 0, z: 0 };
 }
