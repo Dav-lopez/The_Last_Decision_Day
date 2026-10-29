@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent, type CSSProperties } from 'react';
 import {
   ArcRotateCamera, Color3, Color4, DirectionalLight, Engine, HemisphericLight,
   MeshBuilder, Scene, StandardMaterial, TransformNode, Vector3,
@@ -286,7 +286,7 @@ export default function WorldScene({ characterId, displayName, onSchoolEnter }: 
                   aria-label={`${choice.label} ${part}`}
                   aria-pressed={look[part] === choice.id}
                   title={choice.label}
-                  style={{ '--swatch': choice.hex } as React.CSSProperties}
+                  style={{ '--swatch': choice.hex } as CSSProperties}
                   onClick={() => setLook(current => ({ ...current, [part]: choice.id }))}>
                   <span className="world-swatch-dot" aria-hidden="true" /><span>{choice.label}</span>
                 </button>)}
