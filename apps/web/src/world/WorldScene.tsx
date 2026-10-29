@@ -4,6 +4,7 @@ import {
   MeshBuilder, Scene, ShadowGenerator, StandardMaterial, TransformNode, Vector3,
 } from '@babylonjs/core';
 import { loadRiggedAvatar, type RiggedAvatar } from './riggedAvatar';
+import { loadSchoolEnvironment } from './schoolEnvironment';
 import { smoothHumanHeading, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
 import { isNearSchool, stepPosition, type PlanarPosition } from './movement.mjs';
 import { schoolWaypoint } from './schoolWayfinding.mjs';
@@ -217,6 +218,8 @@ export default function WorldScene({
       directional.intensity = 1.35;
       directional.position.set(12, 22, 10);
       const schoolMarker = createNeighborhood(scene);
+      let schoolAsset: Awaited<ReturnType<typeof loadSchoolEnvironment>> = null;
+      let schoolAssetCancelled = false;
       addPlayableNeighborhoodDetails(scene);
       const shadows = new ShadowGenerator(1024, directional);
       shadows.useBlurExponentialShadowMap = true;
@@ -230,6 +233,14 @@ export default function WorldScene({
           shadows.addShadowCaster(mesh, false);
         }
       }
+      void loadSchoolEnvironment(scene).then(asset => {
+        if (schoolAssetCancelled || scene.isDisposed) { asset?.dispose(); return; }
+        schoolAsset = asset;
+        for (const mesh of asset?.meshes ?? []) shadows.addShadowCaster(mesh, false);
+      }).catch(error => {
+        // Procedural school stays visible if the authored asset fails validation.
+        console.warn('School glTF unavailable; using procedural fallback', error);
+      });
       const avatarParts = createAvatar(scene);
       avatarRef.current = avatarParts;
       const { root: avatar } = avatarParts;
@@ -362,6 +373,8 @@ export default function WorldScene({
         window.removeEventListener('keyup', onKeyUp);
         window.removeEventListener('blur', clear);
         window.removeEventListener('resize', resize);
+        schoolAssetCancelled = true;
+        schoolAsset?.dispose();
         humanLoadCancelled = true;
         riggedRef.current?.dispose();
         riggedRef.current = null;
