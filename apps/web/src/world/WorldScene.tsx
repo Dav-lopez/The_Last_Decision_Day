@@ -9,6 +9,7 @@ import { isNearSchool, stepPosition, type PlanarPosition } from './movement.mjs'
 import { schoolWaypoint } from './schoolWayfinding.mjs';
 import { createMovementInput } from './inputState.mjs';
 import { cameraFollowAlpha } from './cameraFollow.mjs';
+import { addPlayableNeighborhoodDetails } from './neighborhoodEnvironment';
 import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mjs';
 
 type SchoolActivityView = { id: string; title: string; description: string; timeCost: number };
@@ -216,6 +217,7 @@ export default function WorldScene({
       directional.intensity = 1.3;
       directional.position.set(-8, 14, 8);
       const schoolMarker = createNeighborhood(scene);
+      addPlayableNeighborhoodDetails(scene);
       const shadows = new ShadowGenerator(1024, directional);
       shadows.usePercentageCloserFiltering = true;
       shadows.filteringQuality = ShadowGenerator.QUALITY_LOW;
