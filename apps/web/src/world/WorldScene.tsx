@@ -11,6 +11,7 @@ import { schoolWaypoint } from './schoolWayfinding.mjs';
 import { createMovementInput } from './inputState.mjs';
 import { cameraFollowAlpha } from './cameraFollow.mjs';
 import { addPlayableNeighborhoodDetails } from './neighborhoodEnvironment';
+import { upgradeNeighborhoodAssets } from './realEnvironmentAssets';
 import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mjs';
 
 type SchoolActivityView = { id: string; title: string; description: string; timeCost: number };
@@ -366,6 +367,8 @@ export default function WorldScene({
       let schoolAsset: Awaited<ReturnType<typeof loadSchoolEnvironment>> = null;
       let schoolAssetCancelled = false;
       addPlayableNeighborhoodDetails(scene);
+      const environmentLoad = { cancelled: false };
+      void upgradeNeighborhoodAssets(scene, environmentLoad);
       const shadows = new ShadowGenerator(1024, directional);
       shadows.useBlurExponentialShadowMap = true;
       shadows.blurKernel = 12;
@@ -524,6 +527,7 @@ export default function WorldScene({
         window.removeEventListener('keyup', onKeyUp);
         window.removeEventListener('blur', clear);
         window.removeEventListener('resize', resize);
+        environmentLoad.cancelled = true;
         schoolAssetCancelled = true;
         schoolAsset?.dispose();
         humanLoadCancelled = true;
