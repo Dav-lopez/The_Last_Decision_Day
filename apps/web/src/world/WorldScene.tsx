@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent, type CSSProperties } from 'react';
 import {
   ArcRotateCamera, Color3, Color4, DirectionalLight, Engine, HemisphericLight,
-  MeshBuilder, Scene, StandardMaterial, TransformNode, Vector3, SceneLoader,
+  MeshBuilder, Scene, ShadowGenerator, StandardMaterial, TransformNode, Vector3,
 } from '@babylonjs/core';
-import '@babylonjs/loaders/glTF';
-import { isNearSchool, movementVector, stepPosition, type PlanarPosition } from './movement.mjs';
+import { loadRiggedAvatar, type RiggedAvatar } from './riggedAvatar';
+import { turnTowards } from './locomotion.mjs';
+import { isNearSchool, stepPosition, type PlanarPosition } from './movement.mjs';
 import { schoolWaypoint } from './schoolWayfinding.mjs';
 import { createMovementInput } from './inputState.mjs';
 import { cameraFollowAlpha } from './cameraFollow.mjs';
@@ -183,8 +184,10 @@ export default function WorldScene({
   const [wayfinding, setWayfinding] = useState('');
   const [schoolOpen, setSchoolOpen] = useState(false);
   const [look, setLook] = useState<Look>(() => readLook(characterId));
+  const lookRef = useRef(look);
   const avatarRef = useRef<ReturnType<typeof createAvatar> | null>(null);
-  const [modelStatus, setModelStatus] = useState('Loading human model…');
+  const riggedRef = useRef<RiggedAvatar | null>(null);
+  const [modelStatus, setModelStatus] = useState('Loading character…');
   const [cameraMode, setCameraMode] = useState<'follow' | 'overhead'>('follow');
   const cameraModeRef = useRef<'follow' | 'overhead'>('follow');
   const toggleCamera = () => {
@@ -204,45 +207,50 @@ export default function WorldScene({
     let engine: Engine | undefined;
     try {
       engine = new Engine(canvas, true, { preserveDrawingBuffer: false, stencil: true });
-      engine.setHardwareScalingLevel(Math.max(1, window.devicePixelRatio / 1.5));
+      engine.setHardwareScalingLevel(1 / Math.min(1.5, Math.max(1, window.devicePixelRatio || 1)));
       const scene = new Scene(engine);
       scene.clearColor = new Color4(0.67, 0.83, 0.96, 1);
       const sun = new HemisphericLight('daylight', new Vector3(0, 1, 0), scene);
       sun.intensity = 0.9;
       const directional = new DirectionalLight('sun', new Vector3(-0.4, -1, -0.6), scene);
-      directional.intensity = 0.7;
+      directional.intensity = 1.3;
+      directional.position.set(-8, 14, 8);
       const schoolMarker = createNeighborhood(scene);
+      const shadows = new ShadowGenerator(1024, directional);
+      shadows.usePercentageCloserFiltering = true;
+      shadows.filteringQuality = ShadowGenerator.QUALITY_LOW;
+      shadows.bias = 0.0005;
+      shadows.normalBias = 0.02;
+      shadows.setDarkness(0.3);
+      for (const mesh of scene.meshes) {
+        mesh.receiveShadows = true;
+        if (!['park', 'neighborhood road', 'school walkway', 'school entrance waypoint'].includes(mesh.name)) {
+          shadows.addShadowCaster(mesh, false);
+        }
+      }
       const avatarParts = createAvatar(scene);
       avatarRef.current = avatarParts;
       const { root: avatar } = avatarParts;
       avatarParts.jacket.diffuseColor = Color3.FromHexString(colorFor('outfit', look.outfit));
       avatarParts.face.diffuseColor = Color3.FromHexString(colorFor('skin', look.skin));
       avatarParts.hair.diffuseColor = Color3.FromHexString(colorFor('hair', look.hair));
-      // The procedural avatar remains visible unless a valid licensed model loads.
-      // No unlicensed third-party assets are downloaded at runtime.
-      let humanRoot: TransformNode | null = null;
-      let humanAnimations: { idle?: import('@babylonjs/core').AnimationGroup; walk?: import('@babylonjs/core').AnimationGroup; run?: import('@babylonjs/core').AnimationGroup } = {};
-      let activeHumanState = '';
+      // Keep the fallback visible until the bundled, validated character is ready.
+      const placeholderMeshes = avatar.getChildMeshes();
+      for (const mesh of placeholderMeshes) shadows.addShadowCaster(mesh, false);
       let humanLoadCancelled = false;
-      void SceneLoader.ImportMeshAsync('', '/models/', 'human.glb', scene).then(result => {
-        if (humanLoadCancelled || scene.isDisposed) return;
-        const root = new TransformNode('rigged player visual', scene);
-        for (const mesh of result.meshes) {
-          if (!mesh.parent) mesh.parent = root;
+      void loadRiggedAvatar(scene, avatar).then(human => {
+        if (humanLoadCancelled || scene.isDisposed) { human?.dispose(); return; }
+        if (!human) return;
+        riggedRef.current = human;
+        human.applyLook(lookRef.current);
+        avatar.position.y = 0;
+        for (const mesh of placeholderMeshes) {
+          mesh.setEnabled(false);
+          shadows.removeShadowCaster(mesh, false);
         }
-        root.parent = avatar;
-        humanRoot = root;
-        humanAnimations = {
-          idle: result.animationGroups.find(g => /idle/i.test(g.name)),
-          walk: result.animationGroups.find(g => /walk/i.test(g.name)),
-          run: result.animationGroups.find(g => /run/i.test(g.name)),
-        };
-        for (const group of result.animationGroups) { group.stop(); group.setWeightForAllAnimatables(0); }
-        for (const child of avatar.getChildMeshes()) {
-          if (!result.meshes.includes(child)) child.setEnabled(false);
-        }
-        setModelStatus('Rigged human model loaded');
-      }).catch(() => { if (!humanLoadCancelled) setModelStatus('Placeholder human · 3D model asset pending'); });
+        for (const mesh of human.root.getChildMeshes()) shadows.addShadowCaster(mesh, false);
+        setModelStatus('Character ready · Idle, walk and run');
+      }).catch(() => { if (!humanLoadCancelled) setModelStatus('Basic character in use. Reload to retry loading the human character.'); });
       let position: PlanarPosition = { x: 0, z: 3.8 };
       avatar.position.set(position.x, 0, position.z);
       const camera = new ArcRotateCamera('third-person camera', Math.PI / 2, 1.2, 11,
@@ -280,7 +288,10 @@ export default function WorldScene({
       };
       const clear = () => inputRef.current.clear();
       const focus = () => canvas.focus();
-      const resize = () => engine?.resize();
+      const resize = () => {
+        engine?.setHardwareScalingLevel(1 / Math.min(1.5, Math.max(1, window.devicePixelRatio || 1)));
+        engine?.resize();
+      };
       canvas.addEventListener('pointerdown', focus);
       window.addEventListener('keydown', onKeyDown);
       window.addEventListener('keyup', onKeyUp);
@@ -298,10 +309,10 @@ export default function WorldScene({
         markerTime += delta;
         schoolMarker.position.y = 4.6 + Math.sin(markerTime * 2.5) * 0.12;
         const cameraForward = { x: cameraDirection.x, z: cameraDirection.z };
-        const next = schoolOpenRef.current ? position : stepPosition(position, inputRef.current.pressed, delta, inputRef.current.pressed.has('Shift') ? 6 : 4, cameraForward);
-        const direction = movementVector(inputRef.current.pressed, cameraForward);
+        const next = schoolOpenRef.current ? position : stepPosition(position, inputRef.current.pressed, delta, inputRef.current.pressed.has('Shift') ? 5.5 : 2.6, cameraForward);
         const moving = next.x !== position.x || next.z !== position.z;
         const movementSpeed = delta > 0 ? Math.hypot(next.x - position.x, next.z - position.z) / delta : 0;
+        if (moving) avatar.rotation.y = turnTowards(avatar.rotation.y, Math.atan2(next.x - position.x, -(next.z - position.z)), delta);
         position = next;
         waypointTimer += delta;
         if (waypointTimer >= 0.25) {
@@ -314,21 +325,10 @@ export default function WorldScene({
         }
         avatar.position.x = position.x;
         avatar.position.z = position.z;
-        if (humanRoot) {
-          const state = movementSpeed > 4.8 ? 'run' : movementSpeed > 0.05 ? 'walk' : 'idle';
-          if (state !== activeHumanState) {
-            activeHumanState = state;
-            for (const [name, group] of Object.entries(humanAnimations)) {
-              if (!group) continue;
-              if (!group.isPlaying) group.start(true);
-              group.setWeightForAllAnimatables(name === state ? 1 : 0);
-            }
-          }
-        }
-        if (moving) {
-          avatar.rotation.y = Math.atan2(direction.x, -direction.z);
+        riggedRef.current?.update(movementSpeed, delta);
+        if (moving && !riggedRef.current) {
           elapsed += delta * 13;
-          avatar.position.y = humanRoot ? 0 : Math.abs(Math.sin(elapsed)) * 0.06;
+          avatar.position.y = Math.abs(Math.sin(elapsed)) * 0.06;
           const swing = Math.sin(elapsed) * 0.55;
           avatarParts.legs[0].rotation.x = swing;
           avatarParts.legs[1].rotation.x = -swing;
@@ -361,6 +361,8 @@ export default function WorldScene({
         window.removeEventListener('blur', clear);
         window.removeEventListener('resize', resize);
         humanLoadCancelled = true;
+        riggedRef.current?.dispose();
+        riggedRef.current = null;
         engine?.dispose();
         avatarRef.current = null;
       };
@@ -374,6 +376,8 @@ export default function WorldScene({
   // Cosmetics are deliberately browser-local during the demo; progression remains on the API.
   useEffect(() => {
     writeLook(characterId, look);
+    lookRef.current = look;
+    riggedRef.current?.applyLook(look);
     const parts = avatarRef.current;
     if (parts) {
       parts.jacket.diffuseColor = Color3.FromHexString(colorFor('outfit', look.outfit));
