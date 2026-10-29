@@ -9,7 +9,7 @@ The API also emits in-process .NET Meter measurements under `TheLastDecision.Api
 - `tld.http.requests` — counter of completed HTTP requests.
 - `tld.http.duration` — histogram of completed request durations in milliseconds.
 
-Both use only HTTP method, matched route template and status code as dimensions. HTTP methods are restricted to standard uppercase verbs; unknown or noncanonical methods are tagged `OTHER` to prevent user-controlled metric cardinality. They never use raw paths, player identifiers or request headers. The instruments are available to a `MeterListener` or a future OpenTelemetry Meter provider. **No metrics exporter, hosted dashboard, or alerting backend is configured by this change**; metrics are not yet durable or externally queryable.
+Both use only HTTP method, matched route template and status code as dimensions. HTTP methods are restricted to standard uppercase verbs; unknown or noncanonical methods are tagged `OTHER` to prevent user-controlled metric cardinality. They never use raw paths, player identifiers or request headers. The instruments are available to a `MeterListener` or the optional OpenTelemetry OTLP/HTTP metrics exporter. **Export is disabled unless explicitly configured**; no hosted dashboard or alerting backend is provisioned automatically.
 
 Run `dotnet run --project tests/Observability.Tests/Observability.Tests.csproj` to exercise measurement tags and safe HTTP 500 handling without a database.
 
@@ -31,7 +31,7 @@ Do not log request/response bodies, cookies, authorization headers, CSRF tokens,
 
 ## Future work
 
-Add OpenTelemetry traces and metrics with an OTLP exporter, persistent log aggregation and retention, dashboards for request rates/errors/p95 latency, and alerts for 5xx and database failures. Validate telemetry and privacy behavior in a deployed environment before claiming end-to-end monitoring.
+Add OpenTelemetry distributed tracing, persistent log aggregation and retention, dashboards for request rates/errors/p95 latency, and alerts for 5xx and database failures. Validate telemetry and privacy behavior in a deployed environment before claiming end-to-end monitoring.
 
 ## School execution business telemetry
 
@@ -48,13 +48,43 @@ The `TheLastDecision.Gameplay` .NET Meter publishes the
 or `unknown`) and `outcome` tags. Do not add user IDs, character IDs, IP
 addresses, request keys, correlation IDs, raw routes or exception messages as
 metric dimensions. Successful events also log the transaction correlation ID
-for investigation, but not as a metric dimension. The metric is instrumented
-in-process; **no metrics exporter, dashboard or alert service is configured**.
-An OpenTelemetry collector or MeterListener must subscribe before samples can
-be aggregated externally.
+for investigation, but not as a metric dimension. The metric is instrumented in-process and can be sent through the optional
+OpenTelemetry metrics exporter. No hosted collector, dashboard or alert service
+is provisioned; a configured collector or MeterListener must subscribe before
+samples can be aggregated externally.
 
 A spike in `concurrency_conflict` may indicate overlapping client actions;
 `time_exhausted` is expected game behavior and should not be treated as a
 server outage. Repeated `invalid_history` or `missing_response` is an
 integrity signal worth investigating.
 
+
+## Optional OpenTelemetry OTLP metrics export
+
+By default the API continues to run with in-process metrics only. No external
+connection, subscription, or paid monitoring account is required. To enable
+export to an existing OTLP/HTTP-compatible collector, set the following
+**server-side environment variable** (do not put this in the web frontend):
+
+```sh
+Observability__OtlpMetricsEndpoint=https://your-collector.example/v1/metrics
+```
+
+The endpoint must use HTTPS, except loopback HTTP (e.g.
+`http://127.0.0.1:4318/v1/metrics`) for a local collector. The endpoint
+must end in `/v1/metrics`; embedded usernames/passwords, query parameters,
+and fragments are rejected at startup. Configure provider authentication via
+`Observability__OtlpHeaders` using the collector's required OTLP header
+format, for example `Authorization=Bearer <secret>`. Set secrets only in
+your server's secret manager or private environment; never commit them or
+print them in application logs. Use a collector/provider that accepts OTLP
+HTTP/protobuf, not a Prometheus scrape URL.
+
+This exports the existing `TheLastDecision.Api` and
+`TheLastDecision.Gameplay` meters with their bounded dimensions. It does not
+export log bodies, user identifiers, raw request paths, or distributed traces.
+A collector outage must not be interpreted as an API outage: inspect the
+collector and exporter logs separately. Exporter connection failures and
+remote ingestion behavior are **not** covered by CI; test with a real collector
+before relying on metrics for incident response. Provider fees, retention,
+access control, dashboards and alerts are managed separately.
