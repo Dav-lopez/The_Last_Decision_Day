@@ -229,7 +229,7 @@ export default function WorldScene({
       };
       let activeHumanState: 'idle' | 'walk' | 'run' = 'idle';
       let humanWeights = { idle: 1, walk: 0, run: 0 };
-      let humanTransition = { from: { ...humanWeights }, target: activeHumanState, elapsed: 0 };
+      let humanTransition: { from: Record<'idle' | 'walk' | 'run', number>; target: 'idle' | 'walk' | 'run'; elapsed: number } = { from: { ...humanWeights }, target: activeHumanState, elapsed: 0 };
       let humanLoadCancelled = false;
       void SceneLoader.ImportMeshAsync('', '/models/', 'human.gltf', scene).then(result => {
         if (humanLoadCancelled || scene.isDisposed) return;
