@@ -3,6 +3,9 @@ using System.Net;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.Extensions.DependencyInjection;
 using TheLastDecision.Api.Observability;
 
 static void Check(bool ok, string description)
@@ -47,7 +50,9 @@ app.MapGet("/boom", () => { throw new InvalidOperationException("internal except
 await app.StartAsync();
 try
 {
-    var address = app.Urls.Single();
+    var address = app.Services.GetRequiredService<IServer>().Features
+        .Get<IServerAddressesFeature>()?.Addresses.Single()
+        ?? throw new InvalidOperationException("Kestrel did not report its bound test address.");
     using var client = new HttpClient();
     using var ok = await client.GetAsync(address + "/ok");
     Check(ok.StatusCode == HttpStatusCode.OK, "Successful HTTP requests remain successful");
