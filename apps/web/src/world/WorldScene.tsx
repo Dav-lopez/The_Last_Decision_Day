@@ -14,6 +14,7 @@ type SchoolPreview = { activityId: string; before: Record<string, number>; after
 type WorldProps = {
   characterId: string;
   displayName: string;
+  demoMode?: boolean;
   onSchoolEnter: () => void;
   activities: ReadonlyArray<SchoolActivityView>;
   timeRemaining: number | null;
@@ -169,7 +170,7 @@ function createAvatar(scene: Scene) {
 
 /** The WebGL view is optional: login and school actions remain usable if 3D fails. */
 export default function WorldScene({
-  characterId, displayName, onSchoolEnter, activities, timeRemaining, busy,
+  characterId, displayName, demoMode = false, onSchoolEnter, activities, timeRemaining, busy,
   canExecuteActivity, onPreviewActivity, onExecuteActivity, preview,
 }: WorldProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -368,7 +369,7 @@ export default function WorldScene({
     <div className="world-viewport">
       {!error && <canvas ref={canvasRef} tabIndex={0} aria-label={`3D world for ${displayName}; click to focus, use WASD or arrow keys to move`} />}
       {error ? <p className="world-fallback" role="status">{error}</p> : <>
-        <div className="world-caption"><strong>{displayName}</strong> · Neighborhood demo</div>
+        <div className="world-caption"><strong>{displayName}</strong> · {demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
         {nearSchool && <button type="button" className="world-enter"
           aria-expanded={schoolOpen} aria-controls="school-game-panel"
@@ -377,9 +378,11 @@ export default function WorldScene({
         </button>}
         {nearSchool && schoolOpen && <section className="world-school-panel" id="school-game-panel" aria-label="School activities in game">
           <h3>School</h3>
-          <p>{timeRemaining === null ? 'Loading your school time…' : `${timeRemaining} time units remaining today.`}</p>
-          {activities.length === 0 && <p>No school activities available yet.</p>}
-          <div className="world-school-activities">
+          {demoMode ? <p>You've reached the school! This guest preview is for exploring the 3D world only. Sign in with an invitation to access server-verified school activities and save progress.</p> : <>
+            <p>{timeRemaining === null ? 'Loading your school time…' : `${timeRemaining} time units remaining today.`}</p>
+            {activities.length === 0 && <p>No school activities available yet.</p>}
+          </>}
+          {!demoMode && <div className="world-school-activities">
             {activities.map(activity =>
               <article key={activity.id}>
                 <h4>{activity.title}</h4>
@@ -396,8 +399,8 @@ export default function WorldScene({
                     .map(([name, value]) => <p key={name}>{name}: {preview.before[name]} → {value}</p>)}
                 </div>}
               </article>)}
-          </div>
-          <button type="button" className="world-full-school" onClick={onSchoolEnter}>Open full school dashboard</button>
+          </div>}
+          {!demoMode && <button type="button" className="world-full-school" onClick={onSchoolEnter}>Open full school dashboard</button>}
         </section>}
       </>}
     </div>
@@ -434,7 +437,7 @@ export default function WorldScene({
             </div>
           </fieldset>)}
       </div>
-      <p>Outfit and appearance choices are saved in this browser only. Server-synced customization is coming later.</p>
+      <p>Outfit and appearance choices are saved in this browser only. {demoMode ? 'Guest appearance is not linked to an account.' : 'Server-synced customization is coming later.'}</p>
     </section>}
   </div>;
 }
