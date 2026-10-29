@@ -1,0 +1,64 @@
+{
+  "creator": "Quaternius",
+  "license": "CC0-1.0",
+  "verifiedOn": "2026-10-29",
+  "officialSources": [
+    "https://quaternius.com/packs/universalbasecharacters.html",
+    "https://quaternius.com/packs/universalanimationlibrary.html"
+  ],
+  "sourceMirrorCommit": "5821923af517ac5fdc82505faa92a0d575fc1b1a",
+  "sources": [
+    {
+      "file": "body.gltf",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/Base%20Characters/Godot%20-%20UE/Superhero_Male_FullBody.gltf",
+      "sha256": "e7fcea214ecf8855afbf910b50de6f9c7d1decfb71ca28bad8a4481452dafeb4"
+    },
+    {
+      "file": "body.bin",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/Base%20Characters/Godot%20-%20UE/Superhero_Male_FullBody.bin",
+      "sha256": "459003f9745853ae562a85506a2b94dd56515c1f37728f9fa3d2ce1a3e4cd92f"
+    },
+    {
+      "file": "hair.gltf",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/Hairstyles/Rigged%20to%20Head%20Bone/glTF%20%28Godot%20-Unreal%29/Hair_SimpleParted.gltf",
+      "sha256": "fe0f354d7f95d83d38e15c60794dcc063fa4d60550706f3d7ba51491cdc07c56"
+    },
+    {
+      "file": "hair.bin",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/Hairstyles/Rigged%20to%20Head%20Bone/glTF%20%28Godot%20-Unreal%29/Hair_SimpleParted.bin",
+      "sha256": "ecd7c81959f3985d6254458a440daaaa18a8bfbb1dbe111c68a04a72374d54db"
+    },
+    {
+      "file": "eyes.png",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/Base%20Characters/Godot%20-%20UE/T_Eye_Brown.png",
+      "sha256": "d08e3356a83211bc6ca21fe3a8e39f4b5c1a3b8f85457fc2c0fb57be09935025"
+    },
+    {
+      "file": "animations.glb",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Animation%20Library%5BStandard%5D/Universal%20Animation%20Library%5BStandard%5D/Unreal-Godot/UAL1_Standard.glb",
+      "sha256": "69591853d817488edaa8fd9bf8fc1d821eaeaf789f8627b3cd23b41c4ed67997"
+    },
+    {
+      "file": "character-license.txt",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/License_Standard.txt",
+      "sha256": "e08f717c3cfd999f4b44f2be4522b11a3ac3c0e5b6364b3a8788d25d4c90ff94"
+    },
+    {
+      "file": "animation-license.txt",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Animation%20Library%5BStandard%5D/Universal%20Animation%20Library%5BStandard%5D/License.txt",
+      "sha256": "d77329b05c4c206e76c83285ecdd1e5f2b3df2350ec80657ebdb5a706a0fc0de"
+    }
+  ],
+  "output": {
+    "file": "human.glb",
+    "bytes": 707128,
+    "sha256": "0652035e104bde03323180f1af5e20dfca1d05cd7cc48c960fdde4f98a304f1e"
+  },
+  "modifications": [
+    "Keep only Idle_Loop, Walk_Loop and Sprint_Loop, exported as Idle/Walk/Run.",
+    "Rebase local rotations onto the character bind pose; retain target limb lengths.",
+    "Preserve pelvis bob and remove horizontal root travel; gameplay controls world movement.",
+    "Add parted hair, remap hair joints, split clothing/skin materials for browser customization.",
+    "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes."
+  ]
+}
