@@ -13,6 +13,7 @@ using TheLastDecision.Api.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
 RequestObservability.ConfigureLogging(builder);
+OtlpMetrics.Configure(builder);
 var connectionString = builder.Configuration.GetConnectionString("GameDb");
 if (string.IsNullOrWhiteSpace(connectionString))
     throw new InvalidOperationException("ConnectionStrings:GameDb must be configured.");
