@@ -1,6 +1,17 @@
 # Operational logging and incident triage
 
-The API emits one structured JSON console event per HTTP request with UTC timestamp, trace/request identifiers, HTTP method, matched route template, status code, and elapsed milliseconds. Failed requests (4xx) use Warning and server failures (5xx) use Error. Unhandled exceptions are logged with stack traces and returned to clients as sanitized 500 problem responses containing a trace ID.
+The API emits one structured JSON console event per HTTP request with UTC timestamp, trace/request identifiers, HTTP method, matched route template, status code, and elapsed milliseconds. The request logger wraps the exception handler, so an unhandled endpoint exception is recorded with its final HTTP 500 status rather than the default 200. Failed requests (4xx) use Warning and server failures (5xx) use Error. Unhandled exceptions are logged with stack traces and returned to clients as sanitized 500 problem responses containing a trace ID.
+
+## Metrics instrumentation
+
+The API also emits in-process .NET Meter measurements under `TheLastDecision.Api`:
+
+- `tld.http.requests` — counter of completed HTTP requests.
+- `tld.http.duration` — histogram of completed request durations in milliseconds.
+
+Both use only HTTP method, matched route template and status code as dimensions. They never use raw paths, player identifiers or request headers. The instruments are available to a `MeterListener` or a future OpenTelemetry Meter provider. **No metrics exporter, hosted dashboard, or alerting backend is configured by this change**; metrics are not yet durable or externally queryable.
+
+Run `dotnet run --project tests/Observability.Tests/Observability.Tests.csproj` to exercise measurement tags and safe HTTP 500 handling without a database.
 
 ## Run and collect
 
