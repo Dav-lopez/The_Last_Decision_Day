@@ -204,7 +204,7 @@ function App() {
   return <main className="page">
     <header><h1>The Last Decision</h1><p>Your life. Your choices. Your consequences.</p></header>
     {profile ? <Suspense fallback={<div className="hero hero-placeholder" role="status">Loading your 3D neighborhood…</div>}>
-      <WorldScene displayName={profile.displayName} onSchoolEnter={() => schoolSection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} />
+      <WorldScene key={profile.id} characterId={profile.id} displayName={profile.displayName} onSchoolEnter={() => schoolSection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} />
     </Suspense> :
       <div className="hero hero-placeholder" aria-label="The Last Decision introduction">
         <h2>Every decision changes your story.</h2>
