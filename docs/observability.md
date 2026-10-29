@@ -32,3 +32,29 @@ Do not log request/response bodies, cookies, authorization headers, CSRF tokens,
 ## Future work
 
 Add OpenTelemetry traces and metrics with an OTLP exporter, persistent log aggregation and retention, dashboards for request rates/errors/p95 latency, and alerts for 5xx and database failures. Validate telemetry and privacy behavior in a deployed environment before claiming end-to-end monitoring.
+
+## School execution business telemetry
+
+Each school Execute request records one outcome after the corresponding decision:
+`committed`, `replayed`, `time_exhausted`, `concurrency_conflict`,
+`key_conflict`, `missing_response`, `invalid_history`,
+`invalid_attributes`, `missing_character`, `invalid_key`,
+`unknown_activity`, or `unauthorized`. The success event is emitted **after**
+the database transaction commits; a failed transaction must never be reported as
+committed. Retry replays use the original stored correlation ID.
+
+The `TheLastDecision.Gameplay` .NET Meter publishes the
+`tld.school.executions` counter with **only** `activity` (server catalog ID
+or `unknown`) and `outcome` tags. Do not add user IDs, character IDs, IP
+addresses, request keys, correlation IDs, raw routes or exception messages as
+metric dimensions. Successful events also log the transaction correlation ID
+for investigation, but not as a metric dimension. The metric is instrumented
+in-process; **no metrics exporter, dashboard or alert service is configured**.
+An OpenTelemetry collector or MeterListener must subscribe before samples can
+be aggregated externally.
+
+A spike in `concurrency_conflict` may indicate overlapping client actions;
+`time_exhausted` is expected game behavior and should not be treated as a
+server outage. Repeated `invalid_history` or `missing_response` is an
+integrity signal worth investigating.
+
