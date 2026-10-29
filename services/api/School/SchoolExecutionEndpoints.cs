@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using TheLastDecision.Api.Characters;
 using TheLastDecision.Api.Identity;
+using TheLastDecision.Api.Observability;
 
 namespace TheLastDecision.Api.School;
 
@@ -27,26 +28,40 @@ public static class SchoolExecutionEndpoints
 
     private static async Task<IResult> Execute(string activityId, HttpContext context,
         ClaimsPrincipal principal, GameDbContext db, AttributeService attributeService,
-        CancellationToken ct)
+        ILoggerFactory loggerFactory, CancellationToken ct)
     {
+        var logger = loggerFactory.CreateLogger("TheLastDecision.SchoolExecution");
         if (!Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+        {
+            SchoolExecutionTelemetry.Record(logger, "unknown", "unauthorized");
             return Results.Unauthorized();
+        }
 
         // A client-generated UUID is stable across retries, but different for each intended action.
         if (!Guid.TryParse(context.Request.Headers["Idempotency-Key"].ToString(), out var requestId) ||
             requestId == Guid.Empty)
+        {
+            SchoolExecutionTelemetry.Record(logger, "unknown", "invalid_key");
             return Results.BadRequest(new { error = "Provide an Idempotency-Key UUID for this action." });
+        }
 
         var activity = SchoolActivities.Catalog.FirstOrDefault(a => a.Id == activityId);
         if (activity is null)
+        {
+            SchoolExecutionTelemetry.Record(logger, "unknown", "unknown_activity");
             return Results.NotFound(new { error = "Unknown school activity." });
+        }
 
         try
         {
             await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             var character = await db.Characters.AsNoTracking()
                 .SingleOrDefaultAsync(x => x.UserId == userId, ct);
-            if (character is null) return Results.NotFound(new { error = "Create a character first." });
+            if (character is null)
+            {
+                SchoolExecutionTelemetry.Record(logger, activity.Id, "missing_character");
+                return Results.NotFound(new { error = "Create a character first." });
+            }
 
             var scope = "school:" + character.Id.ToString("N");
             var key = requestId.ToString("N");
@@ -56,9 +71,16 @@ public static class SchoolExecutionEndpoints
             if (previous is not null)
             {
                 if (previous.RequestHash != hash)
+                {
+                    SchoolExecutionTelemetry.Record(logger, activity.Id, "key_conflict");
                     return Results.Conflict(new { error = "Idempotency key was used for a different activity." });
+                }
                 if (string.IsNullOrEmpty(previous.ResponseJson))
+                {
+                    SchoolExecutionTelemetry.Record(logger, activity.Id, "missing_response");
                     return Results.Conflict(new { error = "Action response is not available." });
+                }
+                SchoolExecutionTelemetry.Record(logger, activity.Id, "replayed", previous.CorrelationId);
                 return Results.Content(previous.ResponseJson, "application/json", Encoding.UTF8);
             }
 
@@ -69,10 +91,14 @@ public static class SchoolExecutionEndpoints
             try { balance = await SchoolTimeBudget.LoadAsync(db, character.Id, now, ct); }
             catch (InvalidDataException)
             {
+                SchoolExecutionTelemetry.Record(logger, activity.Id, "invalid_history");
                 return Results.Conflict(new { error = "Saved school time could not be verified." });
             }
             if (!SchoolTimeBudget.CanExecute(balance, activity))
+            {
+                SchoolExecutionTelemetry.Record(logger, activity.Id, "time_exhausted");
                 return Results.Conflict(new { error = "Not enough school time remaining today. Try again after the UTC reset." });
+            }
 
             var current = await db.CharacterAttributes.AsNoTracking()
                 .Where(x => x.CharacterId == character.Id)
@@ -81,6 +107,7 @@ public static class SchoolExecutionEndpoints
             try { preview = SchoolActivities.Preview(activityId, current); }
             catch (ArgumentException)
             {
+                SchoolExecutionTelemetry.Record(logger, activity.Id, "invalid_attributes");
                 return Results.Conflict(new { error = "Character attributes are invalid." });
             }
 
@@ -114,15 +141,18 @@ public static class SchoolExecutionEndpoints
             });
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
+            SchoolExecutionTelemetry.Record(logger, activity.Id, "committed", correlationId, response.TimeCost);
             return Results.Ok(response);
         }
         catch (PostgresException e) when (e.SqlState is "40001" or "23505")
         {
+            SchoolExecutionTelemetry.Record(logger, activity.Id, "concurrency_conflict");
             return Results.Conflict(new { error = "Concurrent update; retry with the same Idempotency-Key." });
         }
         catch (DbUpdateException e) when (e.InnerException is PostgresException p &&
             p.SqlState is "40001" or "23505")
         {
+            SchoolExecutionTelemetry.Record(logger, activity.Id, "concurrency_conflict");
             return Results.Conflict(new { error = "Concurrent update; retry with the same Idempotency-Key." });
         }
     }
