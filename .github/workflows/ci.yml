@@ -30,6 +30,7 @@ jobs:
           node-version: '22'
       - run: npm install
       - run: npm run typecheck
+      - run: npm run test:movement
       - run: npm run build
       - name: Test Cloudflare Pages API proxy
         run: node --test tests/pages-proxy.test.mjs
