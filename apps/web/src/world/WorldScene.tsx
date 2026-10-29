@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent, type CSSProperties } from 'react';
 import {
   ArcRotateCamera, Color3, Color4, DirectionalLight, Engine, HemisphericLight,
-  MeshBuilder, Scene, StandardMaterial, TransformNode, Vector3, SceneLoader, PBRMaterial,
+  MeshBuilder, Scene, StandardMaterial, TransformNode, Vector3, SceneLoader, PBRMaterial, ShadowGenerator,
 } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
 import { isNearSchool, movementVector, stepPosition, type PlanarPosition } from './movement.mjs';
@@ -211,9 +211,13 @@ export default function WorldScene({
       const scene = new Scene(engine);
       scene.clearColor = new Color4(0.67, 0.83, 0.96, 1);
       const sun = new HemisphericLight('daylight', new Vector3(0, 1, 0), scene);
-      sun.intensity = 0.9;
+      sun.intensity = 0.65;
       const directional = new DirectionalLight('sun', new Vector3(-0.4, -1, -0.6), scene);
-      directional.intensity = 0.7;
+      directional.intensity = 1.35;
+      directional.position = new Vector3(12, 22, 10);
+      const shadows = new ShadowGenerator(1024, directional);
+      shadows.useBlurExponentialShadowMap = true;
+      shadows.blurKernel = 12;
       const schoolMarker = createNeighborhood(scene);
       const avatarParts = createAvatar(scene);
       avatarRef.current = avatarParts;
@@ -253,6 +257,9 @@ export default function WorldScene({
         }
         humanRoot = root;
         humanAnimations = animations;
+        for (const mesh of result.meshes) {
+          if (mesh.getTotalVertices() > 0) shadows.addShadowCaster(mesh);
+        }
         for (const group of result.animationGroups) {
           group.stop();
         }
@@ -280,10 +287,10 @@ export default function WorldScene({
       });
       let position: PlanarPosition = { x: 0, z: 3.8 };
       avatar.position.set(position.x, 0, position.z);
-      const camera = new ArcRotateCamera('third-person camera', Math.PI / 2, 1.2, 11,
+      const camera = new ArcRotateCamera('third-person camera', Math.PI / 2, 1.15, 7.5,
         new Vector3(0, 1.25, 0), scene);
-      camera.lowerRadiusLimit = 7;
-      camera.upperRadiusLimit = 15;
+      camera.lowerRadiusLimit = 4.5;
+      camera.upperRadiusLimit = 24;
       camera.lowerBetaLimit = 0.5;
       camera.upperBetaLimit = 1.45;
       camera.attachControl(canvas, true);
@@ -384,7 +391,7 @@ export default function WorldScene({
         const overhead = cameraModeRef.current === 'overhead';
         const blend = 1 - Math.exp(-5 * delta);
         camera.beta += ((overhead ? 0.3 : 1.2) - camera.beta) * blend;
-        camera.radius += ((overhead ? 22 : 11) - camera.radius) * blend;
+        camera.radius += ((overhead ? 22 : 7.5) - camera.radius) * blend;
         camera.setTarget(Vector3.Lerp(camera.getTarget(), new Vector3(position.x, 1.25, position.z), cameraFollowAlpha(delta)));
         scene.render();
       });
