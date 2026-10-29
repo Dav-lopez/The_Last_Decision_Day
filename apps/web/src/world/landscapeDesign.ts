@@ -1,4 +1,4 @@
-import { Color3, DynamicTexture, MeshBuilder, Scene, StandardMaterial } from '@babylonjs/core';
+import { Color3, MeshBuilder, Scene, StandardMaterial } from '@babylonjs/core';
 
 /** Original, deterministic landscape dressing. No external assets, randomness or network calls. */
 export function addLandscapeDesign(scene: Scene): void {
