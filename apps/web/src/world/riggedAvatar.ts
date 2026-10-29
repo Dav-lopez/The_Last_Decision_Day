@@ -87,6 +87,15 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
     });
     let effects = { ...EMPTY_EFFECTS };
     let baseSkin = new Color3(0.6, 0.42, 0.31);
+    // Warn once when the checked-in GLB has not yet been regenerated with morphs.
+    // Do not silently report working facial animation for a legacy model.
+    const availableMorphNames = new Set(facialTargets.map(target => target.name));
+    const essentialMorphNames = ['eyeBlinkLeft', 'eyeBlinkRight', 'browInnerUp'];
+    const missingMorphs = essentialMorphNames.filter(name => !availableMorphNames.has(name));
+    if (missingMorphs.length) {
+      console.warn('[character] Facial morph geometry missing from human.glb:', missingMorphs.join(', '),
+        'Regenerate the model with scripts/build-character.py and review the generated asset PR.');
+    }
     let blinkTime = 0;
     let blinkCount = 0;
     let disposed = false;
