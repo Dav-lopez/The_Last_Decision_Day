@@ -6,8 +6,8 @@ import { classifyHumanMotion, blendHumanWeights, smoothHumanHeading, HUMAN_CROSS
 test('idle/walk/run use actual movement speed', () => {
   assert.equal(classifyHumanMotion(0), 'idle');
   assert.equal(classifyHumanMotion(Number.NaN), 'idle');
-  assert.equal(classifyHumanMotion(4), 'walk');
-  assert.equal(classifyHumanMotion(6), 'run');
+  assert.equal(classifyHumanMotion(1.8), 'walk');
+  assert.equal(classifyHumanMotion(4), 'run');
 });
 
 test('crossfade conserves weights, reaches target after 200ms, supports interruption', () => {
