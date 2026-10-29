@@ -8,7 +8,7 @@ import { isNearSchool, movementVector, stepPosition, type PlanarPosition } from 
 import { schoolWaypoint } from './schoolWayfinding.mjs';
 import { createMovementInput } from './inputState.mjs';
 import { cameraFollowAlpha } from './cameraFollow.mjs';
-import { classifyHumanMotion, blendHumanWeights, smoothHumanHeading } from './humanMotion.mjs';
+import { classifyHumanMotion, blendHumanWeights, smoothHumanHeading, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
 import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mjs';
 
 type SchoolActivityView = { id: string; title: string; description: string; timeCost: number };
@@ -333,7 +333,7 @@ export default function WorldScene({
         markerTime += delta;
         schoolMarker.position.y = 4.6 + Math.sin(markerTime * 2.5) * 0.12;
         const cameraForward = { x: cameraDirection.x, z: cameraDirection.z };
-        const next = schoolOpenRef.current ? position : stepPosition(position, inputRef.current.pressed, delta, inputRef.current.pressed.has('Shift') ? 6 : 4, cameraForward);
+        const next = schoolOpenRef.current ? position : stepPosition(position, inputRef.current.pressed, delta, inputRef.current.pressed.has('Shift') ? HUMAN_RUN_SPEED : HUMAN_WALK_SPEED, cameraForward);
         const direction = movementVector(inputRef.current.pressed, cameraForward);
         const moving = next.x !== position.x || next.z !== position.z;
         const movementSpeed = delta > 0 ? Math.hypot(next.x - position.x, next.z - position.z) / delta : 0;
