@@ -9,7 +9,7 @@
     "typecheck": "tsc -b",
     "test:movement": "node --test tests/3d-movement.test.mjs tests/3d-controls.test.mjs tests/camera-follow.test.mjs",
     "test:appearance": "node --test tests/avatar-appearance.test.mjs",
-    "test:human": "node --test tests/human-motion.test.mjs"
+    "test:human": "node --test tests/human-motion.test.mjs tests/human-asset-bounds.test.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
