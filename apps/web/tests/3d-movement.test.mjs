@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { movementVector, stepPosition, isNearSchool, WORLD_RADIUS } from '../src/world/movement.mjs';
+import { schoolWaypoint } from '../src/world/schoolWayfinding.mjs';
 
 test('keyboard and on-screen directional controls use the same normalized movement', () => {
   assert.deepEqual(movementVector(new Set(['w'])), { x: 0, z: -1 });
@@ -76,4 +77,23 @@ test('school activity prompt appears only at the front entrance', () => {
   assert.equal(isNearSchool({ x: 2.3, z: -5.5 }), false, 'side wall is not an entrance');
   assert.equal(isNearSchool({ x: 0, z: -3 }), false, 'far sidewalk is not the doorway');
   assert.equal(isNearSchool({ x: Number.NaN, z: -5.5 }), false);
+});
+
+test('school waypoint points to the reachable front entrance, not the building center', () => {
+  const waypoint = schoolWaypoint({ x: 0, z: 3.8 });
+  assert.equal(waypoint.direction, 'ahead');
+  assert.ok(Math.abs(waypoint.distance - 9.3) < 1e-10);
+  assert.equal(schoolWaypoint({ x: 0, z: -5.5 }).direction, 'at entrance');
+});
+
+test('school direction rotates with camera heading', () => {
+  const position = { x: 0, z: 3.8 };
+  assert.equal(schoolWaypoint(position, { x: 1, z: 0 }).direction, 'left');
+  assert.equal(schoolWaypoint(position, { x: -1, z: 0 }).direction, 'right');
+  assert.equal(schoolWaypoint(position, { x: 0, z: 1 }).direction, 'behind');
+});
+
+test('invalid camera headings fall back to north and invalid positions do not emit NaN', () => {
+  assert.equal(schoolWaypoint({ x: 0, z: 3.8 }, { x: NaN, z: Infinity }).direction, 'ahead');
+  assert.deepEqual(schoolWaypoint({ x: Infinity, z: 3.8 }), { distance: null, direction: 'unknown' });
 });

@@ -4,6 +4,7 @@ import {
   MeshBuilder, Scene, StandardMaterial, TransformNode, Vector3,
 } from '@babylonjs/core';
 import { isNearSchool, movementVector, stepPosition, type PlanarPosition } from './movement.mjs';
+import { schoolWaypoint } from './schoolWayfinding.mjs';
 import { createMovementInput } from './inputState.mjs';
 import { cameraFollowAlpha } from './cameraFollow.mjs';
 import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mjs';
@@ -79,6 +80,16 @@ function createNeighborhood(scene: Scene) {
     crown.position.set(x, 2.3, z);
     crown.material = leaves;
   }
+  // A glowing doorway marker makes the first destination recognizable without
+  // downloading assets or changing server-authoritative school interaction rules.
+  const markerMaterial = surface(scene, 'school waypoint gold', '#ffe0a0');
+  markerMaterial.emissiveColor = new Color3(0.6, 0.36, 0.08);
+  const schoolMarker = MeshBuilder.CreateTorus('school entrance waypoint',
+    { diameter: 0.85, thickness: 0.13, tessellation: 24 }, scene);
+  schoolMarker.position.set(0, 4.6, -6.55);
+  schoolMarker.rotation.x = Math.PI / 2;
+  schoolMarker.material = markerMaterial;
+  return schoolMarker;
 }
 
 function createAvatar(scene: Scene) {
@@ -167,6 +178,7 @@ export default function WorldScene({
   const schoolOpenRef = useRef(false);
   const [error, setError] = useState('');
   const [nearSchool, setNearSchool] = useState(false);
+  const [wayfinding, setWayfinding] = useState('');
   const [schoolOpen, setSchoolOpen] = useState(false);
   const [look, setLook] = useState<Look>(() => readLook(characterId));
   const avatarRef = useRef<ReturnType<typeof createAvatar> | null>(null);
@@ -189,7 +201,7 @@ export default function WorldScene({
       sun.intensity = 0.9;
       const directional = new DirectionalLight('sun', new Vector3(-0.4, -1, -0.6), scene);
       directional.intensity = 0.7;
-      createNeighborhood(scene);
+      const schoolMarker = createNeighborhood(scene);
       const avatarParts = createAvatar(scene);
       avatarRef.current = avatarParts;
       const { root: avatar } = avatarParts;
@@ -239,15 +251,28 @@ export default function WorldScene({
 
       let previousNear = false;
       let elapsed = 0;
+      let waypointTimer = 0;
+      let markerTime = 0;
       engine.runRenderLoop(() => {
         const delta = Math.min(engine!.getDeltaTime() / 1000, 0.05);
         // Controls follow the orbit camera: W always walks away from the viewer.
         const cameraDirection = camera.getForwardRay().direction;
+        markerTime += delta;
+        schoolMarker.position.y = 4.6 + Math.sin(markerTime * 2.5) * 0.12;
         const cameraForward = { x: cameraDirection.x, z: cameraDirection.z };
         const next = schoolOpenRef.current ? position : stepPosition(position, inputRef.current.pressed, delta, inputRef.current.pressed.has('Shift') ? 6 : 4, cameraForward);
         const direction = movementVector(inputRef.current.pressed, cameraForward);
         const moving = next.x !== position.x || next.z !== position.z;
         position = next;
+        waypointTimer += delta;
+        if (waypointTimer >= 0.25) {
+          waypointTimer = 0;
+          const waypoint = schoolWaypoint(position, cameraForward);
+          const label = waypoint.distance === null ? ''
+            : waypoint.direction === 'at entrance' ? 'School entrance reached'
+              : 'School entrance · ' + Math.ceil(waypoint.distance) + ' units · ' + waypoint.direction;
+          setWayfinding(previous => previous === label ? previous : label);
+        }
         avatar.position.x = position.x;
         avatar.position.z = position.z;
         if (moving) {
@@ -344,6 +369,7 @@ export default function WorldScene({
       {!error && <canvas ref={canvasRef} tabIndex={0} aria-label={`3D world for ${displayName}; click to focus, use WASD or arrow keys to move`} />}
       {error ? <p className="world-fallback" role="status">{error}</p> : <>
         <div className="world-caption"><strong>{displayName}</strong> · Neighborhood demo</div>
+        {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
         {nearSchool && <button type="button" className="world-enter"
           aria-expanded={schoolOpen} aria-controls="school-game-panel"
           onClick={() => setSchoolOpen(current => !current)}>
