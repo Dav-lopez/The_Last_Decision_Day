@@ -42,6 +42,31 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
     root.scaling.setAll(scale);
     root.position.set(-(min.x + max.x) / 2 * scale, -min.y * scale, -(min.z + max.z) / 2 * scale);
     root.parent = parent;
+    // Facial shading: preserve the authored eye texture and avoid the flat,
+    // plastic-looking response of the source's uniform roughness settings.
+    // These are conservative PBR adjustments, not a substitute for a scanned
+    // face, skin normal maps, eyelashes or expression blendshapes.
+    for (const material of container.materials) {
+      if (!(material instanceof PBRMaterial)) continue;
+      if (material.name === 'Student skin') {
+        material.metallic = 0;
+        material.roughness = 0.82;
+        material.subSurface.isTranslucencyEnabled = true;
+        material.subSurface.translucencyIntensity = 0.13;
+        material.subSurface.tintColor = new Color3(0.94, 0.71, 0.61);
+        material.subSurface.minimumThickness = 0;
+        material.subSurface.maximumThickness = 0.45;
+      } else if (material.name === 'Student eyes') {
+        material.metallic = 0;
+        material.roughness = 0.16;
+        material.clearCoat.isEnabled = true;
+        material.clearCoat.intensity = 0.55;
+        material.clearCoat.roughness = 0.12;
+      } else if (material.name === 'Student hair') {
+        material.metallic = 0;
+        material.roughness = 0.69;
+      }
+    }
     for (const mesh of container.meshes) mesh.receiveShadows = true;
 
     let weights = { idle: 1, walk: 0, run: 0 };
