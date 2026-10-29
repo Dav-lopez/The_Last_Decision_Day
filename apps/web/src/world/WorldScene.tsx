@@ -169,6 +169,12 @@ export default function WorldScene({
 
       const normalizeKey = (key: string) => key.length === 1 ? key.toLowerCase() : key;
       const onKeyDown = (event: KeyboardEvent) => {
+        // Escape must also work when a button inside the school overlay has focus.
+        if (event.key === 'Escape' && schoolOpenRef.current) {
+          event.preventDefault();
+          setSchoolOpen(false);
+          return;
+        }
         if (document.activeElement !== canvas) return;
         const key = normalizeKey(event.key);
         if (MOVE_KEYS.has(key)) {
@@ -177,9 +183,6 @@ export default function WorldScene({
         } else if (key === 'e' && nearSchoolRef.current && !event.repeat) {
           event.preventDefault();
           setSchoolOpen(open => !open);
-        } else if (key === 'Escape' && schoolOpenRef.current) {
-          event.preventDefault();
-          setSchoolOpen(false);
         }
       };
       const onKeyUp = (event: KeyboardEvent) => {
