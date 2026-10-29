@@ -36,6 +36,24 @@ jobs:
                       assert len(primitive.get('targets', [])) == len(names), mesh['name']
               found.update(names)
           assert expected <= found, f'Missing facial morphs: {expected - found}'
+          # A morph with the correct name but zero vertex movement is not usable.
+          binary_start = 28 + n
+          for mesh in d['meshes']:
+              names = mesh.get('extras', {}).get('targetNames', [])
+              for primitive in mesh['primitives']:
+                  for name, target in zip(names, primitive.get('targets', [])):
+                      accessor = d['accessors'][target['POSITION']]
+                      assert accessor['componentType'] == 5126 and accessor['type'] == 'VEC3'
+                      view = d['bufferViews'][accessor['bufferView']]
+                      offset = binary_start + view.get('byteOffset', 0) + accessor.get('byteOffset', 0)
+                      stride = view.get('byteStride', 12)
+                      assert offset + (accessor['count'] - 1) * stride + 12 <= len(raw)
+                      magnitude = max(
+                          max(abs(v) for v in struct.unpack_from('<fff', raw, offset + i * stride))
+                          for i in range(accessor['count'])
+                      )
+                      assert magnitude > 0.0001, f'{mesh["name"]}: {name} has no visible displacement'
+          print('Verified facial morph targets contain nonzero geometry displacement')
           print(f'Validated {p.stat().st_size} bytes, {len(found)} facial morph names, skeletal animation')
           PY
       - name: Open draft PR containing the actual GLB
