@@ -77,14 +77,60 @@ function createNeighborhood(scene: Scene) {
     houseRoof.material = roof;
   }
 
-  for (const [x, z] of [[-8, 3], [8, 3], [-8, 8], [8, 8], [-4.8, -8.4], [4.8, -8.4]]) {
-    const trunk = MeshBuilder.CreateCylinder('tree trunk', { height: 1.8, diameter: 0.42 }, scene);
-    trunk.position.set(x, 0.9, z);
+  // Organic tree silhouettes: tapered trunks, angled branches and overlapping
+  // asymmetric foliage clusters instead of the old cylinder + green ball.
+  const leafTones = [
+    surface(scene, 'foliage shade', '#315d37'),
+    surface(scene, 'foliage midtone', '#477a45'),
+    surface(scene, 'foliage sunlit', '#659653'),
+    surface(scene, 'foliage deep', '#274d32'),
+  ];
+  const treeSites: Array<[number, number, number]> = [
+    [-8, 3, 1], [8, 3, 1.12], [-8, 8, 0.94],
+    [8, 8, 1.06], [-4.8, -8.4, 0.88], [4.8, -8.4, 0.96],
+  ];
+  treeSites.forEach(([x, z, scale], treeIndex) => {
+    const trunk = MeshBuilder.CreateCylinder('tree trunk', {
+      height: 2.55 * scale, diameterBottom: 0.5 * scale,
+      diameterTop: 0.24 * scale, tessellation: 9,
+    }, scene);
+    trunk.position.set(x, 1.275 * scale, z);
     trunk.material = wood;
-    const crown = MeshBuilder.CreateSphere('tree canopy', { diameter: 2.3, segments: 8 }, scene);
-    crown.position.set(x, 2.3, z);
-    crown.material = leaves;
-  }
+    // Deterministic branches and foliage: no runtime randomization.
+    for (let branch = 0; branch < 5; branch++) {
+      const angle = branch * Math.PI * 2 / 5 + treeIndex * 0.38;
+      const reach = (0.85 + (branch % 2) * 0.24) * scale;
+      const bx = Math.cos(angle) * reach;
+      const bz = Math.sin(angle) * reach;
+      const limb = MeshBuilder.CreateCylinder('tree angled branch', {
+        height: 1.7 * scale, diameterBottom: 0.17 * scale,
+        diameterTop: 0.075 * scale, tessellation: 6,
+      }, scene);
+      limb.position.set(x + bx * 0.42, 2.3 * scale, z + bz * 0.42);
+      limb.rotation.z = Math.cos(angle) * 0.55;
+      limb.rotation.x = -Math.sin(angle) * 0.55;
+      limb.material = wood;
+      for (let cluster = 0; cluster < 2; cluster++) {
+        const canopy = MeshBuilder.CreateSphere('tree foliage cluster', {
+          diameter: (1.45 + ((branch + cluster) % 3) * 0.24) * scale,
+          segments: 9,
+        }, scene);
+        canopy.scaling.set(1.12, 0.78 + cluster * 0.1, 0.94);
+        canopy.position.set(
+          x + bx * (0.65 + cluster * 0.48),
+          (2.75 + cluster * 0.38 + (branch % 2) * 0.2) * scale,
+          z + bz * (0.65 + cluster * 0.48),
+        );
+        canopy.material = leafTones[(treeIndex + branch + cluster) % leafTones.length];
+      }
+    }
+    const crownTop = MeshBuilder.CreateSphere('tree irregular crown top', {
+      diameter: 1.55 * scale, segments: 9,
+    }, scene);
+    crownTop.scaling.set(0.94, 0.85, 1.08);
+    crownTop.position.set(x, 3.85 * scale, z);
+    crownTop.material = leafTones[(treeIndex + 2) % leafTones.length];
+  });
   // A glowing doorway marker makes the first destination recognizable without
   // downloading assets or changing server-authoritative school interaction rules.
   const markerMaterial = surface(scene, 'school waypoint gold', '#ffe0a0');
