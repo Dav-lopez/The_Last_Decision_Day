@@ -143,7 +143,40 @@ def build(source_dir):
                 material = 3 if y < .14 else 2 if y < .96 else 1 if y < 1.56 and abs(x) < .735 else 0
                 groups[material].extend((i,) for i in tri)
             prims = [{"attributes": attrs, "indices": b.accessor(rows, "SCALAR", 5123), "material": mat} for mat, rows in groups.items() if rows]
-        b.doc["meshes"].append({"name": ["Student eyebrows", "Student eyes", "Student outfit"][mi], "primitives": prims})
+        # Author lightweight morph targets directly on the licensed source geometry.
+        # These preserve the existing skinning and animations. This is a stylized
+        # facial rig, not a photorealistic head replacement.
+        if mi in (0, 1):
+            source_positions = read_accessor(body, files["body.bin"], p["attributes"]["POSITION"])
+            ymin = min(v[1] for v in source_positions)
+            ymax = max(v[1] for v in source_positions)
+            mid = (ymin + ymax) / 2
+            span = max(0.001, ymax - ymin)
+            names = (["browInnerUp", "browDownLeft", "browDownRight"] if mi == 0
+                     else ["eyeBlinkLeft", "eyeBlinkRight", "eyeWideLeft", "eyeWideRight"])
+            for prim in prims:
+                targets = []
+                for name in names:
+                    deltas = []
+                    for x, y, z in source_positions:
+                        # Source geometry is kept intact at neutral influence.
+                        side = -1 if "Left" in name else 1
+                        eligible = ("Left" not in name and "Right" not in name) or x * side > 0
+                        if not eligible:
+                            deltas.append((0.0, 0.0, 0.0))
+                        elif name.startswith("brow"):
+                            shift = (0.025 if name == "browInnerUp" else -0.018)
+                            deltas.append((0.0, shift, 0.0))
+                        else:
+                            factor = -0.88 if "Blink" in name else 0.22
+                            deltas.append((0.0, (y - mid) * factor, 0.0))
+                    targets.append({"POSITION": b.accessor(deltas, "VEC3")})
+                prim["targets"] = targets
+            mesh_extras = {"targetNames": names}
+        else:
+            mesh_extras = {}
+        b.doc["meshes"].append({"name": ["Student eyebrows", "Student eyes", "Student outfit"][mi],
+                                "primitives": prims, "extras": mesh_extras})
 
     skin = copy.deepcopy(body["skins"][0])
     skin["inverseBindMatrices"] = b.copy_accessor("body", body, files["body.bin"], skin["inverseBindMatrices"])
