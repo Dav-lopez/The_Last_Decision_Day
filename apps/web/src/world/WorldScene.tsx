@@ -675,7 +675,7 @@ export default function WorldScene({
             {emotion.charAt(0).toUpperCase() + emotion.slice(1)}
           </button>)}
       </div>
-      <p>Expression previews require a character model with facial blendshapes. The current model may not visibly respond.</p>
+      <p role="status" aria-live="polite">{previewEmotion === 'sad' ? 'Crying preview selected · tears pending detailed face integration' : previewEmotion === 'embarrassed' ? 'Blushing preview selected · cheek shading pending' : previewEmotion === 'exerted' ? 'Exertion preview selected · sweat rendering pending' : `Current expression: ${previewEmotion}`}. Facial animation requires a model with compatible blendshapes.</p>
     </section>}
     {!error && <section className="world-customize" aria-label="Customize character appearance">
       <h3>Character appearance</h3>
