@@ -100,13 +100,78 @@ function createNeighborhood(scene: Scene) {
   door.position.set(0, 1.25, -6.68);
   door.material = entrance;
 
-  for (const x of [-8.4, 8.4]) {
+  // American suburban street: individual facades, pitched roofs, garages,
+  // front porches, window frames and short concrete driveways.
+  const siding = [
+    surface(scene, 'warm ivory siding', '#d8cbb7'),
+    surface(scene, 'blue-gray siding', '#899eac'),
+  ];
+  const trim = surface(scene, 'house white trim', '#e8e8df');
+  const windowGlass = surface(scene, 'residential window glass', '#506f81');
+  const garageDoor = surface(scene, 'garage panel', '#b5b9b6');
+  const porchWood = surface(scene, 'porch front door', '#765643');
+  for (const [index, x] of [-8.4, 8.4].entries()) {
     const house = MeshBuilder.CreateBox('home', { width: 4.2, height: 3.1, depth: 4.9 }, scene);
     house.position.set(x, 1.55, -5.05);
-    house.material = houses;
-    const houseRoof = MeshBuilder.CreateBox('home roof', { width: 4.6, height: 0.45, depth: 5.2 }, scene);
-    houseRoof.position.set(x, 3.35, -5.05);
-    houseRoof.material = roof;
+    house.material = siding[index];
+    // Two sloping roof planes create a recognizable gabled suburban roof.
+    for (const side of [-1, 1]) {
+      const slope = MeshBuilder.CreateBox('home pitched roof', {
+        width: 2.85, height: 0.18, depth: 5.35,
+      }, scene);
+      slope.position.set(x + side * 1.18, 3.85, -5.05);
+      slope.rotation.z = side * -0.49;
+      slope.material = roof;
+    }
+    const entrySide = x < 0 ? 1 : -1;
+    const entryX = x + entrySide * 0.85;
+    const frontZ = -2.53;
+    const frontDoor = MeshBuilder.CreateBox('home front door', {
+      width: 0.9, height: 2.05, depth: 0.08,
+    }, scene);
+    frontDoor.position.set(entryX, 1.03, frontZ);
+    frontDoor.material = porchWood;
+    const porch = MeshBuilder.CreateBox('home porch landing', {
+      width: 1.55, height: 0.16, depth: 0.92,
+    }, scene);
+    porch.position.set(entryX, 0.09, -2.05);
+    porch.material = path;
+    for (const offset of [-1.32, 1.32]) {
+      const window = MeshBuilder.CreateBox('home front window', {
+        width: 0.95, height: 1.05, depth: 0.085,
+      }, scene);
+      window.position.set(x + offset, 1.8, frontZ);
+      window.material = windowGlass;
+      for (const edge of [-0.49, 0.49]) {
+        const frame = MeshBuilder.CreateBox('home window vertical trim', {
+          width: 0.075, height: 1.13, depth: 0.1,
+        }, scene);
+        frame.position.set(x + offset + edge, 1.8, frontZ + 0.055);
+        frame.material = trim;
+      }
+      const sill = MeshBuilder.CreateBox('home window sill', {
+        width: 1.1, height: 0.09, depth: 0.2,
+      }, scene);
+      sill.position.set(x + offset, 1.23, frontZ + 0.08);
+      sill.material = trim;
+    }
+    const garage = MeshBuilder.CreateBox('home garage door', {
+      width: 1.5, height: 1.85, depth: 0.09,
+    }, scene);
+    garage.position.set(x - entrySide * 1.18, 0.94, frontZ + 0.05);
+    garage.material = garageDoor;
+    for (let panel = 1; panel <= 3; panel++) {
+      const groove = MeshBuilder.CreateBox('garage horizontal seam', {
+        width: 1.43, height: 0.025, depth: 0.1,
+      }, scene);
+      groove.position.set(x - entrySide * 1.18, panel * 0.45, frontZ + 0.11);
+      groove.material = trim;
+    }
+    const driveway = MeshBuilder.CreateGround('home driveway', {
+      width: 1.7, height: 2.1,
+    }, scene);
+    driveway.position.set(x - entrySide * 1.18, 0.034, -1.22);
+    driveway.material = path;
   }
 
   // Organic tree silhouettes: tapered trunks, angled branches and overlapping
