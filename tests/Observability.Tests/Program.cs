@@ -38,6 +38,13 @@ foreach (var invalid in new[]
     Check(rejected, "Unsafe OTLP endpoint is rejected");
 }
 
+// Both request metrics and completion logs use the same bounded method label.
+Check(RequestMetrics.NormalizeMethod("POST") == "POST",
+    "Canonical HTTP methods remain recognizable in logs and metrics");
+Check(RequestMetrics.NormalizeMethod("get") == "OTHER" &&
+      RequestMetrics.NormalizeMethod(new string('X', 4096)) == "OTHER",
+    "Noncanonical and attacker-controlled HTTP methods are bounded for logging");
+
 var samples = new List<(string Instrument, double Value, Dictionary<string, object?> Tags)>();
 using var listener = new MeterListener();
 listener.InstrumentPublished = (instrument, meterListener) =>
