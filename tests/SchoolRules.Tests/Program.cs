@@ -1,3 +1,6 @@
+using System.Diagnostics.Metrics;
+using Microsoft.Extensions.Logging.Abstractions;
+using TheLastDecision.Api.Observability;
 using TheLastDecision.Api.School;
 
 static void Check(bool condition, string description)
@@ -129,4 +132,45 @@ try
     throw new Exception("FAIL: Corrupt school time was accepted");
 }
 catch (InvalidDataException) { Console.WriteLine("PASS: Corrupt school time fails closed"); }
+
+
+var observed = new List<(string Activity, string Outcome, long Count, int TagCount)>();
+using (var listener = new MeterListener())
+{
+    listener.InstrumentPublished = (instrument, currentListener) =>
+    {
+        if (instrument.Meter.Name == SchoolExecutionTelemetry.MeterName &&
+            instrument.Name == SchoolExecutionTelemetry.MetricName)
+            currentListener.EnableMeasurementEvents(instrument);
+    };
+    listener.SetMeasurementEventCallback<long>((instrument, value, tags, state) =>
+    {
+        var labels = tags.ToArray();
+        var activityLabel = labels.Single(x => x.Key == "activity").Value?.ToString() ?? "";
+        var outcomeLabel = labels.Single(x => x.Key == "outcome").Value?.ToString() ?? "";
+        observed.Add((activityLabel, outcomeLabel, value, labels.Length));
+    });
+    listener.Start();
+    var telemetryCorrelation = Guid.NewGuid();
+    SchoolExecutionTelemetry.Record(NullLogger.Instance, "study", "committed", telemetryCorrelation, 2);
+    SchoolExecutionTelemetry.Record(NullLogger.Instance, "study", "replayed", telemetryCorrelation);
+    SchoolExecutionTelemetry.Record(NullLogger.Instance, "unknown", "invalid_key");
+    SchoolExecutionTelemetry.Record(NullLogger.Instance, "player-supplied-arbitrary-activity", "unknown_activity");
+}
+Check(observed.Count == 4 && observed.All(x => x.Count == 1),
+    "School gameplay counter emits one event for each outcome");
+Check(observed.Any(x => x.Activity == "study" && x.Outcome == "committed") &&
+    observed.Any(x => x.Activity == "study" && x.Outcome == "replayed") &&
+    observed.Any(x => x.Activity == "unknown" && x.Outcome == "invalid_key"),
+    "School gameplay metrics distinguish commits, retries and invalid requests");
+Check(observed.All(x => x.TagCount == 2),
+    "School gameplay metrics do not label users, request keys or correlation IDs");
+Check(observed.Last().Activity == "unknown" && observed.Last().Outcome == "unknown_activity",
+    "Untrusted activity names are collapsed into the unknown bucket");
+try
+{
+    SchoolExecutionTelemetry.Record(NullLogger.Instance, "study", "attacker-controlled-outcome");
+    throw new Exception("FAIL: Unknown school outcome accepted");
+}
+catch (ArgumentOutOfRangeException) { Console.WriteLine("PASS: Unknown school outcome rejected"); }
 
