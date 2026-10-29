@@ -52,3 +52,28 @@ test('camera-relative movement respects the same world collision rules', () => {
   for (let i = 0; i < 20; i++) pos = stepPosition(pos, new Set(['w']), 0.05, 4, { x: 0, z: -1 });
   assert.ok(pos.z > -6.75, 'rotated camera cannot bypass the school collision');
 });
+
+test('tree trunks have capsule-sized collision and cannot be crossed at sprint speed', () => {
+  let position = { x: -8, z: 4 };
+  for (let i = 0; i < 20; i++) position = stepPosition(position, new Set(['w']), 0.05, 6);
+  assert.ok(position.z >= 3.64, 'player stops in front of the tree trunk');
+  const sprint = stepPosition({ x: -8, z: 4 }, new Set(['w']), 0.05, 80);
+  assert.ok(sprint.z >= 3.64, 'high speed cannot tunnel through a narrow tree');
+});
+
+test('tree collision allows sliding and leaves the central school walkway clear', () => {
+  let position = { x: -8.7, z: 3.7 };
+  for (let i = 0; i < 15; i++) position = stepPosition(position, new Set(['d', 'w']), 0.05);
+  assert.ok(Math.hypot(position.x + 8, position.z - 3) >= 0.63 - 1e-8);
+  let walkway = { x: 0, z: 3.8 };
+  for (let i = 0; i < 50; i++) walkway = stepPosition(walkway, new Set(['w']), 0.05);
+  assert.equal(isNearSchool(walkway), true, 'walking north reaches the entrance');
+});
+
+test('school activity prompt appears only at the front entrance', () => {
+  assert.equal(isNearSchool({ x: 0, z: -5.5 }), true);
+  assert.equal(isNearSchool({ x: 1.2, z: -5.3 }), true);
+  assert.equal(isNearSchool({ x: 2.3, z: -5.5 }), false, 'side wall is not an entrance');
+  assert.equal(isNearSchool({ x: 0, z: -3 }), false, 'far sidewalk is not the doorway');
+  assert.equal(isNearSchool({ x: Number.NaN, z: -5.5 }), false);
+});
