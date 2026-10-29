@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
 import { canStartSchoolActivity, millisecondsUntilReset, type SchoolTimeBalance } from './schoolTime';
+import { createSchoolActionGate } from './schoolActionGate.mjs';
 
 type Profile = { id: string; displayName: string; gameAge: number; attributes: Record<string, number>; coins: number };
 type SchoolActivity = { id: string; title: string; description: string; timeCost: number; changes: { attribute: string; delta: number }[] };
@@ -39,6 +40,7 @@ async function post<T>(path: string, payload?: unknown): Promise<T> {
 function App() {
   const schoolSection = useRef<HTMLHeadingElement>(null);
   const pendingAction = useRef<{ activityId: string; key: string } | null>(null);
+  const actionGate = useRef(createSchoolActionGate());
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [activities, setActivities] = useState<SchoolActivity[]>([]);
@@ -134,15 +136,23 @@ function App() {
   }, [profile?.id, timeBalance?.resetsAt]);
 
   async function previewActivity(activityId: string) {
+    const ticket = actionGate.current.beginPreview();
+    if (ticket === null) return;
     setMessage(''); setPreview(null);
     try {
       const result = await request<ActivityPreview>(`/api/v1/school/activities/${encodeURIComponent(activityId)}/preview`);
-      setPreview(result);
-    } catch (error) { setMessage(error instanceof Error ? error.message : 'Preview unavailable.'); }
+      if (actionGate.current.isCurrentPreview(ticket)) setPreview(result);
+    } catch (error) {
+      if (actionGate.current.isCurrentPreview(ticket))
+        setMessage(error instanceof Error ? error.message : 'Preview unavailable.');
+    }
   }
 
   async function executeActivity(activityId: string) {
-    setBusy(true); setMessage('');
+    // Guard synchronously: a second tap can arrive before React renders busy=true.
+    const ticket = actionGate.current.beginExecution();
+    if (ticket === null) return;
+    setBusy(true); setMessage(''); setPreview(null);
     try {
       const key = pendingAction.current?.activityId === activityId
         ? pendingAction.current.key : crypto.randomUUID();
@@ -153,15 +163,21 @@ function App() {
           method: 'POST',
           headers: { 'X-CSRF-TOKEN': token, 'Idempotency-Key': key },
         });
+      if (!actionGate.current.isCurrentSession(ticket)) return;
       setProfile(current => current ? { ...current, attributes: outcome.after } : current);
-      setPreview(null);
       pendingAction.current = null;
+      // Disable further execution until the server confirms the new daily budget.
+      setTimeBalance(null);
       setHistoryVersion(version => version + 1);
       setMessage('Activity completed. Your updated attributes were saved.');
     } catch (error) {
-      setMessage((error instanceof Error ? error.message : 'Unable to complete activity.') +
-        ' You can retry the same activity safely.');
-    } finally { setBusy(false); }
+      if (actionGate.current.isCurrentSession(ticket))
+        setMessage((error instanceof Error ? error.message : 'Unable to complete activity.') +
+          ' You can retry the same activity safely.');
+    } finally {
+      actionGate.current.endExecution(ticket);
+      if (actionGate.current.isCurrentSession(ticket)) setBusy(false);
+    }
   }
 
   async function authenticate(event: React.FormEvent<HTMLFormElement>) {
@@ -171,6 +187,9 @@ function App() {
       const data = mode === 'login' ? { email, password } :
         { email, password, dateOfBirth: birthDate, inviteToken };
       const result = await post<Session>(`/api/v1/auth/${mode}`, data);
+      actionGate.current.resetSession();
+      pendingAction.current = null;
+      setPreview(null); setActivities([]); setHistory([]); setTimeBalance(null);
       setSession(result);
       setProfile(null);
       if (mode === 'login') {
@@ -196,7 +215,13 @@ function App() {
 
   async function logout() {
     setBusy(true); setMessage('');
-    try { await post<void>('/api/v1/auth/logout'); setSession(null); setProfile(null); setTimeBalance(null); pendingAction.current = null; }
+    try {
+      await post<void>('/api/v1/auth/logout');
+      actionGate.current.resetSession();
+      setSession(null); setProfile(null); setTimeBalance(null);
+      setPreview(null); setActivities([]); setHistory([]);
+      pendingAction.current = null;
+    }
     catch (error) { setMessage(error instanceof Error ? error.message : 'Logout failed.'); }
     finally { setBusy(false); }
   }
