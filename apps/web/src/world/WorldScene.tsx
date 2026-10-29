@@ -115,6 +115,44 @@ function createAvatar(scene: Scene) {
     arm.parent = root;
     return arm;
   });
+  // Small, lightweight details make the character legible from both the
+  // orbit camera and the front without downloading external character assets.
+  const eyes = surface(scene, 'character eyes', '#24242b');
+  const footwear = surface(scene, 'character shoes', '#262d3b');
+  const backpack = surface(scene, 'character backpack', '#46546b');
+  for (const x of [-0.13, 0.13]) {
+    const eye = MeshBuilder.CreateSphere('character eye', { diameter: 0.095, segments: 8 }, scene);
+    eye.position.set(x, 2.07, -0.315);
+    eye.material = eyes;
+    eye.parent = root;
+  }
+  const nose = MeshBuilder.CreateSphere('character nose', { diameter: 0.13, segments: 8 }, scene);
+  nose.position.set(0, 1.98, -0.345);
+  nose.material = face;
+  nose.parent = root;
+  const mouth = MeshBuilder.CreateBox('character mouth', { width: 0.16, height: 0.025, depth: 0.025 }, scene);
+  mouth.position.set(0, 1.87, -0.31);
+  mouth.material = eyes;
+  mouth.parent = root;
+
+  // Parent extremities to their limbs so the walking animation carries them.
+  arms.forEach(arm => {
+    const hand = MeshBuilder.CreateSphere('character hand', { diameter: 0.29, segments: 8 }, scene);
+    hand.position.set(0, -0.45, 0);
+    hand.material = face;
+    hand.parent = arm;
+  });
+  legs.forEach(leg => {
+    const shoe = MeshBuilder.CreateBox('character shoe', { width: 0.33, height: 0.21, depth: 0.49 }, scene);
+    shoe.position.set(0, -0.26, -0.09);
+    shoe.material = footwear;
+    shoe.parent = leg;
+  });
+  const pack = MeshBuilder.CreateBox('character backpack', { width: 0.62, height: 0.84, depth: 0.26 }, scene);
+  pack.position.set(0, 1.18, 0.36);
+  pack.material = backpack;
+  pack.parent = root;
+
   return { root, jacket, face, hair, legs, arms };
 }
 
