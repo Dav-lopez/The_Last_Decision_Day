@@ -153,7 +153,7 @@ def build(source_dir):
             mid = (ymin + ymax) / 2
             span = max(0.001, ymax - ymin)
             names = (["browInnerUp", "browDownLeft", "browDownRight"] if mi == 0
-                     else ["eyeBlinkLeft", "eyeBlinkRight", "eyeWideLeft", "eyeWideRight"])
+                     else ["eyeBlinkLeft", "eyeBlinkRight", "eyeWideLeft", "eyeWideRight", "eyeSquintLeft", "eyeSquintRight"])
             for prim in prims:
                 targets = []
                 for name in names:
@@ -168,7 +168,7 @@ def build(source_dir):
                             shift = (0.025 if name == "browInnerUp" else -0.018)
                             deltas.append((0.0, shift, 0.0))
                         else:
-                            factor = -0.88 if "Blink" in name else 0.22
+                            factor = -0.88 if "Blink" in name else (-0.32 if "Squint" in name else 0.22)
                             deltas.append((0.0, (y - mid) * factor, 0.0))
                     targets.append({"POSITION": b.accessor(deltas, "VEC3")})
                 prim["targets"] = targets
