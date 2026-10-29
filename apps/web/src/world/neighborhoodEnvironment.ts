@@ -46,6 +46,7 @@ export function addPlayableNeighborhoodDetails(scene: Scene): void {
   // Separate pedestrian space from the road, completing the US residential
   // streetscape. The house architecture is owned by the independent PR #76.
   const curb = mat('American curb concrete', '#c6c3ba');
+  const mailboxPost = mat('mailbox weathered wood', '#76614c');
   const mailboxPaint = mat('suburban mailbox charcoal', '#454e57');
   const mailboxFlag = mat('mailbox red flag', '#b54d42');
   const plantingSoil = mat('front yard garden soil', '#66584a');
@@ -70,7 +71,7 @@ export function addPlayableNeighborhoodDetails(scene: Scene): void {
     const post = MeshBuilder.CreateCylinder('residential mailbox post',
       { height: 1.05, diameter: 0.105, tessellation: 8 }, scene);
     post.position.set(mailboxX, 0.525, mailboxZ);
-    post.material = wood;
+    post.material = mailboxPost;
     detail('residential mailbox body', 0.38, 0.28, 0.65,
       mailboxX, 1.16, mailboxZ, mailboxPaint);
     detail('residential mailbox red flag', 0.035, 0.19, 0.1,
