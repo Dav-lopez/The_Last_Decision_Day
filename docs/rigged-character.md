@@ -55,7 +55,7 @@ this script, download model data, contact an asset CDN or require a paid account
   soles with the collision plane. Preserve the original world/camera root.
 - Apply skin, hair and outfit controls to the imported materials, including
   choices made while the model is loading.
-- Walk at 2.6 units/second and sprint at 5.5, with animation playback matched to
+- Keep the existing 1.8 units/second walk and 4.0 sprint, with playback matched to
   those speeds and turns smoothed across the angle wrap.
 - Dispose animations, meshes and materials when leaving the demo. Ignore late
   loads after unmount.

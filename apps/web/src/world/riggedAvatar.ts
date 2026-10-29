@@ -1,7 +1,7 @@
 import { Color3, PBRMaterial, Scene, SceneLoader, TransformNode } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
 import { colorFor, type Look } from './appearance.mjs';
-import { blendHumanWeights, classifyHumanMotion } from './humanMotion.mjs';
+import { blendHumanWeights, classifyHumanMotion, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
 
 export type RiggedAvatar = {
   root: TransformNode;
@@ -70,8 +70,8 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
         if (target !== transition.target) transition = { from: { ...weights }, target, elapsed: 0 };
         transition.elapsed = Math.min(0.2, transition.elapsed + deltaSeconds);
         weights = blendHumanWeights(transition.from, transition.target, transition.elapsed);
-        groups.walk!.speedRatio = Math.max(0.65, Math.min(1.6, speed / 2.6));
-        groups.run!.speedRatio = Math.max(0.65, Math.min(1.6, speed / 5.5));
+        groups.walk!.speedRatio = Math.max(0.65, Math.min(1.6, speed / HUMAN_WALK_SPEED));
+        groups.run!.speedRatio = Math.max(0.65, Math.min(1.6, speed / HUMAN_RUN_SPEED));
         for (const state of ['idle', 'walk', 'run'] as const) groups[state]!.setWeightForAllAnimatables(weights[state]);
       },
       dispose() {
