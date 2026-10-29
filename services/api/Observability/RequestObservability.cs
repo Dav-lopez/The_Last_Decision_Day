@@ -48,16 +48,17 @@ public static class RequestObservability
                     // emails, identifiers, tokens or other sensitive player information.
                     var route = (context.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText ?? "unmatched";
                     var status = context.Response.StatusCode;
+                    var method = RequestMetrics.NormalizeMethod(context.Request.Method);
                     RequestMetrics.Record(context.Request.Method, route, status, elapsedMs);
                     if (status >= 500)
                         logger.LogError("HTTP request completed: method={Method} route={Route} status={StatusCode} durationMs={DurationMs}",
-                            context.Request.Method, route, status, elapsedMs);
+                            method, route, status, elapsedMs);
                     else if (status >= 400)
                         logger.LogWarning("HTTP request completed: method={Method} route={Route} status={StatusCode} durationMs={DurationMs}",
-                            context.Request.Method, route, status, elapsedMs);
+                            method, route, status, elapsedMs);
                     else
                         logger.LogInformation("HTTP request completed: method={Method} route={Route} status={StatusCode} durationMs={DurationMs}",
-                            context.Request.Method, route, status, elapsedMs);
+                            method, route, status, elapsedMs);
                 }
             }
         });
