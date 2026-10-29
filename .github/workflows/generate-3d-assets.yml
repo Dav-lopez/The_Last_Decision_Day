@@ -18,6 +18,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y blender
           blender --version
+      - name: Check generator and validator Python syntax
+        run: |
+          python3 -m py_compile tools/assets/generate_environment.py tools/assets/validate_glb.py
       - name: Generate original GLB models
         run: |
           blender -b --python tools/assets/generate_environment.py -- --output apps/web/public/models/environment
