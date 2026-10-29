@@ -183,6 +183,13 @@ export default function WorldScene({
   const [schoolOpen, setSchoolOpen] = useState(false);
   const [look, setLook] = useState<Look>(() => readLook(characterId));
   const avatarRef = useRef<ReturnType<typeof createAvatar> | null>(null);
+  const [cameraMode, setCameraMode] = useState<'follow' | 'overhead'>('follow');
+  const cameraModeRef = useRef<'follow' | 'overhead'>('follow');
+  const toggleCamera = () => {
+    const next = cameraModeRef.current === 'follow' ? 'overhead' : 'follow';
+    cameraModeRef.current = next;
+    setCameraMode(next);
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -232,6 +239,9 @@ export default function WorldScene({
         if (MOVE_KEYS.has(key)) {
           event.preventDefault();
           inputRef.current.press(`keyboard:${key}`, key);
+        } else if (key === 'c' && !event.repeat) {
+          event.preventDefault();
+          toggleCamera();
         } else if (key === 'e' && nearSchoolRef.current && !event.repeat) {
           event.preventDefault();
           setSchoolOpen(open => !open);
@@ -295,6 +305,10 @@ export default function WorldScene({
           previousNear = nextNear;
           setNearSchool(nextNear);
         }
+        const overhead = cameraModeRef.current === 'overhead';
+        const blend = 1 - Math.exp(-5 * delta);
+        camera.beta += ((overhead ? 0.3 : 1.2) - camera.beta) * blend;
+        camera.radius += ((overhead ? 22 : 11) - camera.radius) * blend;
         camera.setTarget(Vector3.Lerp(camera.getTarget(), new Vector3(position.x, 1.25, position.z), cameraFollowAlpha(delta)));
         scene.render();
       });
@@ -417,6 +431,11 @@ export default function WorldScene({
         </div>
         <div className="world-run">{directionButton('RUN', 'Shift', 'Hold to sprint')}</div>
       </div>
+    </div>}
+    {!error && <div className="world-camera-toggle" style={{ margin: '0.75rem 0' }}>
+      <button type="button" onClick={toggleCamera} aria-label="Switch camera view">
+        Camera: {cameraMode === 'follow' ? 'Third person' : 'Overhead'} · Switch (C)
+      </button>
     </div>}
     {!error && <section className="world-customize" aria-label="Customize character appearance">
       <h3>Character appearance</h3>
