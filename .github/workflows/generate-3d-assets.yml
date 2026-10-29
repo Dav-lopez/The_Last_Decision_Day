@@ -1,0 +1,37 @@
+name: Generate and validate free 3D assets
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'tools/assets/**'
+      - '.github/workflows/generate-3d-assets.yml'
+permissions:
+  contents: read
+jobs:
+  blender-assets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Blender from Ubuntu packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender
+          blender --version
+      - name: Generate original GLB models
+        run: |
+          blender -b --python tools/assets/generate_environment.py -- --output apps/web/public/models/environment
+      - name: Validate exported GLB files
+        run: |
+          python3 tools/assets/validate_glb.py \
+            apps/web/public/models/environment/oak.glb \
+            apps/web/public/models/environment/house.glb
+      - name: Upload generated models for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: free-environment-glbs
+          path: |
+            apps/web/public/models/environment/oak.glb
+            apps/web/public/models/environment/house.glb
+          if-no-files-found: error
+          retention-days: 7
