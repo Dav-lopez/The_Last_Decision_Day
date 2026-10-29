@@ -134,18 +134,19 @@ function createAvatar(scene: Scene) {
   mouth.material = eyes;
   mouth.parent = root;
 
-  for (const x of [-0.49, 0.49]) {
+  // Parent extremities to their limbs so the walking animation carries them.
+  arms.forEach(arm => {
     const hand = MeshBuilder.CreateSphere('character hand', { diameter: 0.29, segments: 8 }, scene);
-    hand.position.set(x, 0.77, 0);
+    hand.position.set(0, -0.45, 0);
     hand.material = face;
-    hand.parent = root;
-  }
-  for (const x of [-0.2, 0.2]) {
+    hand.parent = arm;
+  });
+  legs.forEach(leg => {
     const shoe = MeshBuilder.CreateBox('character shoe', { width: 0.33, height: 0.21, depth: 0.49 }, scene);
-    shoe.position.set(x, 0.12, -0.09);
+    shoe.position.set(0, -0.26, -0.09);
     shoe.material = footwear;
-    shoe.parent = root;
-  }
+    shoe.parent = leg;
+  });
   const pack = MeshBuilder.CreateBox('character backpack', { width: 0.62, height: 0.84, depth: 0.26 }, scene);
   pack.position.set(0, 1.18, 0.36);
   pack.material = backpack;
