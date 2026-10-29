@@ -256,7 +256,7 @@ export default function WorldScene({
         for (const group of result.animationGroups) {
           group.stop();
         }
-        for (const group of Object.values(animations)) {
+        for (const group of [animations.idle, animations.walk, animations.run]) {
           group.start(true);
           group.setWeightForAllAnimatables(0);
         }
