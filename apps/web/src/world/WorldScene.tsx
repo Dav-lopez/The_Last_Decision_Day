@@ -222,9 +222,15 @@ export default function WorldScene({
       shadows.bias = 0.0005;
       shadows.normalBias = 0.02;
       shadows.setDarkness(0.3);
+      // Limit shadow-map draw calls to the large world silhouettes.
+      // Ground and paving receive shadows but do not cast; small facade details
+      // are omitted from the shadow pass while remaining visible in the scene.
+      const environmentShadowCasters = new Set([
+        'school building', 'school roof', 'home', 'home roof', 'tree trunk', 'tree canopy',
+      ]);
       for (const mesh of scene.meshes) {
         mesh.receiveShadows = true;
-        if (!['park', 'neighborhood road', 'school walkway', 'school entrance waypoint'].includes(mesh.name)) {
+        if (environmentShadowCasters.has(mesh.name)) {
           shadows.addShadowCaster(mesh, false);
         }
       }
