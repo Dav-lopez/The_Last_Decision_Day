@@ -6,8 +6,8 @@ test('two American homes have symmetric road-facing garages and connected drivew
   assert.equal(HOUSE_SITES.length, 2);
   const left = houseStreetFeatures(HOUSE_SITES[0]);
   const right = houseStreetFeatures(HOUSE_SITES[1]);
-  assert.equal(left.streetWallX, -6.3);
-  assert.equal(right.streetWallX, 6.3);
+  assert.ok(Math.abs(left.streetWallX + 6.3) < 1e-10);
+  assert.ok(Math.abs(right.streetWallX - 6.3) < 1e-10);
   assert.ok(Math.abs(left.drivewayLength - 4.2) < 1e-10);
   assert.ok(Math.abs(right.drivewayLength - 4.2) < 1e-10);
   assert.ok(Math.abs(left.drivewayX + right.drivewayX) < 1e-10);
