@@ -9,7 +9,7 @@ The API also emits in-process .NET Meter measurements under `TheLastDecision.Api
 - `tld.http.requests` — counter of completed HTTP requests.
 - `tld.http.duration` — histogram of completed request durations in milliseconds.
 
-Both use only HTTP method, matched route template and status code as dimensions. They never use raw paths, player identifiers or request headers. The instruments are available to a `MeterListener` or a future OpenTelemetry Meter provider. **No metrics exporter, hosted dashboard, or alerting backend is configured by this change**; metrics are not yet durable or externally queryable.
+Both use only HTTP method, matched route template and status code as dimensions. HTTP methods are restricted to standard uppercase verbs; unknown or noncanonical methods are tagged `OTHER` to prevent user-controlled metric cardinality. They never use raw paths, player identifiers or request headers. The instruments are available to a `MeterListener` or a future OpenTelemetry Meter provider. **No metrics exporter, hosted dashboard, or alerting backend is configured by this change**; metrics are not yet durable or externally queryable.
 
 Run `dotnet run --project tests/Observability.Tests/Observability.Tests.csproj` to exercise measurement tags and safe HTTP 500 handling without a database.
 
