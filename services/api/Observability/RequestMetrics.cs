@@ -17,18 +17,22 @@ public static class RequestMetrics
     private static readonly Histogram<double> RequestDuration =
         Meter.CreateHistogram<double>("tld.http.duration", "ms", "HTTP request duration");
 
+    // Share this bounded representation with JSON request logs so arbitrary
+    // client-provided HTTP verbs cannot create noisy or misleading log fields.
+    public static string NormalizeMethod(string method) => method switch
+    {
+        "GET" or "HEAD" or "POST" or "PUT" or "PATCH" or "DELETE" or
+        "OPTIONS" or "TRACE" or "CONNECT" => method,
+        _ => "OTHER"
+    };
+
     public static void Record(string method, string route, int statusCode, double durationMs)
     {
         // Callers must pass a matched server-defined route template, not Request.Path.
         // Keep dimensions bounded to avoid accidental per-player time series.
         // HTTP method is client-controlled. Collapse unknown verbs into a single bucket
         // so arbitrary method names cannot create unbounded metric dimensions.
-        var normalizedMethod = method switch
-        {
-            "GET" or "HEAD" or "POST" or "PUT" or "PATCH" or "DELETE" or
-            "OPTIONS" or "TRACE" or "CONNECT" => method,
-            _ => "OTHER"
-        };
+        var normalizedMethod = NormalizeMethod(method);
         var tags = new TagList
         {
             { "http.request.method", normalizedMethod },
