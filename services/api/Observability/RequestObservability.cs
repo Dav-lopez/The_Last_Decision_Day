@@ -23,27 +23,8 @@ public static class RequestObservability
 
     public static void UseRequestObservability(this WebApplication app)
     {
-        app.UseExceptionHandler(handler =>
-        {
-            handler.Run(async context =>
-            {
-                var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
-                var logger = context.RequestServices.GetRequiredService<ILoggerFactory>()
-                    .CreateLogger("TheLastDecision.UnhandledException");
-                logger.LogError(exception, "Unhandled request failure; traceId={TraceId}",
-                    Activity.Current?.Id ?? context.TraceIdentifier);
-                context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-                context.Response.ContentType = "application/problem+json";
-                await context.Response.WriteAsJsonAsync(new
-                {
-                    type = "about:blank",
-                    title = "An unexpected error occurred.",
-                    status = 500,
-                    traceId = Activity.Current?.Id ?? context.TraceIdentifier
-                });
-            });
-        });
-
+        // Keep the completion logger outside the exception handler so it observes
+        // the final 500 response rather than the pre-handler default 200 status.
         app.Use(async (context, next) =>
         {
             var started = Stopwatch.GetTimestamp();
@@ -67,6 +48,7 @@ public static class RequestObservability
                     // emails, identifiers, tokens or other sensitive player information.
                     var route = (context.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText ?? "unmatched";
                     var status = context.Response.StatusCode;
+                    RequestMetrics.Record(context.Request.Method, route, status, elapsedMs);
                     if (status >= 500)
                         logger.LogError("HTTP request completed: method={Method} route={Route} status={StatusCode} durationMs={DurationMs}",
                             context.Request.Method, route, status, elapsedMs);
@@ -79,5 +61,27 @@ public static class RequestObservability
                 }
             }
         });
+
+        app.UseExceptionHandler(handler =>
+        {
+            handler.Run(async context =>
+            {
+                var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+                var logger = context.RequestServices.GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("TheLastDecision.UnhandledException");
+                logger.LogError(exception, "Unhandled request failure; traceId={TraceId}",
+                    Activity.Current?.Id ?? context.TraceIdentifier);
+                context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                context.Response.ContentType = "application/problem+json";
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    type = "about:blank",
+                    title = "An unexpected error occurred.",
+                    status = 500,
+                    traceId = Activity.Current?.Id ?? context.TraceIdentifier
+                });
+            });
+        });
+
     }
 }
