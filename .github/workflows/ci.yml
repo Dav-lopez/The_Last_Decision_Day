@@ -17,6 +17,7 @@ jobs:
       - run: dotnet run --project tests/IdentityRules.Tests/IdentityRules.Tests.csproj
       - run: dotnet run --project tests/SchoolRules.Tests/SchoolRules.Tests.csproj
       - run: dotnet run --project tests/AuditFoundation.Tests/AuditFoundation.Tests.csproj
+      - run: dotnet run --project tests/Observability.Tests/Observability.Tests.csproj
   web:
     runs-on: ubuntu-latest
     defaults:
