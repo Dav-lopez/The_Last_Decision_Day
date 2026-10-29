@@ -28,53 +28,53 @@ def cube(name, location, scale, mat):
 
 def export(name, folder):
     os.makedirs(folder, exist_ok=True)
-    bpy.ops.export_scene.gltf(filepath=os.path.join(folder, name + ".glb"), export_format="GLB", use_selection=False)
+    bpy.ops.export_scene.gltf(filepath=os.path.join(folder, name + ".glb"), export_format="GLB", use_selection=False, export_yup=True)
 
 def clear():
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.object.delete(use_global=False)
 
-def tree(folder):
+def tree(folder):\n    # Blender Z-up geometry exports as glTF Y-up for Babylon.js.
     clear()
     bark = material("bark", (.22,.13,.075))
     leaves = [material("foliage_%d" % i, c) for i,c in enumerate([(.12,.30,.10),(.18,.38,.12),(.22,.43,.14)])]
-    bpy.ops.mesh.primitive_cylinder_add(vertices=12, radius=.18, depth=2.6, location=(0,1.3,0))
+    bpy.ops.mesh.primitive_cylinder_add(vertices=12, radius=.18, depth=2.6, location=(0,0,1.3))
     bpy.context.object.name = "oak trunk"
     bpy.context.object.data.materials.append(bark)
     for i in range(13):
         theta = i * 2.3999632297
         radius = .3 + .58 * math.sqrt((i+1)/13)
-        x, z = radius*math.cos(theta), radius*math.sin(theta)
-        y = 2.4 + .55*math.sin(i*1.8)
+        x, y = radius*math.cos(theta), radius*math.sin(theta)
+        z = 2.4 + .55*math.sin(i*1.8)
         bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1, location=(x,y,z))
         obj = bpy.context.object
         obj.name = "leaf cluster %02d" % i
-        obj.scale = (.65,.63,.62)
+        obj.scale = (.65,.62,.63)
         obj.data.materials.append(leaves[i % len(leaves)])
     export("oak", folder)
 
-def house(folder):
+def house(folder):\n    # Keep the house grounded on Blender Z=0; glTF export maps it to Babylon Y=0.
     clear()
     wall=material("warm siding",(.66,.63,.55))
     roof=material("charcoal roof",(.21,.23,.26))
     glass=material("window glass",(.12,.27,.34))
     trim=material("white trim",(.86,.84,.77))
     door=material("front door",(.30,.18,.12))
-    cube("house walls",(0,1.65,0),(5.2,3.3,4.2),wall)
-    cube("roof ridge",(0,3.8,0),(.15,.2,4.8),roof)
+    cube("house walls",(0,0,1.65),(5.2,4.2,3.3),wall)
+    cube("roof ridge",(0,0,3.8),(.15,4.8,.2),roof)
     for side in (-1,1):
-        bpy.ops.mesh.primitive_cube_add(size=1, location=(side*1.37,3.35,0))
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(side*1.37,0,3.35))
         r=bpy.context.object
         r.name="roof slope"
-        r.dimensions=(3.05,.18,4.8)
-        r.rotation_euler[1]=side*math.radians(28)
+        r.dimensions=(3.05,4.8,.18)
+        r.rotation_euler[1]=-side*math.radians(28)
         bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
         r.data.materials.append(roof)
     for x in (-1.55,1.55):
-        cube("front window",(x,2.1,-2.12),(1.05,1.05,.06),glass)
-        cube("window sill",(x,1.52,-2.17),(1.2,.12,.16),trim)
-    cube("door",(0,.95,-2.14),(.88,1.9,.08),door)
-    cube("front step",(0,.12,-2.65),(1.8,.24,.9),trim)
+        cube("front window",(x,-2.12,2.1),(1.05,.06,1.05),glass)
+        cube("window sill",(x,-2.17,1.52),(1.2,.16,.12),trim)
+    cube("door",(0,-2.14,.95),(.88,.08,1.9),door)
+    cube("front step",(0,-2.65,.12),(1.8,.9,.24),trim)
     export("house",folder)
 
 if __name__=="__main__":
