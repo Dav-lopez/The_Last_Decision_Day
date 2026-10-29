@@ -476,7 +476,14 @@ export default function WorldScene({
         markerTime += delta;
         schoolMarker.position.y = 4.6 + Math.sin(markerTime * 2.5) * 0.12;
         const cameraForward = { x: cameraDirection.x, z: cameraDirection.z };
-        const next = schoolOpenRef.current ? position : stepPosition(position, inputRef.current.pressed, delta, (inputRef.current.pressed.has('Shift') || sprintEnabledRef.current) ? HUMAN_RUN_SPEED : HUMAN_WALK_SPEED, cameraForward);
+        const runActive = inputRef.current.pressed.has('Shift') || sprintEnabledRef.current;
+        // RUN is also an auto-run control on touch devices: pressing it alone
+        // moves forward, while an explicit direction takes precedence.
+        const movementKeys = sprintEnabledRef.current && ![...inputRef.current.pressed].some(key =>
+          ['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key))
+          ? new Set([...inputRef.current.pressed, 'ArrowUp']) : inputRef.current.pressed;
+        const next = schoolOpenRef.current ? position : stepPosition(position, movementKeys, delta,
+          runActive ? HUMAN_RUN_SPEED : HUMAN_WALK_SPEED, cameraForward);
         const moving = next.x !== position.x || next.z !== position.z;
         const movementSpeed = delta > 0 ? Math.hypot(next.x - position.x, next.z - position.z) / delta : 0;
         if (moving) avatar.rotation.y = smoothHumanHeading(avatar.rotation.y, Math.atan2(next.x - position.x, -(next.z - position.z)), delta);
@@ -633,7 +640,7 @@ export default function WorldScene({
       </>}
     </div>
     {!error && <div className="world-controls">
-      <p>Click the world, then move relative to the camera with WASD or arrow keys. Hold Shift or tap Run to toggle sprinting. Drag to rotate the camera. At the school entrance, press E or tap Enter school; Escape closes the panel.</p>
+      <p>Click the world, then move relative to the camera with WASD or arrow keys. Hold Shift to sprint, or tap Run to auto-run forward; tap Run again to stop. Direction buttons steer while running. Drag to rotate the camera. At the school entrance, press E or tap Enter school; Escape closes the panel.</p>
       <div className="world-control-buttons">
         <div className="world-pad" aria-label="Touch movement controls">
           <div className="world-pad-top">{directionButton('▲', 'ArrowUp', 'Move forward')}</div>
@@ -646,7 +653,7 @@ export default function WorldScene({
         <div className="world-run"><button type="button" className="world-pad-key" aria-label="Toggle running" aria-pressed={sprintEnabled} onClick={() => {
           sprintEnabledRef.current = !sprintEnabledRef.current;
           setSprintEnabled(sprintEnabledRef.current);
-        }}>{sprintEnabled ? 'RUN ON' : 'RUN'}</button></div>
+        }}>{sprintEnabled ? 'STOP RUN' : 'RUN'}</button></div>
       </div>
     </div>}
     {!error && <p role="status" style={{ fontSize: '0.8rem', opacity: 0.8 }}>{modelStatus}</p>}
