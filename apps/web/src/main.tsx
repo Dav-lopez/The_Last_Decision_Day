@@ -253,6 +253,14 @@ function App() {
           <button type="button" aria-pressed={mode === 'register'} onClick={() => setMode('register')}>Use invitation</button>
         </div>
         <button type="button" onClick={() => { setGuestDemo(true); setMessage(''); }}>Try the 3D demo without signing in</button>
+        {import.meta.env.VITE_GOOGLE_AUTH_ENABLED === 'true' && (
+          <div className="google-auth-entry">
+            <a href="/api/v1/auth/google/start" className="google-auth-link">
+              Continue with Google
+            </a>
+            <p>Google sign-in will still require age verification and an invitation before a new account can be activated.</p>
+          </div>
+        )}
         <form onSubmit={authenticate}>
           <label>Email<input type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required /></label>
           <label>Password<input type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={mode === 'register' ? 12 : undefined} value={password} onChange={e => setPassword(e.target.value)} required /></label>
