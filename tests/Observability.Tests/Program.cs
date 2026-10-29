@@ -50,7 +50,7 @@ Check(samples.Count == 4 && samples.Skip(2).All(x =>
     x.Tags["http.response.status_code"]?.ToString() == "405"),
     "Unknown HTTP methods collapse into the OTHER metric bucket");
 RequestMetrics.Record("get", "unmatched", 405, 1.0);
-Check(samples.Skip(4).All(x => x.Tags["http.request.method"]?.ToString() == "OTHER"),
+Check(samples.Count == 6 && samples.Skip(4).All(x => x.Tags["http.request.method"]?.ToString() == "OTHER"),
     "Noncanonical method casing cannot expand metric cardinality");
 
 var builder = WebApplication.CreateBuilder();
