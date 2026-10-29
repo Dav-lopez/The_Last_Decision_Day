@@ -211,14 +211,14 @@ export default function WorldScene({
       const scene = new Scene(engine);
       scene.clearColor = new Color4(0.67, 0.83, 0.96, 1);
       const sun = new HemisphericLight('daylight', new Vector3(0, 1, 0), scene);
-      sun.intensity = 0.9;
+      sun.intensity = 0.65;
       const directional = new DirectionalLight('sun', new Vector3(-0.4, -1, -0.6), scene);
-      directional.intensity = 1.3;
-      directional.position.set(-8, 14, 8);
+      directional.intensity = 1.35;
+      directional.position.set(12, 22, 10);
       const schoolMarker = createNeighborhood(scene);
       const shadows = new ShadowGenerator(1024, directional);
-      shadows.usePercentageCloserFiltering = true;
-      shadows.filteringQuality = ShadowGenerator.QUALITY_LOW;
+      shadows.useBlurExponentialShadowMap = true;
+      shadows.blurKernel = 12;
       shadows.bias = 0.0005;
       shadows.normalBias = 0.02;
       shadows.setDarkness(0.3);
@@ -253,10 +253,10 @@ export default function WorldScene({
       }).catch(() => { if (!humanLoadCancelled) setModelStatus('Basic character in use. Reload to retry loading the human character.'); });
       let position: PlanarPosition = { x: 0, z: 3.8 };
       avatar.position.set(position.x, 0, position.z);
-      const camera = new ArcRotateCamera('third-person camera', Math.PI / 2, 1.2, 11,
+      const camera = new ArcRotateCamera('third-person camera', Math.PI / 2, 1.15, 7.5,
         new Vector3(0, 1.25, 0), scene);
-      camera.lowerRadiusLimit = 7;
-      camera.upperRadiusLimit = 15;
+      camera.lowerRadiusLimit = 4.5;
+      camera.upperRadiusLimit = 24;
       camera.lowerBetaLimit = 0.5;
       camera.upperBetaLimit = 1.45;
       camera.attachControl(canvas, true);
@@ -347,7 +347,7 @@ export default function WorldScene({
         const overhead = cameraModeRef.current === 'overhead';
         const blend = 1 - Math.exp(-5 * delta);
         camera.beta += ((overhead ? 0.3 : 1.2) - camera.beta) * blend;
-        camera.radius += ((overhead ? 22 : 11) - camera.radius) * blend;
+        camera.radius += ((overhead ? 22 : 7.5) - camera.radius) * blend;
         camera.setTarget(Vector3.Lerp(camera.getTarget(), new Vector3(position.x, 1.25, position.z), cameraFollowAlpha(delta)));
         scene.render();
       });
