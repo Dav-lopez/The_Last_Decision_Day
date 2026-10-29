@@ -1,10 +1,12 @@
 // Pure, deterministic animation and heading helpers used by the playable human.
 export const HUMAN_CROSSFADE_SECONDS = 0.2;
+export const HUMAN_WALK_SPEED = 1.8;
+export const HUMAN_RUN_SPEED = 4.0;
 export const HUMAN_MOTIONS = Object.freeze(['idle', 'walk', 'run']);
 
 export function classifyHumanMotion(speed) {
   if (!Number.isFinite(speed) || speed <= 0.05) return 'idle';
-  return speed > 4.8 ? 'run' : 'walk';
+  return speed > (HUMAN_WALK_SPEED + HUMAN_RUN_SPEED) / 2 ? 'run' : 'walk';
 }
 
 /** A linear 0.2s crossfade. Call with a snapshot of current weights at transition start. */
