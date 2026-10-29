@@ -16,6 +16,28 @@ static void Check(bool ok, string description)
     Console.WriteLine("PASS: " + description);
 }
 
+// The exporter is opt-in and must not accept plaintext off-host or URLs
+// containing credentials, query strings, or arbitrary endpoints.
+Check(OtlpMetrics.ParseEndpoint("https://collector.example.test/v1/metrics").Scheme == "https",
+    "HTTPS OTLP/HTTP metrics endpoint is accepted");
+Check(OtlpMetrics.ParseEndpoint("http://127.0.0.1:4318/v1/metrics").IsLoopback,
+    "Loopback HTTP is allowed for local collectors");
+foreach (var invalid in new[]
+{
+    "http://collector.example.test/v1/metrics",
+    "https://user:password@collector.example.test/v1/metrics",
+    "https://collector.example.test/v1/metrics?token=secret",
+    "https://collector.example.test/v1/metrics#fragment",
+    "https://collector.example.test/other",
+    "/v1/metrics"
+})
+{
+    var rejected = false;
+    try { OtlpMetrics.ParseEndpoint(invalid); }
+    catch (InvalidOperationException) { rejected = true; }
+    Check(rejected, "Unsafe OTLP endpoint is rejected");
+}
+
 var samples = new List<(string Instrument, double Value, Dictionary<string, object?> Tags)>();
 using var listener = new MeterListener();
 listener.InstrumentPublished = (instrument, meterListener) =>
