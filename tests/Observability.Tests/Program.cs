@@ -43,7 +43,7 @@ builder.Logging.ClearProviders();
 await using var app = builder.Build();
 app.UseRequestObservability();
 app.MapGet("/ok", () => "ok");
-app.MapGet("/boom", () => throw new InvalidOperationException("internal exception details"));
+app.MapGet("/boom", () => { throw new InvalidOperationException("internal exception details"); });
 await app.StartAsync();
 try
 {
