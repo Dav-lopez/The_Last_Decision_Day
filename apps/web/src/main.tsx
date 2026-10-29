@@ -13,6 +13,7 @@ type Session = { userId: string; email: string };
 type Mode = 'login' | 'register';
 
 const WorldScene = lazy(() => import('./world/WorldScene'));
+const LandingWorld = lazy(() => import('./LandingWorld'));
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(path, { credentials: 'same-origin', ...options });
@@ -237,10 +238,7 @@ function App() {
         onExecuteActivity={id => void executeActivity(id)}
         preview={preview} />
     </Suspense> :
-      <div className="hero hero-placeholder" aria-label="The Last Decision introduction">
-        <h2>Every decision changes your story.</h2>
-        <p>Create your character, explore the neighborhood, and begin your life.</p>
-      </div>}
+      <Suspense fallback={<div className="hero hero-placeholder" role="status">Preparing your neighborhood…</div>}><LandingWorld /></Suspense>}
     <section className="panel" aria-live="polite">
       {loading ? <p>Loading your account…</p> : !session ? <>
         <div className="tabs">
