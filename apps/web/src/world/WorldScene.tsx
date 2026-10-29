@@ -190,8 +190,11 @@ export default function WorldScene({
       let elapsed = 0;
       engine.runRenderLoop(() => {
         const delta = Math.min(engine!.getDeltaTime() / 1000, 0.05);
-        const next = stepPosition(position, pressed.current, delta, pressed.current.has('Shift') ? 6 : 4);
-        const direction = movementVector(pressed.current);
+        // Controls follow the orbit camera: W always walks away from the viewer.
+        const cameraDirection = camera.getForwardRay().direction;
+        const cameraForward = { x: cameraDirection.x, z: cameraDirection.z };
+        const next = stepPosition(position, pressed.current, delta, pressed.current.has('Shift') ? 6 : 4, cameraForward);
+        const direction = movementVector(pressed.current, cameraForward);
         const moving = next.x !== position.x || next.z !== position.z;
         position = next;
         avatar.position.x = position.x;
@@ -313,7 +316,7 @@ export default function WorldScene({
       </>}
     </div>
     {!error && <div className="world-controls">
-      <p>Click the world, then move with WASD or arrow keys. Hold Shift to run. Drag to rotate the camera. Walk to the school entrance.</p>
+      <p>Click the world, then move relative to the camera with WASD or arrow keys. Hold Shift to run. Drag to rotate the camera. Walk to the school entrance.</p>
       <div className="world-pad" aria-label="Touch movement controls">
         <div className="world-pad-top">{directionButton('▲', 'ArrowUp', 'Move forward')}</div>
         <div className="world-pad-bottom">

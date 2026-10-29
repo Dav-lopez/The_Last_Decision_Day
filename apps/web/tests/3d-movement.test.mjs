@@ -35,3 +35,20 @@ test('diagonal movement can slide along a building instead of tunneling through'
   for (let i = 0; i < 30; i++) pos = stepPosition(pos, new Set(['a', 'w']), 0.05);
   assert.ok(pos.z >= -6.75 || pos.x >= 4.28);
 });
+
+test('camera-relative controls follow orbit heading without changing walking speed', () => {
+  assert.deepEqual(movementVector(new Set(['w']), { x: -1, z: 0 }), { x: -1, z: 0 });
+  assert.deepEqual(movementVector(new Set(['d']), { x: -1, z: 0 }), { x: 0, z: -1 });
+  assert.deepEqual(movementVector(new Set(['s']), { x: -1, z: 0 }), { x: 1, z: 0 });
+  const diagonal = movementVector(new Set(['w', 'd']), { x: -1, z: 0 });
+  assert.ok(Math.abs(Math.hypot(diagonal.x, diagonal.z) - 1) < 1e-10);
+  assert.deepEqual(movementVector(new Set(['w']), { x: 0, z: 0 }), { x: 0, z: -1 });
+  assert.deepEqual(movementVector(new Set(['w']), { x: Number.NaN, z: 0 }), { x: 0, z: -1 });
+});
+
+test('camera-relative movement respects the same world collision rules', () => {
+  assert.deepEqual(stepPosition({ x: 0, z: 3.8 }, new Set(['w']), 0.05, 4, { x: -1, z: 0 }), { x: -0.2, z: 3.8 });
+  let pos = { x: 0, z: -6.34 };
+  for (let i = 0; i < 20; i++) pos = stepPosition(pos, new Set(['w']), 0.05, 4, { x: 0, z: -1 });
+  assert.ok(pos.z > -6.75, 'rotated camera cannot bypass the school collision');
+});
