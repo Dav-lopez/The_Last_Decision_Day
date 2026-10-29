@@ -5,6 +5,7 @@ import {
 } from '@babylonjs/core';
 import { isNearSchool, movementVector, stepPosition, type PlanarPosition } from './movement.mjs';
 import { createMovementInput } from './inputState.mjs';
+import { cameraFollowAlpha } from './cameraFollow.mjs';
 import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mjs';
 
 type SchoolActivityView = { id: string; title: string; description: string; timeCost: number };
@@ -230,7 +231,7 @@ export default function WorldScene({
           previousNear = nextNear;
           setNearSchool(nextNear);
         }
-        camera.setTarget(Vector3.Lerp(camera.getTarget(), new Vector3(position.x, 1.25, position.z), 0.12));
+        camera.setTarget(Vector3.Lerp(camera.getTarget(), new Vector3(position.x, 1.25, position.z), cameraFollowAlpha(delta)));
         scene.render();
       });
       engine.resize();

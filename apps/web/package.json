@@ -7,7 +7,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
-    "test:movement": "node --test tests/3d-movement.test.mjs tests/3d-controls.test.mjs",
+    "test:movement": "node --test tests/3d-movement.test.mjs tests/3d-controls.test.mjs tests/camera-follow.test.mjs",
     "test:appearance": "node --test tests/avatar-appearance.test.mjs"
   },
   "dependencies": {
