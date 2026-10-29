@@ -2,6 +2,7 @@ import { Color3, PBRMaterial, Scene, SceneLoader, TransformNode } from '@babylon
 import '@babylonjs/loaders/glTF';
 import { colorFor, type Look } from './appearance.mjs';
 import { faceTarget, approachFace, type Emotion } from './facialEmotions';
+import { EMPTY_EFFECTS, smoothFacialEffects, targetFacialEffects } from './facialEffects';
 import { blendHumanWeights, classifyHumanMotion, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
 
 export type RiggedAvatar = {
@@ -84,6 +85,8 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
       const manager = mesh.morphTargetManager;
       return manager ? Array.from({ length: manager.numTargets }, (_, i) => manager.getTarget(i)) : [];
     });
+    let effects = { ...EMPTY_EFFECTS };
+    let baseSkin = new Color3(0.6, 0.42, 0.31);
     let blinkTime = 0;
     let blinkCount = 0;
     let disposed = false;
@@ -96,11 +99,27 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
           const part = material.name === 'Student skin' ? 'skin'
             : material.name === 'Student jacket' ? 'outfit'
               : material.name === 'Student hair' ? 'hair' : null;
-          if (part) material.albedoColor = Color3.FromHexString(colorFor(part, look[part])).toLinearSpace();
+          if (part) {
+            const selected = Color3.FromHexString(colorFor(part, look[part])).toLinearSpace();
+            material.albedoColor = selected;
+            if (part === 'skin') baseSkin = selected.clone();
+          }
         }
       },
       update(speed, deltaSeconds) {
         if (disposed) return;
+        effects = smoothFacialEffects(effects, targetFacialEffects(emotion, speed), deltaSeconds);
+        for (const material of container.materials) {
+          if (!(material instanceof PBRMaterial)) continue;
+          if (material.name === 'Student skin') {
+            // A subtle whole-skin warmth cue; localized cheek blush still needs
+            // facial UV masks or dedicated cheek meshes on the final head.
+            material.albedoColor = Color3.Lerp(baseSkin, new Color3(0.75, 0.24, 0.28), effects.blush * 0.18);
+            material.roughness = 0.82 - effects.sweat * 0.12;
+          } else if (material.name === 'Student eyes') {
+            material.clearCoat.intensity = 0.55 + effects.wateryEyes * 0.35;
+          }
+        }
         blinkTime += Math.max(0, Math.min(0.1, deltaSeconds));
         const interval = 2.8 + (blinkCount % 4) * 0.45;
         const blink = blinkTime > interval ? Math.max(0, 1 - Math.abs((blinkTime - interval) / 0.12 - 1)) : 0;
