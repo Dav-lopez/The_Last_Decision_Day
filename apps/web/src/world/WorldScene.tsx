@@ -481,12 +481,9 @@ export default function WorldScene({
         schoolMarker.position.y = 4.6 + Math.sin(markerTime * 2.5) * 0.12;
         const cameraForward = { x: cameraDirection.x, z: cameraDirection.z };
         const runActive = inputRef.current.pressed.has('Shift') || sprintEnabledRef.current;
-        // RUN is also an auto-run control on touch devices: pressing it alone
-        // moves forward, while an explicit direction takes precedence.
-        const movementKeys = sprintEnabledRef.current && ![...inputRef.current.pressed].some(key =>
-          ['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key))
-          ? new Set([...inputRef.current.pressed, 'ArrowUp']) : inputRef.current.pressed;
-        const next = schoolOpenRef.current ? position : stepPosition(position, movementKeys, delta,
+        // Sprint changes speed, never direction. Without directional input the avatar stays still.
+        // Keyboard and touch controls both retain full forward/backward/strafe support.
+        const next = schoolOpenRef.current ? position : stepPosition(position, inputRef.current.pressed, delta,
           runActive ? HUMAN_RUN_SPEED : HUMAN_WALK_SPEED, cameraForward);
         const moving = next.x !== position.x || next.z !== position.z;
         const movementSpeed = delta > 0 ? Math.hypot(next.x - position.x, next.z - position.z) / delta : 0;
