@@ -84,6 +84,8 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
       const manager = mesh.morphTargetManager;
       return manager ? Array.from({ length: manager.numTargets }, (_, i) => manager.getTarget(i)) : [];
     });
+    let blinkTime = 0;
+    let blinkCount = 0;
     let disposed = false;
     return {
       root,
@@ -99,8 +101,13 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
       },
       update(speed, deltaSeconds) {
         if (disposed) return;
+        blinkTime += Math.max(0, Math.min(0.1, deltaSeconds));
+        const interval = 2.8 + (blinkCount % 4) * 0.45;
+        const blink = blinkTime > interval ? Math.max(0, 1 - Math.abs((blinkTime - interval) / 0.12 - 1)) : 0;
+        if (blinkTime > interval + 0.24) { blinkTime = 0; blinkCount++; }
         for (const morph of facialTargets) {
-          morph.influence = approachFace(morph.influence, faceTarget(emotion, morph.name), deltaSeconds);
+          const eyelid = morph.name === 'eyeBlinkLeft' || morph.name === 'eyeBlinkRight';
+          morph.influence = approachFace(morph.influence, Math.max(faceTarget(emotion, morph.name), eyelid ? blink : 0), deltaSeconds);
         }
         const target = classifyHumanMotion(speed);
         if (target !== transition.target) transition = { from: { ...weights }, target, elapsed: 0 };
