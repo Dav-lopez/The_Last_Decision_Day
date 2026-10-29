@@ -67,3 +67,15 @@
 /* Camera-relative destination guidance stays legible without blocking the 3D canvas. */
 .world-wayfinding{position:absolute;top:12px;right:12px;max-width:55%;padding:8px 12px;border-radius:8px;background:#11243ae6;color:#fff;font-size:.85rem;pointer-events:none;text-align:right;box-shadow:0 2px 10px #0005}
 @media(max-width:640px){.world-wayfinding{top:52px;right:8px;max-width:calc(100% - 16px);font-size:.8rem}}
+
+/* Real-time cinematic neighborhood preview, available before authentication. */
+.landing-world{height:clamp(390px,55vw,560px);position:relative;background:#203a52}
+.landing-world canvas{width:100%;height:100%;display:block;touch-action:pan-y}
+.landing-world:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,18,34,.87) 0%,rgba(7,18,34,.54) 42%,transparent 85%);pointer-events:none}
+.landing-world-copy{position:absolute;z-index:1;top:50%;left:clamp(20px,5vw,60px);transform:translateY(-50%);max-width:min(470px,75%);pointer-events:none;text-shadow:0 2px 12px #071221}
+.landing-world-copy h2{font-size:clamp(2rem,5vw,4.3rem);line-height:1.04;letter-spacing:-.045em;margin:12px 0 18px;color:white}
+.landing-world-copy p{font-size:clamp(.95rem,1.8vw,1.15rem);line-height:1.6;color:#e1eafa}
+.landing-eyebrow{color:#ffe09b;text-transform:uppercase;letter-spacing:.2em;font-size:.72rem;font-weight:800}
+.landing-hint{display:inline-block;margin-top:20px;color:#c5d8ed;font-size:.8rem}
+@media(max-width:600px){.landing-world{height:410px}.landing-world-copy{max-width:82%}.landing-world:after{background:linear-gradient(90deg,#071222d9,#07122255)}}
+@media(prefers-reduced-motion:reduce){.landing-world-copy{transition:none}}
