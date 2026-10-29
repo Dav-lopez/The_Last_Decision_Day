@@ -301,6 +301,7 @@ export default function WorldScene({
         const next = schoolOpenRef.current ? position : stepPosition(position, inputRef.current.pressed, delta, inputRef.current.pressed.has('Shift') ? 6 : 4, cameraForward);
         const direction = movementVector(inputRef.current.pressed, cameraForward);
         const moving = next.x !== position.x || next.z !== position.z;
+        const movementSpeed = delta > 0 ? Math.hypot(next.x - position.x, next.z - position.z) / delta : 0;
         position = next;
         waypointTimer += delta;
         if (waypointTimer >= 0.25) {
@@ -314,8 +315,7 @@ export default function WorldScene({
         avatar.position.x = position.x;
         avatar.position.z = position.z;
         if (humanRoot) {
-          const speed = delta > 0 ? Math.hypot(next.x - position.x, next.z - position.z) / delta : 0;
-          const state = moving ? (inputRef.current.pressed.has('Shift') ? 'run' : 'walk') : 'idle';
+          const state = movementSpeed > 4.8 ? 'run' : movementSpeed > 0.05 ? 'walk' : 'idle';
           if (state !== activeHumanState) {
             activeHumanState = state;
             for (const [name, group] of Object.entries(humanAnimations)) {
@@ -324,12 +324,11 @@ export default function WorldScene({
               group.setWeightForAllAnimatables(name === state ? 1 : 0);
             }
           }
-          void speed;
         }
         if (moving) {
           avatar.rotation.y = Math.atan2(direction.x, -direction.z);
           elapsed += delta * 13;
-          avatar.position.y = Math.abs(Math.sin(elapsed)) * 0.06;
+          avatar.position.y = humanRoot ? 0 : Math.abs(Math.sin(elapsed)) * 0.06;
           const swing = Math.sin(elapsed) * 0.55;
           avatarParts.legs[0].rotation.x = swing;
           avatarParts.legs[1].rotation.x = -swing;
