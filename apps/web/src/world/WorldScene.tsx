@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent, type CSSProperties } from 'react';
 import {
   ArcRotateCamera, Color3, Color4, DirectionalLight, Engine, HemisphericLight,
-  MeshBuilder, Scene, StandardMaterial, TransformNode, Vector3,
+  MeshBuilder, Scene, StandardMaterial, TransformNode, Vector3, SceneLoader,
 } from '@babylonjs/core';
+import '@babylonjs/loaders/glTF';
 import { isNearSchool, movementVector, stepPosition, type PlanarPosition } from './movement.mjs';
 import { schoolWaypoint } from './schoolWayfinding.mjs';
 import { createMovementInput } from './inputState.mjs';
@@ -183,6 +184,7 @@ export default function WorldScene({
   const [schoolOpen, setSchoolOpen] = useState(false);
   const [look, setLook] = useState<Look>(() => readLook(characterId));
   const avatarRef = useRef<ReturnType<typeof createAvatar> | null>(null);
+  const [modelStatus, setModelStatus] = useState('Loading human model…');
   const [cameraMode, setCameraMode] = useState<'follow' | 'overhead'>('follow');
   const cameraModeRef = useRef<'follow' | 'overhead'>('follow');
   const toggleCamera = () => {
@@ -216,6 +218,31 @@ export default function WorldScene({
       avatarParts.jacket.diffuseColor = Color3.FromHexString(colorFor('outfit', look.outfit));
       avatarParts.face.diffuseColor = Color3.FromHexString(colorFor('skin', look.skin));
       avatarParts.hair.diffuseColor = Color3.FromHexString(colorFor('hair', look.hair));
+      // The procedural avatar remains visible unless a valid licensed model loads.
+      // No unlicensed third-party assets are downloaded at runtime.
+      let humanRoot: TransformNode | null = null;
+      let humanAnimations: { idle?: import('@babylonjs/core').AnimationGroup; walk?: import('@babylonjs/core').AnimationGroup; run?: import('@babylonjs/core').AnimationGroup } = {};
+      let activeHumanState = '';
+      let humanLoadCancelled = false;
+      void SceneLoader.ImportMeshAsync('', '/models/', 'human.glb', scene).then(result => {
+        if (humanLoadCancelled || scene.isDisposed) return;
+        const root = new TransformNode('rigged player visual', scene);
+        for (const mesh of result.meshes) {
+          if (!mesh.parent) mesh.parent = root;
+        }
+        root.parent = avatar;
+        humanRoot = root;
+        humanAnimations = {
+          idle: result.animationGroups.find(g => /idle/i.test(g.name)),
+          walk: result.animationGroups.find(g => /walk/i.test(g.name)),
+          run: result.animationGroups.find(g => /run/i.test(g.name)),
+        };
+        for (const group of result.animationGroups) { group.stop(); group.setWeightForAllAnimatables(0); }
+        for (const child of avatar.getChildMeshes()) {
+          if (!result.meshes.includes(child)) child.setEnabled(false);
+        }
+        setModelStatus('Rigged human model loaded');
+      }).catch(() => { if (!humanLoadCancelled) setModelStatus('Placeholder human · 3D model asset pending'); });
       let position: PlanarPosition = { x: 0, z: 3.8 };
       avatar.position.set(position.x, 0, position.z);
       const camera = new ArcRotateCamera('third-person camera', Math.PI / 2, 1.2, 11,
@@ -286,6 +313,19 @@ export default function WorldScene({
         }
         avatar.position.x = position.x;
         avatar.position.z = position.z;
+        if (humanRoot) {
+          const speed = delta > 0 ? Math.hypot(next.x - position.x, next.z - position.z) / delta : 0;
+          const state = moving ? (inputRef.current.pressed.has('Shift') ? 'run' : 'walk') : 'idle';
+          if (state !== activeHumanState) {
+            activeHumanState = state;
+            for (const [name, group] of Object.entries(humanAnimations)) {
+              if (!group) continue;
+              if (!group.isPlaying) group.start(true);
+              group.setWeightForAllAnimatables(name === state ? 1 : 0);
+            }
+          }
+          void speed;
+        }
         if (moving) {
           avatar.rotation.y = Math.atan2(direction.x, -direction.z);
           elapsed += delta * 13;
@@ -321,6 +361,7 @@ export default function WorldScene({
         window.removeEventListener('keyup', onKeyUp);
         window.removeEventListener('blur', clear);
         window.removeEventListener('resize', resize);
+        humanLoadCancelled = true;
         engine?.dispose();
         avatarRef.current = null;
       };
@@ -432,6 +473,7 @@ export default function WorldScene({
         <div className="world-run">{directionButton('RUN', 'Shift', 'Hold to sprint')}</div>
       </div>
     </div>}
+    {!error && <p role="status" style={{ fontSize: '0.8rem', opacity: 0.8 }}>{modelStatus}</p>}
     {!error && <div className="world-camera-toggle" style={{ margin: '0.75rem 0' }}>
       <button type="button" onClick={toggleCamera} aria-label="Switch camera view">
         Camera: {cameraMode === 'follow' ? 'Third person' : 'Overhead'} · Switch (C)
