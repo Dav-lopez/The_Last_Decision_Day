@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { addNeighborhoodDetails } from './world/neighborhoodDetails';
 import { ArcRotateCamera, Color3, Color4, DirectionalLight, Engine, HemisphericLight, MeshBuilder, Scene, StandardMaterial, TransformNode, Vector3 } from '@babylonjs/core';
 
 /** A lightweight, real-time 3D neighborhood for visitors who have not signed in. */
@@ -55,6 +56,7 @@ export default function LandingWorld() {
       const crown = MeshBuilder.CreateSphere('tree-crown', { diameter: 4.2, segments: 8 }, scene);
       crown.position.set(x, 4.1, z); crown.material = foliage;
     }
+    addNeighborhoodDetails(scene);
     const pedestrians: { root: TransformNode; offset: number; lane: number }[] = [];
     for (let i = 0; i < 4; i++) {
       const root = new TransformNode('walking-neighbor-' + i, scene);
