@@ -22,6 +22,7 @@ import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mj
 import { PARKED_CARS } from './streetLayout.mjs';
 import { addWorldProps } from './polyHavenProps';
 import { buildHomeScene } from './homeScene';
+import './story.css';
 import { CAST, advanceStory, currentStep, markSceneSeen, pendingScene, readStory, writeStory,
   type StoryEvent, type StoryLine, type StoryState } from './storyChapters.mjs';
 import { buildSurroundings } from './worldSurroundings';

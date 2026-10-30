@@ -1,0 +1,21 @@
+/* Story: objective tracker, chapter banner and letterboxed dialogue scenes. */
+.story-objective{position:absolute;top:56px;right:12px;max-width:min(320px,45%);display:flex;flex-direction:column;gap:2px;padding:8px 12px;border-radius:8px;background:#11243ae6;color:#fff;font-size:.84rem;pointer-events:none;box-shadow:0 2px 10px #0005;border-left:3px solid #ffd27a}
+.story-objective small{color:#ffd27a;font-size:.7rem;letter-spacing:.04em;text-transform:uppercase}
+.story-banner{position:absolute;top:40%;left:50%;transform:translateX(-50%);padding:14px 24px;border-radius:10px;background:#0b1626e8;color:#ffe2a8;font-size:1.15rem;font-weight:700;letter-spacing:.03em;pointer-events:none;animation:story-banner 5s ease both;white-space:nowrap}
+@keyframes story-banner{0%{opacity:0;transform:translate(-50%,8px)}12%,82%{opacity:1;transform:translate(-50%,0)}100%{opacity:0}}
+.story-scene{position:absolute;inset:0;cursor:pointer;z-index:5}
+.story-letterbox{position:absolute;left:0;right:0;height:9%;background:#000;animation:story-bars .5s ease both}
+.story-letterbox-top{top:0}
+.story-letterbox-bottom{bottom:0}
+@keyframes story-bars{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.story-box{position:absolute;left:50%;bottom:12%;transform:translateX(-50%);width:min(760px,calc(100% - 32px));padding:16px 20px 12px;border-radius:12px;background:#0b1626f0;color:#f3f1ea;box-shadow:0 8px 30px #000a;border-top:3px solid #7aa7ff}
+.story-box p{margin:6px 0 10px;font-size:1.05rem;line-height:1.5}
+.story-speaker{font-weight:800;font-size:.85rem;letter-spacing:.05em;text-transform:uppercase;color:#9cc1ff}
+.story-continue{display:block;text-align:right;font-size:.75rem;opacity:.65}
+.story-narration{border-top-color:#c9c3b2}.story-narration p{font-style:italic}
+.story-phone{border-top-color:#7bd389}.story-phone .story-speaker{color:#7bd389}
+.story-friend{border-top-color:#ffb46b}.story-friend .story-speaker{color:#ffb46b}
+.story-teacher{border-top-color:#c79cff}.story-teacher .story-speaker{color:#c79cff}
+.story-mystery{border-top-color:#ff6b6b}.story-mystery .story-speaker{color:#ff8b8b}.story-mystery p{font-family:Georgia,serif}
+@media(max-width:640px){.story-objective{top:150px;right:8px;max-width:calc(100% - 16px)}.story-box p{font-size:.95rem}}
+@media (prefers-reduced-motion:reduce){.story-banner,.story-letterbox{animation:none}}
