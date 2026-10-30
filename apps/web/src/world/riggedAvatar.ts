@@ -9,6 +9,7 @@ import { stepBlink } from './blinkCycle.mjs';
 import { composeEyeExpression } from './eyeExpression.mjs';
 import { advanceFacialMorph } from './faceDynamics.mjs';
 import { idleGazeTarget } from './gazeDynamics.mjs';
+import { actionFacialWeight } from './actionFacial.mjs';
 import { blendHumanWeights, classifyHumanMotion, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 import { startAction, stepAction, stopAction, type ActionState } from './actionMixer.mjs';
@@ -249,6 +250,10 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
           }
         }
         blinkState = stepBlink(blinkState, frameSeconds);
+        // Advance the action before facial evaluation: the same fade drives both
+        // the body clip and its speech articulation, including stop transitions.
+        const step = stepAction(action, frameSeconds);
+        action = step.state;
         for (const morph of facialTargets) {
           const dropletKind = morph.name.startsWith('tearTrack') ? 'tear'
             : morph.name.startsWith('sweatTrack') ? 'sweat' : null;
@@ -267,7 +272,9 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
             // Blink and droplet morphs retain their dedicated timing paths.
             const next = advanceFacialMorph(
               expressionInfluences.get(morph.name) ?? { value: morph.influence, velocity: 0 },
-              Math.min(1, faceTarget(emotion, morph.name) + idleGazeTarget(morph.name, effectTime, emotion, movementSpeed)),
+              Math.min(1, Math.max(faceTarget(emotion, morph.name),
+                actionFacialWeight(morph.name, step.state, step.weight)) +
+                idleGazeTarget(morph.name, effectTime, emotion, movementSpeed)),
               frameSeconds, morph.name,
             );
             expressionInfluences.set(morph.name, next);
@@ -281,8 +288,6 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
         groups.walk!.speedRatio = Math.max(0.65, Math.min(1.6, movementSpeed / HUMAN_WALK_SPEED));
         groups.run!.speedRatio = Math.max(0.65, Math.min(1.6, movementSpeed / HUMAN_RUN_SPEED));
         // An action (talk, sit, drive, jump, dance…) takes over the body by its weight.
-        const step = stepAction(action, frameSeconds);
-        action = step.state;
         if (actionGroup) {
           actionGroup.setWeightForAllAnimatables(step.weight);
           if (!action) { actionGroup.stop(); actionGroup = null; }
