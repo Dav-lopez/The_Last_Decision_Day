@@ -7,11 +7,14 @@ import { loadRiggedAvatar, type RiggedAvatar } from './riggedAvatar';
 import type { Emotion } from './facialEmotions';
 import { resolveCharacterEmotion } from './characterEmotion.mjs';
 import { loadSchoolEnvironment } from './schoolEnvironment';
-import { smoothHumanHeading, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
-import { isNearSchool, stepPosition, type PlanarPosition } from './movement.mjs';
+import { smoothHumanHeading } from './humanMotion.mjs';
+import { isNearSchool, type PlanarPosition } from './movement.mjs';
+import { stepLocomotion } from './locomotion.mjs';
+import { createCameraControls } from './cameraControls.mjs';
+import { createStreetLighting } from './streetLighting.mjs';
+import { addParkedCarFallbacks } from './streetCars.mjs';
 import { schoolWaypoint } from './schoolWayfinding.mjs';
 import { createMovementInput } from './inputState.mjs';
-import { cameraFollowAlpha } from './cameraFollow.mjs';
 import { addPlayableNeighborhoodDetails } from './neighborhoodEnvironment';
 import { upgradeNeighborhoodAssets } from './realEnvironmentAssets';
 import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mjs';
@@ -342,9 +345,13 @@ export default function WorldScene({
   const [modelStatus, setModelStatus] = useState('Loading character…');
   const [cameraMode, setCameraMode] = useState<'follow' | 'overhead'>('follow');
   const cameraModeRef = useRef<'follow' | 'overhead'>('follow');
+  const cameraControlsRef = useRef<ReturnType<typeof createCameraControls> | null>(null);
+  const lightingRef = useRef<ReturnType<typeof createStreetLighting> | null>(null);
+  const [evening, setEvening] = useState(false);
   const toggleCamera = () => {
     const next = cameraModeRef.current === 'follow' ? 'overhead' : 'follow';
     cameraModeRef.current = next;
+    cameraControlsRef.current?.setMode(next);
     setCameraMode(next);
   };
 
@@ -371,30 +378,36 @@ export default function WorldScene({
       let schoolAsset: Awaited<ReturnType<typeof loadSchoolEnvironment>> = null;
       let schoolAssetCancelled = false;
       addPlayableNeighborhoodDetails(scene);
+      addParkedCarFallbacks(scene);
+      const lighting = createStreetLighting(scene, directional, sun);
+      lightingRef.current = lighting;
       const environmentLoad = { cancelled: false };
-      void upgradeNeighborhoodAssets(scene, environmentLoad);
       const shadows = new ShadowGenerator(1024, directional);
       shadows.useBlurExponentialShadowMap = true;
       shadows.blurKernel = 12;
       shadows.bias = 0.0005;
       shadows.normalBias = 0.02;
       shadows.setDarkness(0.3);
+      void upgradeNeighborhoodAssets(scene, environmentLoad, shadows);
       // Limit shadow-map draw calls to the large world silhouettes.
       // Ground and paving receive shadows but do not cast; small facade details
       // are omitted from the shadow pass while remaining visible in the scene.
       const environmentShadowCasters = new Set([
-        'school building', 'school roof', 'home', 'home roof', 'tree trunk', 'tree canopy',
+        'school building', 'school roof', 'home', 'home pitched roof', 'tree trunk',
+        'tree angled branch', 'tree foliage cluster', 'tree irregular crown top',
+        'parked car fallback body', 'parked car fallback cabin',
       ]);
       for (const mesh of scene.meshes) {
         mesh.receiveShadows = true;
         if (environmentShadowCasters.has(mesh.name)) {
           shadows.addShadowCaster(mesh, false);
         }
+        if (['school building', 'school roof', 'home', 'home pitched roof'].includes(mesh.name)) mesh.checkCollisions = true;
       }
       void loadSchoolEnvironment(scene).then(asset => {
         if (schoolAssetCancelled || scene.isDisposed) { asset?.dispose(); return; }
         schoolAsset = asset;
-        for (const mesh of asset?.meshes ?? []) shadows.addShadowCaster(mesh, false);
+        for (const mesh of asset?.meshes ?? []) { shadows.addShadowCaster(mesh, false); mesh.checkCollisions = true; }
       }).catch(error => {
         // Procedural school stays visible if the authored asset fails validation.
         console.warn('School glTF unavailable; using procedural fallback', error);
@@ -426,12 +439,19 @@ export default function WorldScene({
       let position: PlanarPosition = { x: 0, z: 3.8 };
       avatar.position.set(position.x, 0, position.z);
       const camera = new ArcRotateCamera('third-person camera', Math.PI / 2, 1.15, 7.5,
-        new Vector3(0, 1.25, 0), scene);
-      camera.lowerRadiusLimit = 4.5;
-      camera.upperRadiusLimit = 24;
-      camera.lowerBetaLimit = 0.5;
-      camera.upperBetaLimit = 1.45;
-      camera.attachControl(canvas, true);
+        new Vector3(position.x, 1.25, position.z), scene);
+      const cameraControls = createCameraControls(camera);
+      cameraControlsRef.current = cameraControls;
+      // Arrow keys move the player. Babylon's default keyboard orbit input
+      // previously rotated/tilted the camera at the same time.
+      camera.inputs.removeByType('ArcRotateCameraKeyboardMoveInput');
+      camera.panningSensibility = 0;
+      camera.wheelDeltaPercentage = 0.015;
+      camera.pinchDeltaPercentage = 0.01;
+      camera.minZ = 0.1;
+      camera.checkCollisions = true;
+      camera.collisionRadius = new Vector3(0.25, 0.25, 0.25);
+      camera.attachControl(canvas, false);
 
       const normalizeKey = (key: string) => key.length === 1 ? key.toLowerCase() : key;
       const onKeyDown = (event: KeyboardEvent) => {
@@ -458,17 +478,25 @@ export default function WorldScene({
         const key = normalizeKey(event.key);
         if (MOVE_KEYS.has(key)) inputRef.current.release(`keyboard:${key}`);
       };
-      const clear = () => inputRef.current.clear();
-      const focus = () => canvas.focus();
+      const clear = () => {
+        inputRef.current.clear();
+        sprintEnabledRef.current = false;
+        setSprintEnabled(false);
+      };
+      const onVisibilityChange = () => { if (document.hidden) clear(); };
+      const focus = () => { cameraControls.cancel(); canvas.focus({ preventScroll: true }); };
+      const cancelCameraTransition = () => cameraControls.cancel();
       const resize = () => {
         engine?.setHardwareScalingLevel(1 / Math.min(1.5, Math.max(1, window.devicePixelRatio || 1)));
         engine?.resize();
       };
       canvas.addEventListener('pointerdown', focus);
+      canvas.addEventListener('wheel', cancelCameraTransition, { passive: true });
       window.addEventListener('keydown', onKeyDown);
       window.addEventListener('keyup', onKeyUp);
       window.addEventListener('blur', clear);
       window.addEventListener('resize', resize);
+      document.addEventListener('visibilitychange', onVisibilityChange);
 
       let previousNear = false;
       let elapsed = 0;
@@ -481,13 +509,9 @@ export default function WorldScene({
         markerTime += delta;
         schoolMarker.position.y = 4.6 + Math.sin(markerTime * 2.5) * 0.12;
         const cameraForward = { x: cameraDirection.x, z: cameraDirection.z };
-        const runActive = inputRef.current.pressed.has('Shift') || sprintEnabledRef.current;
-        // Sprint changes speed, never direction. Without directional input the avatar stays still.
-        // Keyboard and touch controls both retain full forward/backward/strafe support.
-        const next = schoolOpenRef.current ? position : stepPosition(position, inputRef.current.pressed, delta,
-          runActive ? HUMAN_RUN_SPEED : HUMAN_WALK_SPEED, cameraForward);
-        const moving = next.x !== position.x || next.z !== position.z;
-        const movementSpeed = delta > 0 ? Math.hypot(next.x - position.x, next.z - position.z) / delta : 0;
+        const locomotion = stepLocomotion(position, schoolOpenRef.current ? new Set<string>() : inputRef.current.pressed,
+          delta, sprintEnabledRef.current, cameraForward);
+        const { position: next, moving, speed: movementSpeed } = locomotion;
         if (moving) avatar.rotation.y = smoothHumanHeading(avatar.rotation.y, Math.atan2(next.x - position.x, -(next.z - position.z)), delta);
         position = next;
         waypointTimer += delta;
@@ -525,11 +549,8 @@ export default function WorldScene({
           previousNear = nextNear;
           setNearSchool(nextNear);
         }
-        const overhead = cameraModeRef.current === 'overhead';
-        const blend = 1 - Math.exp(-5 * delta);
-        camera.beta += ((overhead ? 0.3 : 1.2) - camera.beta) * blend;
-        camera.radius += ((overhead ? 22 : 7.5) - camera.radius) * blend;
-        camera.setTarget(Vector3.Lerp(camera.getTarget(), new Vector3(position.x, 1.25, position.z), cameraFollowAlpha(delta)));
+        cameraControls.update(delta);
+        cameraControls.follow(position, delta);
         scene.render();
       });
       engine.resize();
@@ -537,10 +558,15 @@ export default function WorldScene({
       return () => {
         inputRef.current.clear();
         canvas.removeEventListener('pointerdown', focus);
+        canvas.removeEventListener('wheel', cancelCameraTransition);
         window.removeEventListener('keydown', onKeyDown);
         window.removeEventListener('keyup', onKeyUp);
         window.removeEventListener('blur', clear);
         window.removeEventListener('resize', resize);
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+        cameraControlsRef.current = null;
+        lighting.dispose();
+        lightingRef.current = null;
         environmentLoad.cancelled = true;
         schoolAssetCancelled = true;
         schoolAsset?.dispose();
@@ -597,6 +623,9 @@ export default function WorldScene({
       else inputRef.current.release(source);
     }
   };
+  const focusWorld = (event: { detail: number }) => {
+    if (event.detail > 0) canvasRef.current?.focus({ preventScroll: true });
+  };
   const directionButton = (symbol: string, key: string, label: string) =>
     <button key={key} type="button" aria-label={label} className="world-pad-key"
       onPointerDown={event => touch(key, true, event)}
@@ -647,7 +676,7 @@ export default function WorldScene({
       </>}
     </div>
     {!error && <div className="world-controls">
-      <p>Click the world, then move relative to the camera with WASD or arrow keys. Hold Shift to sprint, or tap Run to auto-run forward; tap Run again to stop. Direction buttons steer while running. Drag to rotate the camera. At the school entrance, press E or tap Enter school; Escape closes the panel.</p>
+      <p>Click the world, then use WASD, arrow keys or the direction pad to move. Hold Shift or switch Run on to move faster. Release the direction to stop. Drag to orbit; scroll, pinch or use the zoom buttons to zoom. Press E at the school entrance; Escape closes the panel.</p>
       <div className="world-control-buttons">
         <div className="world-pad" aria-label="Touch movement controls">
           <div className="world-pad-top">{directionButton('▲', 'ArrowUp', 'Move forward')}</div>
@@ -657,17 +686,27 @@ export default function WorldScene({
             {directionButton('▶', 'ArrowRight', 'Move right')}
           </div>
         </div>
-        <div className="world-run"><button type="button" className="world-pad-key" aria-label="Toggle running" aria-pressed={sprintEnabled} onClick={() => {
+        <div className="world-run"><button type="button" className="world-pad-key" aria-label="Toggle running" aria-pressed={sprintEnabled} onClick={event => {
           sprintEnabledRef.current = !sprintEnabledRef.current;
           setSprintEnabled(sprintEnabledRef.current);
-        }}>{sprintEnabled ? 'STOP RUN' : 'RUN'}</button></div>
+          if (event.detail > 0) canvasRef.current?.focus({ preventScroll: true });
+        }}>{sprintEnabled ? 'RUN: ON' : 'RUN: OFF'}</button></div>
       </div>
     </div>}
     {!error && <p role="status" style={{ fontSize: '0.8rem', opacity: 0.8 }}>{modelStatus}</p>}
-    {!error && <div className="world-camera-toggle" style={{ margin: '0.75rem 0' }}>
-      <button type="button" onClick={toggleCamera} aria-label="Switch camera view">
+    {!error && <div className="world-camera-toggle" role="group" aria-label="Camera controls">
+      <button type="button" aria-label="Zoom in" onClick={event => { cameraControlsRef.current?.zoom('in'); focusWorld(event); }}>Zoom +</button>
+      <button type="button" aria-label="Zoom out" onClick={event => { cameraControlsRef.current?.zoom('out'); focusWorld(event); }}>Zoom −</button>
+      <button type="button" onClick={event => { cameraControlsRef.current?.reset(); focusWorld(event); }}>Reset view</button>
+      <button type="button" onClick={event => { toggleCamera(); focusWorld(event); }} aria-label="Switch camera view">
         Camera: {cameraMode === 'follow' ? 'Third person' : 'Overhead'} · Switch (C)
       </button>
+      <button type="button" aria-pressed={evening} onClick={event => {
+        const next = !evening;
+        lightingRef.current?.setEvening(next);
+        setEvening(next);
+        focusWorld(event);
+      }}>{evening ? 'Evening lights' : 'Daylight'} · Switch lighting</button>
     </div>}
     {!error && <section aria-label="Preview character expressions" className="world-customize">
       <h3>Expression preview</h3>

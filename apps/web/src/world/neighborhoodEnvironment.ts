@@ -1,5 +1,6 @@
 import { Color3, MeshBuilder, Scene, StandardMaterial } from '@babylonjs/core';
 import { HOUSE_SITES, SIDEWALK_WIDTH, streetFurniture } from './suburbLayout.mjs';
+import { STREET_LIGHTS } from './streetLayout.mjs';
 
 /** Original lightweight neighborhood architecture; no external assets or network requests. */
 export function addPlayableNeighborhoodDetails(scene: Scene): void {
@@ -95,12 +96,31 @@ export function addPlayableNeighborhoodDetails(scene: Scene): void {
       detail('pedestrian crossing', 0.55, 0.014, 0.36, -1.45 + i * 0.72, 0.043, z, white);
     }
   }
-  detail('road center line north', 0.08, 0.014, 3, 0, 0.042, 9.6, yellow);
+  for (let z = -10.5; z < 11.5; z += 2.2) {
+    if (Math.abs(z + 1.2) < 0.9 || Math.abs(z - 5.5) < 0.9) continue;
+    for (const x of [-0.07, 0.07]) detail('painted road center marking', 0.045, 0.012, 1.15, x, 0.043, z, yellow);
+  }
+  for (const x of [-1.98, 1.98]) {
+    detail('road edge marking', 0.045, 0.012, 23.5, x, 0.043, 0, white);
+    for (const z of [-5.4, 4.2]) {
+      detail('curb storm drain', 0.16, 0.02, 0.5, x, 0.047, z, metal);
+      for (let slit = 0; slit < 5; slit++) detail('drain grate slit', 0.12, 0.022, 0.025, x, 0.05, z - 0.18 + slit * 0.09, glass);
+    }
+  }
+  for (const site of HOUSE_SITES) {
+    const garageX = site.x - 1.08;
+    const roadX = Math.sign(site.x) * 2.65;
+    detail('driveway street connection', Math.abs(garageX - roadX) + 0.8, 0.018, 1.4,
+      (garageX + roadX) / 2, 0.03, -0.45, stone);
+  }
   // Street lighting stays away from the center travel path.
-  for (const [x, z] of [[-2.6, 2.8], [2.6, 7.8], [-2.6, -3.5]] as const) {
+  for (const { x, z } of STREET_LIGHTS) {
     const pole = MeshBuilder.CreateCylinder('streetlight pole', { height: 4, diameter: 0.12, tessellation: 8 }, scene);
     pole.position.set(x, 2, z);
     pole.material = metal;
-    detail('streetlight head', 0.55, 0.15, 0.32, x, 4.05, z, lamp);
+    const inward = x < 0 ? 1 : -1;
+    detail('streetlight arm', 0.55, 0.08, 0.08, x + inward * 0.22, 4.02, z, metal);
+    detail('streetlight housing', 0.44, 0.12, 0.28, x + inward * 0.4, 4.0, z, metal);
+    detail('streetlight lens', 0.34, 0.035, 0.2, x + inward * 0.4, 3.92, z, lamp);
   }
 }

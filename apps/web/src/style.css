@@ -79,3 +79,7 @@
 .landing-hint{display:inline-block;margin-top:20px;color:#c5d8ed;font-size:.8rem}
 @media(max-width:600px){.landing-world{height:410px}.landing-world-copy{max-width:82%}.landing-world:after{background:linear-gradient(90deg,#071222d9,#07122255)}}
 @media(prefers-reduced-motion:reduce){.landing-world-copy{transition:none}}
+
+.world-camera-toggle{display:flex;flex-wrap:wrap;gap:8px;padding:12px 18px;background:#12253e}
+.world-camera-toggle button{min-height:44px}
+.world-run button[aria-pressed=true]{background:#88d7aa}
