@@ -31,10 +31,12 @@ const SHOTS = [
   // Beside the sedan parked near the school.
   { seconds: 1.5, caption: 'Press E by a car to get in', press: ['e'] },
   { seconds: 1.6, caption: 'Drive: W gas · S brake · A/D steer', keys: ['w'] },
-  { seconds: 1.2, caption: 'Drive: W gas · S brake · A/D steer', keys: ['s'] },
+  // Brake to a crawl, then let it roll to a stop (holding S longer would start reversing).
+  { seconds: 0.75, caption: 'Drive: W gas · S brake · A/D steer', keys: ['s'] },
+  { seconds: 0.5, caption: 'Stop, then E to get out' },
   { seconds: 1.5, caption: 'Stop, then E to get out', press: ['e'] },
-  { seconds: 4.5, caption: 'Street lamps come on at dusk', click: 'Switch lighting', press: ['c'], drag: 55 },
-  { seconds: 4, caption: 'Your day is saved — see you tomorrow', drag: 35 },
+  { seconds: 4.5, caption: 'Street lamps come on at dusk', click: 'Switch lighting', drag: 55 },
+  { seconds: 4, caption: 'Your day is saved — see you tomorrow', press: ['c'], drag: 35 },
 ];
 const STILLS = [2.5, 9, 11.5, 13.5, 16, 19.5];
 
