@@ -23,6 +23,8 @@ import { HousePhotoPaint } from './HousePhotoPaint';
 import { readHouseStyle } from './photoPalette.mjs';
 import { colorFor, modelFor, readLook, writeLook, type Look } from './appearance.mjs';
 import { Wardrobe } from './Wardrobe';
+import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
+import { buildFootballPitch } from './footballScene';
 import { PARKED_CARS } from './streetLayout.mjs';
 import { addWorldProps } from './polyHavenProps';
 import { buildHomeScene } from './homeScene';
@@ -379,6 +381,8 @@ export default function WorldScene({
   const avatarRef = useRef<ReturnType<typeof createAvatar> | null>(null);
   const riggedRef = useRef<RiggedAvatar | null>(null);
   const swapBodyRef = useRef<((model: string) => void) | null>(null);
+  const kickRef = useRef<(chip: boolean) => void>(() => {});
+  const [ballPrompt, setBallPrompt] = useState(false);
   const housePainterRef = useRef<HousePainter | null>(null);
   const [previewEmotion, setPreviewEmotion] = useState<Emotion>('neutral');
   const previewEmotionRef = useRef<Emotion>('neutral');
@@ -476,6 +480,7 @@ export default function WorldScene({
       const schoolMarker = createNeighborhood(scene);
       // The bus stop at the north end of Maple Street; the bus runs to a real downtown (OpenStreetMap).
       const disposeMapleStop = buildBusStop(scene, MAPLE_BUS_STOP.x - 1.05, MAPLE_BUS_STOP.z, Math.PI / 2);
+      let football: { pitch: ReturnType<typeof buildFootballPitch>; ball: Ball; goals: number; resetIn: number } | null = null;
       let downtown: { city: City; collider: ReturnType<typeof createCityCollider>; stop: PlanarPosition & { rotation: number; street: string; dx: number; dz: number }; dispose: () => void } | null = null;
       const loadDowntown = async () => {
         const index = await fetch('/city/index.json').then(response => response.ok ? response.json() : null);
@@ -488,8 +493,12 @@ export default function WorldScene({
         if (!local) return;
         const world = toWorld([local.x, local.z]);
         const disposeCity = buildCityScene(scene, city);
+        // A caged five-a-side pitch in Central Park.
+        const pitch = buildFootballPitch(scene);
+        football = { pitch, ball: newBall(), goals: 0, resetIn: 0 };
+        pitch.show(football.ball);
         const disposeStop = buildBusStop(scene, world.x + local.awayX * 0.9, world.z + local.awayZ * 0.9, local.heading);
-        downtown = { city, collider, stop: { ...world, rotation: movementHeading(local.dx, local.dz), dx: local.dx, dz: local.dz, street: local.street }, dispose: () => { disposeCity(); disposeStop(); } };
+        downtown = { city, collider, stop: { ...world, rotation: movementHeading(local.dx, local.dz), dx: local.dx, dz: local.dz, street: local.street }, dispose: () => { disposeCity(); disposeStop(); pitch.dispose(); } };
       };
       loadDowntown().catch(() => { /* Downtown is optional; Maple Street plays without it. */ });
       // The town around the street, so the world reaches the horizon instead of ending at a cliff edge.
@@ -870,6 +879,7 @@ export default function WorldScene({
         }
         if (index < 0 && locationRef.current === 'city') {
           if (downtown && atBusStop(position, downtown.stop)) boardBus('home');
+          else kick(false);
           return;
         }
         if (index < 0 && atBusStop(position, MAPLE_BUS_STOP)) { boardBus('downtown'); return; }
@@ -911,6 +921,13 @@ export default function WorldScene({
         setDriving(false);
       };
       interactRef.current = interact;
+      // Football: E or F kicks, Shift+F chips, the way you face.
+      const kick = (chip: boolean) => {
+        if (!football || locationRef.current !== 'city') return;
+        const kicked = kickBall(football.ball, position, facingOf(avatar.rotation.y), chip);
+        if (kicked) football.ball = kicked;
+      };
+      kickRef.current = kick;
       const normalizeKey = (key: string) => key.length === 1 ? key.toLowerCase() : key;
       const onKeyDown = (event: KeyboardEvent) => {
         // Escape must also work when a button inside the school overlay has focus.
@@ -931,6 +948,9 @@ export default function WorldScene({
           // E, Enter or Space moves the story scene on.
           event.preventDefault();
           storyActionsRef.current.advanceDialogue();
+        } else if (key === 'f' && !event.repeat) {
+          event.preventDefault();
+          kickRef.current(inputRef.current.pressed.has('Shift'));
         } else if (key === 'e' && !event.repeat) {
           event.preventDefault();
           // Inside the classroom the teacher opens the school activities; everywhere else E is the action button.
@@ -1092,6 +1112,23 @@ export default function WorldScene({
           : stepLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward, cars, peopleOut);
         tickLife(delta, locomotion.motion);
         const { position: next, moving, speed: movementSpeed } = locomotion;
+        if (city && football) {
+          // Run into the ball to dribble it; the ball rolls, bounces off the boards and finds the net.
+          const velocity = delta > 0 ? { x: (next.x - position.x) / delta, z: (next.z - position.z) / delta } : { x: 0, z: 0 };
+          football.ball = touchBall(football.ball, next, velocity);
+          const result = stepBall(football.ball, delta);
+          football.ball = result.ball;
+          if (result.goal && football.resetIn <= 0) {
+            football.goals += 1;
+            football.resetIn = 2.5;
+            notify(`GOOOAL! That's ${football.goals} ${football.goals === 1 ? 'goal' : 'goals'} on the Central Park pitch.`);
+          }
+          if (football.resetIn > 0) {
+            football.resetIn -= delta;
+            if (football.resetIn <= 0) football.ball = newBall();
+          }
+          football.pitch.show(football.ball);
+        }
         if (moving) avatar.rotation.y = smoothHumanHeading(avatar.rotation.y, movementHeading(next.x - position.x, next.z - position.z), delta);
         position = next;
         waypointTimer += delta;
@@ -1106,7 +1143,12 @@ export default function WorldScene({
             const bus = atBusStop(position, city.stop) ? 'home' : null;
             setBusPrompt(previous => previous === bus ? previous : bus);
             const metres = Math.ceil(Math.hypot(position.x - city.stop.x, position.z - city.stop.z));
-            const label = `${city.city.name} · bus stop ${metres} m`;
+            const toPitch = Math.ceil(Math.hypot(position.x - PITCH.x, position.z - PITCH.z));
+            const nearBall = football ? Math.hypot(football.ball.x - position.x, football.ball.z - position.z) <= KICK.reach : false;
+            setBallPrompt(previous => previous === nearBall ? previous : nearBall);
+            const label = toPitch > PITCH.halfLength + 4
+              ? `${city.city.name} · bus stop ${metres} m · football pitch ${toPitch} m`
+              : `Central Park pitch · goals ${football?.goals ?? 0} · bus stop ${metres} m`;
             setWayfinding(previous => previous === label ? previous : label);
             setNearCar(previous => previous ? false : previous);
           } else if (inSchool) {
@@ -1333,9 +1375,9 @@ export default function WorldScene({
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
         </div>}
         {!driving && driveNotice && <div className="world-notice" role="status" aria-live="polite">{driveNotice}</div>}
-        {(busAction ?? actionLabel) && <button type="button" className="world-car-action"
+        {(busAction ?? (ballPrompt && inCity ? 'Kick (E or F) · Shift+F chips' : null) ?? actionLabel) && <button type="button" className="world-car-action"
           onClick={event => { interactRef.current(); focusWorld(event); }}>
-          {busAction ?? actionLabel}
+          {busAction ?? (ballPrompt && inCity ? 'Kick (E or F) · Shift+F chips' : null) ?? actionLabel}
         </button>}
         {riding && <div className="world-sleep world-bus" role="status" aria-live="polite"><span>{riding}</span></div>}
         {nearSchool && <button type="button" className="world-enter"
