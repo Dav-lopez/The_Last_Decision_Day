@@ -14,7 +14,7 @@ export declare function normalizeLook(value: unknown): Look;
 export declare function colorFor(part: ColourPart, id: string): string;
 export declare function modelFor(look: Partial<Look> | null | undefined): string;
 export declare function withBody(look: Partial<Look>, body: string): Look;
-export type Zone = 'top' | 'upper-arm' | 'forearm' | 'waist' | 'thigh' | 'knee' | 'shin' | 'lower-shin' | 'ankle' | 'foot' | 'sole';
+export type Zone = 'top' | 'upper-arm' | 'forearm' | 'midriff' | 'waist' | 'thigh' | 'knee' | 'shin' | 'lower-shin' | 'ankle' | 'foot' | 'sole';
 export declare const ZONES: readonly Zone[];
 export declare const ZONE_MATERIALS: Readonly<Record<Zone, string>>;
 export type ZonePaint = { colour: string; skin: boolean; roughness: number };

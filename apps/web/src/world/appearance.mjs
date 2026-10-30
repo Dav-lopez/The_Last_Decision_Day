@@ -92,9 +92,9 @@ export function withBody(look, body) {
 }
 
 /** Outfit zones in the model, top to bottom. */
-export const ZONES = Object.freeze(['top', 'upper-arm', 'forearm', 'waist', 'thigh', 'knee', 'shin', 'lower-shin', 'ankle', 'foot', 'sole']);
+export const ZONES = Object.freeze(['top', 'upper-arm', 'forearm', 'midriff', 'waist', 'thigh', 'knee', 'shin', 'lower-shin', 'ankle', 'foot', 'sole']);
 export const ZONE_MATERIALS = Object.freeze({
-  top: 'Student jacket', 'upper-arm': 'Student sleeve upper', forearm: 'Student sleeve lower', waist: 'Student waistband',
+  top: 'Student jacket', 'upper-arm': 'Student sleeve upper', forearm: 'Student sleeve lower', midriff: 'Student midriff', waist: 'Student waistband',
   thigh: 'Student trousers', knee: 'Student trousers knee', shin: 'Student trousers shin', 'lower-shin': 'Student trousers ankle',
   ankle: 'Student socks', foot: 'Student shoes', sole: 'Student soles',
 });
@@ -118,17 +118,16 @@ export function dressZones(lookInput) {
   const zones = Object.fromEntries(ZONES.map(zone => [zone, { colour: skin, skin: true, roughness: 0.82 }]));
   const wear = (names, colour, roughness = 0.88) => { for (const z of names) zones[z] = { colour, skin: false, roughness }; };
 
-  // Top.
-  wear(['top'], top, look.top === 'hoodie' ? 0.95 : 0.88);
+  // Top (a crop top stops above the navel).
+  wear(look.top === 'crop' ? ['top'] : ['top', 'midriff'], top, look.top === 'hoodie' ? 0.95 : 0.88);
   if (look.top === 'longsleeve' || look.top === 'hoodie') wear(['upper-arm', 'forearm'], top, look.top === 'hoodie' ? 0.95 : 0.88);
   if (look.top === 'tshirt') wear(['upper-arm'], top);
   if (look.top === 'hoodie') zones.waist = { colour: shade(top, -0.18), skin: false, roughness: 0.95 }; // ribbed hem
-  // Bottoms (the waistband stays skin only under a crop top with a low rise).
+  // Bottoms.
   const fabric = { jeans: 0.9, trousers: 0.85, shorts: 0.88, skirt: 0.8, leggings: 0.55 }[look.bottom];
   const legs = { jeans: ['thigh', 'knee', 'shin', 'lower-shin'], trousers: ['thigh', 'knee', 'shin', 'lower-shin'],
     leggings: ['thigh', 'knee', 'shin', 'lower-shin'], shorts: ['thigh'], skirt: ['thigh'] }[look.bottom];
-  if (look.top !== 'hoodie') wear(['waist'], look.top === 'crop' ? skin : shade(bottom, -0.12), fabric);
-  if (look.top === 'crop') zones.waist = { colour: skin, skin: true, roughness: 0.82 };
+  if (look.top !== 'hoodie') wear(['waist'], shade(bottom, -0.12), fabric);
   wear(legs, bottom, fabric);
   // Socks and shoes.
   const sole = { sneakers: '#f2f0ea', hightops: '#f2f0ea', boots: '#2a2421', sandals: shade(shoe, -0.3), flats: '#1d1b1a', dress: '#18171a', barefoot: skin }[look.shoes];

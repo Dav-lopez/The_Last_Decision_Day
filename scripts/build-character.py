@@ -64,9 +64,9 @@ HAIRSTYLES = {  # id: (source file stem, body it was authored on)
 # Outfit zones, painted in the browser: a long sleeve vs a T-shirt, shorts vs
 # jeans, sneakers vs boots are which zones take the garment colour and which
 # show skin. Index 0 is skin; 1-3 keep their original names for compatibility.
-ZONES = ["skin", "top", "thigh", "foot", "upper-arm", "forearm", "waist", "knee", "shin", "lower-shin", "ankle", "sole"]
+ZONES = ["skin", "top", "thigh", "foot", "upper-arm", "forearm", "midriff", "waist", "knee", "shin", "lower-shin", "ankle", "sole"]
 ZONE_MATERIALS = {"skin": "Student skin", "top": "Student jacket", "thigh": "Student trousers", "foot": "Student shoes",
-                  "upper-arm": "Student sleeve upper", "forearm": "Student sleeve lower", "waist": "Student waistband",
+                  "upper-arm": "Student sleeve upper", "forearm": "Student sleeve lower", "midriff": "Student midriff", "waist": "Student waistband",
                   "knee": "Student trousers knee", "shin": "Student trousers shin", "lower-shin": "Student trousers ankle",
                   "ankle": "Student socks", "sole": "Student soles"}
 COMPONENTS = {5121: ("B", 1), 5123: ("H", 2), 5125: ("I", 4), 5126: ("f", 4)}
@@ -140,8 +140,10 @@ def zone_classifier(joints):
             return "forearm" if ax > elbow else "upper-arm"
         if y >= collar:
             return "skin"
-        if y >= pelvis + 0.05:
+        if y >= pelvis + 0.17:
             return "top"
+        if y >= pelvis + 0.05:
+            return "midriff"
         if y >= pelvis - 0.03:
             return "waist"
         if y >= mid_thigh:
@@ -535,7 +537,7 @@ def build(files, variant):
                 "body": variant,
                 "output": {"file": config["output"], "bytes": len(glb), "sha256": hashlib.sha256(glb).hexdigest(),
                            "morphTargets": sorted({name for mesh in b.doc["meshes"] for name in mesh.get("extras", {}).get("targetNames", [])})},
-                "modifications": ["Keep only Idle_Loop, Walk_Loop and Sprint_Loop, exported as Idle/Walk/Run.", "Rebase local rotations onto the character bind pose; retain target limb lengths.", "Preserve pelvis bob and remove horizontal root travel; gameplay controls world movement.", "Add parted hair, remap hair joints, split clothing/skin materials for browser customization.", "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes.", "Add a skinned expressive lip surface with smile, frown, press and open morphs.", "Add head-skinned cheek squint targets and transparent blush surfaces.", "Add head-skinned animated translucent tear and sweat droplets.", "Split the outfit into zones painted in the browser (sleeves, waist, thighs, knees, shins, socks, shoes, soles).", "Ship every hairstyle (parted, buzzed, pixie, long, buns, beard) moved onto this head by the eye-centre difference; the browser shows one.", "Add a skinned flared skirt (pelvis and thighs), hidden unless worn."]}
+                "modifications": ["Keep only Idle_Loop, Walk_Loop and Sprint_Loop, exported as Idle/Walk/Run.", "Rebase local rotations onto the character bind pose; retain target limb lengths.", "Preserve pelvis bob and remove horizontal root travel; gameplay controls world movement.", "Add parted hair, remap hair joints, split clothing/skin materials for browser customization.", "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes.", "Add a skinned expressive lip surface with smile, frown, press and open morphs.", "Add head-skinned cheek squint targets and transparent blush surfaces.", "Add head-skinned animated translucent tear and sweat droplets.", "Split the outfit into zones painted in the browser (sleeves, midriff, waist, thighs, knees, shins, socks, shoes, soles).", "Ship every hairstyle (parted, buzzed, pixie, long, buns, beard) moved onto this head by the eye-centre difference; the browser shows one.", "Add a skinned flared skirt (pelvis and thighs), hidden unless worn."]}
     (OUTPUT / config["manifest"]).write_text(json.dumps(manifest, indent=2)+"\n")
     print(f"Built {config['output']}: {len(glb):,} bytes with {len(b.doc['animations'])} animation clips.")
 
