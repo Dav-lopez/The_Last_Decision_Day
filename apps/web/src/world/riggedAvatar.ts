@@ -168,8 +168,13 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
             continue;
           }
           const eyelid = morph.name === 'eyeBlinkLeft' || morph.name === 'eyeBlinkRight';
-          const blink = eyelid ? (morph.name.endsWith('Left') ? blinkState.left : blinkState.right) : 0;
-          morph.influence = approachFace(morph.influence, Math.max(faceTarget(emotion, morph.name), blink), frameSeconds);
+          if (eyelid) {
+            // The blink curve already eases the eyelid. Passing it through the
+            // slow expression filter prevents a full closure on short blinks.
+            morph.influence = morph.name.endsWith('Left') ? blinkState.left : blinkState.right;
+          } else {
+            morph.influence = approachFace(morph.influence, faceTarget(emotion, morph.name), frameSeconds);
+          }
         }
         const target = classifyHumanMotion(movementSpeed);
         if (target !== transition.target) transition = { from: { ...weights }, target, elapsed: 0 };
