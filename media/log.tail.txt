@@ -1,35 +1,35 @@
 
-added 75 packages, and audited 76 packages in 4s
+added 75 packages, and audited 76 packages in 5s
 
 9 packages are looking for funding
   run `npm fund` for details
 
 found 0 vulnerabilities
 
-added 2 packages, and audited 3 packages in 1s
+added 2 packages, and audited 3 packages in 2s
 
 found 0 vulnerabilities
 Installing dependencies...
 Switching to root user to install dependencies...
 Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
-Get:6 https://packages.microsoft.com/ubuntu/26.04/prod resolute InRelease [3964 B]
 Hit:2 http://azure.archive.ubuntu.com/ubuntu resolute InRelease
 Get:3 http://azure.archive.ubuntu.com/ubuntu resolute-updates InRelease [137 kB]
-Get:7 https://packages.microsoft.com/ubuntu/26.04/prod resolute/main amd64 Packages [131 kB]
 Get:4 http://azure.archive.ubuntu.com/ubuntu resolute-backports InRelease [137 kB]
 Get:5 http://azure.archive.ubuntu.com/ubuntu resolute-security InRelease [137 kB]
-Get:8 https://packages.microsoft.com/ubuntu/26.04/prod resolute/main arm64 Packages [120 kB]
-Get:9 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 Packages [804 kB]
-Get:10 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main Translation-en [184 kB]
-Get:11 http://azure.archive.ubuntu.com/ubuntu resolute-updates/universe amd64v3 Packages [375 kB]
-Get:12 http://azure.archive.ubuntu.com/ubuntu resolute-updates/universe Translation-en [118 kB]
-Get:13 http://azure.archive.ubuntu.com/ubuntu resolute-updates/restricted amd64v3 Packages [543 kB]
-Get:14 http://azure.archive.ubuntu.com/ubuntu resolute-updates/restricted Translation-en [112 kB]
-Get:15 http://azure.archive.ubuntu.com/ubuntu resolute-security/main amd64v3 Packages [608 kB]
-Get:16 http://azure.archive.ubuntu.com/ubuntu resolute-security/main Translation-en [141 kB]
-Get:17 http://azure.archive.ubuntu.com/ubuntu resolute-security/universe amd64v3 Packages [206 kB]
-Get:18 http://azure.archive.ubuntu.com/ubuntu resolute-security/universe Translation-en [67.9 kB]
-Fetched 3824 kB in 0s (9895 kB/s)
+Get:6 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 Packages [804 kB]
+Get:7 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main Translation-en [184 kB]
+Get:8 http://azure.archive.ubuntu.com/ubuntu resolute-updates/universe amd64v3 Packages [375 kB]
+Get:9 http://azure.archive.ubuntu.com/ubuntu resolute-updates/universe Translation-en [118 kB]
+Get:10 http://azure.archive.ubuntu.com/ubuntu resolute-updates/restricted amd64v3 Packages [543 kB]
+Get:11 http://azure.archive.ubuntu.com/ubuntu resolute-updates/restricted Translation-en [112 kB]
+Get:12 http://azure.archive.ubuntu.com/ubuntu resolute-security/main amd64v3 Packages [608 kB]
+Get:13 http://azure.archive.ubuntu.com/ubuntu resolute-security/main Translation-en [141 kB]
+Get:14 http://azure.archive.ubuntu.com/ubuntu resolute-security/universe amd64v3 Packages [206 kB]
+Get:15 http://azure.archive.ubuntu.com/ubuntu resolute-security/universe Translation-en [67.9 kB]
+Get:16 https://packages.microsoft.com/ubuntu/26.04/prod resolute InRelease [3964 B]
+Get:17 https://packages.microsoft.com/ubuntu/26.04/prod resolute/main arm64 Packages [120 kB]
+Get:18 https://packages.microsoft.com/ubuntu/26.04/prod resolute/main amd64 Packages [131 kB]
+Fetched 3824 kB in 0s (8467 kB/s)
 Reading package lists...
 Reading package lists...
 Building dependency tree...
@@ -106,7 +106,7 @@ Get:7 http://azure.archive.ubuntu.com/ubuntu resolute/main amd64v3 xfonts-encodi
 Get:8 http://azure.archive.ubuntu.com/ubuntu resolute/main amd64v3 xfonts-utils amd64 1:7.7+7build1 [97.3 kB]
 Get:9 http://azure.archive.ubuntu.com/ubuntu resolute/universe amd64v3 xfonts-cyrillic all 1:1.0.5+nmu1build1 [384 kB]
 Get:10 http://azure.archive.ubuntu.com/ubuntu resolute/universe amd64v3 xfonts-scalable all 1:1.0.3-1.3build1 [304 kB]
-Fetched 21.9 MB in 1s (22.5 MB/s)
+Fetched 21.9 MB in 0s (57.7 MB/s)
 Selecting previously unselected package fonts-ipafont-gothic.
 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 212715 files and directories currently installed.)
 Preparing to unpack .../0-fonts-ipafont-gothic_00303-23ubuntu1_all.deb ...
@@ -201,8 +201,8 @@ Downloading Chrome Headless Shell 156.0.8078.4 (playwright chromium-headless-she
 |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■| 100% of 120 MiB
 Chrome Headless Shell 156.0.8078.4 (playwright chromium-headless-shell v1248) downloaded to /home/runner/.cache/ms-playwright/chromium_headless_shell-1248
 Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
-Hit:2 http://azure.archive.ubuntu.com/ubuntu resolute InRelease
 Hit:6 https://packages.microsoft.com/ubuntu/26.04/prod resolute InRelease
+Hit:2 http://azure.archive.ubuntu.com/ubuntu resolute InRelease
 Hit:3 http://azure.archive.ubuntu.com/ubuntu resolute-updates InRelease
 Hit:4 http://azure.archive.ubuntu.com/ubuntu resolute-backports InRelease
 Hit:5 http://azure.archive.ubuntu.com/ubuntu resolute-security InRelease
@@ -346,7 +346,7 @@ Get:87 http://azure.archive.ubuntu.com/ubuntu resolute/main amd64v3 libwebrtc-au
 Get:88 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 libspa-0.2-modules amd64 1.6.2-1ubuntu1.2 [1163 kB]
 Get:89 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 libpipewire-0.3-0t64 amd64 1.6.2-1ubuntu1.2 [302 kB]
 Get:90 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 libpipewire-0.3-common all 1.6.2-1ubuntu1.2 [12.1 kB]
-Fetched 69.3 MB in 6s (10.8 MB/s)
+Fetched 69.3 MB in 2s (33.7 MB/s)
 Selecting previously unselected package libva2:amd64.
 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 212982 files and directories currently installed.)
 Preparing to unpack .../00-libva2_2.23.0-1ubuntu1_amd64v3.deb ...
@@ -731,53 +731,53 @@ rendering chunks...
 computing gzip size...
 [2mdist/[22m[32mindex.html                                                  [39m[1m[2m    0.36 kB[22m[1m[22m[2m │ gzip:     0.26 kB[22m
 [2mdist/[22m[2massets/[22m[35mindex-D9rYp09v.css                                   [39m[1m[2m   10.36 kB[22m[1m[22m[2m │ gzip:     2.97 kB[22m
-[2mdist/[22m[2massets/[22m[36mtgaTextureLoader-B5pZEWIM.js                         [39m[1m[2m    0.35 kB[22m[1m[22m[2m │ gzip:     0.28 kB[22m
-[2mdist/[22m[2massets/[22m[36moitFinalSimpleBlend.fragment-JYAoQGAu.js             [39m[1m[2m    0.42 kB[22m[1m[22m[2m │ gzip:     0.29 kB[22m
-[2mdist/[22m[2massets/[22m[36mvolumetricLightingRenderVolume.vertex-CtanT1BA.js    [39m[1m[2m    0.48 kB[22m[1m[22m[2m │ gzip:     0.31 kB[22m
-[2mdist/[22m[2massets/[22m[36moitFinalSimpleBlend.fragment-BemUJ_sl.js             [39m[1m[2m    0.49 kB[22m[1m[22m[2m │ gzip:     0.32 kB[22m
-[2mdist/[22m[2massets/[22m[36mflowGraphGLTFDataProvider-Bo_mbChq.js                [39m[1m[2m    0.50 kB[22m[1m[22m[2m │ gzip:     0.32 kB[22m
-[2mdist/[22m[2massets/[22m[36mflowGraphCodeExecutionBlock-8SfJ2v4x.js              [39m[1m[2m    0.51 kB[22m[1m[22m[2m │ gzip:     0.30 kB[22m
-[2mdist/[22m[2massets/[22m[36mhdrTextureLoader-CrMMM63-.js                         [39m[1m[2m    0.57 kB[22m[1m[22m[2m │ gzip:     0.41 kB[22m
-[2mdist/[22m[2massets/[22m[36mvolumetricLightingRenderVolume.vertex-CMjUOXI6.js    [39m[1m[2m    0.58 kB[22m[1m[22m[2m │ gzip:     0.35 kB[22m
-[2mdist/[22m[2massets/[22m[36menvTextureLoader-DnWSKlv9.js                         [39m[1m[2m    0.61 kB[22m[1m[22m[2m │ gzip:     0.40 kB[22m
-[2mdist/[22m[2massets/[22m[36mvolumetricLightingBlendVolume.fragment-CNghTnFG.js   [39m[1m[2m    0.85 kB[22m[1m[22m[2m │ gzip:     0.49 kB[22m
-[2mdist/[22m[2massets/[22m[36mselection.fragment-B3SZfhft.js                       [39m[1m[2m    0.94 kB[22m[1m[22m[2m │ gzip:     0.49 kB[22m
+[2mdist/[22m[2massets/[22m[36mtgaTextureLoader-Sm2llmWV.js                         [39m[1m[2m    0.35 kB[22m[1m[22m[2m │ gzip:     0.28 kB[22m
+[2mdist/[22m[2massets/[22m[36moitFinalSimpleBlend.fragment-BJkU6yzd.js             [39m[1m[2m    0.42 kB[22m[1m[22m[2m │ gzip:     0.29 kB[22m
+[2mdist/[22m[2massets/[22m[36mvolumetricLightingRenderVolume.vertex-CC0V7tBG.js    [39m[1m[2m    0.48 kB[22m[1m[22m[2m │ gzip:     0.31 kB[22m
+[2mdist/[22m[2massets/[22m[36moitFinalSimpleBlend.fragment-BqzWW6JL.js             [39m[1m[2m    0.49 kB[22m[1m[22m[2m │ gzip:     0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mflowGraphGLTFDataProvider-rbpAMa9y.js                [39m[1m[2m    0.50 kB[22m[1m[22m[2m │ gzip:     0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mflowGraphCodeExecutionBlock-BZSXz7zq.js              [39m[1m[2m    0.51 kB[22m[1m[22m[2m │ gzip:     0.30 kB[22m
+[2mdist/[22m[2massets/[22m[36mhdrTextureLoader-wjIb_OMw.js                         [39m[1m[2m    0.57 kB[22m[1m[22m[2m │ gzip:     0.41 kB[22m
+[2mdist/[22m[2massets/[22m[36mvolumetricLightingRenderVolume.vertex-Cr2_Oyvf.js    [39m[1m[2m    0.58 kB[22m[1m[22m[2m │ gzip:     0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36menvTextureLoader-8LQcZY3_.js                         [39m[1m[2m    0.61 kB[22m[1m[22m[2m │ gzip:     0.40 kB[22m
+[2mdist/[22m[2massets/[22m[36mvolumetricLightingBlendVolume.fragment-D92AMGEX.js   [39m[1m[2m    0.85 kB[22m[1m[22m[2m │ gzip:     0.49 kB[22m
+[2mdist/[22m[2massets/[22m[36mselection.fragment-DWRxx3mT.js                       [39m[1m[2m    0.94 kB[22m[1m[22m[2m │ gzip:     0.48 kB[22m
 [2mdist/[22m[2massets/[22m[36mmesh.vertexData.functions-ayNlGC5K.js                [39m[1m[2m    0.96 kB[22m[1m[22m[2m │ gzip:     0.49 kB[22m
-[2mdist/[22m[2massets/[22m[36mvolumetricLightingBlendVolume.fragment-taQ-DerR.js   [39m[1m[2m    1.05 kB[22m[1m[22m[2m │ gzip:     0.55 kB[22m
-[2mdist/[22m[2massets/[22m[36mselection.fragment-WrGT0qLC.js                       [39m[1m[2m    1.15 kB[22m[1m[22m[2m │ gzip:     0.55 kB[22m
-[2mdist/[22m[2massets/[22m[36mbasisTextureLoader-D415x3T2.js                       [39m[1m[2m    1.22 kB[22m[1m[22m[2m │ gzip:     0.60 kB[22m
-[2mdist/[22m[2massets/[22m[36mddsTextureLoader-C-xK_1Dq.js                         [39m[1m[2m    1.26 kB[22m[1m[22m[2m │ gzip:     0.62 kB[22m
-[2mdist/[22m[2massets/[22m[36mktxTextureLoader-Bx7Y4gYk.js                         [39m[1m[2m    1.42 kB[22m[1m[22m[2m │ gzip:     0.74 kB[22m
-[2mdist/[22m[2massets/[22m[36mvolumetricLightingRenderVolume.fragment-DEYNcia3.js  [39m[1m[2m    1.55 kB[22m[1m[22m[2m │ gzip:     0.76 kB[22m
-[2mdist/[22m[2massets/[22m[36mscreenSpaceCurvature.fragment-CzV8kJqw.js            [39m[1m[2m    1.63 kB[22m[1m[22m[2m │ gzip:     0.68 kB[22m
-[2mdist/[22m[2massets/[22m[36mvolumetricLightingRenderVolume.fragment-D5BZswwV.js  [39m[1m[2m    1.78 kB[22m[1m[22m[2m │ gzip:     0.84 kB[22m
-[2mdist/[22m[2massets/[22m[36mselection.vertex-Cg7LuyU7.js                         [39m[1m[2m    1.94 kB[22m[1m[22m[2m │ gzip:     0.73 kB[22m
-[2mdist/[22m[2massets/[22m[36mselection.vertex-DeoGhRLE.js                         [39m[1m[2m    2.27 kB[22m[1m[22m[2m │ gzip:     0.81 kB[22m
-[2mdist/[22m[2massets/[22m[36miesTextureLoader-CTcX-vZ-.js                         [39m[1m[2m    2.74 kB[22m[1m[22m[2m │ gzip:     1.19 kB[22m
-[2mdist/[22m[2massets/[22m[36mselectionOutline.fragment-BXlnA0yf.js                [39m[1m[2m    4.86 kB[22m[1m[22m[2m │ gzip:     1.03 kB[22m
-[2mdist/[22m[2massets/[22m[36mLandingWorld-BMklWO0_.js                             [39m[1m[2m    6.10 kB[22m[1m[22m[2m │ gzip:     2.76 kB[22m
-[2mdist/[22m[2massets/[22m[36mselectionOutline.fragment-B5ROP3cS.js                [39m[1m[2m    6.13 kB[22m[1m[22m[2m │ gzip:     1.14 kB[22m
-[2mdist/[22m[2massets/[22m[36mopenpbrMaterialLoadingAdapter-CxixW3BV.js            [39m[1m[2m    9.26 kB[22m[1m[22m[2m │ gzip:     1.63 kB[22m
-[2mdist/[22m[2massets/[22m[36mpbrMaterialLoadingAdapter-DLEJ6OvT.js                [39m[1m[2m   11.61 kB[22m[1m[22m[2m │ gzip:     2.22 kB[22m
-[2mdist/[22m[2massets/[22m[36mindex-CM4Goprj.js                                    [39m[1m[2m  157.86 kB[22m[1m[22m[2m │ gzip:    51.02 kB[22m
-[2mdist/[22m[2massets/[22m[36mWorldScene-DnJZW4gv.js                               [39m[1m[2m  371.53 kB[22m[1m[22m[2m │ gzip:    94.13 kB[22m
-[2mdist/[22m[2massets/[22m[36mnativeXRFrame-Bx6WkX9H.js                            [39m[1m[33m6,039.90 kB[39m[22m[2m │ gzip: 1,322.29 kB[22m
+[2mdist/[22m[2massets/[22m[36mvolumetricLightingBlendVolume.fragment-BVGFkGxZ.js   [39m[1m[2m    1.05 kB[22m[1m[22m[2m │ gzip:     0.55 kB[22m
+[2mdist/[22m[2massets/[22m[36mselection.fragment-C8-YXaP6.js                       [39m[1m[2m    1.15 kB[22m[1m[22m[2m │ gzip:     0.55 kB[22m
+[2mdist/[22m[2massets/[22m[36mbasisTextureLoader-CAZmsADP.js                       [39m[1m[2m    1.22 kB[22m[1m[22m[2m │ gzip:     0.60 kB[22m
+[2mdist/[22m[2massets/[22m[36mddsTextureLoader-B0N1w9kf.js                         [39m[1m[2m    1.26 kB[22m[1m[22m[2m │ gzip:     0.62 kB[22m
+[2mdist/[22m[2massets/[22m[36mktxTextureLoader-C-xrUJJW.js                         [39m[1m[2m    1.42 kB[22m[1m[22m[2m │ gzip:     0.74 kB[22m
+[2mdist/[22m[2massets/[22m[36mvolumetricLightingRenderVolume.fragment-NWU0vdWb.js  [39m[1m[2m    1.55 kB[22m[1m[22m[2m │ gzip:     0.76 kB[22m
+[2mdist/[22m[2massets/[22m[36mscreenSpaceCurvature.fragment-Dfp3v1Oc.js            [39m[1m[2m    1.63 kB[22m[1m[22m[2m │ gzip:     0.68 kB[22m
+[2mdist/[22m[2massets/[22m[36mvolumetricLightingRenderVolume.fragment-CoP4AYbf.js  [39m[1m[2m    1.78 kB[22m[1m[22m[2m │ gzip:     0.84 kB[22m
+[2mdist/[22m[2massets/[22m[36mselection.vertex-qcm94-f-.js                         [39m[1m[2m    1.94 kB[22m[1m[22m[2m │ gzip:     0.73 kB[22m
+[2mdist/[22m[2massets/[22m[36mselection.vertex-CweQllG6.js                         [39m[1m[2m    2.27 kB[22m[1m[22m[2m │ gzip:     0.81 kB[22m
+[2mdist/[22m[2massets/[22m[36miesTextureLoader-BM9YfvgF.js                         [39m[1m[2m    2.74 kB[22m[1m[22m[2m │ gzip:     1.19 kB[22m
+[2mdist/[22m[2massets/[22m[36mselectionOutline.fragment-BNnC0nO7.js                [39m[1m[2m    4.86 kB[22m[1m[22m[2m │ gzip:     1.03 kB[22m
+[2mdist/[22m[2massets/[22m[36mLandingWorld-BRJ_xbea.js                             [39m[1m[2m    6.10 kB[22m[1m[22m[2m │ gzip:     2.76 kB[22m
+[2mdist/[22m[2massets/[22m[36mselectionOutline.fragment-DDUYb-QX.js                [39m[1m[2m    6.13 kB[22m[1m[22m[2m │ gzip:     1.14 kB[22m
+[2mdist/[22m[2massets/[22m[36mopenpbrMaterialLoadingAdapter-2uw1dbTc.js            [39m[1m[2m    9.26 kB[22m[1m[22m[2m │ gzip:     1.63 kB[22m
+[2mdist/[22m[2massets/[22m[36mpbrMaterialLoadingAdapter-FiqOB7X6.js                [39m[1m[2m   11.61 kB[22m[1m[22m[2m │ gzip:     2.21 kB[22m
+[2mdist/[22m[2massets/[22m[36mindex-B0JtD8Mc.js                                    [39m[1m[2m  157.86 kB[22m[1m[22m[2m │ gzip:    51.02 kB[22m
+[2mdist/[22m[2massets/[22m[36mWorldScene-Cc0z_KgR.js                               [39m[1m[2m  373.93 kB[22m[1m[22m[2m │ gzip:    95.15 kB[22m
+[2mdist/[22m[2massets/[22m[36mnativeXRFrame-DGJq6NnN.js                            [39m[1m[33m6,039.90 kB[39m[22m[2m │ gzip: 1,322.29 kB[22m
 [33m
 (!) Some chunks are larger than 500 kB after minification. Consider:
 - Using dynamic import() to code-split the application
 - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
-[32m✓ built in 11.77s[39m
+[32m✓ built in 12.42s[39m
 still maple-start
 past the car | School entrance · 16 m · ahead | 
 at the stop? true | School entrance · 17 m · ahead | Take the bus downtown (E)
 still at-maple-stop
 still riding
 still arrived-downtown
-downtown | Downtown Downtown Boulder, Colorado · bus stop 0 m | Take the bus home (E)
+downtown | Downtown Boulder, Colorado · bus stop 0 m | Take the bus home (E)
 still downtown-behind
 still walking-downtown
 still downtown-orbit
 still downtown-overhead
 still downtown-wide
-end | Downtown Downtown Boulder, Colorado · bus stop 6 m | 
+end | Downtown Boulder, Colorado · bus stop 6 m | 

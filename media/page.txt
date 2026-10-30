@@ -5,8 +5,8 @@ Your life. Your choices. Your consequences.
 Day 1 · 7:33 AM
 Energy
 96%
-Guest explorer · Downtown Downtown Boulder, Colorado
-Downtown Downtown Boulder, Colorado · bus stop 6 m
+Guest explorer · Downtown Boulder, Colorado
+Downtown Boulder, Colorado · bus stop 6 m
 
 Click the world, then use WASD, arrow keys or the direction pad to move. Hold Shift or switch Run on to move faster. Release the direction to stop. Drag to orbit; scroll, pinch or use the zoom buttons to zoom. Press E at the school entrance to go in (7:30 AM–4 PM), E at a desk to take the current class, and E by the teacher for other school activities; Escape closes the panel. Press E at your front door (the house on the left) to go inside, and E at the inside door to go back out. Your energy drains as the day goes on; when you're tired or it's evening, press E beside your bed to sleep until 7:00 AM. Press E next to a car to drive it: W/S for gas, brake and reverse, A/D to steer, and E again to get out once stopped.
 
