@@ -30,6 +30,8 @@ import { AudioPanel } from './audio/AudioPanel';
 import type { GameAudio } from './audio/director.mjs';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
 import { buildFootballPitch } from './footballScene';
+import { createMatch, formatClock as formatMatchClock, stepMatch, type MatchState } from './footballMatch.mjs';
+import { loadFootballPlayers } from './footballPlayers';
 import { CAREERS, SHIFT_HOURS, joinCareer, quitCareer, rankOf, readCareer, workShift, writeCareer, type CareerId, type CareerState } from './careers.mjs';
 import { buildWorkplaces, createLightBar, createSiren } from './careersScene';
 import { CareersPanel } from './CareersPanel';
@@ -407,6 +409,10 @@ export default function WorldScene({
   const saveCareer = (next: CareerState) => { careerRef.current = next; writeCareer(characterId, next); setCareer(next); };
   const sirenRef = useRef<ReturnType<typeof createSiren> | null>(null);
   const [ballPrompt, setBallPrompt] = useState(false);
+  // Five-a-side: the scoreboard while a match is on, and whether you can start one.
+  const [scoreboard, setScoreboard] = useState<string | null>(null);
+  const [matchPrompt, setMatchPrompt] = useState(false);
+  const matchRef = useRef<{ start: () => void; pass: () => void; leave: () => void }>({ start: () => {}, pass: () => {}, leave: () => {} });
   const emoteRef = useRef<(emote: 'jump' | 'dance') => void>(() => {});
   const housePainterRef = useRef<HousePainter | null>(null);
   const sceneRef = useRef<Scene | null>(null);
@@ -601,6 +607,8 @@ export default function WorldScene({
         // Police station, army recruiting office and fire station, at real downtown buildings.
         const workplaces = buildWorkplaces(scene, city, collider);
         workDoors = workplaces.doors;
+        // A link with ?play=football takes the bus straight to the pitch.
+        if (playFootball) window.setTimeout(() => { if (!disposed && locationRef.current === 'street') boardBus('downtown'); }, 600);
         pitch.show(football.ball);
         const disposeStop = buildBusStop(scene, world.x + local.awayX * 0.9, world.z + local.awayZ * 0.9, local.heading);
         downtown = { city, collider, stop: { ...world, rotation: movementHeading(local.dx, local.dz), dx: local.dx, dz: local.dz, street: local.street }, dispose: () => { disposeCity(); disposeStop(); lights.dispose(); pitch.dispose(); workplaces.dispose(); } };
@@ -876,6 +884,7 @@ export default function WorldScene({
         setBusPrompt(null);
         setRiding(to === 'downtown' ? `Riding the bus to ${downtown.city.name}…` : 'Riding the bus home to Maple Street…');
       };
+      const playFootball = new URLSearchParams(window.location.search).get('play') === 'football';
       const arrive = () => {
         const to = pendingRide;
         pendingRide = null;
@@ -888,15 +897,21 @@ export default function WorldScene({
         if (to === 'downtown' && downtown) {
           locationRef.current = 'city';
           applyFog();
-          placePlayer(downtown.stop);
-          // Camera behind you, looking down the street.
-          snapCamera(position, Math.atan2(-downtown.stop.dz, -downtown.stop.dx));
+          if (playFootball) {
+            placePlayer({ x: PITCH.x - 6, z: PITCH.z - 2, rotation: Math.PI / 2 });
+            snapCamera(position, Math.PI);
+          } else {
+            placePlayer(downtown.stop);
+            // Camera behind you, looking down the street.
+            snapCamera(position, Math.atan2(-downtown.stop.dz, -downtown.stop.dx));
+          }
           cityCameraRadius = null;
           setInCity(downtown.city.name);
           notify(`${downtown.city.name} · ${formatClock(life.minute)}. Walk around; the bus home leaves from this stop.`);
         } else {
           locationRef.current = 'street';
           applyFog();
+          matchRef.current.leave();
           placePlayer({ x: MAPLE_BUS_STOP.x + 0.4, z: MAPLE_BUS_STOP.z - 0.8, rotation: Math.PI });
           snapCamera(position, -Math.PI / 2);
           setInCity(null);
@@ -1084,10 +1099,45 @@ export default function WorldScene({
       // Football: E or F kicks, Shift+F chips, the way you face.
       const kick = (chip: boolean) => {
         if (!football || locationRef.current !== 'city') return;
+        if (match) { matchActions = { ...matchActions, shoot: !chip, chip }; return; }
         const kicked = kickBall(football.ball, position, facingOf(avatar.rotation.y), chip);
         if (kicked) football.ball = kicked;
       };
       kickRef.current = kick;
+      // Five-a-side match: you up front for Blue with four AI teammates against five AI Reds.
+      let match: MatchState | null = null;
+      let matchPlayers: Awaited<ReturnType<typeof loadFootballPlayers>> = null;
+      let matchLoading = false;
+      let matchActions: { shoot?: boolean; chip?: boolean; pass?: boolean } = {};
+      let matchEndsIn = 0;
+      let lastPhase = '';
+      const youInMatch = () => match?.players.find(p => p.human) ?? null;
+      const endMatch = () => {
+        match = null;
+        matchPlayers?.dispose();
+        matchPlayers = null;
+        matchEndsIn = 0;
+        setScoreboard(null);
+        if (football) { football.ball = newBall(); football.pitch.show(football.ball); }
+      };
+      matchRef.current = {
+        start: () => {
+          if (match || matchLoading || !football || locationRef.current !== 'city') return;
+          matchLoading = true;
+          notify('Picking teams…');
+          const fresh = createMatch();
+          void loadFootballPlayers(scene, fresh.players, shadows).then(bodies => {
+            matchLoading = false;
+            if (!bodies || locationRef.current !== 'city') { bodies?.dispose(); notify("Couldn't get the teams together. Try again."); return; }
+            matchPlayers = bodies;
+            match = fresh;
+            lastPhase = '';
+            notify('Five-a-side! You play up front for Blue. Run into the ball to dribble · F shoots · Shift+F chips · Q passes.');
+          });
+        },
+        pass: () => { if (match) matchActions = { ...matchActions, pass: true }; },
+        leave: () => { if (match) { notify('You walked off. Match abandoned.'); endMatch(); } },
+      };
       // Jump (Space) and dance (G): on foot only.
       let jumpTimer = 0;
       emoteRef.current = (emote) => {
@@ -1136,6 +1186,12 @@ export default function WorldScene({
         } else if (key === 'h' && !event.repeat && interaction.mode === 'driving' && careerRef.current.career === 'police') {
           event.preventDefault();
           notify(siren.toggle() ? 'Siren on (H to switch off).' : 'Siren off.');
+        } else if (key === 'q' && !event.repeat) {
+          event.preventDefault();
+          matchRef.current.pass();
+        } else if (key === 'm' && !event.repeat) {
+          event.preventDefault();
+          matchRef.current.start();
         } else if (key === 'f' && !event.repeat) {
           event.preventDefault();
           kickRef.current(inputRef.current.pressed.has('Shift'));
@@ -1379,7 +1435,33 @@ export default function WorldScene({
           : stepLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward, cars, peopleOut);
         tickLife(delta, locomotion.motion);
         const { position: next, moving, speed: movementSpeed } = locomotion;
-        if (city && football) {
+        if (city && football && match) {
+          const velocity = delta > 0 ? { x: (next.x - position.x) / delta, z: (next.z - position.z) / delta } : { x: 0, z: 0 };
+          const heading = Math.hypot(velocity.x, velocity.z) > 0.2 ? Math.atan2(velocity.x, velocity.z) : avatar.rotation.y;
+          match = stepMatch(match, delta, { x: next.x, z: next.z, vx: velocity.x, vz: velocity.z, heading }, matchActions);
+          matchActions = {};
+          football.ball = match.ball;
+          football.pitch.show(match.ball);
+          matchPlayers?.update(match.players, delta);
+          for (const event of match.events) {
+            if (event.type === 'goal') {
+              notify(event.team === 'home' ? `GOAL for Blue! ${match.score.home}–${match.score.away}` : `Red score. ${match.score.home}–${match.score.away}`);
+              if (event.team === 'home') riggedRef.current?.playAction('Dance');
+            } else if (event.type === 'save' && event.team === 'away') notify('Saved by the Red keeper!');
+            else if (event.type === 'fulltime') {
+              const { home, away } = match.score;
+              notify(`Full time: Blue ${home}–${away} Red. ${home > away ? 'You win!' : home < away ? 'Red win this one.' : "It's a draw."}`);
+              matchEndsIn = 5;
+            }
+          }
+          // At each kick-off you're put back on your spot.
+          if (match.phase === 'kickoff' && lastPhase !== 'kickoff') {
+            const me = youInMatch();
+            if (me) { next.x = me.x; next.z = me.z; avatar.rotation.y = me.heading; }
+          }
+          lastPhase = match.phase;
+          if (matchEndsIn > 0 && (matchEndsIn -= delta) <= 0) endMatch();
+        } else if (city && football) {
           // Run into the ball to dribble it; the ball rolls, bounces off the boards and finds the net.
           const velocity = delta > 0 ? { x: (next.x - position.x) / delta, z: (next.z - position.z) / delta } : { x: 0, z: 0 };
           football.ball = touchBall(football.ball, next, velocity);
@@ -1425,6 +1507,12 @@ export default function WorldScene({
             const metres = Math.ceil(Math.hypot(position.x - city.stop.x, position.z - city.stop.z));
             const toPitch = Math.ceil(Math.hypot(position.x - PITCH.x, position.z - PITCH.z));
             const nearBall = football ? Math.hypot(football.ball.x - position.x, football.ball.z - position.z) <= KICK.reach : false;
+            const onPitchNow = Math.abs(position.x - PITCH.x) <= PITCH.halfLength + 2 && Math.abs(position.z - PITCH.z) <= PITCH.halfWidth + 2;
+            const canStart = onPitchNow && !match;
+            setMatchPrompt(previous => previous === canStart ? previous : canStart);
+            if (match && toPitch > 45) matchRef.current.leave();
+            const board = match ? `Blue ${match.score.home} – ${match.score.away} Red · ${match.phase === 'fulltime' ? 'Full time' : formatMatchClock(match.clock)}` : null;
+            setScoreboard(previous => previous === board ? previous : board);
             setBallPrompt(previous => previous === nearBall ? previous : nearBall);
             const work = workplaceAt(position);
             setWorkPrompt(previous => previous === work ? previous : work);
@@ -1654,6 +1742,8 @@ export default function WorldScene({
         {inClass && <div className="world-sleep world-class" role="status" aria-live="polite"><span>{inClass} class…</span></div>}
         <div className="world-caption"><strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : inCity ? inCity : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
+        {scoreboard && <div className="world-scoreboard" role="status" aria-live="polite"><strong>{scoreboard}</strong><small>F shoot · Shift+F chip · Q pass</small>
+          <button type="button" onClick={event => { matchRef.current.pass(); focusWorld(event); }}>Pass (Q)</button></div>}
         {(() => {
           const { chapter, step } = currentStep(story);
           return <div className="story-objective" aria-live="polite"><small>{chapter.title}</small><strong>{step.objective}</strong></div>;
@@ -1697,6 +1787,8 @@ export default function WorldScene({
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
         </div>}
         {!driving && driveNotice && <div className="world-notice" role="status" aria-live="polite">{driveNotice}</div>}
+        {matchPrompt && inCity && !scoreboard && <button type="button" className="world-car-action world-match-start"
+          onClick={event => { matchRef.current.start(); focusWorld(event); }}>Start a five-a-side match (M)</button>}
         {(busAction ?? workAction ?? (ballPrompt && inCity ? 'Kick (E or F) · Shift+F chips' : null) ?? actionLabel) && <button type="button" className="world-car-action"
           onClick={event => { interactRef.current(); focusWorld(event); }}>
           {busAction ?? workAction ?? (ballPrompt && inCity ? 'Kick (E or F) · Shift+F chips' : null) ?? actionLabel}
