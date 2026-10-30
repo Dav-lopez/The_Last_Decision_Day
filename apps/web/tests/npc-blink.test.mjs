@@ -130,3 +130,10 @@ test('hidden NPCs clear facial reactions without resetting their blink animation
   assert.equal(state.motions.size, 0);
   assert.equal(morphs.find(m => m.name === 'eyeBlinkLeft').influence, 0.8);
 });
+
+test('NPC replies produce visible happy and disappointed expressions without changing neutral faces', () => {
+  assert.equal(npcFaceTarget('mouthSmileLeft', 0, { emotion: 'neutral' }), 0);
+  assert.ok(npcFaceTarget('mouthSmileLeft', 0, { emotion: 'happy' }) > 0.2);
+  assert.ok(npcFaceTarget('mouthPressLeft', 0, { emotion: 'sad' }) > 0.1);
+  assert.ok(npcFaceTarget('browInnerUp', 0, { emotion: 'sad' }) > 0.2);
+});
