@@ -18,8 +18,14 @@ const LandingWorld = lazy(() => import('./LandingWorld'));
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(path, { credentials: 'same-origin', ...options });
   if (!response.ok) {
-    const body = await response.json().catch(() => ({})) as { error?: string };
-    throw new Error(body.error ?? `Request failed (${response.status})`);
+    const body = await response.json().catch(() => ({})) as { error?: string; message?: string; title?: string };
+    const explanation = body.error ?? body.message ?? body.title;
+    if (response.status === 404 && path.startsWith('/api/')) throw new Error('Game API is unavailable at this address. Check the frontend API proxy and backend deployment.');
+    if (response.status === 401) throw new Error(explanation ?? 'Incorrect credentials or your session has expired.');
+    if (response.status === 403) throw new Error(explanation ?? 'Access denied. Registration may require a valid invitation.');
+    if (response.status === 409) throw new Error(explanation ?? 'This account already exists. Try signing in.');
+    if (response.status === 429) throw new Error('Too many attempts. Wait a moment before trying again.');
+    throw new Error(explanation ?? `Request failed (${response.status})`);
   }
   return response.status === 204 ? undefined as T : await response.json() as T;
 }
@@ -206,6 +212,7 @@ function App() {
 
   async function authenticate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy) return;
     setBusy(true); setMessage('');
     try {
       const data = mode === 'login' ? { email, password } :
@@ -271,18 +278,21 @@ function App() {
         <button type="button" onClick={() => setGuestDemo(false)}>Exit demo and sign in</button>
       </> : !session ? <>
         <div className="tabs">
-          <button type="button" aria-pressed={mode === 'login'} onClick={() => setMode('login')}>Sign in</button>
-          <button type="button" aria-pressed={mode === 'register'} onClick={() => setMode('register')}>Use invitation</button>
+          <button type="button" aria-pressed={mode === 'login'} onClick={() => { setMode('login'); setMessage(''); }}>Sign in</button>
+          <button type="button" aria-pressed={mode === 'register'} onClick={() => { setMode('register'); setMessage(''); }}>Create account</button>
         </div>
         <button type="button" onClick={() => { setGuestDemo(true); setMessage(''); }}>Try the 3D demo without signing in</button>
         <form onSubmit={authenticate}>
+          <h2>{mode === 'login' ? 'Welcome back' : 'Create your account'}</h2>
+          <p>{mode === 'login' ? 'Sign in to continue your saved life.' : 'Registration is currently invite-only for adults aged 18 or older. Your date of birth stays private.'}</p>
           <label>Email<input type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required /></label>
           <label>Password<input type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={mode === 'register' ? 12 : undefined} value={password} onChange={e => setPassword(e.target.value)} required /></label>
           {mode === 'register' && <>
             <label>Date of birth<input type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)} required /></label>
-            <label>Invitation token<input value={inviteToken} onChange={e => setInviteToken(e.target.value)} required /></label>
+            <label>Invitation token<input autoComplete="off" value={inviteToken} onChange={e => setInviteToken(e.target.value)} required /></label>
           </>}
           <button disabled={busy}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}</button>
+          <p>{mode === 'login' ? 'New here? Choose Create account above. An invitation is required.' : 'Already have an account? Choose Sign in above.'}</p>
         </form>
       </> : <>
         <div className="account"><span>Signed in as {session.email}</span><button type="button" disabled={busy} onClick={logout}>Sign out</button></div>

@@ -9,9 +9,9 @@ export declare const VEHICLE: Readonly<{
 export declare function vehicleForward(rotation: number): PlanarPosition;
 export declare function carLocalToWorld(car: CarState, localX: number, localZ: number): PlanarPosition;
 export declare function driveInput(keys: ReadonlySet<string>): DriveInput;
-export declare function vehicleBlocked(car: CarState, otherCars?: ReadonlyArray<CarState>): boolean;
+export declare function vehicleBlocked(car: CarState, otherCars?: ReadonlyArray<CarState>, people?: ReadonlyArray<{ x: number; z: number; radius?: number }>): boolean;
 export declare function stepVehicle(car: CarState, input: DriveInput, seconds: number,
-  otherCars?: ReadonlyArray<CarState>): CarState & { collided: boolean };
+  otherCars?: ReadonlyArray<CarState>, people?: ReadonlyArray<{ x: number; z: number; radius?: number }>): CarState & { collided: boolean };
 export declare function canExitVehicle(car: CarState): boolean;
 export declare function vehicleExitPosition(car: CarState, allCars: ReadonlyArray<CarState>): PlanarPosition | null;
 export declare function chaseCameraAlpha(rotation: number): number;

@@ -8,6 +8,7 @@ export declare const BUILDING_AREAS: ReadonlyArray<Readonly<{ minX: number; maxX
 export declare const STATIC_SOLIDS: ReadonlyArray<Readonly<{ minX: number; maxX: number; minZ: number; maxZ: number }>>;
 export declare const TREE_TRUNKS: ReadonlyArray<Readonly<PlanarPosition>>;
 export declare function carContains(car: CarFootprint, x: number, z: number, margin?: number): boolean;
-export declare function isBlocked(x: number, z: number, cars?: ReadonlyArray<CarFootprint>): boolean;
-export declare function stepPosition(position: PlanarPosition, keys: ReadonlySet<string>, elapsedSeconds: number, speed?: number, cameraForward?: PlanarPosition, cars?: ReadonlyArray<CarFootprint>): PlanarPosition;
+export type PersonCircle = { x: number; z: number; radius?: number };
+export declare function isBlocked(x: number, z: number, cars?: ReadonlyArray<CarFootprint>, people?: ReadonlyArray<PersonCircle>): boolean;
+export declare function stepPosition(position: PlanarPosition, keys: ReadonlySet<string>, elapsedSeconds: number, speed?: number, cameraForward?: PlanarPosition, cars?: ReadonlyArray<CarFootprint>, people?: ReadonlyArray<PersonCircle>): PlanarPosition;
 export declare function isNearSchool(position: PlanarPosition): boolean;

@@ -23,6 +23,7 @@ import { PARKED_CARS } from './streetLayout.mjs';
 import { addWorldProps } from './polyHavenProps';
 import { buildHomeScene } from './homeScene';
 import { buildSurroundings } from './worldSurroundings';
+import { loadNeighbors, type Neighbors, type Person } from './npcPeople';
 import { advanceLife, canSleep, chooseStartingLife, formatClock, isEvening, isExhausted, nearBed, normalizeLife, readLife,
   sleepUntilMorning, TIRED_ENERGY, toServerLife, writeLife, type Life, type LifeActivity, type ServerLife } from './lifeClock.mjs';
 
@@ -439,6 +440,13 @@ export default function WorldScene({
       shadows.bias = 0.0005;
       shadows.normalBias = 0.02;
       shadows.setDarkness(0.3);
+      // Neighbours walking the sidewalks; the street stays empty if the shared human model fails.
+      let neighbors: Neighbors | null = null;
+      let peopleOut: Person[] = [];
+      void loadNeighbors(scene, shadows).then(loaded => {
+        if (environmentLoad.cancelled || scene.isDisposed) loaded?.dispose();
+        else neighbors = loaded;
+      }).catch(error => console.warn('Neighbours unavailable', error));
       void addWorldProps(scene, environmentLoad, shadows)
         .then(manifest => { if (manifest && !environmentLoad.cancelled) setPropCredit(true); })
         .catch(error => console.warn('Street props unavailable', error));
@@ -760,12 +768,16 @@ export default function WorldScene({
           return;
         }
         const driven = drivenIndex();
+        // People give way to the player on foot; cars (including a driven one) block their next step.
+        peopleOut = neighbors
+          ? neighbors.update(delta, life.minute, driven < 0 && locationRef.current === 'street' ? position : null, cars)
+          : [];
         if (driven >= 0) {
           tickLife(delta, 'drive');
           // Car-relative controls: W/S accelerate, brake and reverse; A/D steer.
           const keys = schoolOpenRef.current ? new Set<string>() : inputRef.current.pressed;
           const others = cars.filter((_, index) => index !== driven);
-          const next = stepVehicle(cars[driven], driveInput(keys), delta, others);
+          const next = stepVehicle(cars[driven], driveInput(keys), delta, others, peopleOut);
           cars[driven] = { x: next.x, z: next.z, rotation: next.rotation, speed: next.speed };
           placeCar(driven);
           // Swing the camera behind the car while moving; parked, the player may orbit freely.
@@ -795,7 +807,7 @@ export default function WorldScene({
         const walkKeys = tired ? new Set([...pressed].filter(key => key !== 'Shift')) : pressed;
         const locomotion = atHome
           ? stepHomeLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward)
-          : stepLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward, cars);
+          : stepLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward, cars, peopleOut);
         tickLife(delta, locomotion.motion);
         const { position: next, moving, speed: movementSpeed } = locomotion;
         if (moving) avatar.rotation.y = smoothHumanHeading(avatar.rotation.y, movementHeading(next.x - position.x, next.z - position.z), delta);
@@ -866,6 +878,7 @@ export default function WorldScene({
         writeLife(characterId, life);
         saveToAccount();
         disposed = true;
+        neighbors?.dispose();
         lighting.dispose();
         lightingRef.current = null;
         environmentLoad.cancelled = true;

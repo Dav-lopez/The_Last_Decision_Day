@@ -51,7 +51,7 @@ function footprintPoints(car) {
 }
 
 /** True when the car's footprint would overlap the world edge, a building, tree, lamp post or another car. */
-export function vehicleBlocked(car, otherCars = []) {
+export function vehicleBlocked(car, otherCars = [], people = []) {
   const limit = WORLD_RADIUS - 0.2;
   const points = footprintPoints(car);
   for (const point of points) {
@@ -60,6 +60,7 @@ export function vehicleBlocked(car, otherCars = []) {
     if (TREE_TRUNKS.some(tree => Math.hypot(point.x - tree.x, point.z - tree.z) < 0.3)) return true;
     if (STREET_LIGHTS.some(light => Math.hypot(point.x - light.x, point.z - light.z) < 0.15)) return true;
     if (otherCars.some(other => carContains(other, point.x, point.z))) return true;
+    if (people.some(person => Math.hypot(point.x - person.x, point.z - person.z) < (person.radius ?? 0.3))) return true;
   }
   // Catch a corner of another car poking into this car's side.
   return otherCars.some(other => footprintPoints(other).some(point => carContains(car, point.x, point.z)));
@@ -83,7 +84,7 @@ function nextSpeed(speed, throttle, seconds) {
  * Advance one frame with a kinematic bicycle model. Movement is swept in short
  * steps; on contact the car stops at its last free position instead of tunneling.
  */
-export function stepVehicle(car, input, seconds, otherCars = []) {
+export function stepVehicle(car, input, seconds, otherCars = [], people = []) {
   if (!Number.isFinite(seconds) || seconds <= 0) return { ...car, collided: false };
   const dt = Math.min(seconds, 0.05);
   const throttle = Math.max(-1, Math.min(1, Number(input?.throttle) || 0));
@@ -97,7 +98,7 @@ export function stepVehicle(car, input, seconds, otherCars = []) {
     const rotation = state.rotation + yawRate * slice;
     const forward = vehicleForward(rotation);
     const candidate = { x: state.x + forward.x * speed * slice, z: state.z + forward.z * speed * slice, rotation, speed };
-    if (vehicleBlocked(candidate, otherCars)) return { ...state, speed: 0, collided: true };
+    if (vehicleBlocked(candidate, otherCars, people)) return { ...state, speed: 0, collided: true };
     state = candidate;
   }
   return { ...state, collided: false };
