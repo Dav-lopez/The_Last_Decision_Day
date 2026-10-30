@@ -47,7 +47,11 @@ def build_eyelid_geometry(head_joint):
             for i in range(SAMPLES - 1):
                 a, b = inner[i], inner[i + 1]
                 c, d = outer[i], outer[i + 1]
-                indices.extend(((a,), (b,), (c,), (b,), (d,), (c,)))
+                if upper:
+                    indices.extend(((a,), (b,), (c,), (b,), (d,), (c,)))
+                else:
+                    # The lower rim is extruded downward, so reverse winding.
+                    indices.extend(((a,), (c,), (b,), (b,), (c,), (d,)))
         # Sparse, tapered outer lashes (one triangle each), attached to the
         # upper rim. Their bases move with the same blink target.
         for fraction in (0.22, 0.43, 0.64, 0.82):
