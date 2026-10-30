@@ -4,6 +4,7 @@ import { ZONE_MATERIALS, dressZones, type Look, type Zone } from './appearance.m
 import { faceTarget, type Emotion } from './facialEmotions';
 import { EMPTY_EFFECTS, smoothFacialEffects, targetFacialEffects } from './facialEffects';
 import { dropletCycle } from './facialDroplets.mjs';
+import { skinSurface, hairSurface, skinRoughness } from './surfaceShading.mjs';
 import { stepBlink } from './blinkCycle.mjs';
 import { composeEyeExpression } from './eyeExpression.mjs';
 import { advanceFacialMorph } from './faceDynamics.mjs';
@@ -44,12 +45,21 @@ export function dressCharacter(materials: ReadonlyArray<Material>, meshes: Reado
   const dress = dressZones(look);
   const linear = (hex: string) => Color3.FromHexString(hex).toLinearSpace();
   const skin = linear(dress.skin);
+  const hair = linear(dress.hairColour);
+  const skinDetail = skinSurface([skin.r, skin.g, skin.b]);
+  const hairDetail = hairSurface([hair.r, hair.g, hair.b]);
   for (const material of materials) {
     if (!(material instanceof PBRMaterial)) continue;
     const name = unprefixed(material.name);
     const zone = ZONE_BY_MATERIAL.get(name);
-    if (name === 'Student skin') material.albedoColor = skin.clone();
-    else if (name === 'Student hair') material.albedoColor = linear(dress.hairColour);
+    if (name === 'Student skin') {
+      material.albedoColor = skin.clone();
+      material.subSurface.tintColor = Color3.FromArray(skinDetail.subsurfaceTint);
+      material.subSurface.translucencyIntensity = skinDetail.translucencyIntensity;
+    } else if (name === 'Student hair') {
+      material.albedoColor = hair.clone();
+      material.sheen.color = Color3.FromArray(hairDetail.sheenColor);
+    }
     else if (zone) {
       const paint = dress.zones[zone];
       material.albedoColor = linear(paint.colour);
@@ -59,8 +69,8 @@ export function dressCharacter(materials: ReadonlyArray<Material>, meshes: Reado
       material.albedoColor = linear(dress.skirt.colour);
       material.metallic = 0;
       material.roughness = dress.skirt.roughness;
-    } else if (name === 'Student lips') material.albedoColor = Color3.Lerp(skin, new Color3(0.19, 0.055, 0.065), 0.35);
-    else if (name === 'Student cheek blush') material.albedoColor = Color3.Lerp(skin, new Color3(0.74, 0.12, 0.17), 0.45);
+    } else if (name === 'Student lips') material.albedoColor = Color3.FromArray(skinDetail.lip);
+    else if (name === 'Student cheek blush') material.albedoColor = Color3.FromArray(skinDetail.cheek);
   }
   for (const mesh of meshes) {
     const name = unprefixed(mesh.name);
@@ -115,8 +125,9 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
         material.metallic = 0;
         material.roughness = 0.82;
         material.subSurface.isTranslucencyEnabled = true;
-        material.subSurface.translucencyIntensity = 0.13;
-        material.subSurface.tintColor = new Color3(0.94, 0.71, 0.61);
+        const defaultSkin = skinSurface([0.6, 0.42, 0.31]);
+        material.subSurface.translucencyIntensity = defaultSkin.translucencyIntensity;
+        material.subSurface.tintColor = Color3.FromArray(defaultSkin.subsurfaceTint);
         material.subSurface.minimumThickness = 0;
         material.subSurface.maximumThickness = 0.45;
       } else if (material.name === 'Student eyes') {
@@ -127,7 +138,16 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
         material.clearCoat.roughness = 0.12;
       } else if (material.name === 'Student hair') {
         material.metallic = 0;
-        material.roughness = 0.69;
+        material.roughness = 0.72;
+        // Restrained coloured PBR sheen avoids a plastic clear coat on hair.
+        const hairDetail = hairSurface([0.06, 0.04, 0.07]);
+        material.sheen.isEnabled = true;
+        material.sheen.intensity = hairDetail.sheenIntensity;
+        material.sheen.roughness = hairDetail.sheenRoughness;
+        material.sheen.color = Color3.FromArray(hairDetail.sheenColor);
+      } else if (material.name === 'Student lips') {
+        material.metallic = 0;
+        material.roughness = 0.65;
       } else if (material.name === 'Student cheek blush') {
         material.metallic = 0;
         material.roughness = 0.92;
@@ -157,6 +177,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
     });
     let effects = { ...EMPTY_EFFECTS };
     let baseSkin = new Color3(0.6, 0.42, 0.31);
+    let baseBlush = Color3.FromArray(skinSurface([baseSkin.r, baseSkin.g, baseSkin.b]).cheek);
     const hasCheekBlush = container.materials.some(material => material.name === 'Student cheek blush');
     // Warn once when the checked-in GLB has not yet been regenerated with morphs.
     // Do not silently report working facial animation for a legacy model.
@@ -198,6 +219,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
       get bones() { return root!.getChildTransformNodes(false); },
       applyLook(look) {
         baseSkin = dressCharacter(container.materials, container.meshes, look);
+        baseBlush = Color3.FromArray(skinSurface([baseSkin.r, baseSkin.g, baseSkin.b]).cheek);
       },
       update(speed, deltaSeconds) {
         if (disposed) return;
@@ -212,9 +234,9 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
           if (material.name === 'Student skin') {
             // Legacy GLBs retain their old subtle warmth cue. With cheek
             // geometry, keep the body skin unchanged and fade in only cheeks.
-            material.albedoColor = Color3.Lerp(baseSkin, new Color3(0.75, 0.24, 0.28),
+            material.albedoColor = Color3.Lerp(baseSkin, baseBlush,
               hasCheekBlush ? 0 : effects.blush * 0.18);
-            material.roughness = 0.82 - effects.sweat * 0.12;
+            material.roughness = skinRoughness(effects.sweat);
           } else if (material.name === 'Student cheek blush') {
             material.alpha = Math.min(0.65, Math.max(0, effects.blush * 0.65));
           } else if (material.name === 'Student eyes') {
