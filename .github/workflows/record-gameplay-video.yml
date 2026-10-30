@@ -39,11 +39,12 @@ jobs:
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:4173/ > /dev/null && break; sleep 1; done
           node tools/video/record.mjs http://127.0.0.1:4173/ video-out "$MODE" 2>&1 | tee -a media/log.txt
       - name: Encode the video
+        if: always()
         run: |
           if [ "$(cat tools/video/MODE)" = "full" ]; then
             python3 tools/video/encode.py video-out media/the-last-decision-gameplay.mp4 2>&1 | tee -a media/log.txt
           else
-            cp video-out/preview-*.jpg media/
+            cp video-out/preview-*.jpg media/ 2>/dev/null || true
           fi
       - name: Commit the result (or the log) to this branch
         if: always()

@@ -1,5 +1,5 @@
 // Films a scripted tour of the real game as a guest, one frame at a time.
-// The page clock is frozen and advanced exactly 1/30 s per frame, so the video
+// Animation frames are stepped exactly 1/30 s at a time, so the video
 // is smooth regardless of how slowly the software renderer draws.
 //
 //   node tools/video/record.mjs <url> <outDir> [preview|full]
@@ -44,7 +44,7 @@ const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT },
 page.on('pageerror', error => console.error('page error:', error.message));
 // No backend in this recording: answer the account checks as a signed-out guest.
 await page.route('**/api/**', route => route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }));
-// Load in real time (React and Suspense need timers); the clock is frozen only once the world is ready.
+// Load in real time; frame stepping starts only once the world is ready.
 const consoleLines = [];
 page.on('console', message => consoleLines.push(`${message.type()}: ${message.text()}`));
 page.on('requestfailed', request => consoleLines.push(`request failed: ${request.url()} ${request.failure()?.errorText}`));
@@ -102,6 +102,13 @@ await page.evaluate(() => window.__videoClock.start());
 // The last real frame queues the first held one.
 await page.waitForTimeout(200);
 const step = () => page.evaluate(ms => window.__videoClock.step(ms), 1000 / FPS);
+// Grab the composited surface directly (no font/animation waits that a slow software GPU can trip).
+const cdp = await page.context().newCDPSession(page);
+page.setDefaultTimeout(180000);
+async function capture(path) {
+  const { data } = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 92, fromSurface: true });
+  writeFileSync(path, Buffer.from(data, 'base64'));
+}
 
 const canvas = page.locator('canvas').first();
 await canvas.click({ position: { x: WIDTH / 2, y: HEIGHT / 2 } });
@@ -136,9 +143,9 @@ for (const shot of SHOTS) {
     if (ran === 0 && frame === 0) console.warn('no animation frame was waiting; is the render loop running?');
     if (mode === 'full') {
       frame++;
-      await page.screenshot({ path: join(outDir, 'frames', `${String(frame).padStart(5, '0')}.jpg`), type: 'jpeg', quality: 92 });
+      await capture(join(outDir, 'frames', `${String(frame).padStart(5, '0')}.jpg`));
     } else if (wantStill(elapsed)) {
-      await page.screenshot({ path: join(outDir, `preview-${elapsed.toFixed(1)}s.jpg`), type: 'jpeg', quality: 92 });
+      await capture(join(outDir, `preview-${elapsed.toFixed(1)}s.jpg`));
     }
     elapsed += 1 / FPS;
   }
