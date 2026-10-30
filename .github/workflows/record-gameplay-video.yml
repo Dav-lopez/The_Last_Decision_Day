@@ -35,7 +35,7 @@ jobs:
       - name: Film the tour
         run: |
           MODE=$(cat tools/video/MODE)
-          (npx --prefix apps/web vite preview --host 127.0.0.1 --port 4173 --strictPort > media/preview-server.log 2>&1 &)
+          (cd apps/web && npx vite preview --host 127.0.0.1 --port 4173 --strictPort > ../../media/preview-server.log 2>&1 &)
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:4173/ > /dev/null && break; sleep 1; done
           node tools/video/record.mjs http://127.0.0.1:4173/ video-out "$MODE" 2>&1 | tee -a media/log.txt
       - name: Encode the video
