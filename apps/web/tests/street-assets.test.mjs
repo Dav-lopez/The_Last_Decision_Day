@@ -114,9 +114,11 @@ test('evening enables real street lights, imported materials receive them, and d
 
 test('parked cars block sprinting pedestrians and leave the central school route open', () => {
   for (const car of PARKED_CARS) {
-    let position={x:car.x,z:car.z+CAR_HALF_LENGTH+1};
+    // Driveway cars sit side-on to Z, so their Z extent is the car's width.
+    const halfZ=Math.abs(Math.cos(car.rotation))>.5?CAR_HALF_LENGTH:CAR_HALF_WIDTH;
+    let position={x:car.x,z:car.z+halfZ+1};
     for(let i=0;i<80;i++) position=stepPosition(position,new Set(['w']),.05,4);
-    assert.ok(position.z >= car.z+CAR_HALF_LENGTH+.38-1e-8);
+    assert.ok(position.z >= car.z+halfZ+.38-1e-8);
     const doc=readGlb('sedan.glb').document;
     for(const primitive of doc.meshes.flatMap(m=>m.primitives)) {
       const bounds=doc.accessors[primitive.attributes.POSITION];

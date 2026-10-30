@@ -29,7 +29,7 @@ test('throttle accelerates up to the street speed limit', () => {
   const [car] = parked();
   const after1s = drive(car, ['w'], 1);
   assert.ok(after1s.speed > 4 && after1s.speed <= VEHICLE.maxForwardSpeed);
-  assert.ok(after1s.z < car.z, 'car parked facing -Z moves toward the school');
+  assert.ok(after1s.x > car.x, 'the left driveway car faces the street (+X)');
   const longRun = drive({ x: -1.25, z: 9, rotation: Math.PI, speed: VEHICLE.maxForwardSpeed }, ['w'], 0.2);
   assert.ok(longRun.speed <= VEHICLE.maxForwardSpeed);
 });
@@ -58,8 +58,9 @@ test('D steers right, A steers left, and a stationary car cannot spin in place',
 });
 
 test('the car stops at buildings, trees, the world edge and other cars without tunneling', () => {
-  // Drive the southern car (facing +Z) at full speed: it must stop before the far edge.
-  const [north, south] = parked();
+  // A car heading +Z down the lane at full speed must stop before the far edge.
+  const north = { x: -1.25, z: 7.8, rotation: Math.PI, speed: 0 };
+  const south = { x: 1.25, z: -3.8, rotation: 0, speed: 0 };
   const edge = drive({ ...south, speed: VEHICLE.maxForwardSpeed }, ['w'], 4, [north]);
   assert.equal(edge.speed, 0);
   assert.equal(vehicleBlocked(edge, [north]), false);
@@ -92,8 +93,8 @@ test('getting out requires a stopped car and a free door-side spot', () => {
   const exit = vehicleExitPosition(cars[0], cars);
   assert.ok(exit);
   assert.equal(isBlocked(exit.x, exit.z, cars), false);
-  // Driver door is the car's left: facing -Z, left is +X.
-  assert.ok(exit.x > cars[0].x);
+  // Driver door is the car's left: facing +X (toward the street), left is +Z.
+  assert.ok(exit.z > cars[0].z);
   // Wedged between two cars, the driver uses another free side.
   const wedged = { x: 0, z: 0, rotation: 0, speed: 0 };
   const neighbours = [wedged, { x: -2.1, z: 0, rotation: 0, speed: 0 }];
@@ -103,15 +104,15 @@ test('getting out requires a stopped car and a free door-side spot', () => {
 
 test('walking collides with a moved car, not its old parking spot', () => {
   const cars = parked();
-  const moved = cars.map((car, index) => index === 0 ? { ...car, x: -6, z: 9, rotation: Math.PI / 2 } : car);
+  const moved = cars.map((car, index) => index === 0 ? { ...car, x: -1.25, z: 7.8, rotation: Math.PI / 2 } : car);
   // The old spot is now free to walk through.
   assert.equal(isBlocked(PARKED_CARS[0].x, PARKED_CARS[0].z, moved), false);
   assert.equal(isBlocked(PARKED_CARS[0].x, PARKED_CARS[0].z, cars), true);
   // The new, rotated spot blocks along the car's length (now along X).
-  assert.equal(isBlocked(-6 + 1.6, 9, moved), true);
-  let position = { x: -6, z: 11 };
+  assert.equal(isBlocked(-1.25 + 1.6, 7.8, moved), true);
+  let position = { x: -1.25, z: 10 };
   for (let i = 0; i < 40; i++) position = stepPosition(position, new Set(['w']), 0.05, 4, { x: 0, z: -1 }, moved);
-  assert.ok(position.z > 9 + 0.78, 'stopped at the side of the moved car');
+  assert.ok(position.z > 7.8 + 0.78, 'stopped at the side of the moved car');
 });
 
 test('the nearest car is entered through the shared interaction rules', () => {
