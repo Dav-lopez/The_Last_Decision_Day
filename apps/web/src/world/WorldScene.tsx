@@ -23,6 +23,8 @@ import { PARKED_CARS } from './streetLayout.mjs';
 import { addWorldProps } from './polyHavenProps';
 import { buildHomeScene } from './homeScene';
 import { buildSurroundings } from './worldSurroundings';
+import { createAtmosphere } from './sceneAtmosphere';
+import { createCameraOcclusionGuard, createRenderPipeline, pickRenderQuality } from './renderQuality';
 import { loadNeighbors, type Neighbors, type Person } from './npcPeople';
 import { buildSchoolScene } from './schoolScene';
 import { CLASSROOM, CLASSROOM_SPAWN, SCHOOL_ORIGIN, atClassroomExit, deskInReach, nearTeacher, stepClassroomLocomotion } from './schoolInterior.mjs';
@@ -419,7 +421,8 @@ export default function WorldScene({
       scene.clearColor = new Color4(0.67, 0.83, 0.96, 1);
       const sun = new HemisphericLight('daylight', new Vector3(0, 1, 0), scene);
       sun.intensity = 0.65;
-      const directional = new DirectionalLight('sun', new Vector3(-0.4, -1, -0.6), scene);
+      // A lower, warmer sun gives longer shadows and more shape to buildings and faces.
+      const directional = new DirectionalLight('sun', new Vector3(-0.5, -0.78, -0.42), scene);
       directional.intensity = 1.35;
       directional.position.set(12, 22, 10);
       const schoolMarker = createNeighborhood(scene);
@@ -440,7 +443,14 @@ export default function WorldScene({
           node.rotation.y = cars[index].rotation;
         }
       };
-      const lighting = createStreetLighting(scene, directional, sun);
+      const streetLighting = createStreetLighting(scene, directional, sun);
+      // Painted sky with clouds and a sun glow; fog fades the town into the horizon colour.
+      const atmosphere = createAtmosphere(scene, directional.direction);
+      const lighting = {
+        ...streetLighting,
+        setEvening(evening: boolean) { streetLighting.setEvening(evening); atmosphere.setEvening(evening); },
+      };
+      lighting.setEvening(false);
       lightingRef.current = lighting;
       const environmentLoad = { cancelled: false };
       const shadows = new ShadowGenerator(1024, directional);
@@ -525,6 +535,11 @@ export default function WorldScene({
       camera.checkCollisions = true;
       camera.collisionRadius = new Vector3(0.25, 0.25, 0.25);
       camera.attachControl(canvas, false);
+      // Filmic tone mapping, bloom, anti-aliasing and (on capable devices) ambient occlusion.
+      const renderPipeline = createRenderPipeline(scene, camera, pickRenderQuality(scene));
+      // Never let walls, roofs or trees come between the camera and the player (or their car).
+      const occlusion = createCameraOcclusionGuard(camera, scene, mesh =>
+        mesh.isDescendantOf(avatar) || carRoots.some(roots => roots.some(root => mesh.isDescendantOf(root))));
 
       let interaction: InteractionState = { mode: 'walking', targetId: null };
       let clock = 0;
@@ -873,6 +888,7 @@ export default function WorldScene({
           riggedRef.current?.update(0, delta);
           cameraControls.update(delta);
           cameraControls.follow(next, delta);
+          occlusion.update(delta);
           scene.render();
           return;
         }
@@ -948,6 +964,7 @@ export default function WorldScene({
         }
         cameraControls.update(delta);
         cameraControls.follow(position, delta);
+        occlusion.update(delta);
         home.setFadedWalls(atHome ? wallsToFade(camera.position) : [], delta);
         school.setFadedWalls(inSchool ? wallsToFadeFor(SCHOOL_ORIGIN, CLASSROOM, camera.position) : [], delta);
         scene.render();
@@ -968,6 +985,8 @@ export default function WorldScene({
         saveToAccount();
         disposed = true;
         neighbors?.dispose();
+        renderPipeline.dispose();
+        atmosphere.dispose();
         lighting.dispose();
         lightingRef.current = null;
         environmentLoad.cancelled = true;
