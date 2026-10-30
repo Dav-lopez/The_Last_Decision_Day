@@ -44,14 +44,9 @@ const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT },
 page.on('pageerror', error => console.error('page error:', error.message));
 // No backend in this recording: answer the account checks as a signed-out guest.
 await page.route('**/api/**', route => route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }));
-await page.clock.install({ time: new Date('2026-10-30T13:00:00Z') });
+// Load in real time (React and Suspense need timers); the clock is frozen only once the world is ready.
 await page.goto(url);
-// Let the app's startup timers run while waiting in real time for the page.
-for (let i = 0; i < 30 && !(await page.getByRole('button', { name: /Try the 3D demo/ }).count()); i++) {
-  await page.clock.runFor(200);
-  await page.waitForTimeout(200);
-}
-await page.getByRole('button', { name: /Try the 3D demo/ }).click();
+await page.getByRole('button', { name: /Try the 3D demo/ }).click({ timeout: 60000 });
 
 // Film only the 3D view: fill the window with it, keep its HUD, hide the page around it.
 await page.addStyleTag({ content: `
@@ -61,14 +56,13 @@ await page.addStyleTag({ content: `
 ` });
 await page.evaluate(() => window.dispatchEvent(new Event('resize')));
 
-// Wait (real time, with the game clock ticking) for the character and neighbours to load.
+// Wait for the rigged character, then a little longer for models and neighbours.
 const ready = page.getByText(/Character ready/);
-for (let i = 0; i < 120 && !(await ready.count()); i++) {
-  await page.clock.runFor(100);
-  await page.waitForTimeout(250);
-}
-console.log('character ready:', await ready.count() > 0);
-for (let i = 0; i < 20; i++) { await page.clock.runFor(100); await page.waitForTimeout(150); }
+await ready.waitFor({ timeout: 120000 }).catch(() => console.warn('character status not seen; filming anyway'));
+await page.waitForTimeout(8000);
+// From here every frame is exactly 1/30 s of game time, however slowly it renders.
+await page.clock.install();
+await page.clock.pauseAt(Date.now() + 1000);
 
 const canvas = page.locator('canvas').first();
 await canvas.click({ position: { x: WIDTH / 2, y: HEIGHT / 2 } });
