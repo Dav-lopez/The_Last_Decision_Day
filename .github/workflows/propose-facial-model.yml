@@ -86,3 +86,4 @@ jobs:
             This is stylized geometry, not a photorealistic head.
           add-paths: |
             apps/web/public/models/human.glb
+            apps/web/public/models/human.source.json
