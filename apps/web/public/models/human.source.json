@@ -51,8 +51,8 @@
   ],
   "output": {
     "file": "human.glb",
-    "bytes": 771852,
-    "sha256": "5ea7d5817c808b0e3496e0c01f32ee6ba78528b23757017b593eff5936ea9a0c",
+    "bytes": 775548,
+    "sha256": "d4c25edd94b78b22805a33baa915aae246778e3d2ea8f728164de4f8f6962a03",
     "morphTargets": [
       "browDownLeft",
       "browDownRight",
@@ -62,15 +62,23 @@
       "eyeSquintLeft",
       "eyeSquintRight",
       "eyeWideLeft",
-      "eyeWideRight"
+      "eyeWideRight",
+      "jawOpen",
+      "mouthFrownLeft",
+      "mouthFrownRight",
+      "mouthOpen",
+      "mouthPressLeft",
+      "mouthPressRight",
+      "mouthSmileLeft",
+      "mouthSmileRight"
     ]
   },
   "modifications": [
-    "Add nine authored eye, eyelid and eyebrow morphs with nonzero vertex displacements; mouth and cheek morphs remain future work.",
     "Keep only Idle_Loop, Walk_Loop and Sprint_Loop, exported as Idle/Walk/Run.",
     "Rebase local rotations onto the character bind pose; retain target limb lengths.",
     "Preserve pelvis bob and remove horizontal root travel; gameplay controls world movement.",
     "Add parted hair, remap hair joints, split clothing/skin materials for browser customization.",
-    "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes."
+    "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes.",
+    "Add a skinned expressive lip surface with smile, frown, press and open morphs."
   ]
 }

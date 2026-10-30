@@ -11,6 +11,8 @@ assert struct.unpack_from("<I", raw, 8)[0] == len(raw), "Invalid GLB size"
 json_size = struct.unpack_from("<I", raw, 12)[0]
 doc = json.loads(raw[20:20 + json_size])
 required = {"eyeBlinkLeft", "eyeBlinkRight", "browInnerUp", "browDownLeft", "browDownRight"}
+required.update({"mouthSmileLeft", "mouthSmileRight", "mouthFrownLeft", "mouthFrownRight",
+                 "mouthPressLeft", "mouthPressRight", "jawOpen", "mouthOpen"})
 found = set()
 for mesh in doc.get("meshes", []):
     names = mesh.get("extras", {}).get("targetNames", [])
