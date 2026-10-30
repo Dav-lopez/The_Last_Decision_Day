@@ -59,6 +59,13 @@ jobs:
           print('Verified facial morph targets contain nonzero geometry displacement')
           print(f'Validated {p.stat().st_size} bytes, {len(found)} facial morph names, skeletal animation')
           PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Babylon test dependencies
+        run: npm --prefix apps/web install
+      - name: Verify generated GLB imports in Babylon
+        run: node --test apps/web/tests/generated-face.test.mjs
       - name: Open draft PR containing the actual GLB
         uses: peter-evans/create-pull-request@v7
         with:
