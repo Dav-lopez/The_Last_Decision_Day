@@ -9,9 +9,10 @@ export function addParkedCarFallbacks(scene) {
   glass.diffuseColor = Color3.FromHexString('#263a45');
   const tire = new StandardMaterial('fallback sedan tires', scene);
   tire.diffuseColor = Color3.FromHexString('#272c31');
+  const roots = [];
   for (const car of PARKED_CARS) {
     const root = new TransformNode('parked car fallback', scene);
-    root.position.set(car.x, 0, car.z); root.rotation.y = car.rotation;
+    root.position.set(car.x, 0, car.z); root.rotation.y = car.rotation; roots.push(root);
     const body = MeshBuilder.CreateBox('parked car fallback body', {width:1.42,height:.5,depth:3.6}, scene);
     body.parent=root; body.position.y=.55; body.material=paint; body.checkCollisions=true;
     const cabin=MeshBuilder.CreateBox('parked car fallback cabin', {width:1.18,height:.52,depth:1.65}, scene);
@@ -21,4 +22,5 @@ export function addParkedCarFallbacks(scene) {
       wheel.parent=root; wheel.rotation.z=Math.PI/2; wheel.position.set(x,.3,z); wheel.material=tire;
     }
   }
+  return roots;
 }

@@ -7,13 +7,31 @@ export const TREE_TRUNKS = Object.freeze([
   { x: -8, z: 8 }, { x: 8, z: 8 },
   { x: -4.8, z: -8.4 }, { x: 4.8, z: -8.4 },
 ]);
-export const SOLID_AREAS = Object.freeze([
+export const BUILDING_AREAS = Object.freeze([
   { minX: -3.9, maxX: 3.9, minZ: -11.5, maxZ: -6.75 }, // school
   { minX: -10.5, maxX: -6.3, minZ: -7.5, maxZ: -2.6 }, // homes
   { minX: 6.3, maxX: 10.5, minZ: -7.5, maxZ: -2.6 },
+]);
+/** Buildings plus the cars at their original parking spots (kept for existing callers). */
+export const SOLID_AREAS = Object.freeze([
+  ...BUILDING_AREAS,
   ...PARKED_CARS.map(car => ({ minX: car.x - CAR_HALF_WIDTH, maxX: car.x + CAR_HALF_WIDTH,
     minZ: car.z - CAR_HALF_LENGTH, maxZ: car.z + CAR_HALF_LENGTH })),
 ]);
+
+/**
+ * True when (x, z) lies inside a car's oriented footprint grown by `margin`.
+ * A Babylon Y rotation r maps the car's local +Z (its front) to (sin r, cos r).
+ */
+export function carContains(car, x, z, margin = 0) {
+  const dx = x - car.x;
+  const dz = z - car.z;
+  const cos = Math.cos(car.rotation ?? 0);
+  const sin = Math.sin(car.rotation ?? 0);
+  const localX = dx * cos - dz * sin;
+  const localZ = dx * sin + dz * cos;
+  return Math.abs(localX) < CAR_HALF_WIDTH + margin && Math.abs(localZ) < CAR_HALF_LENGTH + margin;
+}
 
 /**
  * Map directional input onto the camera's horizontal heading.
@@ -38,9 +56,11 @@ export function movementVector(keys, cameraForward = { x: 0, z: -1 }) {
   return length ? { x: x / length || 0, z: z / length || 0 } : { x: 0, z: 0 };
 }
 
-function blocked(x, z) {
+/** Pedestrian collision against buildings, trees, lamp posts and cars wherever they are now. */
+export function isBlocked(x, z, cars = PARKED_CARS) {
   const radius = 0.38;
-  const insideBuilding = SOLID_AREAS.some(area =>
+  if (cars.some(car => carContains(car, x, z, radius))) return true;
+  const insideBuilding = BUILDING_AREAS.some(area =>
     x + radius > area.minX && x - radius < area.maxX &&
     z + radius > area.minZ && z - radius < area.maxZ);
   // Tree trunks are cylinders (diameter 0.42) rather than rectangular walls.
@@ -50,7 +70,7 @@ function blocked(x, z) {
     STREET_LIGHTS.some(light => Math.hypot(x - light.x, z - light.z) < radius + 0.1);
 }
 
-export function stepPosition(position, keys, elapsedSeconds, speed = 4, cameraForward = { x: 0, z: -1 }) {
+export function stepPosition(position, keys, elapsedSeconds, speed = 4, cameraForward = { x: 0, z: -1 }, cars = PARKED_CARS) {
   if (!Number.isFinite(elapsedSeconds) || elapsedSeconds <= 0 ||
       !Number.isFinite(speed) || speed <= 0) return { ...position };
   // Cap catch-up movement and sweep in short increments to avoid tunneling
@@ -66,8 +86,8 @@ export function stepPosition(position, keys, elapsedSeconds, speed = 4, cameraFo
     const z = Math.max(-WORLD_RADIUS + 0.4,
       Math.min(WORLD_RADIUS - 0.4, next.z + vector.z * stride));
     // Resolve each axis separately so the avatar slides along obstacles.
-    const nextX = blocked(x, next.z) ? next.x : x;
-    const nextZ = blocked(nextX, z) ? next.z : z;
+    const nextX = isBlocked(x, next.z, cars) ? next.x : x;
+    const nextZ = isBlocked(nextX, z, cars) ? next.z : z;
     next = { x: nextX, z: nextZ };
   }
   return next;

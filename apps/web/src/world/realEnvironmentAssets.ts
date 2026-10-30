@@ -13,7 +13,12 @@ const assets = [
   { file: 'sedan.glb', match: 'car', sites: PARKED_CARS.map(car => [car.x, car.z, 1, car.rotation] as const) },
 ] as const;
 
-export async function upgradeNeighborhoodAssets(scene: Scene, signal: { cancelled: boolean }, shadows?: ShadowGenerator): Promise<void> {
+/**
+ * `onCarsReady` receives the authored sedan roots in PARKED_CARS order so the
+ * driven car can be moved; it is not called if the sedan model fails to load.
+ */
+export async function upgradeNeighborhoodAssets(scene: Scene, signal: { cancelled: boolean }, shadows?: ShadowGenerator,
+  onCarsReady?: (roots: TransformNode[]) => void): Promise<void> {
   for (const entry of assets) {
     if (signal.cancelled || scene.isDisposed) return;
     let root: TransformNode | undefined;
@@ -46,6 +51,7 @@ export async function upgradeNeighborhoodAssets(scene: Scene, signal: { cancelle
           shadows?.removeShadowCaster(mesh, false);
         }
       }
+      if (entry.match === 'car') onCarsReady?.(instances);
       root.dispose();
     } catch (error) {
       root?.dispose();
