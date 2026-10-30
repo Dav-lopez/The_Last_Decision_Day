@@ -6,7 +6,7 @@ added 75 packages, and audited 76 packages in 4s
 
 found 0 vulnerabilities
 
-added 2 packages, and audited 3 packages in 2s
+added 2 packages, and audited 3 packages in 1s
 
 found 0 vulnerabilities
 Installing dependencies...
@@ -29,7 +29,7 @@ Get:15 http://azure.archive.ubuntu.com/ubuntu resolute-security/main amd64v3 Pac
 Get:16 http://azure.archive.ubuntu.com/ubuntu resolute-security/main Translation-en [141 kB]
 Get:17 http://azure.archive.ubuntu.com/ubuntu resolute-security/universe amd64v3 Packages [206 kB]
 Get:18 http://azure.archive.ubuntu.com/ubuntu resolute-security/universe Translation-en [67.9 kB]
-Fetched 3824 kB in 0s (10.2 MB/s)
+Fetched 3824 kB in 0s (12.1 MB/s)
 Reading package lists...
 Reading package lists...
 Building dependency tree...
@@ -106,7 +106,7 @@ Get:7 http://azure.archive.ubuntu.com/ubuntu resolute/main amd64v3 xfonts-encodi
 Get:8 http://azure.archive.ubuntu.com/ubuntu resolute/main amd64v3 xfonts-utils amd64 1:7.7+7build1 [97.3 kB]
 Get:9 http://azure.archive.ubuntu.com/ubuntu resolute/universe amd64v3 xfonts-cyrillic all 1:1.0.5+nmu1build1 [384 kB]
 Get:10 http://azure.archive.ubuntu.com/ubuntu resolute/universe amd64v3 xfonts-scalable all 1:1.0.3-1.3build1 [304 kB]
-Fetched 21.9 MB in 0s (55.8 MB/s)
+Fetched 21.9 MB in 1s (20.4 MB/s)
 Selecting previously unselected package fonts-ipafont-gothic.
 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 212715 files and directories currently installed.)
 Preparing to unpack .../0-fonts-ipafont-gothic_00303-23ubuntu1_all.deb ...
@@ -346,7 +346,7 @@ Get:87 http://azure.archive.ubuntu.com/ubuntu resolute/main amd64v3 libwebrtc-au
 Get:88 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 libspa-0.2-modules amd64 1.6.2-1ubuntu1.2 [1163 kB]
 Get:89 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 libpipewire-0.3-0t64 amd64 1.6.2-1ubuntu1.2 [302 kB]
 Get:90 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 libpipewire-0.3-common all 1.6.2-1ubuntu1.2 [12.1 kB]
-Fetched 69.3 MB in 2s (32.7 MB/s)
+Fetched 69.3 MB in 5s (13.1 MB/s)
 Selecting previously unselected package libva2:amd64.
 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 212982 files and directories currently installed.)
 Preparing to unpack .../00-libva2_2.23.0-1ubuntu1_amd64v3.deb ...
@@ -768,66 +768,12 @@ computing gzip size...
 - Using dynamic import() to code-split the application
 - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
-[32m✓ built in 13.62s[39m
-node:internal/modules/run_main:123
-    triggerUncaughtException(
-    ^
-
-locator.click: Timeout 180000ms exceeded.
-Call log:
-  - waiting for locator('canvas').first()
-    - locator resolved to <canvas tabindex="0" width="1280" height="720" touch-action="none" data-engine="Babylon.js v8.56.2" aria-label="3D world for Guest explorer; click to focus, use WASD or arrow keys to move"></canvas>
-  - attempting click action
-    2 × waiting for element to be visible, enabled and stable
-      - element is visible, enabled and stable
-      - scrolling into view if needed
-      - done scrolling
-      - <div role="dialog" class="story-scene" aria-label="Story scene">…</div> intercepts pointer events
-    - retrying click action
-    - waiting 20ms
-    2 × waiting for element to be visible, enabled and stable
-      - element is visible, enabled and stable
-      - scrolling into view if needed
-      - done scrolling
-      - <div role="dialog" class="story-scene" aria-label="Story scene">…</div> intercepts pointer events
-    - retrying click action
-      - waiting 100ms
-    314 × waiting for element to be visible, enabled and stable
-        - element is visible, enabled and stable
-        - scrolling into view if needed
-        - done scrolling
-        - <div role="dialog" class="story-scene" aria-label="Story scene">…</div> intercepts pointer events
-      - retrying click action
-        - waiting 500ms
-
-    at /home/runner/work/The_Last_Decision_Day/The_Last_Decision_Day/tools/video/wardrobe.mjs:115:14 {
-  log: [
-    "  - waiting for locator('canvas').first()",
-    '    - locator resolved to <canvas tabindex="0" width="1280" height="720" touch-action="none" data-engine="Babylon.js v8.56.2" aria-label="3D world for Guest explorer; click to focus, use WASD or arrow keys to move"></canvas>',
-    '  - attempting click action',
-    '    2 × waiting for element to be visible, enabled and stable',
-    '      - element is visible, enabled and stable',
-    '      - scrolling into view if needed',
-    '      - done scrolling',
-    '      - <div role="dialog" class="story-scene" aria-label="Story scene">…</div> intercepts pointer events',
-    '    - retrying click action',
-    '    - waiting 20ms',
-    '    2 × waiting for element to be visible, enabled and stable',
-    '      - element is visible, enabled and stable',
-    '      - scrolling into view if needed',
-    '      - done scrolling',
-    '      - <div role="dialog" class="story-scene" aria-label="Story scene">…</div> intercepts pointer events',
-    '    - retrying click action',
-    '      - waiting 100ms',
-    '    314 × waiting for element to be visible, enabled and stable',
-    '        - element is visible, enabled and stable',
-    '        - scrolling into view if needed',
-    '        - done scrolling',
-    '        - <div role="dialog" class="story-scene" aria-label="Story scene">…</div> intercepts pointer events',
-    '      - retrying click action',
-    '        - waiting 500ms'
-  ],
-  name: 'TimeoutError'
-}
-
-Node.js v22.23.4
+[32m✓ built in 10.06s[39m
+still default
+still female-long-skirt-boots
+still female-buns-hoodie-leggings
+still female-pixie-crop-jeans
+still male-beard-tshirt-shorts-sandals
+still male-parted-longsleeve-trousers-dress
+still neighbours
+end | School entrance · 10 m · ahead | 
