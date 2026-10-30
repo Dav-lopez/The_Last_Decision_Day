@@ -5,8 +5,9 @@ import { NullEngine, Scene, LoadAssetContainerAsync, VertexBuffer } from '@babyl
 import '@babylonjs/loaders/glTF/index.js';
 
 // This checks the shipped binary as well as workflow-generated candidates.
-test('shipped facial morphs import into Babylon with actual deformations and head skinning', async () => {
-  const bytes = readFileSync(new URL('../public/models/human.glb', import.meta.url));
+for (const model of ['human.glb', 'human-female.glb']) {
+  test(`${model} facial morphs import into Babylon with real deformations and head skinning`, async () => {
+  const bytes = readFileSync(new URL(`../public/models/${model}`, import.meta.url));
   const engine = new NullEngine();
   const scene = new Scene(engine);
   try {
@@ -67,4 +68,5 @@ test('shipped facial morphs import into Babylon with actual deformations and hea
     scene.dispose();
     engine.dispose();
   }
-});
+  });
+}
