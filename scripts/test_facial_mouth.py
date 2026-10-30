@@ -10,13 +10,13 @@ class MouthGeometryTests(unittest.TestCase):
 
     def test_skinned_mesh_is_well_formed(self):
         g = self.geo
-        self.assertEqual(len(g["positions"]), 10)
-        self.assertEqual(len(g["indices"]), 24)
-        self.assertTrue(all(0 <= index[0] < 10 for index in g["indices"]))
+        self.assertEqual(len(g["positions"]), 20)
+        self.assertEqual(len(g["indices"]), 48)
+        self.assertTrue(all(0 <= index[0] < 20 for index in g["indices"]))
         self.assertTrue(all(j == (42, 0, 0, 0) for j in g["joints"]))
         self.assertTrue(all(sum(w) == 1 for w in g["weights"]))
         self.assertEqual(len(g["names"]), len(g["targets"]))
-        self.assertTrue(all(len(t) == 10 for t in g["targets"]))
+        self.assertTrue(all(len(t) == 20 for t in g["targets"]))
         self.assertEqual(len(set(g["names"])), len(g["names"]))
 
     def test_lips_follow_pinned_face_contour(self):
@@ -24,8 +24,8 @@ class MouthGeometryTests(unittest.TestCase):
         front_depths = [point[2] for point in g["positions"]]
         # Regression: a previous 0.124..0.130 Z placement floated well
         # ahead of the measured 0.07..0.095 Z source face surface.
-        self.assertGreater(min(front_depths), 0.07)
-        self.assertLess(max(front_depths), 0.102)
+        self.assertGreater(min(front_depths), 0.08)
+        self.assertLess(max(front_depths), 0.104)
         self.assertGreater(front_depths[2], front_depths[0])
         self.assertGreater(front_depths[2], front_depths[7])
 
@@ -42,8 +42,8 @@ class MouthGeometryTests(unittest.TestCase):
         g = self.geo
         for name in ("jawOpen", "mouthOpen"):
             deltas = g["targets"][MOUTH_TARGETS.index(name)]
-            self.assertTrue(all(d == (0.0, 0.0, 0.0) for d in deltas[:5]))
-            self.assertTrue(all(d[1] < 0 for d in deltas[5:]))
+            self.assertTrue(all(d == (0.0, 0.0, 0.0) for d in deltas[:10]))
+            self.assertTrue(all(d[1] < 0 for d in deltas[10:]))
 
     def test_invalid_joint_index_rejected(self):
         for index in (-1, 256, 1.5):

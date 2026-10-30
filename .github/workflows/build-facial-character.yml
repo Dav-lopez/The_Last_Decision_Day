@@ -5,6 +5,8 @@ on:
     paths:
       - 'scripts/build-character.py'
       - 'scripts/facial_mouth.py'
+      - 'scripts/facial_oral.py'
+      - 'scripts/test_facial_oral.py'
       - 'scripts/facial_gaze.py'
       - 'scripts/test_facial_gaze.py'
       - 'scripts/test_facial_mouth.py'
@@ -41,6 +43,7 @@ jobs:
       - name: Unit-test mouth, cheek and droplet morph geometry
         run: |
           python scripts/test_facial_mouth.py
+          python scripts/test_facial_oral.py
           python scripts/test_facial_gaze.py
           python scripts/test_facial_cheeks.py
           python scripts/test_facial_nose.py
@@ -75,6 +78,9 @@ jobs:
           for mesh in d.get('meshes', []):
               found.update(mesh.get('extras', {}).get('targetNames', []))
           assert expected <= found, f'Missing new facial targets: {expected - found}'
+          for oral_name in ('Student oral cavity', 'Student upper teeth', 'Student tongue'):
+              oral = next(mesh for mesh in d['meshes'] if mesh['name'] == oral_name)
+              assert any(n.get('mesh') == d['meshes'].index(oral) and n.get('skin') == 0 for n in d['nodes'])
           cheeks = next(mesh for mesh in d['meshes'] if mesh['name'] == 'Student expressive cheeks')
           assert cheeks['extras']['targetNames'] == ['cheekSquintLeft', 'cheekSquintRight']
           assert len(cheeks['primitives'][0]['targets']) == 2
