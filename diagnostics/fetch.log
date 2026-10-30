@@ -1,0 +1,274 @@
+npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+[33m❯[39m dedup
+[32m✔[39m dedup                4ms
+[33m❯[39m instance
+[32m✔[39m instance             1ms
+[33m❯[39m palette
+[32m✔[39m palette              1ms
+[33m❯[39m flatten
+[32m✔[39m flatten              1ms
+[33m❯[39m join
+[32m✔[39m join                 59ms
+[33m❯[39m weld
+[32m✔[39m weld                 29ms
+[33m❯[39m simplify
+[32m✔[39m simplify             78ms
+[33m❯[39m resample
+[32m✔[39m resample             0ms
+[33m❯[39m prune
+[32m✔[39m prune                76ms
+[33m❯[39m sparse
+[32m✔[39m sparse               25ms
+[33m❯[39m textureCompress
+[32m✔[39m textureCompress      334ms
+[33m❯[39m quantize
+[32m✔[39m quantize             94ms
+
+info: potted_plant_02_1k.gltf (2.63 MB) → plant.glb (1.68 MB)
+[33m❯[39m dedup
+[32m✔[39m dedup                3ms
+[33m❯[39m instance
+[32m✔[39m instance             1ms
+[33m❯[39m palette
+[32m✔[39m palette              1ms
+[33m❯[39m flatten
+[32m✔[39m flatten              1ms
+[33m❯[39m join
+[32m✔[39m join                 3ms
+[33m❯[39m weld
+[32m✔[39m weld                 5ms
+[33m❯[39m simplify
+[32m✔[39m simplify             4ms
+[33m❯[39m resample
+[32m✔[39m resample             0ms
+[33m❯[39m prune
+[32m✔[39m prune                42ms
+[33m❯[39m sparse
+[32m✔[39m sparse               1ms
+[33m❯[39m textureCompress
+[32m✔[39m textureCompress      188ms
+[33m❯[39m quantize
+[32m✔[39m quantize             16ms
+
+info: painted_wooden_bench_1k.gltf (1.99 MB) → bench.glb (268.19 KB)
+[33m❯[39m dedup
+[32m✔[39m dedup                3ms
+[33m❯[39m instance
+[32m✔[39m instance             1ms
+[33m❯[39m palette
+[32m✔[39m palette              1ms
+[33m❯[39m flatten
+[32m✔[39m flatten              1ms
+[33m❯[39m join
+[32m✔[39m join                 9ms
+[33m❯[39m weld
+[32m✔[39m weld                 4ms
+[33m❯[39m simplify
+[32m✔[39m simplify             7ms
+[33m❯[39m resample
+[32m✔[39m resample             0ms
+[33m❯[39m prune
+[32m✔[39m prune                29ms
+[33m❯[39m sparse
+[32m✔[39m sparse               3ms
+[33m❯[39m textureCompress
+[32m✔[39m textureCompress      143ms
+[33m❯[39m quantize
+[32m✔[39m quantize             15ms
+
+info: sofa_02_1k.gltf (427.17 KB) → sofa.glb (198.96 KB)
+[33m❯[39m dedup
+[32m✔[39m dedup                3ms
+[33m❯[39m instance
+[32m✔[39m instance             1ms
+[33m❯[39m palette
+[32m✔[39m palette              1ms
+[33m❯[39m flatten
+[32m✔[39m flatten              1ms
+[33m❯[39m join
+[32m✔[39m join                 6ms
+[33m❯[39m weld
+[32m✔[39m weld                 7ms
+[33m❯[39m simplify
+[32m✔[39m simplify             13ms
+[33m❯[39m resample
+[32m✔[39m resample             0ms
+[33m❯[39m prune
+[32m✔[39m prune                30ms
+[33m❯[39m sparse
+[32m✔[39m sparse               5ms
+[33m❯[39m textureCompress
+[32m✔[39m textureCompress      189ms
+[33m❯[39m quantize
+warn: quantize: Skipping TEXCOORD_0; out of [0,1] range.
+[32m✔[39m quantize             18ms
+
+info: ArmChair_01_1k.gltf (769.14 KB) → armchair.glb (495.31 KB)
+[33m❯[39m dedup
+[32m✔[39m dedup                4ms
+[33m❯[39m instance
+[32m✔[39m instance             1ms
+[33m❯[39m palette
+[32m✔[39m palette              1ms
+[33m❯[39m flatten
+[32m✔[39m flatten              1ms
+[33m❯[39m join
+[32m✔[39m join                 18ms
+[33m❯[39m weld
+[32m✔[39m weld                 12ms
+[33m❯[39m simplify
+[32m✔[39m simplify             29ms
+[33m❯[39m resample
+[32m✔[39m resample             0ms
+[33m❯[39m prune
+[32m✔[39m prune                25ms
+[33m❯[39m sparse
+[32m✔[39m sparse               11ms
+[33m❯[39m textureCompress
+[32m✔[39m textureCompress      158ms
+[33m❯[39m quantize
+[32m✔[39m quantize             45ms
+
+info: CoffeeTable_01_1k.gltf (957.81 KB) → coffee_table.glb (508.27 KB)
+[33m❯[39m dedup
+[32m✔[39m dedup                3ms
+[33m❯[39m instance
+[32m✔[39m instance             1ms
+[33m❯[39m palette
+[32m✔[39m palette              1ms
+[33m❯[39m flatten
+[32m✔[39m flatten              1ms
+[33m❯[39m join
+[32m✔[39m join                 12ms
+[33m❯[39m weld
+[32m✔[39m weld                 16ms
+[33m❯[39m simplify
+[32m✔[39m simplify             41ms
+[33m❯[39m resample
+[32m✔[39m resample             0ms
+[33m❯[39m prune
+[32m✔[39m prune                23ms
+[33m❯[39m sparse
+[32m✔[39m sparse               9ms
+[33m❯[39m textureCompress
+[32m✔[39m textureCompress      147ms
+[33m❯[39m quantize
+[32m✔[39m quantize             33ms
+
+info: dining_chair_02_1k.gltf (921.08 KB) → dining_chair.glb (456.28 KB)
+[33m❯[39m dedup
+[32m✔[39m dedup                3ms
+[33m❯[39m instance
+[32m✔[39m instance             1ms
+[33m❯[39m palette
+[32m✔[39m palette              1ms
+[33m❯[39m flatten
+[32m✔[39m flatten              1ms
+[33m❯[39m join
+[32m✔[39m join                 11ms
+[33m❯[39m weld
+[32m✔[39m weld                 14ms
+[33m❯[39m simplify
+[32m✔[39m simplify             42ms
+[33m❯[39m resample
+[32m✔[39m resample             0ms
+[33m❯[39m prune
+[32m✔[39m prune                23ms
+[33m❯[39m sparse
+[32m✔[39m sparse               12ms
+[33m❯[39m textureCompress
+[32m✔[39m textureCompress      150ms
+[33m❯[39m quantize
+[32m✔[39m quantize             43ms
+
+info: GothicBed_01_1k.gltf (1.16 MB) → bed.glb (675.32 KB)
+[33m❯[39m dedup
+[32m✔[39m dedup                3ms
+[33m❯[39m instance
+[32m✔[39m instance             1ms
+[33m❯[39m palette
+[32m✔[39m palette              1ms
+[33m❯[39m flatten
+[32m✔[39m flatten              1ms
+[33m❯[39m join
+[32m✔[39m join                 6ms
+[33m❯[39m weld
+[32m✔[39m weld                 6ms
+[33m❯[39m simplify
+[32m✔[39m simplify             13ms
+[33m❯[39m resample
+[32m✔[39m resample             0ms
+[33m❯[39m prune
+[32m✔[39m prune                28ms
+[33m❯[39m sparse
+[32m✔[39m sparse               4ms
+[33m❯[39m textureCompress
+[32m✔[39m textureCompress      133ms
+[33m❯[39m quantize
+[32m✔[39m quantize             21ms
+
+info: SchoolDesk_01_1k.gltf (421.62 KB) → desk.glb (183.83 KB)
+[33m❯[39m dedup
+[32m✔[39m dedup                5ms
+[33m❯[39m instance
+[32m✔[39m instance             1ms
+[33m❯[39m palette
+[32m✔[39m palette              1ms
+[33m❯[39m flatten
+[32m✔[39m flatten              1ms
+[33m❯[39m join
+[32m✔[39m join                 30ms
+[33m❯[39m weld
+[32m✔[39m weld                 8ms
+[33m❯[39m simplify
+[32m✔[39m simplify             15ms
+[33m❯[39m resample
+[32m✔[39m resample             0ms
+[33m❯[39m prune
+[32m✔[39m prune                29ms
+[33m❯[39m sparse
+[32m✔[39m sparse               6ms
+[33m❯[39m textureCompress
+[32m✔[39m textureCompress      151ms
+[33m❯[39m quantize
+[32m✔[39m quantize             24ms
+
+info: metal_office_desk_1k.gltf (1.61 MB) → teacher_desk.glb (258.37 KB)
+[33m❯[39m dedup
+[32m✔[39m dedup                3ms
+[33m❯[39m instance
+[32m✔[39m instance             1ms
+[33m❯[39m palette
+[32m✔[39m palette              1ms
+[33m❯[39m flatten
+[32m✔[39m flatten              1ms
+[33m❯[39m join
+[32m✔[39m join                 12ms
+[33m❯[39m weld
+[32m✔[39m weld                 13ms
+[33m❯[39m simplify
+[32m✔[39m simplify             22ms
+[33m❯[39m resample
+[32m✔[39m resample             0ms
+[33m❯[39m prune
+[32m✔[39m prune                34ms
+[33m❯[39m sparse
+[32m✔[39m sparse               7ms
+[33m❯[39m textureCompress
+[32m✔[39m textureCompress      198ms
+[33m❯[39m quantize
+[32m✔[39m quantize             19ms
+
+info: wooden_bookshelf_worn_1k.gltf (2.78 MB) → shelf.glb (645.4 KB)
+Poly Haven lists 521 models
+plant: potted_plant_02 -> plant.glb (1680568 bytes, [0.701, 0.841, 0.657] m)
+bench: painted_wooden_bench -> bench.glb (268188 bytes, [1.165, 0.889, 0.497] m)
+sofa: sofa_02 -> sofa.glb (198960 bytes, [1.807, 0.709, 0.818] m)
+armchair: ArmChair_01 -> armchair.glb (495308 bytes, [0.848, 1.065, 0.766] m)
+coffee_table: CoffeeTable_01 -> coffee_table.glb (508272 bytes, [1.54, 0.523, 0.973] m)
+dining_chair: dining_chair_02 -> dining_chair.glb (456284 bytes, [0.434, 0.973, 0.576] m)
+bed: GothicBed_01 -> bed.glb (675324 bytes, [1.494, 1.534, 2.04] m)
+desk: SchoolDesk_01 -> desk.glb (183828 bytes, [0.712, 0.883, 0.546] m)
+teacher_desk: metal_office_desk -> teacher_desk.glb (258368 bytes, [2.0, 0.788, 0.947] m)
+shelf: wooden_bookshelf_worn -> shelf.glb (645396 bytes, [1.374, 2.063, 0.581] m)
+fetch exit 0
