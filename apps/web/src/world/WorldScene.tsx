@@ -1394,7 +1394,7 @@ export default function WorldScene({
         markerTime += delta;
         clock += delta;
         const conversationalNeighbor = interaction.mode === 'walking'
-          ? nearbyNpc(position, locationRef.current, life.minute) : null;
+          ? nearbyNpc(position, locationRef.current, life.minute, neighbors?.positions()) : null;
         if (conversationalNeighbor !== nearNpcRef.current) {
           nearNpcRef.current = conversationalNeighbor;
           setNearNpc(conversationalNeighbor);
@@ -1564,7 +1564,9 @@ export default function WorldScene({
             hudTimer = 0;
             const kmh = speedKmh(next.speed);
             setDriveSpeed(previous => previous === kmh ? previous : kmh);
-            if (next.collided) notify('Bump! Reverse with S to back away.');
+            if (next.collided) notify(peopleOut.some(person => Math.hypot(person.x - next.x, person.z - next.z) < 2.6)
+              ? 'Careful, someone is in the way! Give them a moment to step aside.'
+              : 'Bump! Reverse with S to back away.');
             else if (clock - noticeAt > 2.5) setDriveNotice(previous => previous ? '' : previous);
             const waypoint = schoolWaypoint(next, cameraForward);
             const label = locationRef.current === 'city' && downtown

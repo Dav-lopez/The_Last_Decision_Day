@@ -11,7 +11,7 @@
 /** Events the world reports. */
 export const STORY_EVENTS = Object.freeze([
   'game-start', 'left-home', 'reached-school', 'entered-school', 'attended-class',
-  'talked-teacher', 'talked-maya', 'talked-jordan', 'ate', 'entered-home', 'slept', 'drove',
+  'talked-teacher', 'talked-maya', 'talked-jordan', 'talked-neighbour', 'ate', 'entered-home', 'slept', 'drove',
 ]);
 
 export const CAST = Object.freeze({

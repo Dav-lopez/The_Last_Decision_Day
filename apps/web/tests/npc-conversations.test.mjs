@@ -55,3 +55,27 @@ test('relationship state saves separately per character and rejects corruption',
   assert.deepEqual(corrupted.people.maya, { trust: 5, conversations: 99, lastChoice: null });
   assert.equal(writeNpcRelations('x', after, { setItem: () => { throw Error('quota'); } }), false);
 });
+
+test('neighbours out walking can be stopped for a chat where they actually are', async () => {
+  const { NEIGHBORS, isOut } = await import('../src/world/npcLayout.mjs');
+  const minute = 9 * 60;
+  for (const id of ['okafor', 'tess', 'marcus', 'elena', 'ruth']) {
+    const resident = NEIGHBORS.find(person => person.id === NPC_DIALOGUES[id].resident);
+    assert.ok(resident && resident.route.kind === 'segment' && isOut(resident, minute), id);
+    const at = { x: 2.45, z: 3 };
+    // Only the live position counts: nobody is "there" without the scene's report.
+    assert.equal(nearbyNpc({ x: 2.45, z: 4.5 }, 'street', minute, null), null);
+    assert.equal(nearbyNpc({ x: 2.45, z: 4.5 }, 'street', minute, { [resident.id]: at }), id);
+    assert.equal(nearbyNpc({ x: 2.45, z: 6 }, 'street', minute, { [resident.id]: at }), null, 'out of reach');
+    assert.equal(nearbyNpc({ x: 2.45, z: 4.5 }, 'street', 23 * 60, { [resident.id]: at }), null, 'gone home');
+    assert.equal(chooseNpcReply(newNpcRelations(), id, NPC_DIALOGUES[id].choices[0].id).event, 'talked-neighbour');
+  }
+  // The nearest of two is chosen; a standing classmate still wins when closer.
+  const live = { 'jogger-west': { x: -2.4, z: -3 }, crosser: { x: -2.4, z: -2 } };
+  assert.equal(nearbyNpc({ x: -2.4, z: -1.6 }, 'street', minute, live), 'ruth');
+  assert.equal(nearbyNpc({ x: -2.3, z: -5.05 }, 'street', minute, { 'jogger-west': { x: -2.3, z: -4 } }), 'maya');
+  // Relationships for the new neighbours save and reload.
+  const state = normalizeNpcRelations(chooseNpcReply(newNpcRelations(), 'okafor', 'street').state);
+  assert.equal(state.people.okafor.trust, 2);
+  assert.equal(state.people.tess.trust, 0);
+});

@@ -121,3 +121,57 @@ test('walkers stop for a car in their way, but not for one parked beside their p
   const student = NEIGHBORS.find(npc => npc.route.kind === 'stand');
   assert.equal(carAhead(student, 0, blocking), false);
 });
+
+test('walkers wait at the kerb for an approaching car, but not for parked ones', async () => {
+  const { carComing, inRoad } = await import('../src/world/npcLayout.mjs');
+  const crosser = NEIGHBORS.find(npc => npc.id === 'crosser');
+  // Find the moment the crosser is about to step off the west kerb.
+  let kerb = null;
+  for (let metres = -crosser.startOffset; metres < 10; metres += 0.05) {
+    const here = routePose(crosser, metres), ahead = routePose(crosser, metres + 0.6);
+    if (!inRoad(here) && inRoad(ahead) && here.dx > 0) { kerb = metres; break; }
+  }
+  assert.notEqual(kerb, null);
+  const parked = PARKED_CARS.map(car => ({ ...car, speed: 0 }));
+  assert.equal(carComing(crosser, kerb, parked), false);
+  // A car heading south towards the crosswalk at 6 m/s, 8 m away.
+  const approaching = [{ x: -1.05, z: 5.5 + 8, rotation: Math.PI, speed: 6 }];
+  assert.equal(carComing(crosser, kerb, approaching), true, 'waits for the car');
+  // The same car driving away is no reason to wait.
+  assert.equal(carComing(crosser, kerb, [{ ...approaching[0], z: 5.5 - 4, rotation: Math.PI }]), false);
+  // Already out on the road: keep going rather than freeze in front of it.
+  assert.equal(carComing(crosser, kerb + 1.2, approaching), false);
+});
+
+test('someone in the road hurries across while a car is near, and jumps clear of one about to hit', async () => {
+  const { crossingPace, dodgeFrom, inCarPath } = await import('../src/world/npcLayout.mjs');
+  const car = { x: -1, z: 9, rotation: Math.PI, speed: 6 };
+  assert.ok(crossingPace({ x: -0.5, z: 5.5 }, [car]) > 1);
+  assert.equal(crossingPace({ x: -2.45, z: 5.5 }, [car]), 1, 'strolls on the sidewalk');
+  assert.equal(crossingPace({ x: -0.5, z: 5.5 }, [{ ...car, speed: 0 }]), 1);
+  // Standing in the lane 4 m ahead of a 6 m/s car: dodge sideways out of its path.
+  const pose = { x: -0.8, z: 5 };
+  const offset = dodgeFrom(pose, [car]);
+  assert.ok(offset, 'finds a way out');
+  assert.equal(inCarPath(pose.x + offset.x, pose.z + offset.z, [car], 1, 0.05), false);
+  assert.equal(isBlocked(pose.x + offset.x, pose.z + offset.z, []), false);
+  // Nothing to dodge: far away, parked, or beside the car's path.
+  assert.equal(dodgeFrom({ x: -0.8, z: -6 }, [car]), null);
+  assert.equal(dodgeFrom(pose, [{ ...car, speed: 0 }]), null);
+  assert.equal(dodgeFrom({ x: 2.45, z: 5 }, [car]), null);
+});
+
+test('sidewalk walkers keep walking while traffic passes in the lane, but stop for a car leaving a driveway', async () => {
+  const { carComing } = await import('../src/world/npcLayout.mjs');
+  const walkers = NEIGHBORS.filter(npc => npc.route.kind === 'segment' && npc.id !== 'crosser');
+  const lanes = [{ x: -1.05, z: 8, rotation: Math.PI, speed: 6 }, { x: 1.05, z: -4, rotation: 0, speed: 6 }];
+  for (const npc of walkers) for (let metres = 0; metres < 30; metres += 0.25) {
+    assert.equal(carComing(npc, metres, lanes), false, `${npc.id} does not stop for lane traffic`);
+  }
+  // The west driveway car pulling out towards the street at 2 m/s.
+  const leaving = [{ x: -4.9, z: 0, rotation: Math.PI / 2, speed: 2 }];
+  const west = walkers.find(npc => npc.route.a.x < 0);
+  let stopped = false;
+  for (let metres = 0; metres < 32 && !stopped; metres += 0.1) stopped = carComing(west, metres, leaving);
+  assert.ok(stopped, 'someone on the west sidewalk waits for the car crossing it');
+});

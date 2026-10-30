@@ -4,7 +4,8 @@
  * Routes are straight segments walked back and forth (sidewalks, a crosswalk);
  * standing people idle in place. Minutes are game minutes since midnight.
  */
-import { carContains } from './movement.mjs';
+import { carContains, isBlocked, WORLD_RADIUS } from './movement.mjs';
+import { STREET_HALF_WIDTH } from './suburbLayout.mjs';
 import { STREET_LIGHTS } from './streetLayout.mjs';
 import { SCHOOL_ORIGIN, TEACHER_STANDS } from './schoolInterior.mjs';
 
@@ -94,6 +95,85 @@ export function carAhead(npc, walked, cars) {
   if (npc.route.kind !== 'segment') return false;
   const next = routePose(npc, walked + LOOK_AHEAD);
   return cars.some(car => carContains(car, next.x, next.z, PERSON_RADIUS));
+}
+
+/** Cars slower than this are treated as standing still. */
+const MOVING = 0.25;
+/** How far ahead (seconds) a walker judges a moving car's path. */
+const CAR_LOOK_SECONDS = 2.2;
+const CAR_SAMPLE = 0.2;
+/** Extra room a walker leaves between themselves and a passing car. */
+const CAR_MARGIN = 0.35;
+const KERB_LOOK = 0.6;
+export const DODGE_DISTANCE = 1.05;
+
+/** True on the carriageway itself (not the sidewalk). */
+export function inRoad(point) {
+  return Math.abs(point.x) < STREET_HALF_WIDTH && Math.abs(point.z) < WORLD_RADIUS;
+}
+
+/** Where a moving car will be after `seconds`, if it keeps going straight. */
+function projectCar(car, seconds) {
+  const travel = (car.speed ?? 0) * seconds;
+  return { x: car.x + Math.sin(car.rotation) * travel, z: car.z + Math.cos(car.rotation) * travel, rotation: car.rotation };
+}
+
+/** True when a moving car will sweep over (x, z) within `horizon` seconds. */
+export function inCarPath(x, z, cars, horizon = CAR_LOOK_SECONDS, margin = CAR_MARGIN) {
+  for (const car of cars) {
+    if (!(Math.abs(car.speed ?? 0) > MOVING)) continue;
+    for (let t = 0; t <= horizon + 1e-9; t += CAR_SAMPLE) {
+      if (carContains(projectCar(car, t), x, z, PERSON_RADIUS + margin)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Give way to traffic: a walker waits at the kerb (or on the sidewalk, as a car
+ * pulls out of a driveway) instead of stepping into a moving car's path. Someone
+ * already out on the road keeps going, so nobody freezes in front of a car.
+ */
+export function carComing(npc, walked, cars) {
+  if (npc.route.kind !== 'segment') return false;
+  const here = routePose(npc, walked);
+  if (inRoad(here)) return false;
+  const next = routePose(npc, walked + KERB_LOOK);
+  // Stepping into the road: leave a generous gap. Staying on the sidewalk:
+  // only a car actually coming across it (out of a driveway) is a reason to stop.
+  return inCarPath(next.x, next.z, cars, CAR_LOOK_SECONDS, inRoad(next) ? CAR_MARGIN : 0);
+}
+
+/** Crossing pace: hurry across while a moving car is near, otherwise stroll. */
+export function crossingPace(pose, cars) {
+  if (!inRoad(pose)) return 1;
+  return cars.some(car => Math.abs(car.speed ?? 0) > MOVING && Math.hypot(car.x - pose.x, car.z - pose.z) < 12) ? 1.7 : 1;
+}
+
+/**
+ * Jump clear: when a moving car is about to reach someone (within a second),
+ * the sideways offset that takes them out of its path, away from the car's
+ * centre line, on whichever side is free. Null when there's nothing to dodge
+ * or nowhere to go.
+ */
+export function dodgeFrom(pose, cars) {
+  for (const car of cars) {
+    if (!(Math.abs(car.speed ?? 0) > MOVING)) continue;
+    let hit = false;
+    for (let t = 0; t <= 1 + 1e-9 && !hit; t += CAR_SAMPLE) hit = carContains(projectCar(car, t), pose.x, pose.z, PERSON_RADIUS + 0.1);
+    if (!hit) continue;
+    // The car's right-hand side is (cos r, -sin r); step out on our side of its centre line.
+    const rx = Math.cos(car.rotation), rz = -Math.sin(car.rotation);
+    const side = (pose.x - car.x) * rx + (pose.z - car.z) * rz;
+    const first = side >= 0 ? 1 : -1;
+    for (const sign of [first, -first]) {
+      const offset = { x: rx * sign * DODGE_DISTANCE, z: rz * sign * DODGE_DISTANCE };
+      const to = { x: pose.x + offset.x, z: pose.z + offset.z };
+      if (!isBlocked(to.x, to.z, []) && !inCarPath(to.x, to.z, [car], 1, 0.05)) return offset;
+    }
+    return null;
+  }
+  return null;
 }
 
 /**
