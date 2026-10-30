@@ -15,6 +15,8 @@ import tempfile
 import urllib.parse
 import urllib.request
 
+from facial_mouth import build_mouth_geometry
+
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "apps/web/public/models"
 SOURCE_COMMIT = "5821923af517ac5fdc82505faa92a0d575fc1b1a"
@@ -193,6 +195,33 @@ def build(source_dir):
     b.doc["nodes"].append({"name": "Student hair", "mesh": 3, "skin": 0})
     b.doc["nodes"][body["scenes"][0]["nodes"][0]]["children"].append(len(b.doc["nodes"])-1)
 
+    # A small mouth surface follows the Head bone and supplies actual lip
+    # displacement for the expression presets. This is not a realistic head.
+    if "Head" not in body_joint:
+        raise ValueError("Pinned source is missing the Head skin joint")
+    mouth = build_mouth_geometry(body_joint["Head"])
+    lip_material = len(b.doc["materials"])
+    b.doc["materials"].append(matte("Student lips", [.43, .21, .22], .64))
+    mouth_attrs = {
+        "POSITION": b.accessor(mouth["positions"], "VEC3", bounds=True),
+        "NORMAL": b.accessor(mouth["normals"], "VEC3"),
+        "JOINTS_0": b.accessor(mouth["joints"], "VEC4", 5121),
+        "WEIGHTS_0": b.accessor(mouth["weights"], "VEC4"),
+    }
+    lip_mesh = len(b.doc["meshes"])
+    b.doc["meshes"].append({
+        "name": "Student expressive lips",
+        "primitives": [{
+            "attributes": mouth_attrs,
+            "indices": b.accessor(mouth["indices"], "SCALAR", 5123),
+            "material": lip_material,
+            "targets": [{"POSITION": b.accessor(deltas, "VEC3")} for deltas in mouth["targets"]],
+        }],
+        "extras": {"targetNames": list(mouth["names"])},
+    })
+    b.doc["nodes"].append({"name": "Student lip surface", "mesh": lip_mesh, "skin": 0})
+    b.doc["nodes"][body["scenes"][0]["nodes"][0]]["children"].append(len(b.doc["nodes"]) - 1)
+
     nodes = {node["name"]: i for i, node in enumerate(body["nodes"])}
     clips = {"Idle": "Idle_Loop", "Walk": "Walk_Loop", "Run": "Sprint_Loop"}
     for name, source_name in clips.items():
@@ -248,7 +277,7 @@ def build(source_dir):
                 "sourceMirrorCommit": SOURCE_COMMIT,
                 "sources": [{"file": n, "url": MIRROR+urllib.parse.quote(p), "sha256": h} for n, (p, h) in SOURCES.items()],
                 "output": {"file": "human.glb", "bytes": len(glb), "sha256": hashlib.sha256(glb).hexdigest()},
-                "modifications": ["Keep only Idle_Loop, Walk_Loop and Sprint_Loop, exported as Idle/Walk/Run.", "Rebase local rotations onto the character bind pose; retain target limb lengths.", "Preserve pelvis bob and remove horizontal root travel; gameplay controls world movement.", "Add parted hair, remap hair joints, split clothing/skin materials for browser customization.", "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes."]}
+                "modifications": ["Keep only Idle_Loop, Walk_Loop and Sprint_Loop, exported as Idle/Walk/Run.", "Rebase local rotations onto the character bind pose; retain target limb lengths.", "Preserve pelvis bob and remove horizontal root travel; gameplay controls world movement.", "Add parted hair, remap hair joints, split clothing/skin materials for browser customization.", "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes.", "Add a skinned expressive lip surface with smile, frown, press and open morphs."]}
     (OUTPUT / "human.source.json").write_text(json.dumps(manifest, indent=2)+"\n")
     print(f"Built {len(glb):,} bytes with {len(b.doc['animations'])} animation clips.")
 

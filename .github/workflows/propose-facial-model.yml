@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Verify procedural mouth geometry
+        run: python scripts/test_facial_mouth.py
       - name: Build pinned-source facial model
         run: python scripts/build-character.py
       - name: Validate model structure and animation
@@ -27,7 +29,8 @@ jobs:
           d = json.loads(raw[20:20+n])
           assert d['asset']['version'] == '2.0'
           assert d.get('skins') and {'Idle', 'Walk', 'Run'} <= {a['name'] for a in d['animations']}
-          expected = {'eyeBlinkLeft','eyeBlinkRight','eyeWideLeft','eyeWideRight','browInnerUp','browDownLeft','browDownRight'}
+          expected = {'eyeBlinkLeft','eyeBlinkRight','eyeWideLeft','eyeWideRight','browInnerUp','browDownLeft','browDownRight',
+                      'mouthSmileLeft','mouthSmileRight','mouthFrownLeft','mouthFrownRight','mouthPressLeft','mouthPressRight','jawOpen','mouthOpen'}
           found = set()
           for mesh in d['meshes']:
               names = mesh.get('extras', {}).get('targetNames', [])
@@ -56,6 +59,13 @@ jobs:
           print('Verified facial morph targets contain nonzero geometry displacement')
           print(f'Validated {p.stat().st_size} bytes, {len(found)} facial morph names, skeletal animation')
           PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Babylon test dependencies
+        run: npm --prefix apps/web install
+      - name: Verify generated GLB imports in Babylon
+        run: node --test apps/web/tests/generated-face.test.mjs
       - name: Open draft PR containing the actual GLB
         uses: peter-evans/create-pull-request@v7
         with:

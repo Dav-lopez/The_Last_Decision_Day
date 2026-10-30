@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'scripts/build-character.py'
+      - 'scripts/facial_mouth.py'
+      - 'scripts/test_facial_mouth.py'
       - 'scripts/validate-face-glb.py'
       - '.github/workflows/build-facial-character.yml'
 permissions:
@@ -17,6 +19,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Unit-test mouth morph geometry
+        run: python scripts/test_facial_mouth.py
       - name: Generate character from pinned licensed sources
         run: python scripts/build-character.py
       - name: Inspect facial rig
@@ -28,7 +32,8 @@ jobs:
           raw = Path('apps/web/public/models/human.glb').read_bytes()
           n = struct.unpack_from('<I', raw, 12)[0]
           d = json.loads(raw[20:20+n])
-          expected = {'eyeBlinkLeft','eyeBlinkRight','eyeWideLeft','eyeWideRight','browInnerUp','browDownLeft','browDownRight'}
+          expected = {'eyeBlinkLeft','eyeBlinkRight','eyeWideLeft','eyeWideRight','browInnerUp','browDownLeft','browDownRight',
+                      'mouthSmileLeft','mouthSmileRight','mouthFrownLeft','mouthFrownRight','mouthPressLeft','mouthPressRight','jawOpen','mouthOpen'}
           found = set()
           for mesh in d.get('meshes', []):
               found.update(mesh.get('extras', {}).get('targetNames', []))
@@ -37,6 +42,13 @@ jobs:
           assert {'Idle','Walk','Run'} <= {a['name'] for a in d.get('animations', [])}
           print('Facial geometry, skin and locomotion clips verified')
           PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Babylon test dependencies
+        run: npm --prefix apps/web install
+      - name: Validate generated morphs in Babylon NullEngine
+        run: node --test apps/web/tests/generated-face.test.mjs
       - name: Upload generated model for visual review
         uses: actions/upload-artifact@v4
         with:
