@@ -28,6 +28,8 @@ import { buildHomeScene } from './homeScene';
 import { buildSurroundings } from './worldSurroundings';
 import { loadNeighbors, type Neighbors, type Person } from './npcPeople';
 import { buildSchoolScene } from './schoolScene';
+import { BUS_RIDE_MINUTES, MAPLE_BUS_STOP, atBusStop, cameraClearance, createCityCollider, findBusStop, readCity, stepCityLocomotion, toWorld, type City } from './cityLayout.mjs';
+import { buildBusStop, buildCityScene } from './cityScene';
 import { CLASSROOM, CLASSROOM_SPAWN, SCHOOL_ORIGIN, atClassroomExit, deskInReach, nearTeacher, stepClassroomLocomotion } from './schoolInterior.mjs';
 import { attendLesson, currentEntry, isSchoolOpen, joinableLesson, schoolStatus } from './schoolSchedule.mjs';
 import { advanceLife, canSleep, chooseStartingLife, formatClock, isEvening, isExhausted, nearBed, normalizeLife, readLife,
@@ -384,6 +386,10 @@ export default function WorldScene({
   const [driveNotice, setDriveNotice] = useState('');
   const [nearCar, setNearCar] = useState(false);
   const [propCredit, setPropCredit] = useState(false);
+  const [busPrompt, setBusPrompt] = useState<'downtown' | 'home' | null>(null);
+  const [inCity, setInCity] = useState<string | null>(null);
+  const [riding, setRiding] = useState<string | null>(null);
+  const busAction = busPrompt === 'downtown' ? 'Take the bus downtown (E)' : busPrompt === 'home' ? 'Take the bus home (E)' : null;
   const interactRef = useRef<() => void>(() => {});
   const [inHome, setInHome] = useState(false);
   const [doorPrompt, setDoorPrompt] = useState<'enter' | 'locked' | 'exit' | 'bed' | 'school' | 'school-closed' | 'leave-school' | 'desk' | null>(null);
@@ -394,13 +400,13 @@ export default function WorldScene({
   const [syncStatus, setSyncStatus] = useState<'idle' | 'saving' | 'saved' | 'offline'>('idle');
   const lifeSyncRef = useRef(lifeSync);
   lifeSyncRef.current = lifeSync;
-  const locationRef = useRef<'street' | 'home' | 'school'>('street');
+  const locationRef = useRef<'street' | 'home' | 'school' | 'city'>('street');
   // Latest props for the scene's long-lived callbacks (attendance is recorded with the server activity).
   const classActionRef = useRef({ demoMode, canExecuteActivity, onExecuteActivity });
   classActionRef.current = { demoMode, canExecuteActivity, onExecuteActivity };
   const toggleCamera = () => {
     // Indoors the camera stays in its cutaway view; the street mode returns on leaving.
-    if (locationRef.current !== 'street') return;
+    if (locationRef.current === 'home' || locationRef.current === 'school') return;
     const next = cameraModeRef.current === 'follow' ? 'overhead' : 'follow';
     cameraModeRef.current = next;
     cameraControlsRef.current?.setMode(next);
@@ -427,6 +433,24 @@ export default function WorldScene({
       directional.intensity = 1.35;
       directional.position.set(12, 22, 10);
       const schoolMarker = createNeighborhood(scene);
+      // The bus stop at the north end of Maple Street; the bus runs to a real downtown (OpenStreetMap).
+      const disposeMapleStop = buildBusStop(scene, MAPLE_BUS_STOP.x - 1.05, MAPLE_BUS_STOP.z, Math.PI / 2);
+      let downtown: { city: City; collider: ReturnType<typeof createCityCollider>; stop: PlanarPosition & { rotation: number; street: string; dx: number; dz: number }; dispose: () => void } | null = null;
+      const loadDowntown = async () => {
+        const index = await fetch('/city/index.json').then(response => response.ok ? response.json() : null);
+        const entry = Array.isArray(index?.cities) ? index.cities[0] : null;
+        if (!entry?.file) return;
+        const city = readCity(await fetch('/city/' + entry.file).then(response => response.ok ? response.json() : null));
+        if (!city || disposed) return;
+        const collider = createCityCollider(city);
+        const local = findBusStop(city, collider);
+        if (!local) return;
+        const world = toWorld([local.x, local.z]);
+        const disposeCity = buildCityScene(scene, city);
+        const disposeStop = buildBusStop(scene, world.x + local.awayX * 0.9, world.z + local.awayZ * 0.9, local.heading);
+        downtown = { city, collider, stop: { ...world, rotation: movementHeading(local.dx, local.dz), dx: local.dx, dz: local.dz, street: local.street }, dispose: () => { disposeCity(); disposeStop(); } };
+      };
+      loadDowntown().catch(() => { /* Downtown is optional; Maple Street plays without it. */ });
       // The town around the street, so the world reaches the horizon instead of ending at a cliff edge.
       buildSurroundings(scene);
       const home = buildHomeScene(scene);
@@ -616,6 +640,47 @@ export default function WorldScene({
         avatar.rotation.y = to.rotation;
         inputRef.current.clear();
       };
+      // The bus: a short fade, BUS_RIDE_MINUTES of game time, then you step off at the other stop.
+      let rideTimer = 0;
+      let pendingRide: 'downtown' | 'home' | null = null;
+      // Downtown streets are narrow: the camera moves in rather than ending up inside a building.
+      let cityCameraRadius: number | null = null;
+      let cityClampedRadius = -1;
+      const boardBus = (to: 'downtown' | 'home') => {
+        if (!downtown) { notify('The bus is running late. Try again in a moment.'); return; }
+        pendingRide = to;
+        rideTimer = 0;
+        inputRef.current.clear();
+        avatar.setEnabled(false);
+        setBusPrompt(null);
+        setRiding(to === 'downtown' ? `Riding the bus to ${downtown.city.name}…` : 'Riding the bus home to Maple Street…');
+      };
+      const arrive = () => {
+        const to = pendingRide;
+        pendingRide = null;
+        for (let minute = 0; minute < BUS_RIDE_MINUTES; minute++) life = advanceLife(life, 1, 'idle');
+        writeLife(characterId, life);
+        syncLighting();
+        setLifeView({ ...life });
+        avatar.setEnabled(true);
+        setRiding(null);
+        if (to === 'downtown' && downtown) {
+          locationRef.current = 'city';
+          placePlayer(downtown.stop);
+          // Camera behind you, looking down the street.
+          snapCamera(position, Math.atan2(-downtown.stop.dz, -downtown.stop.dx));
+          cityCameraRadius = null;
+          setInCity(downtown.city.name);
+          notify(`${downtown.city.name} · ${formatClock(life.minute)}. Walk around; the bus home leaves from this stop.`);
+        } else {
+          locationRef.current = 'street';
+          placePlayer({ x: MAPLE_BUS_STOP.x + 0.4, z: MAPLE_BUS_STOP.z - 0.8, rotation: Math.PI });
+          snapCamera(position, -Math.PI / 2);
+          setInCity(null);
+          notify(`Back on Maple Street · ${formatClock(life.minute)}`);
+        }
+        saveToAccount();
+      };
       const enterHome = () => {
         locationRef.current = 'home';
         placePlayer(HOME_SPAWN);
@@ -711,6 +776,11 @@ export default function WorldScene({
           setInClass(lesson.lesson.title);
           return;
         }
+        if (index < 0 && locationRef.current === 'city') {
+          if (downtown && atBusStop(position, downtown.stop)) boardBus('home');
+          return;
+        }
+        if (index < 0 && atBusStop(position, MAPLE_BUS_STOP)) { boardBus('downtown'); return; }
         if (index < 0 && isNearSchool(position)) {
           if (isSchoolOpen(life.minute)) enterSchool();
           else notify(schoolStatus(life.minute));
@@ -809,6 +879,12 @@ export default function WorldScene({
         clock += delta;
         schoolMarker.position.y = 4.6 + Math.sin(markerTime * 2.5) * 0.12;
         const cameraForward = { x: cameraDirection.x, z: cameraDirection.z };
+        if (pendingRide) {
+          rideTimer += delta;
+          if (rideTimer >= 2.2) arrive();
+          scene.render();
+          return;
+        }
         if (interaction.mode === 'sleeping') {
           // A short fade stands in for the night; the clock jumps to 7:00 when it ends.
           sleepTimer += delta;
@@ -886,12 +962,14 @@ export default function WorldScene({
         }
         const atHome = locationRef.current === 'home';
         const inSchool = locationRef.current === 'school';
+        const city = locationRef.current === 'city' ? downtown : null;
         const tired = isExhausted(life);
         const pressed = schoolOpenRef.current ? new Set<string>() : inputRef.current.pressed;
         // Exhausted players can still walk home, but not run.
         const walkKeys = tired ? new Set([...pressed].filter(key => key !== 'Shift')) : pressed;
         const locomotion = atHome
           ? stepHomeLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward)
+          : city ? stepCityLocomotion(city.collider, position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward)
           : inSchool ? stepClassroomLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward, peopleOut)
           : stepLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward, cars, peopleOut);
         tickLife(delta, locomotion.motion);
@@ -905,6 +983,13 @@ export default function WorldScene({
           if (atHome) {
             const prompt = atHomeExit(position) ? 'exit' : nearBed(position, BED_SIDE) ? 'bed' : null;
             setDoorPrompt(previous => previous === prompt ? previous : prompt);
+          } else if (city) {
+            const bus = atBusStop(position, city.stop) ? 'home' : null;
+            setBusPrompt(previous => previous === bus ? previous : bus);
+            const metres = Math.ceil(Math.hypot(position.x - city.stop.x, position.z - city.stop.z));
+            const label = `${city.city.name} · bus stop ${metres} m`;
+            setWayfinding(previous => previous === label ? previous : label);
+            setNearCar(previous => previous ? false : previous);
           } else if (inSchool) {
             const prompt = atClassroomExit(position) ? 'leave-school' : deskInReach(position) ? 'desk' : null;
             setDoorPrompt(previous => previous === prompt ? previous : prompt);
@@ -922,6 +1007,8 @@ export default function WorldScene({
             const prompt = door ? (door.own ? 'enter' : 'locked')
               : isNearSchool(position) ? (isSchoolOpen(life.minute) ? 'school' : 'school-closed') : null;
             setDoorPrompt(previous => previous === prompt ? previous : prompt);
+            const bus = atBusStop(position, MAPLE_BUS_STOP) ? 'downtown' : null;
+            setBusPrompt(previous => previous === bus ? previous : bus);
           }
           const entry = currentEntry(life.minute);
           const joinable = joinableLesson(life.minute);
@@ -954,6 +1041,14 @@ export default function WorldScene({
           previousNear = nextNear;
           setNearSchool(nextNear);
         }
+        if (city) {
+          if (cityCameraRadius === null || Math.abs(camera.radius - cityClampedRadius) > 0.01) cityCameraRadius = camera.radius;
+          const along = camera.position.subtract(camera.target).normalize().scale(cityCameraRadius);
+          const clear = cameraClearance(city.collider, camera.target, { x: camera.target.x + along.x, z: camera.target.z + along.z });
+          const fit = clear / Math.max(0.25, Math.sin(camera.beta));
+          camera.radius = Math.min(cityCameraRadius, Math.max(camera.lowerRadiusLimit ?? 1.5, fit));
+          cityClampedRadius = camera.radius;
+        }
         cameraControls.update(delta);
         cameraControls.follow(position, delta);
         home.setFadedWalls(atHome ? wallsToFade(camera.position) : [], delta);
@@ -975,6 +1070,8 @@ export default function WorldScene({
         writeLife(characterId, life);
         saveToAccount();
         disposed = true;
+        disposeMapleStop();
+        downtown?.dispose();
         neighbors?.dispose();
         lighting.dispose();
         housePainter.dispose();
@@ -1072,17 +1169,18 @@ export default function WorldScene({
         </div>
         {sleeping && <div className="world-sleep" role="status" aria-live="polite"><span>Sleeping…</span></div>}
         {inClass && <div className="world-sleep world-class" role="status" aria-live="polite"><span>{inClass} class…</span></div>}
-        <div className="world-caption"><strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
+        <div className="world-caption"><strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : inCity ? inCity : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
         {driving && <div className="world-drive-hud" role="status" aria-live="polite">
           <strong>{driveSpeed}</strong>km/h · W/S gas, brake, reverse · A/D steer · E to get out when stopped
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
         </div>}
         {!driving && driveNotice && <div className="world-notice" role="status" aria-live="polite">{driveNotice}</div>}
-        {actionLabel && <button type="button" className="world-car-action"
+        {(busAction ?? actionLabel) && <button type="button" className="world-car-action"
           onClick={event => { interactRef.current(); focusWorld(event); }}>
-          {actionLabel}
+          {busAction ?? actionLabel}
         </button>}
+        {riding && <div className="world-sleep world-bus" role="status" aria-live="polite"><span>{riding}</span></div>}
         {nearSchool && <button type="button" className="world-enter"
           aria-expanded={schoolOpen} aria-controls="school-game-panel"
           onClick={() => setSchoolOpen(current => !current)}>
@@ -1136,6 +1234,7 @@ export default function WorldScene({
     </div>}
     {!error && <HousePhotoPaint characterId={characterId} painterRef={housePainterRef} />}
     {!error && <p role="status" style={{ fontSize: '0.8rem', opacity: 0.8 }}>{modelStatus}</p>}
+    {!error && inCity && <p style={{ fontSize: '0.75rem', opacity: 0.7 }}>Downtown map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a> (ODbL).</p>}
     {!error && propCredit && <p style={{ fontSize: '0.75rem', opacity: 0.7 }}>Some 3D props by <a href="https://polyhaven.com" target="_blank" rel="noreferrer">Poly Haven</a> (CC0).</p>}
     {!error && <div className="world-camera-toggle" role="group" aria-label="Camera controls">
       <button type="button" aria-label="Zoom in" onClick={event => { cameraControlsRef.current?.zoom('in'); focusWorld(event); }}>Zoom +</button>
