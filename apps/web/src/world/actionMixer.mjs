@@ -59,3 +59,14 @@ export function headingDelta(from, to) {
   if (d < -Math.PI) d += Math.PI * 2;
   return d;
 }
+
+/**
+ * Jumps differ with what you're doing: a running jump goes higher and lasts
+ * longer than a standing hop, and an exhausted body barely leaves the ground.
+ */
+export function jumpFor({ speed = 0, energy = 100 } = {}) {
+  const run = Math.max(0, Math.min(1, (Number.isFinite(speed) ? speed : 0) / 4));
+  const tired = Number.isFinite(energy) && energy < 30 ? 0.55 : Number.isFinite(energy) && energy < 60 ? 0.85 : 1;
+  const height = (0.3 + 0.24 * run) * tired;
+  return { height, duration: 0.42 + height * 0.55 };
+}

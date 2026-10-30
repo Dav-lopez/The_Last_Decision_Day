@@ -134,3 +134,25 @@ test('chase camera sits behind the car and the HUD reports km/h', () => {
   assert.equal(speedKmh(VEHICLE.maxForwardSpeed), 32);
   assert.equal(speedKmh(-2.5), 9);
 });
+
+test('the road north out of town is open to cars (and only the road)', async () => {
+  const { TOWN_EXIT, leavingTown, onExitRoad, stepVehicle, vehicleBlocked } = await import('../src/world/vehicleDrive.mjs');
+  // Heading north (rotation 0 faces +z) up the middle of Maple Street.
+  let car = { x: 0, z: 6, rotation: 0, speed: 0 };
+  let left = false;
+  for (let t = 0; t < 12 && !left; t += 1 / 30) {
+    car = stepVehicle(car, { throttle: 1, steer: 0 }, 1 / 30);
+    left = leavingTown(car);
+  }
+  assert.ok(left, `reached the exit road (z ${car.z.toFixed(1)})`);
+  assert.ok(onExitRoad({ x: 0, z: TOWN_EXIT.beyond + 1 }));
+  assert.equal(onExitRoad({ x: 6, z: TOWN_EXIT.beyond + 1 }), false, 'not across the fields');
+  assert.equal(vehicleBlocked({ x: 8, z: 12.5, rotation: 0, speed: 0 }), true, 'the fence still stops you off the road');
+  assert.equal(onExitRoad({ x: 0, z: -15 }), false, 'south is still closed');
+});
+
+test('a tighter turning circle: a car can turn round in the street', async () => {
+  const { VEHICLE } = await import('../src/world/vehicleDrive.mjs');
+  const radius = VEHICLE.wheelbase / Math.tan(VEHICLE.maxSteerAngle);
+  assert.ok(radius < 3.0, `turning radius ${radius.toFixed(2)} m`);
+});

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent, type CSSProperties } from 'react';
 import {
   ArcRotateCamera, Color3, Color4, DirectionalLight, DynamicTexture, Engine, HemisphericLight,
   MeshBuilder, Scene, ShadowGenerator, StandardMaterial, TransformNode, Vector3,
@@ -26,6 +26,7 @@ import { ScanImport } from './ScanImport';
 import { readHouseStyle } from './photoPalette.mjs';
 import { colorFor, modelFor, readLook, writeLook, type Look } from './appearance.mjs';
 import { Wardrobe } from './Wardrobe';
+import { WorldMap, type MapMarker, type MapSnapshot, type TravelTarget } from './WorldMap';
 import { AudioPanel } from './audio/AudioPanel';
 import type { GameAudio } from './audio/director.mjs';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
@@ -36,7 +37,7 @@ import { CAREERS, SHIFT_HOURS, joinCareer, quitCareer, rankOf, readCareer, workS
 import { buildWorkplaces, createLightBar, createSiren } from './careersScene';
 import { CareersPanel } from './CareersPanel';
 import { bindActions, loadActionClips } from './characterActions';
-import { bodyLean, headingDelta, JUMP, jumpHeight } from './actionMixer.mjs';
+import { bodyLean, headingDelta, jumpFor, jumpHeight } from './actionMixer.mjs';
 import { PARKED_CARS } from './streetLayout.mjs';
 import { addWorldProps } from './polyHavenProps';
 import { buildHomeScene } from './homeScene';
@@ -51,7 +52,7 @@ import { loadNeighbors, type Neighbors, type Person } from './npcPeople';
 import { NPC_DIALOGUES, nearbyNpc, beginNpcConversation, chooseNpcReply, readNpcRelations, writeNpcRelations,
   type NpcId, type NpcConversation, type NpcReply, type NpcRelations } from './npcConversations.mjs';
 import { buildSchoolScene } from './schoolScene';
-import { BUS_RIDE_MINUTES, MAPLE_BUS_STOP, atBusStop, cameraClearance, createCityCollider, findBusStop, readCity, stepCityLocomotion, toWorld, type City } from './cityLayout.mjs';
+import { BUS_RIDE_MINUTES, MAPLE_BUS_STOP, atBusStop, cameraClearance, createCityCollider, findBusStop, readCity, stepCityLocomotion, toLocal, toWorld, type City } from './cityLayout.mjs';
 import { buildBusStop, buildCityScene } from './cityScene';
 import { buildCityLights } from './cityLights';
 import { CLASSROOM, CLASSROOM_SPAWN, SCHOOL_ORIGIN, atClassroomExit, deskInReach, nearTeacher, stepClassroomLocomotion } from './schoolInterior.mjs';
@@ -65,7 +66,7 @@ export type LifeSync = {
   save: (life: ServerLife) => Promise<{ status: 'saved' | 'rejected'; life: ServerLife }>;
 };
 import { BED_SIDE, FRONT_DOORS, HOME_SPAWN, atHomeExit, nearFridge, nearStove, wallsToFadeFor, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade } from './homeInterior.mjs';
-import { canExitVehicle, chaseCameraAlpha, driveInput, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
+import { TOWN_EXIT, canExitVehicle, chaseCameraAlpha, driveInput, footprintPoints, leavingTown, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
 
 type SchoolActivityView = { id: string; title: string; description: string; timeCost: number };
@@ -402,6 +403,10 @@ export default function WorldScene({
   const avatarRef = useRef<ReturnType<typeof createAvatar> | null>(null);
   const riggedRef = useRef<RiggedAvatar | null>(null);
   const swapBodyRef = useRef<((model: string) => void) | null>(null);
+  // The map (N) reads a live snapshot; quick travel goes through the scene.
+  const [mapOpen, setMapOpen] = useState(false);
+  const mapReadRef = useRef<() => MapSnapshot>(() => ({ location: 'street', you: null, city: null, street: [], downtown: [], canTravel: false }));
+  const travelRef = useRef<(to: TravelTarget) => void>(() => {});
   const kickRef = useRef<(chip: boolean) => void>(() => {});
   const [career, setCareer] = useState<CareerState>(() => readCareer(characterId));
   const careerRef = useRef(career);
@@ -585,7 +590,7 @@ export default function WorldScene({
         setBusyLabel(`On duty: ${result.duty}…`);
       };
       let football: { pitch: ReturnType<typeof buildFootballPitch>; ball: Ball; goals: number; resetIn: number } | null = null;
-      let downtown: { city: City; collider: ReturnType<typeof createCityCollider>; stop: PlanarPosition & { rotation: number; street: string; dx: number; dz: number }; dispose: () => void } | null = null;
+      let downtown: { city: City; collider: ReturnType<typeof createCityCollider>; stop: PlanarPosition & { rotation: number; street: string; dx: number; dz: number; awayX: number; awayZ: number }; dispose: () => void } | null = null;
       const loadDowntown = async () => {
         const index = await fetch('/city/index.json').then(response => response.ok ? response.json() : null);
         const entry = Array.isArray(index?.cities) ? index.cities[0] : null;
@@ -611,11 +616,19 @@ export default function WorldScene({
         if (playFootball) window.setTimeout(() => { if (!disposed && locationRef.current === 'street') boardBus('downtown'); }, 600);
         pitch.show(football.ball);
         const disposeStop = buildBusStop(scene, world.x + local.awayX * 0.9, world.z + local.awayZ * 0.9, local.heading);
-        downtown = { city, collider, stop: { ...world, rotation: movementHeading(local.dx, local.dz), dx: local.dx, dz: local.dz, street: local.street }, dispose: () => { disposeCity(); disposeStop(); lights.dispose(); pitch.dispose(); workplaces.dispose(); } };
+        downtown = { city, collider, stop: { ...world, rotation: movementHeading(local.dx, local.dz), dx: local.dx, dz: local.dz, awayX: local.awayX, awayZ: local.awayZ, street: local.street }, dispose: () => { disposeCity(); disposeStop(); lights.dispose(); pitch.dispose(); workplaces.dispose(); } };
       };
       loadDowntown().catch(() => { /* Downtown is optional; Maple Street plays without it. */ });
       // The town around the street, so the world reaches the horizon instead of ending at a cliff edge.
       buildSurroundings(scene);
+      // The barrier at the north end lifts for a car: the road out of town leads downtown.
+      const gateMeshes = scene.meshes.filter(mesh => mesh.name === 'town barricade stripe' || mesh.name === 'town road closed sign');
+      let gateOpen = false;
+      const setGate = (open: boolean) => {
+        if (open === gateOpen) return;
+        gateOpen = open;
+        for (const mesh of gateMeshes) mesh.setEnabled(!open);
+      };
       const home = buildHomeScene(scene);
       const school = buildSchoolScene(scene);
       let schoolAsset: Awaited<ReturnType<typeof loadSchoolEnvironment>> = null;
@@ -871,6 +884,111 @@ export default function WorldScene({
       // The bus: a short fade, BUS_RIDE_MINUTES of game time, then you step off at the other stop.
       let rideTimer = 0;
       let pendingRide: 'downtown' | 'home' | null = null;
+      // Driving between Maple Street and downtown: a short fade on the road.
+      let pendingDrive: { to: 'downtown' | 'home'; index: number; timer: number } | null = null;
+      const startDrive = (to: 'downtown' | 'home', index: number) => {
+        if (!downtown) { notify('The road downtown is still loading. Try again in a moment.'); return; }
+        pendingDrive = { to, index, timer: 0 };
+        setRiding(to === 'downtown' ? `Driving to ${downtown.city.name}…` : 'Driving home to Maple Street…');
+      };
+      // Quick travel from the map: a taxi, ten game minutes, on foot only.
+      let pendingTaxi: { to: TravelTarget; timer: number } | null = null;
+      travelRef.current = (to) => {
+        if (pendingTaxi || pendingDrive || pendingRide || interaction.mode !== 'walking') { notify('Quick travel works on foot.'); return; }
+        if (locationRef.current !== 'street' && locationRef.current !== 'city') { notify('Head outside first.'); return; }
+        if (to !== 'maple' && !downtown) { notify('Downtown is still loading.'); return; }
+        pendingTaxi = { to, timer: 0 };
+        inputRef.current.clear();
+        avatar.setEnabled(false);
+        setRiding('Taking a taxi…');
+      };
+      const finishTaxi = () => {
+        const { to } = pendingTaxi!;
+        pendingTaxi = null;
+        for (let minute = 0; minute < 10; minute++) life = advanceLife(life, 1, 'idle');
+        writeLife(characterId, life);
+        syncLighting();
+        setLifeView({ ...life });
+        avatar.setEnabled(true);
+        setRiding(null);
+        if (to === 'maple' || !downtown) {
+          locationRef.current = 'street';
+          matchRef.current.leave();
+          placePlayer(streetSpawnFor(FRONT_DOORS.find(door => door.own)!));
+          snapCamera(position, -Math.PI / 2);
+          setInCity(null);
+        } else {
+          locationRef.current = 'city';
+          const work = careerRef.current.career ? workDoors.get(careerRef.current.career) : undefined;
+          const spot = to === 'pitch' ? { x: PITCH.x - 6, z: PITCH.z - 2, rotation: Math.PI / 2 }
+            : to === 'work' && work ? { ...work, rotation: 0 } : downtown.stop;
+          placePlayer(spot);
+          snapCamera(position, Math.PI);
+          cityCameraRadius = null;
+          setInCity(downtown.city.name);
+        }
+        applyFog();
+        saveToAccount();
+      };
+      mapReadRef.current = () => {
+        const inCityNow = locationRef.current === 'city';
+        const local = inCityNow ? toLocal(position) : [position.x, position.z];
+        const street: MapMarker[] = [
+          { id: 'home', label: 'Home', x: -8.4, z: -5.05, kind: 'home' },
+          { id: 'school', label: 'School', x: SCHOOL_DOOR.x, z: SCHOOL_DOOR.z, kind: 'school' },
+          { id: 'bus', label: 'Bus stop', x: MAPLE_BUS_STOP.x, z: MAPLE_BUS_STOP.z, kind: 'bus' },
+          { id: 'gate', label: 'Road to downtown', x: 0, z: 11.2, kind: 'gate' },
+        ];
+        const downtownPins: MapMarker[] = [];
+        if (downtown) {
+          const [bx, bz] = toLocal(downtown.stop);
+          downtownPins.push({ id: 'bus', label: 'Bus stop', x: bx, z: bz, kind: 'bus' });
+          const [px, pz] = toLocal(PITCH);
+          downtownPins.push({ id: 'pitch', label: 'Football pitch', x: px, z: pz, kind: 'pitch' });
+          for (const [id, door] of workDoors) {
+            const [wx, wz] = toLocal(door);
+            const yours = careerRef.current.career === id;
+            downtownPins.push({ id: yours ? 'your-work' : `work-${id}`, label: CAREERS[id].workplace, x: wx, z: wz, kind: 'work' });
+          }
+        }
+        return {
+          location: locationRef.current,
+          you: { x: local[0], z: local[1], heading: avatar.rotation.y },
+          city: downtown?.city ?? null,
+          street, downtown: downtownPins,
+          canTravel: interaction.mode === 'walking' && (locationRef.current === 'street' || locationRef.current === 'city'),
+        };
+      };
+      const finishDrive = () => {
+        const drive = pendingDrive!;
+        pendingDrive = null;
+        for (let minute = 0; minute < 10; minute++) life = advanceLife(life, 1, 'drive');
+        writeLife(characterId, life);
+        syncLighting();
+        setLifeView({ ...life });
+        setRiding(null);
+        if (drive.to === 'downtown' && downtown) {
+          const stop = downtown.stop;
+          // In the near lane of the stop's street, heading along it.
+          const lane = toWorld(toLocal({ x: stop.x - stop.awayX * 2.6, z: stop.z - stop.awayZ * 2.6 }));
+          cars[drive.index] = { x: lane.x, z: lane.z, rotation: Math.atan2(stop.dx, stop.dz), speed: 3 };
+          locationRef.current = 'city';
+          setInCity(downtown.city.name);
+          notify(`${downtown.city.name}. Drive around; head for the edge of downtown to drive home.`);
+        } else {
+          cars[drive.index] = { x: 0, z: TOWN_EXIT.beyond - 2.5, rotation: Math.PI, speed: 3 };
+          locationRef.current = 'street';
+          matchRef.current.leave();
+          setInCity(null);
+          notify('Back on Maple Street.');
+        }
+        applyFog();
+        placeCar(drive.index);
+        seatDriver(cars[drive.index]);
+        camera.alpha = chaseCameraAlpha(cars[drive.index].rotation);
+        camera.setTarget(new Vector3(cars[drive.index].x, 1.25, cars[drive.index].z), false, false, true);
+        saveToAccount();
+      };
       // Downtown streets are narrow: the camera moves in rather than ending up inside a building.
       let cityCameraRadius: number | null = null;
       let cityClampedRadius = -1;
@@ -1078,7 +1196,9 @@ export default function WorldScene({
         }
         const car = cars[index];
         if (!canExitVehicle(car)) { notify('Stop the car before getting out.'); return; }
-        const exit = vehicleExitPosition(car, cars);
+        const exit = locationRef.current === 'city' && downtown
+          ? vehicleExitPosition(car, cars, point => !downtown!.collider.blockedLocal(...toLocal(point)))
+          : vehicleExitPosition(car, cars);
         if (!exit) { notify('No room to open a door here. Move the car a little.'); return; }
         car.speed = 0;
         position = exit;
@@ -1140,12 +1260,16 @@ export default function WorldScene({
       };
       // Jump (Space) and dance (G): on foot only.
       let jumpTimer = 0;
+      let jump = jumpFor();
+      let lastSpeed = 0;
       emoteRef.current = (emote) => {
         const human = riggedRef.current;
         if (!human || interaction.mode !== 'walking' || schoolOpenRef.current || dialogueRef.current || npcActiveRef.current) return;
         if (emote === 'jump') {
           if (jumpTimer > 0) return;
           jumpTimer = 1e-4;
+          // Running jumps go higher and further; an exhausted one barely leaves the ground.
+          jump = jumpFor({ speed: lastSpeed, energy: life.energy });
           human.playAction('JumpAir');
         } else if (human.action === 'Dance') human.stopAction();
         else human.playAction('Dance');
@@ -1186,6 +1310,9 @@ export default function WorldScene({
         } else if (key === 'h' && !event.repeat && interaction.mode === 'driving' && careerRef.current.career === 'police') {
           event.preventDefault();
           notify(siren.toggle() ? 'Siren on (H to switch off).' : 'Siren off.');
+        } else if (key === 'n' && !event.repeat) {
+          event.preventDefault();
+          setMapOpen(open => !open);
         } else if (key === 'q' && !event.repeat) {
           event.preventDefault();
           matchRef.current.pass();
@@ -1300,6 +1427,18 @@ export default function WorldScene({
           scene.render();
           return;
         }
+        if (pendingTaxi) {
+          pendingTaxi.timer += delta;
+          if (pendingTaxi.timer >= 1.6) finishTaxi();
+          scene.render();
+          return;
+        }
+        if (pendingDrive) {
+          pendingDrive.timer += delta;
+          if (pendingDrive.timer >= 2) finishDrive();
+          scene.render();
+          return;
+        }
         if (pendingRide) {
           rideTimer += delta;
           if (rideTimer >= 2.2) arrive();
@@ -1383,8 +1522,20 @@ export default function WorldScene({
           const keys = schoolOpenRef.current || dialogueRef.current || npcActiveRef.current ? new Set<string>() : inputRef.current.pressed;
           const others = cars.filter((_, index) => index !== driven);
           const before = cars[driven];
-          const next = stepVehicle(before, driveInput(keys), delta, others, peopleOut);
+          // Downtown, the real buildings are what the car runs into.
+          const cityBlock = locationRef.current === 'city' && downtown
+            ? (candidate: CarState) => footprintPoints(candidate).some(point => downtown!.collider.blockedLocal(...toLocal(point)))
+            : undefined;
+          const next = stepVehicle(before, driveInput(keys), delta, locationRef.current === 'city' ? [] : others, locationRef.current === 'city' ? [] : peopleOut, cityBlock);
           cars[driven] = { x: next.x, z: next.z, rotation: next.rotation, speed: next.speed };
+          if (locationRef.current === 'street') {
+            setGate(Math.hypot(next.x, next.z - TOWN_EXIT.beyond) < TOWN_EXIT.gateRange);
+            if (leavingTown(next)) startDrive('downtown', driven);
+          } else if (locationRef.current === 'city' && downtown) {
+            const [lx, lz] = toLocal(next);
+            const [hx, hz] = downtown.city.halfSize;
+            if (Math.abs(lx) > hx - 14 || Math.abs(lz) > hz - 14) startDrive('home', driven);
+          }
           placeCar(driven);
           const tilt = bodyLean({ kind: 'car', speed: next.speed, yawRate: delta > 0 ? headingDelta(before.rotation, next.rotation) / delta : 0,
             acceleration: delta > 0 ? (next.speed - before.speed) / delta : 0 });
@@ -1410,7 +1561,9 @@ export default function WorldScene({
             if (next.collided) notify('Bump! Reverse with S to back away.');
             else if (clock - noticeAt > 2.5) setDriveNotice(previous => previous ? '' : previous);
             const waypoint = schoolWaypoint(next, cameraForward);
-            const label = waypoint.distance === null ? '' : 'School · ' + Math.ceil(waypoint.distance) + ' m · ' + waypoint.direction;
+            const label = locationRef.current === 'city' && downtown
+              ? `${downtown.city.name} · drive to the edge of downtown to go home · map: N`
+              : waypoint.distance === null ? '' : 'School · ' + Math.ceil(waypoint.distance) + ' m · ' + waypoint.direction + ' · road to downtown: north';
             setWayfinding(previous => previous === label ? previous : label);
           }
           if (previousNear) { previousNear = false; nearSchoolRef.current = false; setNearSchool(false); }
@@ -1435,6 +1588,7 @@ export default function WorldScene({
           : stepLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward, cars, peopleOut);
         tickLife(delta, locomotion.motion);
         const { position: next, moving, speed: movementSpeed } = locomotion;
+        lastSpeed = movementSpeed;
         if (city && football && match) {
           const velocity = delta > 0 ? { x: (next.x - position.x) / delta, z: (next.z - position.z) / delta } : { x: 0, z: 0 };
           const heading = Math.hypot(velocity.x, velocity.z) > 0.2 ? Math.atan2(velocity.x, velocity.z) : avatar.rotation.y;
@@ -1490,8 +1644,8 @@ export default function WorldScene({
         }
         if (jumpTimer > 0) {
           jumpTimer += delta;
-          avatar.position.y = jumpHeight(jumpTimer);
-          if (jumpTimer >= JUMP.duration) { jumpTimer = 0; avatar.position.y = 0; human?.playAction('JumpLand'); }
+          avatar.position.y = jumpHeight(jumpTimer, jump);
+          if (jumpTimer >= jump.duration) { jumpTimer = 0; avatar.position.y = 0; human?.playAction('JumpLand'); }
         }
         waypointTimer += delta;
         if (waypointTimer >= 0.25) {
@@ -1697,6 +1851,8 @@ export default function WorldScene({
       else inputRef.current.release(source);
     }
   };
+  const readMap = useCallback(() => mapReadRef.current(), []);
+  const travelTo = useCallback((to: TravelTarget) => travelRef.current(to), []);
   const focusWorld = (event: { detail: number }) => {
     if (event.detail > 0) canvasRef.current?.focus({ preventScroll: true });
   };
@@ -1742,6 +1898,7 @@ export default function WorldScene({
         {inClass && <div className="world-sleep world-class" role="status" aria-live="polite"><span>{inClass} class…</span></div>}
         <div className="world-caption"><strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : inCity ? inCity : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
+        <WorldMap open={mapOpen} onClose={() => setMapOpen(false)} read={readMap} travel={travelTo} />
         {scoreboard && <div className="world-scoreboard" role="status" aria-live="polite"><strong>{scoreboard}</strong><small>F shoot · Shift+F chip · Q pass</small>
           <button type="button" onClick={event => { matchRef.current.pass(); focusWorld(event); }}>Pass (Q)</button></div>}
         {(() => {
@@ -1857,6 +2014,7 @@ export default function WorldScene({
       <button type="button" aria-label="Zoom in" onClick={event => { cameraControlsRef.current?.zoom('in'); focusWorld(event); }}>Zoom +</button>
       <button type="button" aria-label="Zoom out" onClick={event => { cameraControlsRef.current?.zoom('out'); focusWorld(event); }}>Zoom −</button>
       <button type="button" onClick={event => { cameraControlsRef.current?.reset(); focusWorld(event); }}>Reset view</button>
+      <button type="button" onClick={event => { setMapOpen(open => !open); focusWorld(event); }}>Map (N)</button>
       <button type="button" onClick={event => { emoteRef.current('jump'); focusWorld(event); }}>Jump (Space)</button>
       <button type="button" onClick={event => { emoteRef.current('dance'); focusWorld(event); }}>Dance (G)</button>
       <button type="button" onClick={event => { toggleCamera(); focusWorld(event); }} aria-label="Switch camera view">

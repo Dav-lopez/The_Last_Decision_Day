@@ -55,3 +55,14 @@ test('the action clips are built for both bodies, credited CC0', () => {
     for (const clip of gltf.animations) assert.ok(clip.channels.length >= 50);
   }
 });
+
+test('jumps vary: running jumps go higher and longer, tired ones barely leave the ground', async () => {
+  const { jumpFor, jumpHeight } = await import('../src/world/actionMixer.mjs');
+  const stand = jumpFor({ speed: 0, energy: 100 });
+  const run = jumpFor({ speed: 4, energy: 100 });
+  const tired = jumpFor({ speed: 4, energy: 15 });
+  assert.ok(run.height > stand.height && run.duration > stand.duration);
+  assert.ok(tired.height < stand.height);
+  assert.ok(Math.abs(jumpHeight(run.duration / 2, run) - run.height) < 1e-9);
+  assert.deepEqual(jumpFor({ speed: Number.NaN, energy: Number.NaN }), stand);
+});
