@@ -83,6 +83,18 @@ def simplify(points: list[list[float]], tolerance: float) -> list[list[float]]:
     return simplify(points[:index + 1], tolerance)[:-1] + simplify(points[index:], tolerance)
 
 
+def simplify_ring(ring: list[list[float]], tolerance: float) -> list[list[float]]:
+    """Simplify a closed ring (no repeated end point). RDP needs distinct end points, so split
+    the ring at the vertex farthest from the first one and simplify both halves."""
+    if len(ring) < 4:
+        return ring
+    first = ring[0]
+    far = max(range(len(ring)), key=lambda i: math.hypot(ring[i][0] - first[0], ring[i][1] - first[1]))
+    left = simplify(ring[:far + 1], tolerance)
+    right = simplify(ring[far:] + [first], tolerance)
+    return left[:-1] + right[:-1]
+
+
 def area(ring: list[list[float]]) -> float:
     return sum(ring[i][0] * ring[(i + 1) % len(ring)][1] - ring[(i + 1) % len(ring)][0] * ring[i][1] for i in range(len(ring))) / 2
 
@@ -116,7 +128,7 @@ out geom tags;"""
         if 'building' in tags:
             if points[0] == points[-1]:
                 points = points[:-1]
-            ring = simplify(points + [points[0]], 0.35)[:-1]
+            ring = simplify_ring(points, 0.35)
             if len(ring) < 3 or abs(area(ring)) < 12:
                 continue
             if area(ring) < 0:
@@ -133,7 +145,7 @@ out geom tags;"""
         elif tags.get('leisure') == 'park' or tags.get('landuse') == 'grass':
             if points[0] == points[-1]:
                 points = points[:-1]
-            ring = simplify(points + [points[0]], 0.8)[:-1]
+            ring = simplify_ring(points, 0.8)
             if len(ring) >= 3 and abs(area(ring)) > 30:
                 if area(ring) < 0:
                     ring.reverse()
