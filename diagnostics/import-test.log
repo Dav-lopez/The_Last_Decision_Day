@@ -1,24 +1,24 @@
 TAP version 13
-# BJS - [05:57:06]: Babylon.js v8.56.2 - Null engine
-# BJS - [05:57:06]: Babylon.js v8.56.2 - Null engine
-# BJS - [05:57:06]: /skins/0: Failed to find common root
-# BJS - [05:57:06]: /skins/1: Failed to find common root
-# BJS - [05:57:06]: /skins/2: Failed to find common root
-# BJS - [05:57:06]: /skins/3: Failed to find common root
-# BJS - [05:57:06]: Babylon.js v8.56.2 - Null engine
-# BJS - [05:57:06]: Babylon.js v8.56.2 - Null engine
-# BJS - [05:57:06]: Babylon.js v8.56.2 - Null engine
-# BJS - [05:57:06]: Babylon.js v8.56.2 - Null engine
-# BJS - [05:57:06]: Babylon.js v8.56.2 - Null engine
-# BJS - [05:57:06]: Babylon.js v8.56.2 - Null engine
-# BJS - [05:57:06]: Babylon.js v8.56.2 - Null engine
-# BJS - [05:57:06]: Babylon.js v8.56.2 - Null engine
-# BJS - [05:57:06]: Babylon.js v8.56.2 - Null engine
-# BJS - [05:57:06]: Babylon.js v8.56.2 - Null engine
+# BJS - [05:58:22]: Babylon.js v8.56.2 - Null engine
+# BJS - [05:58:22]: Babylon.js v8.56.2 - Null engine
+# BJS - [05:58:22]: /skins/0: Failed to find common root
+# BJS - [05:58:22]: /skins/1: Failed to find common root
+# BJS - [05:58:22]: /skins/2: Failed to find common root
+# BJS - [05:58:22]: /skins/3: Failed to find common root
+# BJS - [05:58:22]: Babylon.js v8.56.2 - Null engine
+# BJS - [05:58:22]: Babylon.js v8.56.2 - Null engine
+# BJS - [05:58:22]: Babylon.js v8.56.2 - Null engine
+# BJS - [05:58:22]: Babylon.js v8.56.2 - Null engine
+# BJS - [05:58:22]: Babylon.js v8.56.2 - Null engine
+# BJS - [05:58:22]: Babylon.js v8.56.2 - Null engine
+# BJS - [05:58:22]: Babylon.js v8.56.2 - Null engine
+# BJS - [05:58:22]: Babylon.js v8.56.2 - Null engine
+# BJS - [05:58:22]: Babylon.js v8.56.2 - Null engine
+# BJS - [05:58:22]: Babylon.js v8.56.2 - Null engine
 # Subtest: every Poly Haven model imports into Babylon with renderable geometry
 ok 1 - every Poly Haven model imports into Babylon with renderable geometry
   ---
-  duration_ms: 1199.006992
+  duration_ms: 889.121176
   type: 'test'
   ...
 1..1
@@ -29,5 +29,5 @@ ok 1 - every Poly Haven model imports into Babylon with renderable geometry
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 1277.254899
+# duration_ms 952.415221
 exit 0
