@@ -5,12 +5,15 @@
  * dialogue ends. Unknown morphs/legacy GLBs safely receive zero influence.
  */
 const SPEAKING_ACTIONS = new Set(['Talk', 'SitTalk']);
+const SPEECH_MORPHS = new Set(['jawOpen', 'mouthOpen', 'mouthPressLeft', 'mouthPressRight',
+  'mouthSmileLeft', 'mouthSmileRight']);
 const clamp01 = value => Math.max(0, Math.min(1, value));
 const smoothstep = t => t * t * (3 - 2 * t);
 
 /** @param {string} name @param {{name:string,elapsed:number}|null} action @param {number} weight */
 export function actionFacialWeight(name, action, weight) {
-  if (!SPEAKING_ACTIONS.has(action?.name) || !Number.isFinite(action.elapsed) || action.elapsed < 0 ||
+  if (!SPEECH_MORPHS.has(name) || !SPEAKING_ACTIONS.has(action?.name) ||
+      !Number.isFinite(action.elapsed) || action.elapsed < 0 ||
       !Number.isFinite(weight) || weight <= 0) return 0;
   const t = action.elapsed;
   // A short pause every 2.6 seconds keeps the mouth from cycling continuously.
