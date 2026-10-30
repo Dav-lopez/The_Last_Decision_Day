@@ -6,7 +6,7 @@ added 93 packages, and audited 94 packages in 5s
 
 found 0 vulnerabilities
 
-added 2 packages, and audited 3 packages in 1s
+added 2 packages, and audited 3 packages in 2s
 
 found 0 vulnerabilities
 Installing dependencies...
@@ -17,8 +17,8 @@ Hit:2 http://azure.archive.ubuntu.com/ubuntu resolute InRelease
 Get:3 http://azure.archive.ubuntu.com/ubuntu resolute-updates InRelease [137 kB]
 Get:4 http://azure.archive.ubuntu.com/ubuntu resolute-backports InRelease [137 kB]
 Get:5 http://azure.archive.ubuntu.com/ubuntu resolute-security InRelease [137 kB]
-Get:7 https://packages.microsoft.com/ubuntu/26.04/prod resolute/main amd64 Packages [131 kB]
-Get:8 https://packages.microsoft.com/ubuntu/26.04/prod resolute/main arm64 Packages [120 kB]
+Get:7 https://packages.microsoft.com/ubuntu/26.04/prod resolute/main arm64 Packages [120 kB]
+Get:8 https://packages.microsoft.com/ubuntu/26.04/prod resolute/main amd64 Packages [131 kB]
 Get:9 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 Packages [804 kB]
 Get:10 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main Translation-en [184 kB]
 Get:11 http://azure.archive.ubuntu.com/ubuntu resolute-updates/universe amd64v3 Packages [375 kB]
@@ -29,7 +29,7 @@ Get:15 http://azure.archive.ubuntu.com/ubuntu resolute-security/main amd64v3 Pac
 Get:16 http://azure.archive.ubuntu.com/ubuntu resolute-security/main Translation-en [141 kB]
 Get:17 http://azure.archive.ubuntu.com/ubuntu resolute-security/universe amd64v3 Packages [206 kB]
 Get:18 http://azure.archive.ubuntu.com/ubuntu resolute-security/universe Translation-en [67.9 kB]
-Fetched 3824 kB in 0s (10.6 MB/s)
+Fetched 3824 kB in 0s (10.4 MB/s)
 Reading package lists...
 Reading package lists...
 Building dependency tree...
@@ -106,7 +106,7 @@ Get:7 http://azure.archive.ubuntu.com/ubuntu resolute/main amd64v3 xfonts-encodi
 Get:8 http://azure.archive.ubuntu.com/ubuntu resolute/main amd64v3 xfonts-utils amd64 1:7.7+7build1 [97.3 kB]
 Get:9 http://azure.archive.ubuntu.com/ubuntu resolute/universe amd64v3 xfonts-cyrillic all 1:1.0.5+nmu1build1 [384 kB]
 Get:10 http://azure.archive.ubuntu.com/ubuntu resolute/universe amd64v3 xfonts-scalable all 1:1.0.3-1.3build1 [304 kB]
-Fetched 21.9 MB in 0s (78.2 MB/s)
+Fetched 21.9 MB in 1s (16.5 MB/s)
 Selecting previously unselected package fonts-ipafont-gothic.
 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 212715 files and directories currently installed.)
 Preparing to unpack .../0-fonts-ipafont-gothic_00303-23ubuntu1_all.deb ...
@@ -201,8 +201,8 @@ Downloading Chrome Headless Shell 156.0.8078.4 (playwright chromium-headless-she
 |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■| 100% of 120 MiB
 Chrome Headless Shell 156.0.8078.4 (playwright chromium-headless-shell v1248) downloaded to /home/runner/.cache/ms-playwright/chromium_headless_shell-1248
 Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
-Hit:2 http://azure.archive.ubuntu.com/ubuntu resolute InRelease
 Hit:6 https://packages.microsoft.com/ubuntu/26.04/prod resolute InRelease
+Hit:2 http://azure.archive.ubuntu.com/ubuntu resolute InRelease
 Hit:3 http://azure.archive.ubuntu.com/ubuntu resolute-updates InRelease
 Hit:4 http://azure.archive.ubuntu.com/ubuntu resolute-backports InRelease
 Hit:5 http://azure.archive.ubuntu.com/ubuntu resolute-security InRelease
@@ -346,7 +346,7 @@ Get:87 http://azure.archive.ubuntu.com/ubuntu resolute/main amd64v3 libwebrtc-au
 Get:88 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 libspa-0.2-modules amd64 1.6.2-1ubuntu1.2 [1163 kB]
 Get:89 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 libpipewire-0.3-0t64 amd64 1.6.2-1ubuntu1.2 [302 kB]
 Get:90 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 libpipewire-0.3-common all 1.6.2-1ubuntu1.2 [12.1 kB]
-Fetched 69.3 MB in 2s (31.5 MB/s)
+Fetched 69.3 MB in 7s (10.2 MB/s)
 Selecting previously unselected package libva2:amd64.
 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 212982 files and directories currently installed.)
 Preparing to unpack .../00-libva2_2.23.0-1ubuntu1_amd64v3.deb ...
@@ -753,12 +753,12 @@ computing gzip size...
 - Using dynamic import() to code-split the application
 - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
-[32m✓ built in 2m 5s[39m
+[32m✓ built in 2m 21s[39m
 car in reach: true
-still turning
 still gate-open
+leaving town at step 40
 still driving-out
-after drive | School · 14 m · ahead | 
+after drive | School · 25 m · ahead | 
 still downtown-by-car
 still downtown-driving
 still map-downtown
