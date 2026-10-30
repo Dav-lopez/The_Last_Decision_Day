@@ -47,6 +47,24 @@ def compare_profiles(male, female):
             "male/female binaries unexpectedly identical; check variant export")
 
 
+
+def validate_hairstyles(mesh_names, body):
+    """Detail overlays share a hairstyle but are not selectable hairstyles."""
+    prefix = "Student hair "
+    hair = set()
+    detail = set()
+    for name in mesh_names:
+        if not name.startswith(prefix):
+            continue
+        style = name[len(prefix):]
+        if style.endswith(" detail"):
+            detail.add(style.removesuffix(" detail"))
+        else:
+            hair.add(style)
+    require(hair == EXPECTED_HAIR, f"{body}: hairstyle choices missing or unexpected: {hair}")
+    require(detail == EXPECTED_HAIR, f"{body}: hairstyle detail overlays missing or unexpected: {detail}")
+    return hair
+
 def inspect_variant(folder, body):
     filename, manifest_name = VARIANTS[body]
     raw = (folder / filename).read_bytes()
@@ -84,9 +102,7 @@ def inspect_variant(folder, body):
                         for j, w in zip(joints, weights)),
                     f"{body}: {name} must follow the Head bone")
 
-    hair = {name.removeprefix("Student hair ") for name in meshes
-            if name.startswith("Student hair ")}
-    require(hair == EXPECTED_HAIR, f"{body}: hairstyle choices missing or unexpected: {hair}")
+    hair = validate_hairstyles(meshes.keys(), body)
     clips = {animation["name"] for animation in doc["animations"]}
     require(clips == {"Idle", "Walk", "Run"}, f"{body}: locomotion clips changed: {clips}")
     return {"targets": names, "face_meshes": FACE_MESHES & meshes.keys(),
