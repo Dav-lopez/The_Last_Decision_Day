@@ -5,14 +5,18 @@ import {
 
 export type RenderQuality = 'high' | 'standard';
 
+/** WebGL version of the scene's engine (the base engine type doesn't declare it). */
+function webGLVersion(scene: Scene): number {
+  return (scene.getEngine() as unknown as { webGLVersion?: number }).webGLVersion ?? 1;
+}
+
 /**
  * Desktop-class GPUs get ambient occlusion; phones, tablets and small screens
  * get everything else. Read once at start-up.
  */
 export function pickRenderQuality(scene: Scene): RenderQuality {
-  const engine = scene.getEngine();
   const touchFirst = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0 && typeof window !== 'undefined' && window.innerWidth < 1100;
-  return engine.webGLVersion >= 2 && !touchFirst ? 'high' : 'standard';
+  return webGLVersion(scene) >= 2 && !touchFirst ? 'high' : 'standard';
 }
 
 /**
@@ -23,7 +27,7 @@ export function pickRenderQuality(scene: Scene): RenderQuality {
  */
 export function createRenderPipeline(scene: Scene, camera: ArcRotateCamera, quality: RenderQuality) {
   const pipeline = new DefaultRenderingPipeline('cinematic', true, scene, [camera]);
-  pipeline.samples = scene.getEngine().webGLVersion >= 2 ? 4 : 1;
+  pipeline.samples = webGLVersion(scene) >= 2 ? 4 : 1;
   pipeline.fxaaEnabled = true;
   pipeline.imageProcessingEnabled = true;
   const image = pipeline.imageProcessing;
