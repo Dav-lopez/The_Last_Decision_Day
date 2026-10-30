@@ -1,0 +1,6 @@
+.house-paint { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.6rem 0; }
+.house-paint button { min-height: 2.25rem; }
+.house-paint-swatches { display: inline-flex; gap: 0.3rem; }
+.house-paint-swatch { width: 2.6rem; height: 2.25rem; border-radius: 6px; border: 1px solid rgba(0, 0, 0, 0.25); display: inline-flex; align-items: flex-end; justify-content: center; }
+.house-paint-swatch small { font-size: 0.6rem; background: rgba(255, 255, 255, 0.8); color: #222; border-radius: 3px; padding: 0 2px; margin-bottom: 2px; }
+.house-paint-status { flex-basis: 100%; opacity: 0.8; }
