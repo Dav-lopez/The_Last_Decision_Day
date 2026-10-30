@@ -8,6 +8,7 @@ import type { Emotion } from './facialEmotions';
 import { resolveCharacterEmotion } from './characterEmotion.mjs';
 import { loadSchoolEnvironment } from './schoolEnvironment';
 import { smoothHumanHeading } from './humanMotion.mjs';
+import { movementHeading } from './riggedPresentation.mjs';
 import { isNearSchool, type PlanarPosition } from './movement.mjs';
 import { stepLocomotion } from './locomotion.mjs';
 import { createCameraControls } from './cameraControls.mjs';
@@ -512,7 +513,7 @@ export default function WorldScene({
         const locomotion = stepLocomotion(position, schoolOpenRef.current ? new Set<string>() : inputRef.current.pressed,
           delta, sprintEnabledRef.current, cameraForward);
         const { position: next, moving, speed: movementSpeed } = locomotion;
-        if (moving) avatar.rotation.y = smoothHumanHeading(avatar.rotation.y, Math.atan2(next.x - position.x, -(next.z - position.z)), delta);
+        if (moving) avatar.rotation.y = smoothHumanHeading(avatar.rotation.y, movementHeading(next.x - position.x, next.z - position.z), delta);
         position = next;
         waypointTimer += delta;
         if (waypointTimer >= 0.25) {

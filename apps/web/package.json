@@ -9,7 +9,7 @@
     "typecheck": "tsc -b",
     "test:movement": "node --test tests/3d-movement.test.mjs tests/3d-controls.test.mjs tests/camera-follow.test.mjs tests/playable-controls.test.mjs",
     "test:appearance": "node --test tests/avatar-appearance.test.mjs",
-    "test:human": "node --test tests/human-motion.test.mjs tests/human-asset-bounds.test.mjs",
+    "test:human": "node --test tests/human-motion.test.mjs tests/human-asset-bounds.test.mjs tests/avatar-facing.test.mjs",
     "test:emotion": "node --test tests/character-emotion.test.mjs",
     "test:character": "node --test tests/rigged-character.test.mjs tests/generated-face.test.mjs",
     "test:environment": "node --test tests/suburb-layout.test.mjs tests/street-assets.test.mjs"
