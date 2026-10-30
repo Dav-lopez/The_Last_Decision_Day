@@ -1,5 +1,5 @@
-import { Color3, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, VertexData, type Scene } from '@babylonjs/core';
-import { CITY_ORIGIN, pointInRing, triangulate, type City, type CityBuilding } from './cityLayout.mjs';
+import { Color3, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, Texture, VertexData, type Scene } from '@babylonjs/core';
+import { CITY_ORIGIN, laneDashes, pointInRing, triangulate, type City, type CityBuilding } from './cityLayout.mjs';
 
 const FLOOR = 3.4;
 const BAY = 3.2;
@@ -39,6 +39,10 @@ function facadeTexture(scene: Scene, name: string, style: Style) {
   c.fillRect(66, 116, 124, 6);
   c.fillRect(46, 196, 164, 10);
   texture.update();
+  // Dynamic textures clamp by default; facades tile one window bay per 3.2 m × 3.4 m.
+  texture.wrapU = Texture.WRAP_ADDRESSMODE;
+  texture.wrapV = Texture.WRAP_ADDRESSMODE;
+  texture.anisotropicFilteringLevel = 8;
   return texture;
 }
 
@@ -51,6 +55,9 @@ function speckleTexture(scene: Scene, name: string, base: string, flecks: string
   const next = () => ((state = (state * 1664525 + 1013904223) >>> 0) / 4294967296);
   for (let i = 0; i < 2600; i++) { c.fillStyle = flecks[i % flecks.length]; c.fillRect(next() * 256, next() * 256, 1 + next() * 2, 1 + next() * 2); }
   texture.update();
+  texture.wrapU = Texture.WRAP_ADDRESSMODE;
+  texture.wrapV = Texture.WRAP_ADDRESSMODE;
+  texture.anisotropicFilteringLevel = 8;
   texture.uScale = scale;
   texture.vScale = scale;
   return texture;
@@ -120,6 +127,26 @@ function addStrip(target: Buffers, points: number[][], width: number, y: number)
   }
 }
 
+/** Concrete slabs with expansion joints every 1.5 m. */
+function sidewalkTexture(scene: Scene) {
+  const texture = speckleTexture(scene, 'sidewalk', '#c8c4ba', ['#bdb9af', '#d3cfc6', '#b3afa6'], 1);
+  const c = texture.getContext() as unknown as CanvasRenderingContext2D;
+  c.fillStyle = '#9f9b93';
+  for (let i = 0; i <= 256; i += 96) { c.fillRect(i, 0, 2, 256); c.fillRect(0, i, 256, 2); }
+  texture.update();
+  texture.uScale = texture.vScale = 4 / 6; // UVs are metres / 4; a 256 px tile spans 6 m
+  return texture;
+}
+
+/** A polyline shifted sideways by `offset` metres (for double centre lines). */
+function offsetLine(points: number[][], offset: number) {
+  return points.map((p, i) => {
+    const a = points[Math.max(0, i - 1)]; const b = points[Math.min(points.length - 1, i + 1)];
+    const length = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    return [p[0] - (b[1] - a[1]) / length * offset, p[1] + (b[0] - a[0]) / length * offset];
+  });
+}
+
 /**
  * Builds the whole downtown: buildings extruded to their real heights with
  * per-type facades and storefront glass, flat roofs, streets, paths, parks with
@@ -139,7 +166,7 @@ export function buildCityScene(scene: Scene, city: City): () => void {
 
   const ground = MeshBuilder.CreateGround('city ground', { width: hx * 2 + 80, height: hz * 2 + 80 }, scene);
   ground.position.set(CITY_ORIGIN.x, -0.01, CITY_ORIGIN.z);
-  ground.material = material('paving', m => { m.diffuseTexture = speckleTexture(scene, 'paving', '#b7b0a2', ['#a59e90', '#c7c1b4', '#9b9487'], (hx * 2 + 80) / 5); });
+  ground.material = material('paving', m => { m.diffuseTexture = speckleTexture(scene, 'paving', '#a9a59c', ['#9c988f', '#b6b2a9', '#8f8b83'], (hx * 2 + 80) / 5); });
   ground.isPickable = false;
   meshes.push(ground);
 
@@ -174,17 +201,38 @@ export function buildCityScene(scene: Scene, city: City): () => void {
 
   const streets = buffers();
   const paths = buffers();
+  const mall = buffers();
+  const centreLines = buffers();
+  const laneLines = buffers();
   for (const road of city.roads) {
-    const footpath = ['footway', 'path', 'cycleway', 'steps', 'pedestrian'].includes(road.kind);
+    if (road.kind === 'pedestrian') { addStrip(mall, road.points, road.width, 0.025); continue; }
+    const footpath = ['footway', 'path', 'cycleway', 'steps'].includes(road.kind);
     addStrip(footpath ? paths : streets, road.points, road.width, footpath ? 0.02 : 0.03);
+    // Painted lines: double yellow on the main streets, a dashed white centre on the others.
+    if (['primary', 'secondary', 'tertiary'].includes(road.kind)) {
+      for (const side of [-0.09, 0.09]) addStrip(centreLines, offsetLine(road.points, side), 0.1, 0.045);
+    } else if (['residential', 'unclassified'].includes(road.kind)) {
+      for (const dash of laneDashes(road.points, 3, 6)) addStrip(laneLines, dash, 0.12, 0.045);
+    }
   }
   meshes.push(toMesh(scene, 'city streets', streets, material('asphalt', m => {
     m.diffuseTexture = speckleTexture(scene, 'asphalt', '#55595c', ['#4a4e51', '#676c6f'], 1);
     m.backFaceCulling = false;
   })));
-  meshes.push(toMesh(scene, 'city paths', paths, material('footpaths', m => {
+  meshes.push(toMesh(scene, 'city paths', paths, material('sidewalks', m => {
+    m.diffuseTexture = sidewalkTexture(scene);
+    m.backFaceCulling = false;
+  })));
+  // Pearl Street Mall and other pedestrian streets: red brick pavers.
+  meshes.push(toMesh(scene, 'city pedestrian mall', mall, material('brick pavers', m => {
     m.diffuseTexture = speckleTexture(scene, 'brick paving', '#a8644c', ['#93553f', '#b97660', '#8a4f3b'], 1);
     m.backFaceCulling = false;
+  })));
+  meshes.push(toMesh(scene, 'city centre lines', centreLines, material('yellow paint', m => {
+    m.diffuseColor = Color3.FromHexString('#e0b43a'); m.backFaceCulling = false;
+  })));
+  meshes.push(toMesh(scene, 'city lane lines', laneLines, material('white paint', m => {
+    m.diffuseColor = Color3.FromHexString('#e9e7e0'); m.backFaceCulling = false;
   })));
 
   const parks = buffers();
