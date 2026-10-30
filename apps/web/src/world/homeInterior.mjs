@@ -12,7 +12,8 @@ import { HOUSE_SITES } from './suburbLayout.mjs';
 import { propBlocker } from './propLayout.mjs';
 
 export const HOME_ORIGIN = Object.freeze({ x: 0, z: 60 });
-export const ROOM = Object.freeze({ halfWidth: 4.6, halfDepth: 3.6, wallHeight: 2.9, wallThickness: 0.2 });
+/** 9.2 m × 10.8 m: bedroom and living room at the back, kitchen and dining by the front door. */
+export const ROOM = Object.freeze({ halfWidth: 4.6, halfDepth: 5.4, wallHeight: 2.9, wallThickness: 0.2 });
 export const DOOR_HALF_WIDTH = 0.65;
 const PLAYER_RADIUS = 0.38;
 const DOOR_RANGE = 1.25;
@@ -29,13 +30,22 @@ const local = (x, z) => ({ x: HOME_ORIGIN.x + x, z: HOME_ORIGIN.z + z });
 const furniture = (id, type, x, z, rotation) => Object.freeze({ id, type, ...local(x, z), rotation });
 
 export const HOME_FURNITURE = Object.freeze([
-  furniture('home-sofa', 'sofa', -3.95, 0.2, Math.PI / 2),
-  furniture('home-coffee-table', 'coffee_table', -2.6, 0.2, Math.PI / 2),
-  furniture('home-armchair', 'armchair', -1.5, 0.2, -Math.PI / 2),
-  furniture('home-floor-lamp', 'floor_lamp', -4.2, -2.0, 0),
-  furniture('home-shelf', 'shelf', -2.4, -3.35, 0),
-  furniture('home-bed', 'bed', 3.3, -2.35, 0),
-  furniture('home-desk-chair', 'dining_chair', 1.6, -3.1, 0),
+  // Living room and bedroom against the back wall.
+  furniture('home-sofa', 'sofa', -3.95, -1.6, Math.PI / 2),
+  furniture('home-coffee-table', 'coffee_table', -2.6, -1.6, Math.PI / 2),
+  furniture('home-armchair', 'armchair', -1.5, -1.6, -Math.PI / 2),
+  furniture('home-floor-lamp', 'floor_lamp', -4.2, -3.8, 0),
+  furniture('home-shelf', 'shelf', -2.4, -5.15, 0),
+  furniture('home-bed', 'bed', 3.3, -4.15, 0),
+  furniture('home-desk-chair', 'dining_chair', 1.6, -4.9, 0),
+  // Kitchen along the left wall, facing into the room.
+  furniture('home-fridge', 'fridge', -4.2, 1.6, Math.PI / 2),
+  furniture('home-counter', 'counter', -4.25, 2.9, Math.PI / 2),
+  furniture('home-stove', 'stove', -4.25, 4.2, Math.PI / 2),
+  // Dining table with a chair either side.
+  furniture('home-dining-table', 'dining_table', -1.9, 3.4, 0),
+  furniture('home-dining-chair-a', 'dining_chair', -1.9, 2.4, 0),
+  furniture('home-dining-chair-b', 'dining_chair', -1.9, 4.4, Math.PI),
 ]);
 /** The open front-door leaf stands inside the room at the doorway's left edge. */
 export const DOOR_LEAF = Object.freeze({
@@ -45,10 +55,20 @@ export const DOOR_LEAF = Object.freeze({
 export const HOME_BLOCKERS = Object.freeze([...HOME_FURNITURE.map(propBlocker), DOOR_LEAF]);
 
 /** Where the player appears after entering, and the inside of the front door. */
-export const HOME_SPAWN = Object.freeze({ ...local(0, 2.7), rotation: 0 });
+export const HOME_SPAWN = Object.freeze({ ...local(0, ROOM.halfDepth - 0.9), rotation: 0 });
 export const HOME_EXIT_DOOR = Object.freeze(local(0, ROOM.halfDepth - 0.4));
 /** Where a bed will be used from (the sleep feature builds on this). */
-export const BED_SIDE = Object.freeze(local(3.3, -0.65));
+export const BED_SIDE = Object.freeze(local(3.3, -2.45));
+/** Stand here to cook at the stove, or to grab a snack from the fridge. */
+export const STOVE_SPOT = Object.freeze(local(-3.35, 4.2));
+export const FRIDGE_SPOT = Object.freeze(local(-3.35, 1.6));
+const KITCHEN_REACH = 1.0;
+export function nearStove(position) {
+  return Number.isFinite(position?.x) && Math.hypot(position.x - STOVE_SPOT.x, position.z - STOVE_SPOT.z) <= KITCHEN_REACH;
+}
+export function nearFridge(position) {
+  return Number.isFinite(position?.x) && Math.hypot(position.x - FRIDGE_SPOT.x, position.z - FRIDGE_SPOT.z) <= KITCHEN_REACH;
+}
 
 export function streetDoorAt(position) {
   if (!Number.isFinite(position?.x) || !Number.isFinite(position?.z)) return null;

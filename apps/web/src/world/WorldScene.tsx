@@ -35,7 +35,7 @@ import { BUS_RIDE_MINUTES, MAPLE_BUS_STOP, atBusStop, cameraClearance, createCit
 import { buildBusStop, buildCityScene } from './cityScene';
 import { CLASSROOM, CLASSROOM_SPAWN, SCHOOL_ORIGIN, atClassroomExit, deskInReach, nearTeacher, stepClassroomLocomotion } from './schoolInterior.mjs';
 import { attendLesson, currentEntry, isSchoolOpen, joinableLesson, schoolStatus } from './schoolSchedule.mjs';
-import { advanceLife, canSleep, chooseStartingLife, formatClock, isEvening, isExhausted, nearBed, normalizeLife, readLife,
+import { advanceLife, canSleep, eat, FOOD, chooseStartingLife, formatClock, isEvening, isExhausted, nearBed, normalizeLife, readLife,
   sleepUntilMorning, TIRED_ENERGY, toServerLife, writeLife, type Life, type LifeActivity, type ServerLife } from './lifeClock.mjs';
 
 /** Account save for the player's day; absent in the guest preview, which keeps the browser copy only. */
@@ -43,7 +43,7 @@ export type LifeSync = {
   load: () => Promise<ServerLife>;
   save: (life: ServerLife) => Promise<{ status: 'saved' | 'rejected'; life: ServerLife }>;
 };
-import { BED_SIDE, FRONT_DOORS, HOME_SPAWN, atHomeExit, wallsToFadeFor, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade } from './homeInterior.mjs';
+import { BED_SIDE, FRONT_DOORS, HOME_SPAWN, atHomeExit, nearFridge, nearStove, wallsToFadeFor, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade } from './homeInterior.mjs';
 import { canExitVehicle, chaseCameraAlpha, driveInput, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
 
@@ -395,7 +395,8 @@ export default function WorldScene({
   const busAction = busPrompt === 'downtown' ? 'Take the bus downtown (E)' : busPrompt === 'home' ? 'Take the bus home (E)' : null;
   const interactRef = useRef<() => void>(() => {});
   const [inHome, setInHome] = useState(false);
-  const [doorPrompt, setDoorPrompt] = useState<'enter' | 'locked' | 'exit' | 'bed' | 'school' | 'school-closed' | 'leave-school' | 'desk' | null>(null);
+  const [doorPrompt, setDoorPrompt] = useState<'enter' | 'locked' | 'exit' | 'bed' | 'cook' | 'snack' | 'school' | 'school-closed' | 'leave-school' | 'desk' | null>(null);
+  const [busyLabel, setBusyLabel] = useState<string | null>(null);
   const [atSchool, setAtSchool] = useState(false);
   const [inClass, setInClass] = useState<string | null>(null);
   const [lifeView, setLifeView] = useState<Life>(() => readLife(characterId));
@@ -760,6 +761,19 @@ export default function WorldScene({
         saveToAccount();
       };
       let classTimer = 0;
+      // Kitchen: last meal/snack times (life-total minutes) and the short fade while eating.
+      const lastAte: { meal: number | null; snack: number | null } = { meal: null, snack: null };
+      let pendingFood: { kind: 'meal' | 'snack'; result: ReturnType<typeof eat> } | null = null;
+      let foodTimer = 0;
+      const startEating = (kind: 'meal' | 'snack') => {
+        const result = eat(life, kind, lastAte[kind]);
+        if (!result.ok) { notify(result.reason); return; }
+        pendingFood = { kind, result };
+        foodTimer = 0;
+        inputRef.current.clear();
+        setDoorPrompt(null);
+        setBusyLabel(kind === 'meal' ? 'Cooking and eating…' : 'Grabbing a snack…');
+      };
       let pendingLesson: ReturnType<typeof attendLesson> = null;
       // Continue the account's saved day (and wake up at home if that's where it ended).
       if (lifeSyncRef.current) {
@@ -784,10 +798,12 @@ export default function WorldScene({
       const interact = () => {
         if (dialogueRef.current) { storyActionsRef.current.advanceDialogue(); return; }
         // Nothing to do mid-lesson or asleep; the fade finishes on its own.
-        if (schoolOpenRef.current || interaction.mode === 'sitting' || interaction.mode === 'sleeping') return;
+        if (schoolOpenRef.current || pendingFood || interaction.mode === 'sitting' || interaction.mode === 'sleeping') return;
         const index = drivenIndex();
         if (index < 0 && locationRef.current === 'home') {
           if (atHomeExit(position)) leaveHome();
+          else if (nearStove(position)) startEating('meal');
+          else if (nearFridge(position)) startEating('snack');
           else if (nearBed(position, BED_SIDE)) {
             const check = canSleep(life);
             if (!check.ok) { notify(check.reason); return; }
@@ -950,6 +966,25 @@ export default function WorldScene({
           scene.render();
           return;
         }
+        if (pendingFood) {
+          foodTimer += delta;
+          if (foodTimer >= (pendingFood.kind === 'meal' ? 2 : 0.9)) {
+            const { kind, result } = pendingFood;
+            pendingFood = null;
+            life = result.life;
+            lastAte[kind] = result.ateAt ?? null;
+            warnedExhausted = false;
+            writeLife(characterId, life);
+            syncLighting();
+            setLifeView({ ...life });
+            setBusyLabel(null);
+            notify(kind === 'meal' ? `That hit the spot. +${FOOD.meal.energy} energy` : `A quick bite. +${FOOD.snack.energy} energy`);
+            saveToAccount();
+          }
+          home.setFadedWalls(wallsToFade(camera.position), delta);
+          scene.render();
+          return;
+        }
         if (interaction.mode === 'sitting' && pendingLesson) {
           classTimer += delta;
           if (classTimer >= 2.4) {
@@ -1027,7 +1062,8 @@ export default function WorldScene({
           waypointTimer = 0;
           if (clock - noticeAt > 2.5) setDriveNotice(previous => previous ? '' : previous);
           if (atHome) {
-            const prompt = atHomeExit(position) ? 'exit' : nearBed(position, BED_SIDE) ? 'bed' : null;
+            const prompt = atHomeExit(position) ? 'exit' : nearStove(position) ? 'cook' : nearFridge(position) ? 'snack'
+              : nearBed(position, BED_SIDE) ? 'bed' : null;
             setDoorPrompt(previous => previous === prompt ? previous : prompt);
           } else if (city) {
             const bus = atBusStop(position, city.stop) ? 'home' : null;
@@ -1207,6 +1243,8 @@ export default function WorldScene({
   const actionLabel = driving ? 'Get out of car (E)'
     : doorPrompt === 'exit' ? 'Go outside (E)'
       : doorPrompt === 'bed' ? 'Sleep (E)'
+      : doorPrompt === 'cook' ? 'Cook a meal (E)'
+      : doorPrompt === 'snack' ? 'Grab a snack (E)'
       : doorPrompt === 'leave-school' ? 'Leave school (E)'
       : doorPrompt === 'desk' ? 'Sit down for class (E)'
       : doorPrompt === 'school' ? 'Go into school (E)'
@@ -1226,6 +1264,7 @@ export default function WorldScene({
           </span>
         </div>
         {sleeping && <div className="world-sleep" role="status" aria-live="polite"><span>Sleeping…</span></div>}
+        {busyLabel && <div className="world-sleep world-kitchen" role="status" aria-live="polite"><span>{busyLabel}</span></div>}
         {inClass && <div className="world-sleep world-class" role="status" aria-live="polite"><span>{inClass} class…</span></div>}
         <div className="world-caption"><strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : inCity ? inCity : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
@@ -1291,7 +1330,7 @@ export default function WorldScene({
       </>}
     </div>
     {!error && <div className="world-controls">
-      <p>Click the world, then use WASD, arrow keys or the direction pad to move. Hold Shift or switch Run on to move faster. Release the direction to stop. Drag to orbit; scroll, pinch or use the zoom buttons to zoom. Press E at the school entrance to go in (7:30 AM–4 PM), E at a desk to take the current class, and E by the teacher for other school activities; Escape closes the panel. Press E at your front door (the house on the left) to go inside, and E at the inside door to go back out. Your energy drains as the day goes on; when you're tired or it's evening, press E beside your bed to sleep until 7:00 AM. Press E next to a car to drive it: W/S for gas, brake and reverse, A/D to steer, and E again to get out once stopped.</p>
+      <p>Click the world, then use WASD, arrow keys or the direction pad to move. Hold Shift or switch Run on to move faster. Release the direction to stop. Drag to orbit; scroll, pinch or use the zoom buttons to zoom. Press E at the school entrance to go in (7:30 AM–4 PM), E at a desk to take the current class, and E by the teacher for other school activities; Escape closes the panel. Press E at your front door (the house on the left) to go inside, and E at the inside door to go back out. Cook at the stove or grab a snack from the fridge for energy. Your energy drains as the day goes on; when you're tired or it's evening, press E beside your bed to sleep until 7:00 AM. Press E next to a car to drive it: W/S for gas, brake and reverse, A/D to steer, and E again to get out once stopped.</p>
       <div className="world-control-buttons">
         <div className="world-pad" aria-label="Touch movement controls">
           <div className="world-pad-top">{directionButton('▲', 'ArrowUp', 'Move forward')}</div>

@@ -134,3 +134,40 @@ export function chooseStartingLife(local, server) {
   if (!server.saved || totalMinutes(browser) > totalMinutes(saved)) return { life: browser, location, source: 'browser' };
   return { life: saved, location, source: 'account' };
 }
+
+/**
+ * Food. A cooked meal takes 25 game minutes and restores 18 energy; a snack
+ * from the fridge takes 5 minutes for 6. You need a few hours between meals
+ * (one between snacks), so eating can't replace sleep.
+ */
+export const FOOD = Object.freeze({
+  meal: Object.freeze({ minutes: 25, energy: 18, gap: 180, label: 'meal' }),
+  snack: Object.freeze({ minutes: 5, energy: 6, gap: 60, label: 'snack' }),
+});
+
+export function lifeTotalMinutes(life) {
+  const state = normalizeLife(life);
+  return (state.day - 1) * MINUTES_PER_DAY + state.minute;
+}
+
+/** `lastAte` is the life-total minute of the previous meal or snack of that kind (or null). */
+export function eat(life, kind, lastAte = null) {
+  const food = FOOD[kind];
+  const state = normalizeLife(life);
+  if (!food) return { ok: false, reason: 'Nothing to eat.', life: state };
+  const now = lifeTotalMinutes(state);
+  if (Number.isFinite(lastAte) && now - lastAte < food.gap) {
+    return { ok: false, reason: kind === 'meal' ? "You're not hungry yet." : 'You just had a snack.', life: state };
+  }
+  const total = state.minute + food.minutes;
+  return {
+    ok: true,
+    reason: '',
+    ateAt: now,
+    life: {
+      day: state.day + Math.floor(total / MINUTES_PER_DAY),
+      minute: total % MINUTES_PER_DAY,
+      energy: clamp(state.energy + food.energy, 0, 100),
+    },
+  };
+}

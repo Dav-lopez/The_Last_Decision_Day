@@ -37,7 +37,17 @@ function addFallbackProps(scene: Scene): Map<PropType, TransformNode[]> {
     linen: material(scene, 'prop fallback bed linen', '#e8e4da'),
     blanket: material(scene, 'prop fallback blanket', '#7d5a8c'),
     shade: material(scene, 'prop fallback lamp shade', '#f4e2b8'),
+    appliance: material(scene, 'kitchen appliance white', '#e9ecee'),
+    steel: material(scene, 'kitchen brushed steel', '#9aa3aa'),
+    cabinet: material(scene, 'kitchen cabinet sage', '#7f9a86'),
+    worktop: material(scene, 'kitchen worktop stone', '#d9d3c7'),
+    hob: material(scene, 'kitchen glass hob', '#1d2125'),
+    tile: material(scene, 'kitchen backsplash tile', '#dfe8ea'),
+    oak: material(scene, 'dining oak', '#a5764d'),
   };
+  m.steel.specularColor = new Color3(0.6, 0.6, 0.6);
+  m.hob.specularColor = new Color3(0.5, 0.5, 0.5);
+  m.worktop.specularColor = new Color3(0.25, 0.25, 0.25);
   m.shade.emissiveColor = new Color3(0.55, 0.45, 0.25);
   const roots = new Map<PropType, TransformNode[]>();
   for (const site of ALL_SITES) {
@@ -113,6 +123,44 @@ function addFallbackProps(scene: Scene): Map<PropType, TransformNode[]> {
         box('teacher desk front panel', 1.5, 0.6, 0.04, 0, 0.44, 0.35, m.wood);
         for (const x of [-0.75, 0.75]) box('teacher desk side', 0.04, 0.74, 0.76, x, 0.37, 0, m.wood);
         box('teacher desk books', 0.3, 0.12, 0.22, -0.5, 0.85, -0.1, m.blanket);
+        break;
+      // Kitchen units: local +Z is the front (they face into the room).
+      case 'fridge':
+        box('fridge body', 0.78, 1.8, 0.72, 0, 0.9, 0, m.appliance);
+        box('fridge door seam', 0.79, 0.015, 0.73, 0, 1.22, 0, m.steel);
+        for (const [y, h] of [[1.52, 0.42], [0.72, 0.6]]) box('fridge handle', 0.03, h, 0.05, 0.3, y, 0.39, m.steel);
+        box('fridge kick plate', 0.74, 0.08, 0.02, 0, 0.05, 0.36, m.steel);
+        break;
+      case 'counter':
+        box('counter cabinets', 1.6, 0.86, 0.58, 0, 0.43, 0, m.cabinet);
+        for (const x of [-0.4, 0.4]) {
+          box('counter door panel', 0.74, 0.7, 0.01, x, 0.43, 0.295, m.cabinet);
+          box('counter door handle', 0.18, 0.02, 0.025, x, 0.72, 0.31, m.steel);
+        }
+        box('counter worktop', 1.62, 0.04, 0.62, 0, 0.9, 0.01, m.worktop);
+        box('counter sink basin', 0.55, 0.012, 0.38, -0.25, 0.921, 0.02, m.steel);
+        box('counter tap riser', 0.03, 0.26, 0.03, -0.25, 1.05, -0.2, m.steel);
+        box('counter tap spout', 0.03, 0.03, 0.18, -0.25, 1.17, -0.12, m.steel);
+        box('counter backsplash', 1.6, 0.5, 0.02, 0, 1.17, -0.3, m.tile);
+        box('counter wall cabinet', 1.6, 0.6, 0.34, 0, 1.85, -0.13, m.cabinet);
+        break;
+      case 'stove':
+        box('stove body', 0.76, 0.88, 0.62, 0, 0.44, 0, m.appliance);
+        box('stove oven window', 0.5, 0.3, 0.012, 0, 0.42, 0.312, m.hob);
+        box('stove oven handle', 0.5, 0.025, 0.03, 0, 0.66, 0.33, m.steel);
+        box('stove hob', 0.74, 0.02, 0.6, 0, 0.9, 0, m.hob);
+        for (const [x, z] of [[-0.18, -0.14], [0.18, -0.14], [-0.18, 0.14], [0.18, 0.14]]) {
+          const ring = MeshBuilder.CreateTorus('prop fallback stove burner', { diameter: 0.17, thickness: 0.012, tessellation: 18 }, scene);
+          ring.position.set(x, 0.915, z); ring.material = m.steel; ring.parent = root;
+        }
+        for (let i = 0; i < 4; i++) box('stove knob', 0.035, 0.035, 0.03, -0.24 + i * 0.16, 0.8, 0.32, m.steel);
+        box('stove backsplash', 0.76, 0.5, 0.02, 0, 1.17, -0.3, m.tile);
+        box('stove range hood', 0.72, 0.18, 0.46, 0, 1.75, -0.08, m.steel);
+        break;
+      case 'dining_table':
+        box('dining table top', 1.2, 0.05, 0.8, 0, 0.74, 0, m.oak);
+        legs(0.54, 0.34, 0.72, m.oak);
+        box('dining table runner', 0.3, 0.005, 0.78, 0, 0.768, 0, m.linen);
         break;
       case 'shelf':
         for (const x of [-0.7, 0.7]) box('shelf side', 0.05, 2.05, 0.4, x, 1.025, 0, m.wood);

@@ -43,6 +43,10 @@ Check(LifeRules.Validate(twoDaysLater, evening, TimeSpan.FromHours(1)) == LifeSa
 var tired = new LifeState(3, 15 * 60, 20, "street");
 Check(LifeRules.Validate(tired with { Minute = 15 * 60 + 10, Energy = 90 }, tired, TimeSpan.FromMinutes(10)) == LifeSaveVerdict.EnergyTooHigh,
     "Energy cannot jump up without sleeping");
+Check(LifeRules.Validate(tired with { Minute = 15 * 60 + 25, Energy = 38 }, tired, TimeSpan.FromSeconds(30)) == LifeSaveVerdict.Accepted,
+    "A cooked meal (+18 energy in 25 minutes) is accepted");
+Check(LifeRules.Validate(tired with { Minute = 15 * 60 + 25, Energy = 60 }, tired, TimeSpan.FromSeconds(30)) == LifeSaveVerdict.EnergyTooHigh,
+    "Two meals' worth of energy at once is not");
 Check(LifeRules.Validate(tired with { Minute = 15 * 60 + 10, Energy = 19 }, tired, TimeSpan.FromMinutes(10)) == LifeSaveVerdict.Accepted,
     "Energy draining while awake is accepted");
 Check(LifeRules.TotalMinutes(new LifeState(2, 0, 50, "street")) == 1440, "Total minutes count whole days");
