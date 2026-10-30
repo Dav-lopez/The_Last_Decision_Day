@@ -75,7 +75,8 @@ test('only your own front door opens; the neighbour door is recognised but locke
   // Walking from the street start reaches your own porch.
   // With the camera looking down -Z, D walks toward -X (the left house) and W toward the houses.
   let position = { x: 0, z: 3.8 };
-  for (let i = 0; i < 20; i++) position = stepPosition(position, new Set(['w']), 0.05, 3.8);
+  // Walk up to the front path: between the driveway car and the porch plants.
+  for (let i = 0; i < 27; i++) position = stepPosition(position, new Set(['w']), 0.05, 3.8);
   for (let i = 0; i < 400 && position.x > own.x; i++) position = stepPosition(position, new Set(['d']), 0.05, 1);
   for (let i = 0; i < 200; i++) position = stepPosition(position, new Set(['w']), 0.05, 4);
   assert.equal(streetDoorAt(position)?.id, own.id, `ended at ${JSON.stringify(position)}`);

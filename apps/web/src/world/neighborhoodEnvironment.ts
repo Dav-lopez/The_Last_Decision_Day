@@ -1,6 +1,6 @@
 import { Color3, MeshBuilder, Scene, StandardMaterial } from '@babylonjs/core';
 import { HOUSE_SITES, SIDEWALK_WIDTH, streetFurniture } from './suburbLayout.mjs';
-import { STREET_LIGHTS } from './streetLayout.mjs';
+import { DRIVEWAY_Z, STREET_LIGHTS } from './streetLayout.mjs';
 
 /** Original lightweight neighborhood architecture; no external assets or network requests. */
 export function addPlayableNeighborhoodDetails(scene: Scene): void {
@@ -110,8 +110,8 @@ export function addPlayableNeighborhoodDetails(scene: Scene): void {
   for (const site of HOUSE_SITES) {
     const garageX = site.x - 1.08;
     const roadX = Math.sign(site.x) * 2.65;
-    detail('driveway street connection', Math.abs(garageX - roadX) + 0.8, 0.018, 1.4,
-      (garageX + roadX) / 2, 0.03, -0.45, stone);
+    detail('driveway street connection', Math.abs(garageX - roadX) + 0.8, 0.018, 1.9,
+      (garageX + roadX) / 2, 0.03, DRIVEWAY_Z, stone);
   }
   // Street lighting stays away from the center travel path.
   for (const { x, z } of STREET_LIGHTS) {
