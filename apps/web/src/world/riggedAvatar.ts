@@ -7,6 +7,7 @@ import { dropletCycle } from './facialDroplets.mjs';
 import { stepBlink } from './blinkCycle.mjs';
 import { composeEyeExpression } from './eyeExpression.mjs';
 import { advanceFacialMorph } from './faceDynamics.mjs';
+import { idleGazeTarget } from './gazeDynamics.mjs';
 import { blendHumanWeights, classifyHumanMotion, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 
@@ -182,7 +183,8 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
             // Blink and droplet morphs retain their dedicated timing paths.
             const next = advanceFacialMorph(
               expressionInfluences.get(morph.name) ?? { value: morph.influence, velocity: 0 },
-              faceTarget(emotion, morph.name), frameSeconds, morph.name,
+              Math.min(1, faceTarget(emotion, morph.name) + idleGazeTarget(morph.name, effectTime, emotion, movementSpeed)),
+              frameSeconds, morph.name,
             );
             expressionInfluences.set(morph.name, next);
             morph.influence = composeEyeExpression(morph.name, next.value, blinkState);
