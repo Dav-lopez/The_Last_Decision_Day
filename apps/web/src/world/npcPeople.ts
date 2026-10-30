@@ -8,6 +8,7 @@ import { smoothHumanHeading, HUMAN_WALK_SPEED } from './humanMotion.mjs';
 import { NEIGHBORS, PERSON_RADIUS, carAhead, isOut, personHeading, routePose, shouldYield } from './npcLayout.mjs';
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 import { initialNpcBlink, collectNpcEyelids, advanceNpcBlink } from './npcBlink.mjs';
+import { collectNpcFaceTargets, initialNpcFace, advanceNpcFace, resetNpcFace } from './npcFace.mjs';
 
 type CarFootprint = { x: number; z: number; rotation: number };
 export type Person = { x: number; z: number; radius: number };
@@ -58,11 +59,12 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     // Blink targets belong to each NPC's cloned meshes. Never animate the
     // original GLB container or the player's morph target manager.
     const eyelids = collectNpcEyelids(holder.getChildMeshes());
+    const faceTargets = collectNpcFaceTargets(holder.getChildMeshes());
     holder.setEnabled(false);
     const start = routePose(npc, 0);
     const reaction: { state: ActionState | null; clip: BoundAction | null } = { state: null, clip: null };
     const actions = new Map<string, BoundAction>();
-    return { npc, entries, holder, idle, walk, reaction, actions, eyelids, blink: initialNpcBlink(index), walked: 0, walkWeight: 0, heading: personHeading(start.dx, start.dz), visible: false };
+    return { npc, entries, holder, idle, walk, reaction, actions, eyelids, blink: initialNpcBlink(index), faceTargets, face: initialNpcFace(index), walked: 0, walkWeight: 0, heading: personHeading(start.dx, start.dz), visible: false };
   });
 
   // Action clips (a separate download): people standing together talk with their hands; anyone can flinch.
@@ -111,6 +113,7 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
           person.visible = out;
           person.holder.setEnabled(out);
           for (const group of [person.idle, person.walk]) out ? group.play(true) : group.pause();
+          if (!out) person.face = resetNpcFace(person.face, person.faceTargets);
         }
         if (!out) continue;
         // Advance only visible residents, avoiding hidden-scene morph updates.
@@ -132,6 +135,16 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
         }
         person.walk.setWeightForAllAnimatables(person.walkWeight * (1 - flinch.weight));
         person.idle.setWeightForAllAnimatables((1 - person.walkWeight) * (1 - flinch.weight));
+        // Each visible NPC owns their own morph targets and expression spring.
+        // Conversations move jaw/lips, nearby stationary residents acknowledge
+        // the player, and Hit actions briefly override those poses with surprise.
+        person.face = advanceNpcFace(person.face, dt, person.faceTargets, {
+          talking: person.npc.route.kind === 'stand' && person.actions.has('Talk'),
+          nearby: Boolean(player && Math.hypot(player.x - pose.x, player.z - pose.z) < 2.5),
+          moving: person.walkWeight > 0.15,
+          flinch: flinch.weight,
+          blink: person.blink,
+        });
         person.heading = smoothHumanHeading(person.heading, personHeading(pose.dx, pose.dz), dt, 8);
         person.holder.position.set(pose.x, 0, pose.z);
         person.holder.rotation.y = person.heading;
