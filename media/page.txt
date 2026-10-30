@@ -2,19 +2,15 @@ The Last Decision
 
 Your life. Your choices. Your consequences.
 
-Day 1 · 7:09 AM
+Day 1 · 7:12 AM
 Energy
 99%
 Guest explorer · Guest preview · progress not saved
-School entrance reached
+School · 9 m · left
 CHAPTER 1 · NEW IN TOWN
-Go inside the school (E at the entrance)
-JORDAN
-
-Jordan. Math is first, and Ms. Rivera locks the door at 8:15. Don't be late.
-
-2/3 · E, Enter or click to continue ▸
-School (closed)
+Look around Maple Street, then head for school
+11km/h · W/S gas, brake, reverse · A/D steer · E to get out when stopped
+Get out of car (E)
 
 Click the world, then use WASD, arrow keys or the direction pad to move. Hold Shift or switch Run on to move faster. Release the direction to stop. Drag to orbit; scroll, pinch or use the zoom buttons to zoom. Press E at the school entrance to go in (7:30 AM–4 PM), E at a desk to take the current class, and E by the teacher for other school activities; Escape closes the panel. Press E at your front door (the house on the left) to go inside, and E at the inside door to go back out. Cook at the stove or grab a snack from the fridge for energy. Your energy drains as the day goes on; when you're tired or it's evening, press E beside your bed to sleep until 7:00 AM. Press E next to a car to drive it: W/S for gas, brake and reverse, A/D to steer, and E again to get out once stopped.
 
