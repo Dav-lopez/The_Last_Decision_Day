@@ -1,0 +1,196 @@
+{
+  "source": "https://polyhaven.com",
+  "license": "CC0-1.0",
+  "assets": [
+    {
+      "slot": "plant",
+      "id": "potted_plant_02",
+      "name": "Potted Plant 02",
+      "authors": [
+        "Rico Cilliers"
+      ],
+      "page": "https://polyhaven.com/a/potted_plant_02",
+      "file": "plant.glb",
+      "bytes": 1680568,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 2,
+      "sizeMeters": [
+        0.701,
+        0.841,
+        0.657
+      ]
+    },
+    {
+      "slot": "bench",
+      "id": "painted_wooden_bench",
+      "name": "Painted Wooden Bench",
+      "authors": [
+        "Kirill Sannikov"
+      ],
+      "page": "https://polyhaven.com/a/painted_wooden_bench",
+      "file": "bench.glb",
+      "bytes": 268188,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 1,
+      "sizeMeters": [
+        1.165,
+        0.889,
+        0.497
+      ]
+    },
+    {
+      "slot": "sofa",
+      "id": "sofa_02",
+      "name": "Sofa 02",
+      "authors": [
+        "Kirill Sannikov"
+      ],
+      "page": "https://polyhaven.com/a/sofa_02",
+      "file": "sofa.glb",
+      "bytes": 198960,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 1,
+      "sizeMeters": [
+        1.807,
+        0.709,
+        0.818
+      ]
+    },
+    {
+      "slot": "armchair",
+      "id": "ArmChair_01",
+      "name": "Arm Chair 01",
+      "authors": [
+        "Kirill Sannikov"
+      ],
+      "page": "https://polyhaven.com/a/ArmChair_01",
+      "file": "armchair.glb",
+      "bytes": 495308,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 1,
+      "sizeMeters": [
+        0.848,
+        1.065,
+        0.766
+      ]
+    },
+    {
+      "slot": "coffee_table",
+      "id": "CoffeeTable_01",
+      "name": "Coffee Table 01",
+      "authors": [
+        "Fernando Quinn"
+      ],
+      "page": "https://polyhaven.com/a/CoffeeTable_01",
+      "file": "coffee_table.glb",
+      "bytes": 508272,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 1,
+      "sizeMeters": [
+        1.54,
+        0.523,
+        0.973
+      ]
+    },
+    {
+      "slot": "dining_chair",
+      "id": "dining_chair_02",
+      "name": "Dining Chair 02",
+      "authors": [
+        "James Ray Cock"
+      ],
+      "page": "https://polyhaven.com/a/dining_chair_02",
+      "file": "dining_chair.glb",
+      "bytes": 456284,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 1,
+      "sizeMeters": [
+        0.434,
+        0.973,
+        0.576
+      ]
+    },
+    {
+      "slot": "bed",
+      "id": "GothicBed_01",
+      "name": "Gothic Bed 01",
+      "authors": [
+        "Kirill Sannikov"
+      ],
+      "page": "https://polyhaven.com/a/GothicBed_01",
+      "file": "bed.glb",
+      "bytes": 675324,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 1,
+      "sizeMeters": [
+        1.494,
+        1.534,
+        2.04
+      ]
+    },
+    {
+      "slot": "desk",
+      "id": "SchoolDesk_01",
+      "name": "School Desk 01",
+      "authors": [
+        "Ethan Place"
+      ],
+      "page": "https://polyhaven.com/a/SchoolDesk_01",
+      "file": "desk.glb",
+      "bytes": 183828,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 1,
+      "sizeMeters": [
+        0.712,
+        0.883,
+        0.546
+      ]
+    },
+    {
+      "slot": "teacher_desk",
+      "id": "metal_office_desk",
+      "name": "Metal Office Desk",
+      "authors": [
+        "Ulan Cabanilla"
+      ],
+      "page": "https://polyhaven.com/a/metal_office_desk",
+      "file": "teacher_desk.glb",
+      "bytes": 258368,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 1,
+      "sizeMeters": [
+        2.0,
+        0.788,
+        0.947
+      ]
+    },
+    {
+      "slot": "shelf",
+      "id": "wooden_bookshelf_worn",
+      "name": "Wooden Bookshelf Worn",
+      "authors": [
+        "Ulan Cabanilla"
+      ],
+      "page": "https://polyhaven.com/a/wooden_bookshelf_worn",
+      "file": "shelf.glb",
+      "bytes": 645396,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 1,
+      "sizeMeters": [
+        1.374,
+        2.063,
+        0.581
+      ]
+    }
+  ]
+}
