@@ -64,6 +64,11 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
       } else if (material.name === 'Student hair') {
         material.metallic = 0;
         material.roughness = 0.69;
+      } else if (material.name === 'Student cheek blush') {
+        material.metallic = 0;
+        material.roughness = 0.92;
+        material.transparencyMode = PBRMaterial.PBRMATERIAL_ALPHABLEND;
+        material.alpha = 0;
       }
     }
     for (const mesh of container.meshes) mesh.receiveShadows = true;
@@ -83,6 +88,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
     });
     let effects = { ...EMPTY_EFFECTS };
     let baseSkin = new Color3(0.6, 0.42, 0.31);
+    const hasCheekBlush = container.materials.some(material => material.name === 'Student cheek blush');
     // Warn once when the checked-in GLB has not yet been regenerated with morphs.
     // Do not silently report working facial animation for a legacy model.
     const availableMorphNames = new Set(facialTargets.map(target => target.name));
@@ -112,6 +118,9 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
             // Match the chosen skin tone while retaining a muted lip tint.
             const skin = Color3.FromHexString(colorFor('skin', look.skin)).toLinearSpace();
             material.albedoColor = Color3.Lerp(skin, new Color3(0.19, 0.055, 0.065), 0.35);
+          } else if (material.name === 'Student cheek blush') {
+            const skin = Color3.FromHexString(colorFor('skin', look.skin)).toLinearSpace();
+            material.albedoColor = Color3.Lerp(skin, new Color3(0.74, 0.12, 0.17), 0.45);
           }
         }
       },
@@ -121,10 +130,13 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
         for (const material of container.materials) {
           if (!(material instanceof PBRMaterial)) continue;
           if (material.name === 'Student skin') {
-            // A subtle whole-skin warmth cue; localized cheek blush still needs
-            // facial UV masks or dedicated cheek meshes on the final head.
-            material.albedoColor = Color3.Lerp(baseSkin, new Color3(0.75, 0.24, 0.28), effects.blush * 0.18);
+            // Legacy GLBs retain their old subtle warmth cue. With cheek
+            // geometry, keep the body skin unchanged and fade in only cheeks.
+            material.albedoColor = Color3.Lerp(baseSkin, new Color3(0.75, 0.24, 0.28),
+              hasCheekBlush ? 0 : effects.blush * 0.18);
             material.roughness = 0.82 - effects.sweat * 0.12;
+          } else if (material.name === 'Student cheek blush') {
+            material.alpha = Math.min(0.65, Math.max(0, effects.blush * 0.65));
           } else if (material.name === 'Student eyes') {
             material.clearCoat.intensity = 0.55 + effects.wateryEyes * 0.35;
           }

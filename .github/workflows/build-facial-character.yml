@@ -6,6 +6,8 @@ on:
       - 'scripts/build-character.py'
       - 'scripts/facial_mouth.py'
       - 'scripts/test_facial_mouth.py'
+      - 'scripts/facial_cheeks.py'
+      - 'scripts/test_facial_cheeks.py'
       - 'scripts/validate-face-glb.py'
       - '.github/workflows/build-facial-character.yml'
 permissions:
@@ -19,8 +21,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Unit-test mouth morph geometry
-        run: python scripts/test_facial_mouth.py
+      - name: Unit-test mouth and cheek morph geometry
+        run: |
+          python scripts/test_facial_mouth.py
+          python scripts/test_facial_cheeks.py
       - name: Generate character from pinned licensed sources
         run: python scripts/build-character.py
       - name: Inspect facial rig
@@ -33,11 +37,18 @@ jobs:
           n = struct.unpack_from('<I', raw, 12)[0]
           d = json.loads(raw[20:20+n])
           expected = {'eyeBlinkLeft','eyeBlinkRight','eyeWideLeft','eyeWideRight','browInnerUp','browDownLeft','browDownRight',
-                      'mouthSmileLeft','mouthSmileRight','mouthFrownLeft','mouthFrownRight','mouthPressLeft','mouthPressRight','jawOpen','mouthOpen'}
+                      'mouthSmileLeft','mouthSmileRight','mouthFrownLeft','mouthFrownRight','mouthPressLeft','mouthPressRight','jawOpen','mouthOpen',
+                      'cheekSquintLeft','cheekSquintRight'}
           found = set()
           for mesh in d.get('meshes', []):
               found.update(mesh.get('extras', {}).get('targetNames', []))
           assert expected <= found, f'Missing new facial targets: {expected - found}'
+          cheeks = next(mesh for mesh in d['meshes'] if mesh['name'] == 'Student expressive cheeks')
+          assert cheeks['extras']['targetNames'] == ['cheekSquintLeft', 'cheekSquintRight']
+          assert len(cheeks['primitives'][0]['targets']) == 2
+          material = d['materials'][cheeks['primitives'][0]['material']]
+          assert material['name'] == 'Student cheek blush' and material['alphaMode'] == 'BLEND'
+          assert material['pbrMetallicRoughness']['baseColorFactor'][3] == 0
           assert len(d.get('skins', [])) > 0
           assert {'Idle','Walk','Run'} <= {a['name'] for a in d.get('animations', [])}
           print('Facial geometry, skin and locomotion clips verified')

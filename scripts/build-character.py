@@ -16,6 +16,7 @@ import urllib.parse
 import urllib.request
 
 from facial_mouth import build_mouth_geometry
+from facial_cheeks import build_cheek_geometry
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "apps/web/public/models"
@@ -222,6 +223,35 @@ def build(source_dir):
     b.doc["nodes"].append({"name": "Student lip surface", "mesh": lip_mesh, "skin": 0})
     b.doc["nodes"][body["scenes"][0]["nodes"][0]]["children"].append(len(b.doc["nodes"]) - 1)
 
+    # Skinned, normally transparent cheek patches supply true bilateral cheek
+    # deformation and a localized blush surface. The runtime fades the patch
+    # alpha in when embarrassed, instead of recoloring the whole body.
+    cheeks = build_cheek_geometry(body_joint["Head"])
+    cheek_material = len(b.doc["materials"])
+    b.doc["materials"].append(matte("Student cheek blush", [.72, .29, .33], .92))
+    cheek_mat = b.doc["materials"][cheek_material]
+    cheek_mat["alphaMode"] = "BLEND"
+    cheek_mat["pbrMetallicRoughness"]["baseColorFactor"][3] = 0.0
+    cheek_attrs = {
+        "POSITION": b.accessor(cheeks["positions"], "VEC3", bounds=True),
+        "NORMAL": b.accessor(cheeks["normals"], "VEC3"),
+        "JOINTS_0": b.accessor(cheeks["joints"], "VEC4", 5121),
+        "WEIGHTS_0": b.accessor(cheeks["weights"], "VEC4"),
+    }
+    cheek_mesh = len(b.doc["meshes"])
+    b.doc["meshes"].append({
+        "name": "Student expressive cheeks",
+        "primitives": [{
+            "attributes": cheek_attrs,
+            "indices": b.accessor(cheeks["indices"], "SCALAR", 5123),
+            "material": cheek_material,
+            "targets": [{"POSITION": b.accessor(deltas, "VEC3")} for deltas in cheeks["targets"]],
+        }],
+        "extras": {"targetNames": list(cheeks["names"])},
+    })
+    b.doc["nodes"].append({"name": "Student cheek surface", "mesh": cheek_mesh, "skin": 0})
+    b.doc["nodes"][body["scenes"][0]["nodes"][0]]["children"].append(len(b.doc["nodes"]) - 1)
+
     nodes = {node["name"]: i for i, node in enumerate(body["nodes"])}
     clips = {"Idle": "Idle_Loop", "Walk": "Walk_Loop", "Run": "Sprint_Loop"}
     for name, source_name in clips.items():
@@ -278,7 +308,7 @@ def build(source_dir):
                 "sources": [{"file": n, "url": MIRROR+urllib.parse.quote(p), "sha256": h} for n, (p, h) in SOURCES.items()],
                 "output": {"file": "human.glb", "bytes": len(glb), "sha256": hashlib.sha256(glb).hexdigest(),
                            "morphTargets": sorted({name for mesh in b.doc["meshes"] for name in mesh.get("extras", {}).get("targetNames", [])})},
-                "modifications": ["Keep only Idle_Loop, Walk_Loop and Sprint_Loop, exported as Idle/Walk/Run.", "Rebase local rotations onto the character bind pose; retain target limb lengths.", "Preserve pelvis bob and remove horizontal root travel; gameplay controls world movement.", "Add parted hair, remap hair joints, split clothing/skin materials for browser customization.", "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes.", "Add a skinned expressive lip surface with smile, frown, press and open morphs."]}
+                "modifications": ["Keep only Idle_Loop, Walk_Loop and Sprint_Loop, exported as Idle/Walk/Run.", "Rebase local rotations onto the character bind pose; retain target limb lengths.", "Preserve pelvis bob and remove horizontal root travel; gameplay controls world movement.", "Add parted hair, remap hair joints, split clothing/skin materials for browser customization.", "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes.", "Add a skinned expressive lip surface with smile, frown, press and open morphs.", "Add head-skinned cheek squint targets and transparent blush surfaces."]}
     (OUTPUT / "human.source.json").write_text(json.dumps(manifest, indent=2)+"\n")
     print(f"Built {len(glb):,} bytes with {len(b.doc['animations'])} animation clips.")
 
