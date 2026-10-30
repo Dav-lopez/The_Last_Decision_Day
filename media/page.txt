@@ -1,0 +1,73 @@
+The Last Decision
+
+Your life. Your choices. Your consequences.
+
+Day 1 · 7:33 AM
+Energy
+96%
+Guest explorer · Downtown Boulder, Colorado
+Downtown Boulder, Colorado · bus stop 6 m
+CHAPTER 1 · NEW IN TOWN
+Look around Maple Street, then head for school
+
+Click the world, then use WASD, arrow keys or the direction pad to move. Hold Shift or switch Run on to move faster. Release the direction to stop. Drag to orbit; scroll, pinch or use the zoom buttons to zoom. Press E at the school entrance to go in (7:30 AM–4 PM), E at a desk to take the current class, and E by the teacher for other school activities; Escape closes the panel. Press E at your front door (the house on the left) to go inside, and E at the inside door to go back out. Cook at the stove or grab a snack from the fridge for energy. Your energy drains as the day goes on; when you're tired or it's evening, press E beside your bed to sleep until 7:00 AM. Press E next to a car to drive it: W/S for gas, brake and reverse, A/D to steer, and E again to get out once stopped.
+
+▲
+◀
+▼
+▶
+RUN: OFF
+📷 Paint my house from a photo
+
+Character ready · Idle, walk and run
+
+Downtown map data © OpenStreetMap contributors (ODbL).
+
+Some 3D props by Poly Haven (CC0).
+
+Zoom +
+Zoom −
+Reset view
+Jump (Space)
+Dance (G)
+Camera: Third person · Switch (C)
+Daylight · Switch lighting
+Expression preview
+Neutral
+Happy
+Sad
+Angry
+Fear
+Embarrassed
+Exerted
+
+Current expression: neutral. When Neutral is selected, sprinting automatically triggers exertion. Facial animation requires a model with compatible blendshapes.
+
+Wardrobe
+Body & hair
+Tops
+Bottoms
+Shoes
+Body
+Male
+Female
+Skin tone
+Hairstyle
+Side part
+Buzz cut
+Pixie
+Long
+Space buns
+Shaved
+Hair colour
+Facial hair
+None
+Beard
+
+Outfit and appearance choices are saved in this browser only. Guest appearance is not linked to an account.
+
+Explore the neighborhood
+
+This is a free, local 3D preview. Walk to the school, rotate the camera, and customize your avatar. School activities, accounts, and progress saving require a connected server and an invitation.
+
+Exit demo and sign in
