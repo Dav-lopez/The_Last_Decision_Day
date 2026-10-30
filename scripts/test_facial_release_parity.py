@@ -2,7 +2,7 @@
 """Fast offline tests for the two-body facial release gate."""
 import hashlib
 import unittest
-from facial_release_parity import check_manifest, compare_profiles
+from facial_release_parity import check_manifest, compare_profiles, validate_hairstyles, EXPECTED_HAIR
 
 
 class ReleaseParityTests(unittest.TestCase):
@@ -46,6 +46,18 @@ class ReleaseParityTests(unittest.TestCase):
                 compare_profiles(self.male, changed)
         with self.assertRaisesRegex(ValueError, "identical"):
             compare_profiles(self.male, {**self.female, "sha256": "male"})
+
+
+    def test_hair_detail_overlays_are_not_counted_as_separate_styles(self):
+        meshes = {f"Student hair {style}" for style in EXPECTED_HAIR}
+        overlays = {f"Student hair {style} detail" for style in EXPECTED_HAIR}
+        self.assertEqual(validate_hairstyles(meshes | overlays, "male"), EXPECTED_HAIR)
+        with self.assertRaisesRegex(ValueError, "detail overlays"):
+            validate_hairstyles(meshes, "male")
+        with self.assertRaisesRegex(ValueError, "hairstyle choices"):
+            validate_hairstyles((meshes - {"Student hair parted"}) | overlays, "male")
+        with self.assertRaisesRegex(ValueError, "detail overlays"):
+            validate_hairstyles(meshes | (overlays - {"Student hair beard detail"}), "female")
 
 
 if __name__ == "__main__":
