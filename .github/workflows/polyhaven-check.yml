@@ -25,6 +25,7 @@ jobs:
       - name: Fetch, install and test (logged)
         run: |
           mkdir -p diagnostics
+          curl -sf -A "TheLastDecisionDay-AssetPipeline/1.0" "https://api.polyhaven.com/assets?t=models" | python3 -c "import json,sys; d=json.load(sys.stdin); print('\n'.join(sorted(f\"{k}\t{v.get('name','')}\t{','.join(v.get('categories',[]))}\t{','.join(v.get('tags',[]))}\t{v.get('dimensions','')}\" for k,v in d.items())))" > diagnostics/models.tsv || true
           python tools/assets/polyhaven_fetch.py 2>&1 | tee diagnostics/fetch.log; echo "fetch exit ${PIPESTATUS[0]}" >> diagnostics/fetch.log
           npm --prefix apps/web install > diagnostics/npm.log 2>&1
           node --test apps/web/tests/polyhaven-props.test.mjs > diagnostics/props-test.log 2>&1; echo "exit $?" >> diagnostics/props-test.log
