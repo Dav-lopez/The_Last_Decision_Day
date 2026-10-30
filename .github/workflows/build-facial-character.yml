@@ -10,6 +10,8 @@ on:
       - 'scripts/test_facial_mouth.py'
       - 'scripts/facial_cheeks.py'
       - 'scripts/facial_nose.py'
+      - 'scripts/facial_eyelids.py'
+      - 'scripts/test_facial_eyelids.py'
       - 'scripts/test_facial_nose.py'
       - 'scripts/test_facial_cheeks.py'
       - 'scripts/facial_droplets.py'
@@ -33,12 +35,14 @@ jobs:
           python scripts/test_facial_gaze.py
           python scripts/test_facial_cheeks.py
           python scripts/test_facial_nose.py
+          python scripts/test_facial_eyelids.py
           python scripts/test_facial_droplets.py
       - name: Generate character from pinned licensed sources
         run: python scripts/build-character.py
       - name: Inspect facial rig
         run: |
-          python scripts/validate-face-glb.py apps/web/public/models/human.glb || true
+          python scripts/validate-face-glb.py apps/web/public/models/human.glb
+          python scripts/validate-face-glb.py apps/web/public/models/human-female.glb
           python - <<'PY'
           import json, struct
           from pathlib import Path
@@ -69,6 +73,13 @@ jobs:
                   material = d['materials'][droplet['primitives'][0]['material']]
                   assert material['name'] == label and material['alphaMode'] == 'BLEND'
                   assert material['pbrMetallicRoughness']['baseColorFactor'][3] == 0
+          eyelids = next(mesh for mesh in d['meshes'] if mesh['name'] == 'Student eyelid rims')
+          eyelid_prim = eyelids['primitives'][0]
+          assert eyelids['extras']['targetNames'] == ['eyeBlinkLeft', 'eyeBlinkRight']
+          assert len(eyelid_prim['targets']) == 2
+          assert eyelid_prim['material'] == 4, 'Lashes must inherit hair color'
+          assert d['accessors'][eyelid_prim['attributes']['POSITION']]['count'] >= 100
+          assert any(n.get('mesh') == d['meshes'].index(eyelids) and n.get('skin') == 0 for n in d['nodes'])
           nose = next(mesh for mesh in d['meshes'] if mesh['name'] == 'Student sculpted nose')
           nose_prim = nose['primitives'][0]
           assert nose_prim['material'] == 0, 'Nose must inherit customizable skin material'
