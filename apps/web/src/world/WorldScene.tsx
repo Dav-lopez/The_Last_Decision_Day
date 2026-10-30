@@ -25,6 +25,8 @@ import { colorFor, modelFor, readLook, writeLook, type Look } from './appearance
 import { Wardrobe } from './Wardrobe';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
 import { buildFootballPitch } from './footballScene';
+import { bindActions, loadActionClips } from './characterActions';
+import { bodyLean, headingDelta, JUMP, jumpHeight } from './actionMixer.mjs';
 import { PARKED_CARS } from './streetLayout.mjs';
 import { addWorldProps } from './polyHavenProps';
 import { buildHomeScene } from './homeScene';
@@ -383,6 +385,7 @@ export default function WorldScene({
   const swapBodyRef = useRef<((model: string) => void) | null>(null);
   const kickRef = useRef<(chip: boolean) => void>(() => {});
   const [ballPrompt, setBallPrompt] = useState(false);
+  const emoteRef = useRef<(emote: 'jump' | 'dance') => void>(() => {});
   const housePainterRef = useRef<HousePainter | null>(null);
   const [previewEmotion, setPreviewEmotion] = useState<Emotion>('neutral');
   const previewEmotionRef = useRef<Emotion>('neutral');
@@ -522,6 +525,21 @@ export default function WorldScene({
           node.rotation.y = cars[index].rotation;
         }
       };
+      // Car body: pitches under acceleration and braking and rolls out of turns.
+      const carBody = { pitch: 0, roll: 0 };
+      const tiltCar = (index: number, pitch: number, roll: number, seconds: number) => {
+        const ease = 1 - Math.exp(-seconds * 6);
+        carBody.pitch += (pitch - carBody.pitch) * ease;
+        carBody.roll += (roll - carBody.roll) * ease;
+        for (const node of carRoots[index] ?? []) { node.rotation.x = carBody.pitch; node.rotation.z = carBody.roll; }
+      };
+      // The driver stays visible behind the wheel (left seat), playing the Drive clip.
+      const DRIVER_SEAT = { x: -0.36, y: 0.02, z: -0.12 };
+      const seatDriver = (car: CarState) => {
+        const c = Math.cos(car.rotation); const sn = Math.sin(car.rotation);
+        avatar.position.set(car.x + DRIVER_SEAT.x * c + DRIVER_SEAT.z * sn, DRIVER_SEAT.y, car.z - DRIVER_SEAT.x * sn + DRIVER_SEAT.z * c);
+        avatar.rotation.y = car.rotation;
+      };
       const streetLighting = createStreetLighting(scene, directional, sun);
       // Painted sky with clouds and a sun glow; fog fades the town into the horizon colour.
       const atmosphere = createAtmosphere(scene, directional.direction);
@@ -601,6 +619,10 @@ export default function WorldScene({
           }
           riggedRef.current = human;
           human.applyLook(lookRef.current);
+          // Talk, sit, drive, interact, jump, dance… arrive a moment later (a separate download).
+          void loadActionClips(scene, model).then(clips => {
+            if (clips && riggedRef.current === human) human.setActions(bindActions(clips, human.bones, 'player'));
+          });
           human.setEmotion(resolveCharacterEmotion(previewEmotionRef.current, 0));
           avatar.position.y = 0;
           for (const mesh of placeholderMeshes) {
@@ -818,6 +840,7 @@ export default function WorldScene({
         inputRef.current.clear();
         setDoorPrompt(null);
         setBusyLabel(kind === 'meal' ? 'Cooking and eating…' : 'Grabbing a snack…');
+        riggedRef.current?.playAction(kind === 'meal' ? 'PickUp' : 'Interact');
       };
       let pendingLesson: ReturnType<typeof attendLesson> = null;
       // Continue the account's saved day (and wake up at home if that's where it ended).
@@ -891,7 +914,7 @@ export default function WorldScene({
         const door = index < 0 ? streetDoorAt(position) : null;
         if (door) {
           if (door.own) enterHome();
-          else notify("The neighbors' door is locked.");
+          else { riggedRef.current?.playAction('Interact'); notify("The neighbors' door is locked."); }
           return;
         }
         if (index < 0) {
@@ -899,7 +922,9 @@ export default function WorldScene({
           if (!target) return;
           interaction = transitionInteraction(interaction, target);
           inputRef.current.clear();
-          avatar.setEnabled(false);
+          // With the action clips loaded, you sit visibly behind the wheel; otherwise the car hides you.
+          if (!riggedRef.current?.playAction('Drive')) avatar.setEnabled(false);
+          jumpTimer = 0;
           setNearCar(false);
           setDriveNotice('');
           setDriveSpeed(0);
@@ -916,6 +941,8 @@ export default function WorldScene({
         avatar.rotation.y = car.rotation;
         interaction = transitionInteraction(interaction, 'exit');
         inputRef.current.clear();
+        riggedRef.current?.stopAction();
+        tiltCar(index, 0, 0, 10);
         avatar.setEnabled(true);
         setDriveNotice('');
         setDriving(false);
@@ -928,6 +955,18 @@ export default function WorldScene({
         if (kicked) football.ball = kicked;
       };
       kickRef.current = kick;
+      // Jump (Space) and dance (G): on foot only.
+      let jumpTimer = 0;
+      emoteRef.current = (emote) => {
+        const human = riggedRef.current;
+        if (!human || interaction.mode !== 'walking' || schoolOpenRef.current || dialogueRef.current) return;
+        if (emote === 'jump') {
+          if (jumpTimer > 0) return;
+          jumpTimer = 1e-4;
+          human.playAction('JumpAir');
+        } else if (human.action === 'Dance') human.stopAction();
+        else human.playAction('Dance');
+      };
       const normalizeKey = (key: string) => key.length === 1 ? key.toLowerCase() : key;
       const onKeyDown = (event: KeyboardEvent) => {
         // Escape must also work when a button inside the school overlay has focus.
@@ -951,6 +990,12 @@ export default function WorldScene({
         } else if (key === 'f' && !event.repeat) {
           event.preventDefault();
           kickRef.current(inputRef.current.pressed.has('Shift'));
+        } else if (key === ' ' && !event.repeat) {
+          event.preventDefault();
+          emoteRef.current('jump');
+        } else if (key === 'g' && !event.repeat) {
+          event.preventDefault();
+          emoteRef.current('dance');
         } else if (key === 'e' && !event.repeat) {
           event.preventDefault();
           // Inside the classroom the teacher opens the school activities; everywhere else E is the action button.
@@ -1074,9 +1119,16 @@ export default function WorldScene({
           // Car-relative controls: W/S accelerate, brake and reverse; A/D steer.
           const keys = schoolOpenRef.current || dialogueRef.current ? new Set<string>() : inputRef.current.pressed;
           const others = cars.filter((_, index) => index !== driven);
-          const next = stepVehicle(cars[driven], driveInput(keys), delta, others, peopleOut);
+          const before = cars[driven];
+          const next = stepVehicle(before, driveInput(keys), delta, others, peopleOut);
           cars[driven] = { x: next.x, z: next.z, rotation: next.rotation, speed: next.speed };
           placeCar(driven);
+          const tilt = bodyLean({ kind: 'car', speed: next.speed, yawRate: delta > 0 ? headingDelta(before.rotation, next.rotation) / delta : 0,
+            acceleration: delta > 0 ? (next.speed - before.speed) / delta : 0 });
+          tiltCar(driven, tilt.pitch, tilt.roll, delta);
+          if (avatar.isEnabled()) seatDriver(cars[driven]);
+          // Someone you bump flinches.
+          if (next.collided && Math.abs(before.speed) > 0.6) neighbors?.react(next.x, next.z);
           // Swing the camera behind the car while moving; parked, the player may orbit freely.
           if (Math.abs(next.speed) > 1) camera.alpha = smoothHumanHeading(camera.alpha, chaseCameraAlpha(next.rotation), delta, 2.5);
           hudTimer += delta;
@@ -1122,6 +1174,7 @@ export default function WorldScene({
             football.goals += 1;
             football.resetIn = 2.5;
             notify(`GOOOAL! That's ${football.goals} ${football.goals === 1 ? 'goal' : 'goals'} on the Central Park pitch.`);
+            riggedRef.current?.playAction('Dance');
           }
           if (football.resetIn > 0) {
             football.resetIn -= delta;
@@ -1129,8 +1182,20 @@ export default function WorldScene({
           }
           football.pitch.show(football.ball);
         }
+        const headingBefore = avatar.rotation.y;
         if (moving) avatar.rotation.y = smoothHumanHeading(avatar.rotation.y, movementHeading(next.x - position.x, next.z - position.z), delta);
         position = next;
+        const human = riggedRef.current;
+        if (human) {
+          const lean = bodyLean({ yawRate: delta > 0 ? headingDelta(headingBefore, avatar.rotation.y) / delta : 0, speed: movementSpeed, tired });
+          human.setLean(lean.roll, lean.pitch);
+          if (moving && human.action === 'Dance') human.stopAction();
+        }
+        if (jumpTimer > 0) {
+          jumpTimer += delta;
+          avatar.position.y = jumpHeight(jumpTimer);
+          if (jumpTimer >= JUMP.duration) { jumpTimer = 0; avatar.position.y = 0; human?.playAction('JumpLand'); }
+        }
         waypointTimer += delta;
         if (waypointTimer >= 0.25) {
           waypointTimer = 0;
@@ -1439,6 +1504,8 @@ export default function WorldScene({
       <button type="button" aria-label="Zoom in" onClick={event => { cameraControlsRef.current?.zoom('in'); focusWorld(event); }}>Zoom +</button>
       <button type="button" aria-label="Zoom out" onClick={event => { cameraControlsRef.current?.zoom('out'); focusWorld(event); }}>Zoom −</button>
       <button type="button" onClick={event => { cameraControlsRef.current?.reset(); focusWorld(event); }}>Reset view</button>
+      <button type="button" onClick={event => { emoteRef.current('jump'); focusWorld(event); }}>Jump (Space)</button>
+      <button type="button" onClick={event => { emoteRef.current('dance'); focusWorld(event); }}>Dance (G)</button>
       <button type="button" onClick={event => { toggleCamera(); focusWorld(event); }} aria-label="Switch camera view">
         Camera: {cameraMode === 'follow' ? 'Third person' : 'Overhead'} · Switch (C)
       </button>

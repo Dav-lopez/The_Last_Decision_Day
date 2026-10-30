@@ -1,0 +1,89 @@
+{
+  "creator": "Quaternius",
+  "license": "CC0-1.0",
+  "officialSources": [
+    "https://quaternius.com/packs/universalanimationlibrary.html"
+  ],
+  "sourceMirrorCommit": "5821923af517ac5fdc82505faa92a0d575fc1b1a",
+  "sources": [
+    {
+      "file": "body.gltf",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/Base%20Characters/Godot%20-%20UE/Superhero_Male_FullBody.gltf",
+      "sha256": "e7fcea214ecf8855afbf910b50de6f9c7d1decfb71ca28bad8a4481452dafeb4"
+    },
+    {
+      "file": "female.gltf",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/Base%20Characters/Godot%20-%20UE/Superhero_Female_FullBody.gltf",
+      "sha256": "adedf28000a0716f689b009a70314506fc62f827498f77ba852acb5610f3f3f4"
+    },
+    {
+      "file": "animations.glb",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Animation%20Library%5BStandard%5D/Universal%20Animation%20Library%5BStandard%5D/Unreal-Godot/UAL1_Standard.glb",
+      "sha256": "69591853d817488edaa8fd9bf8fc1d821eaeaf789f8627b3cd23b41c4ed67997"
+    }
+  ],
+  "clips": {
+    "Talk": {
+      "source": "Idle_Talking_Loop",
+      "loop": true
+    },
+    "Sit": {
+      "source": "Sitting_Idle_Loop",
+      "loop": true
+    },
+    "SitTalk": {
+      "source": "Sitting_Talking_Loop",
+      "loop": true
+    },
+    "Drive": {
+      "source": "Driving_Loop",
+      "loop": true
+    },
+    "Interact": {
+      "source": "Interact",
+      "loop": false
+    },
+    "PickUp": {
+      "source": "PickUp_Table",
+      "loop": false
+    },
+    "JumpStart": {
+      "source": "Jump_Start",
+      "loop": false
+    },
+    "JumpAir": {
+      "source": "Jump_Loop",
+      "loop": true
+    },
+    "JumpLand": {
+      "source": "Jump_Land",
+      "loop": false
+    },
+    "Dance": {
+      "source": "Dance_Loop",
+      "loop": true
+    },
+    "Hit": {
+      "source": "Hit_Chest",
+      "loop": false
+    }
+  },
+  "outputs": [
+    {
+      "file": "human-actions.glb",
+      "body": "body.gltf",
+      "bytes": 710980,
+      "sha256": "bc7fda530ad7d4500f4c87de9897205c77ccbb2c0fe988941e48a9f176120b70"
+    },
+    {
+      "file": "human-female-actions.glb",
+      "body": "female.gltf",
+      "bytes": 710876,
+      "sha256": "549735465252121dbcab28b3ddd2d5b401cab01795a1ab72aef686e03b68539b"
+    }
+  ],
+  "modifications": [
+    "Retarget rotations onto each body's rest pose; keep only root/pelvis translation; remove horizontal root travel.",
+    "Skeleton nodes only: the browser binds clips to a loaded character by bone name."
+  ]
+}

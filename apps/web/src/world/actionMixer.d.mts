@@ -1,0 +1,10 @@
+export type ActionState = { name: string; loop: boolean; duration: number; elapsed: number; stopAt: number | null };
+export declare const ACTION_FADE: number;
+export declare const LOOPING_ACTIONS: ReadonlySet<string>;
+export declare function startAction(name: string, duration: number, loop?: boolean): ActionState;
+export declare function stopAction(state: ActionState | null): ActionState | null;
+export declare function stepAction(state: ActionState | null, seconds: number): { state: ActionState | null; weight: number };
+export declare const JUMP: Readonly<{ height: number; duration: number }>;
+export declare function jumpHeight(elapsed: number, jump?: { height: number; duration: number }): number;
+export declare function bodyLean(input: { yawRate: number; speed: number; acceleration?: number; kind?: 'person' | 'car'; tired?: boolean }): { roll: number; pitch: number };
+export declare function headingDelta(from: number, to: number): number;
