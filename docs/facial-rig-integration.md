@@ -2,6 +2,20 @@
 
 The bundled `human.glb` is stylized and does **not** yet contain facial blendshapes. PR #82 supplies expression controls, but a detailed face asset is still required.
 
+## Interim mouth animation
+
+The generator now authors a lightweight skinned lip strip attached to the
+Quaternius Head joint, with separate smile/frown/press and jaw/mouth opening
+POSITION morph targets. The existing emotion controller can drive these once
+the generated GLB is reviewed and committed. Run
+`python scripts/test_facial_mouth.py` for the geometry unit tests.
+
+This is **stylized geometry**, not a photorealistic replacement face: the
+procedural lips use estimated source rest-pose coordinates and must be visually
+checked for alignment, clipping, and skin-tone compatibility in Babylon.js.
+The current detailed-face validator still requires cheek morphs that the
+interim character does not provide.
+
 ## Candidate head requirements
 
 - Legally redistributable in a public/commercial game (record license, author and source URL); no personal-use or noncommercial-only downloads.
