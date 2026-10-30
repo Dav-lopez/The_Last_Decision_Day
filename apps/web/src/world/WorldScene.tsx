@@ -30,7 +30,7 @@ import { AudioPanel } from './audio/AudioPanel';
 import type { GameAudio } from './audio/director.mjs';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
 import { buildFootballPitch } from './footballScene';
-import { createMatch, formatClock, stepMatch, type MatchState } from './footballMatch.mjs';
+import { createMatch, formatClock as formatMatchClock, stepMatch, type MatchState } from './footballMatch.mjs';
 import { loadFootballPlayers } from './footballPlayers';
 import { CAREERS, SHIFT_HOURS, joinCareer, quitCareer, rankOf, readCareer, workShift, writeCareer, type CareerId, type CareerState } from './careers.mjs';
 import { buildWorkplaces, createLightBar, createSiren } from './careersScene';
@@ -1438,7 +1438,7 @@ export default function WorldScene({
             const canStart = onPitchNow && !match;
             setMatchPrompt(previous => previous === canStart ? previous : canStart);
             if (match && toPitch > 45) matchRef.current.leave();
-            const board = match ? `Blue ${match.score.home} – ${match.score.away} Red · ${match.phase === 'fulltime' ? 'Full time' : formatClock(match.clock)}` : null;
+            const board = match ? `Blue ${match.score.home} – ${match.score.away} Red · ${match.phase === 'fulltime' ? 'Full time' : formatMatchClock(match.clock)}` : null;
             setScoreboard(previous => previous === board ? previous : board);
             setBallPrompt(previous => previous === nearBall ? previous : nearBall);
             const work = workplaceAt(position);
