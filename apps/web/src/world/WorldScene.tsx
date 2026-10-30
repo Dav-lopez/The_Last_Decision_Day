@@ -901,6 +901,7 @@ export default function WorldScene({
         inputRef.current.clear();
         avatar.setEnabled(false);
         setRiding('Taking a taxi…');
+        audioRef.current?.cue('horn');
       };
       const finishTaxi = () => {
         const { to } = pendingTaxi!;
@@ -1221,7 +1222,7 @@ export default function WorldScene({
         if (!football || locationRef.current !== 'city') return;
         if (match) { matchActions = { ...matchActions, shoot: !chip, chip }; return; }
         const kicked = kickBall(football.ball, position, facingOf(avatar.rotation.y), chip);
-        if (kicked) football.ball = kicked;
+        if (kicked) { football.ball = kicked; audioRef.current?.cue('kick'); }
       };
       kickRef.current = kick;
       // Five-a-side match: you up front for Blue with four AI teammates against five AI Reds.
@@ -1270,6 +1271,7 @@ export default function WorldScene({
           jumpTimer = 1e-4;
           // Running jumps go higher and further; an exhausted one barely leaves the ground.
           jump = jumpFor({ speed: lastSpeed, energy: life.energy });
+          audioRef.current?.cue('jump');
           human.playAction('JumpAir');
         } else if (human.action === 'Dance') human.stopAction();
         else human.playAction('Dance');
@@ -1313,6 +1315,7 @@ export default function WorldScene({
         } else if (key === 'n' && !event.repeat) {
           event.preventDefault();
           setMapOpen(open => !open);
+          audioRef.current?.cue('map');
         } else if (key === 'q' && !event.repeat) {
           event.preventDefault();
           matchRef.current.pass();
@@ -1378,11 +1381,13 @@ export default function WorldScene({
         const audioDistance = Math.hypot(position.x-lastAudioPosition.x, position.z-lastAudioPosition.z);
         lastAudioPosition = { ...position };
         const audioCar = drivenIndex();
-        audioRef.current?.update({ location: locationRef.current,
+        const atPitch = locationRef.current === 'city' && (Boolean(match) || Math.hypot(position.x - PITCH.x, position.z - PITCH.z) < PITCH.halfLength + 8);
+        audioRef.current?.update({ location: atPitch ? 'pitch' : locationRef.current,
+          match: Boolean(match && match.phase !== 'fulltime'),
           speed: delta>0 && audioDistance<1 ? audioDistance/delta : 0,
           drivingSpeed: audioCar>=0 ? cars[audioCar].speed : null,
           reading: schoolOpenRef.current || dialogueRef.current || npcActiveRef.current,
-          paused: Boolean(pendingRide || pendingFood || pendingShift || interaction.mode==='sleeping' || interaction.mode==='sitting'),
+          paused: Boolean(pendingRide || pendingFood || pendingShift || pendingTaxi || pendingDrive || interaction.mode==='sleeping' || interaction.mode==='sitting'),
           evening: isEvening(life.minute) });
         // Controls follow the orbit camera: W always walks away from the viewer.
         const cameraDirection = camera.getForwardRay().direction;
@@ -1422,6 +1427,7 @@ export default function WorldScene({
             avatar.setEnabled(true);
             setBusyLabel(null);
             notify(result.promoted ? `Promoted to ${result.promoted}! Shift done: +$${result.pay}.` : `Shift done: ${result.duty}. +$${result.pay}.`);
+            audioRef.current?.cue(result.promoted ? 'promotion' : 'shift');
             saveToAccount();
           }
           scene.render();
@@ -1598,6 +1604,9 @@ export default function WorldScene({
           football.pitch.show(match.ball);
           matchPlayers?.update(match.players, delta);
           for (const event of match.events) {
+            if (event.type === 'shot' || event.type === 'pass') audioRef.current?.cue('kick');
+            else if (event.type === 'save') audioRef.current?.cue('save');
+            else if (event.type === 'goal' || event.type === 'fulltime') audioRef.current?.cue(event.type === 'goal' ? 'goal' : 'whistle');
             if (event.type === 'goal') {
               notify(event.team === 'home' ? `GOAL for Blue! ${match.score.home}–${match.score.away}` : `Red score. ${match.score.home}–${match.score.away}`);
               if (event.team === 'home') riggedRef.current?.playAction('Dance');
@@ -1609,6 +1618,7 @@ export default function WorldScene({
             }
           }
           // At each kick-off you're put back on your spot.
+          if (match.phase === 'kickoff' && lastPhase !== 'kickoff') audioRef.current?.cue('whistle');
           if (match.phase === 'kickoff' && lastPhase !== 'kickoff') {
             const me = youInMatch();
             if (me) { next.x = me.x; next.z = me.z; avatar.rotation.y = me.heading; }
@@ -1645,7 +1655,7 @@ export default function WorldScene({
         if (jumpTimer > 0) {
           jumpTimer += delta;
           avatar.position.y = jumpHeight(jumpTimer, jump);
-          if (jumpTimer >= jump.duration) { jumpTimer = 0; avatar.position.y = 0; human?.playAction('JumpLand'); }
+          if (jumpTimer >= jump.duration) { jumpTimer = 0; avatar.position.y = 0; human?.playAction('JumpLand'); audioRef.current?.cue('land'); }
         }
         waypointTimer += delta;
         if (waypointTimer >= 0.25) {

@@ -12,6 +12,10 @@ public sealed record RoomSnapshot(string Code, Guid SelfId, WorldPlayer[] Player
 public sealed record RoomRoster(string Code, WorldPlayer[] Players);
 public sealed record RoomDeparture(string ConnectionId, RoomRoster Roster);
 public sealed record RoomJoin(RoomSnapshot Snapshot, RoomDeparture[] Departures);
+/// <summary>A quick emote shown over the sender's avatar (from a fixed list).</summary>
+public sealed record WorldEmote(Guid CharacterId, string Name, string Emote);
+/// <summary>WebRTC voice signaling relayed to the other player in the room (offer, answer, ICE candidate, hang-up).</summary>
+public sealed record WorldSignal(Guid From, string Kind, string Payload);
 
 public interface IWorldPlayerDirectory
 {
@@ -51,6 +55,37 @@ public sealed class WorldRooms(TimeProvider clock)
     private readonly Dictionary<string, string> membership = new(StringComparer.Ordinal);
     private readonly Dictionary<Guid, string> characterConnections = [];
     private readonly Dictionary<(Guid, string), Queue<DateTimeOffset>> budgets = [];
+
+    public static IReadOnlyList<string> Emotes { get; } = ["wave", "cheer", "dance", "thumbs-up", "laugh", "follow-me", "over-here", "nice"];
+    public static IReadOnlyList<string> SignalKinds { get; } = ["offer", "answer", "ice", "hangup"];
+    public const int MaxSignalLength = 12_000;
+
+    public (string Code, WorldEmote Emote) Emote(string connection, string? emote)
+    {
+        lock (gate)
+        {
+            var (room, member) = MemberOf(connection);
+            if (emote is null || !Emotes.Contains(emote)) throw new HubException("Unknown emote.");
+            Limit(member.Identity.CharacterId, "emote", 6, TimeSpan.FromSeconds(10));
+            room.LastUsed = clock.GetUtcNow();
+            return (room.Code, new WorldEmote(member.Identity.CharacterId, member.Identity.Name, emote));
+        }
+    }
+
+    /// <summary>Validates a voice signaling message; the server never reads or stores the SDP/ICE payload.</summary>
+    public (string Code, WorldSignal Signal) Signal(string connection, string? kind, string? payload)
+    {
+        lock (gate)
+        {
+            var (room, member) = MemberOf(connection);
+            if (kind is null || !SignalKinds.Contains(kind)) throw new HubException("Unknown voice signal.");
+            if (payload is null || payload.Length > MaxSignalLength) throw new HubException("Voice signal too large.");
+            if (room.Members.Count < 2 && kind != "hangup") throw new HubException("Wait for your friend to join before starting voice.");
+            Limit(member.Identity.CharacterId, "signal", 120, TimeSpan.FromSeconds(10));
+            room.LastUsed = clock.GetUtcNow();
+            return (room.Code, new WorldSignal(member.Identity.CharacterId, kind, payload));
+        }
+    }
 
     public static string NormalizeCode(string? code)
     {

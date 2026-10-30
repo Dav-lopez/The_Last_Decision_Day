@@ -81,3 +81,29 @@ test('preference validation and storage failures never break the game',()=>{
   const storage={getItem(){throw new Error('blocked');},setItem(){throw new Error('quota');}};
   assert.deepEqual(readAudioSettings(storage),AUDIO_DEFAULTS);assert.equal(writeAudioSettings(AUDIO_DEFAULTS,storage),false);
 });
+
+test('each place has its own tempo and band; energy brings in drums, dusk softens it', async () => {
+  const { beatSeconds, musicStep, CUES } = await import('../src/world/audio/score.mjs');
+  const tempos = new Set(['street', 'home', 'school', 'city', 'pitch'].map(beatSeconds));
+  assert.equal(tempos.size, 5);
+  const drums = (location, mood) => Array.from({ length: 16 }, (_, s) => musicStep(location, s, mood)).flat().filter(n => ['kick', 'snare', 'hat'].includes(n.instrument)).length;
+  assert.equal(drums('street', { intensity: 0 }), 0, 'a quiet walk has no kit');
+  assert.ok(drums('street', { intensity: 1 }) > 4, 'running brings the drums');
+  assert.ok(drums('pitch', {}) > 8, 'match-day drums');
+  const loud = musicStep('street', 0, {}).reduce((s, n) => s + n.gain, 0);
+  const soft = musicStep('street', 0, { evening: true }).reduce((s, n) => s + n.gain, 0);
+  assert.ok(soft < loud);
+  assert.ok(musicStep('city', 0).some(n => n.instrument === 'bass'));
+  for (const name of ['kick', 'whistle', 'goal', 'save', 'jump', 'land', 'shift', 'promotion', 'horn', 'map', 'chat', 'emote']) assert.ok(CUES[name]?.length, name);
+});
+
+test('noise cues and instrument notes play through the graph without leaking voices', async () => {
+  const context = audioContext(); const audio = createGameAudio({ createContext: () => context }); await audio.enable();
+  audio.cue('goal'); audio.cue('kick');
+  assert.ok(context.sources.some(s => s.kind === 'buffer'), 'crowd roar uses noise');
+  for (let i = 0; i < 40; i++) { audio.update({ location: 'pitch', match: true, speed: 4 }); context.advance(0.1); }
+  context.advance(10); audio.update({ location: 'pitch', match: true });
+  const live = context.sources.filter(s => !s.disconnected).length;
+  assert.ok(live <= 80, `${live} live voices`);
+  audio.dispose();
+});

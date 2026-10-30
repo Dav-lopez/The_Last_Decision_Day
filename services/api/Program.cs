@@ -34,7 +34,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(TrustedProxyHeaders.Configur
 
 builder.Services.AddDbContext<GameDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddScoped<AttributeService>();
-builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = 4096);
+builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = 16_384);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<WorldRooms>();
 builder.Services.AddScoped<IWorldPlayerDirectory, WorldPlayerDirectory>();
