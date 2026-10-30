@@ -1,0 +1,21 @@
+name: Facial asset contract regression tests
+on:
+  pull_request:
+    paths:
+      - 'scripts/facial_asset_contract.py'
+      - 'scripts/test_facial_asset_contract.py'
+      - '.github/workflows/facial-asset-contract.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate facial geometry release gate against synthetic GLBs
+        run: python scripts/test_facial_asset_contract.py

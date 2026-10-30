@@ -19,8 +19,12 @@ jobs:
         run: python scripts/test_facial_gaze.py
       - name: Verify procedural droplet geometry
         run: python scripts/test_facial_droplets.py
+      - name: Unit-test generated facial asset contract
+        run: python scripts/test_facial_asset_contract.py
       - name: Build pinned-source facial model
         run: python scripts/build-character.py
+      - name: Enforce generated facial asset contract
+        run: python scripts/facial_asset_contract.py apps/web/public/models/human.glb
       - name: Validate model structure and animation
         run: |
           python - <<'PY'
