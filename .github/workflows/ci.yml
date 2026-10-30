@@ -33,6 +33,7 @@ jobs:
       - run: npm run test:movement
       - run: npm run test:appearance
       - run: npm run test:human
+      - run: npm run test:emotion
       - run: npm run test:character
       - run: npm run test:environment
       - run: npm run build
