@@ -3,6 +3,15 @@ on:
   push:
   pull_request:
 jobs:
+  facial-asset-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Reject invalid generated facial GLB fixtures
+        run: python scripts/test_facial_asset_contract.py
   api:
     runs-on: ubuntu-latest
     steps:
