@@ -56,6 +56,18 @@ public sealed class WorldHub(WorldRooms rooms, IWorldPlayerDirectory directory) 
         if (result is not null) await Clients.OthersInGroup(result.Value.Code).SendAsync("PlayerPose", result.Value.Player);
         return true;
     });
+    public Task SendEmote(string emote) => Serialized(async () =>
+    {
+        var result = rooms.Emote(Context.ConnectionId, emote);
+        await Clients.OthersInGroup(result.Code).SendAsync("PlayerEmote", result.Emote);
+        return true;
+    });
+    public Task SendSignal(string kind, string payload) => Serialized(async () =>
+    {
+        var result = rooms.Signal(Context.ConnectionId, kind, payload);
+        await Clients.OthersInGroup(result.Code).SendAsync("VoiceSignal", result.Signal);
+        return true;
+    });
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         await Serialized(async () =>

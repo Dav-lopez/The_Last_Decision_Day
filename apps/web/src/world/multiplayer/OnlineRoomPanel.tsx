@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type MutableRefObject, type FormEvent } fr
 import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import { createRoomClient, emptyRoom, type RoomClient } from './roomClient.mjs';
 import './online.css';
+import { VoiceAndEmotes } from './VoiceAndEmotes';
 
 export default function OnlineRoomPanel({ clientRef }: { clientRef: MutableRefObject<RoomClient | null> }) {
   const [room, setRoom] = useState(emptyRoom);
@@ -49,6 +50,7 @@ export default function OnlineRoomPanel({ clientRef }: { clientRef: MutableRefOb
       <button disabled={busy} onClick={() => void act(async () => { await navigator.clipboard.writeText(room.code); })}>Copy code</button>
       <button disabled={busy} onClick={() => void act(async () => { await clientRef.current!.leave(); setDraft(''); attempt.current = null; })}>Leave room</button>
       <ul>{room.players.map(player => <li key={player.characterId}>{player.name}{player.characterId === room.selfId ? ' (you)' : ''} · {player.pose?.location ?? 'joining'}</li>)}</ul>
+      <VoiceAndEmotes clientRef={clientRef} room={room} />
       <ol className="room-messages" aria-label="Room messages" aria-live="polite" aria-relevant="additions">{room.messages.map(message => <li key={message.id}><strong>{message.senderName}: </strong><span>{message.text}</span></li>)}</ol>
       <form onSubmit={send}>
         <label>Message your friend<textarea maxLength={280} value={draft} onChange={event => setDraft(event.target.value)} disabled={!connected} /></label>

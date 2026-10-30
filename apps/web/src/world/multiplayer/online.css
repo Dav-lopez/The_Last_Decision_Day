@@ -6,3 +6,8 @@
 .room-messages li { padding-block: .3rem; overflow-wrap: anywhere; white-space: pre-wrap; }
 .online-room textarea { width: 100%; min-height: 4rem; font: inherit; color: inherit; background: #152333; border: 1px solid #637888; border-radius: .4rem; padding: .6rem; }
 .online-hint { font-size: .85rem; opacity: .8; }
+
+.online-voice { margin: 10px 0; padding: 8px; border: 1px solid #425b79; border-radius: 10px; }
+.online-voice p { margin: 0 0 6px; }
+.online-emotes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.online-emotes button { padding: 5px 9px; font-size: .8rem; }
