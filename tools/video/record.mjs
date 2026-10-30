@@ -22,22 +22,21 @@ mkdirSync(join(outDir, 'frames'), { recursive: true });
  * `click` presses a button by its visible text.
  */
 const SHOTS = [
-  { seconds: 4, caption: 'The Last Decision — a life in one neighborhood', press: ['c'], drag: 70 },
-  { seconds: 3, caption: 'Morning on your street', press: ['c'], drag: -40 },
-  { seconds: 4, caption: 'Walk anywhere — neighbors keep to their side', keys: ['w'] },
-  { seconds: 3, caption: '', keys: ['a', 'w'] },
-  { seconds: 3, caption: 'Hold Shift to run', keys: ['d', 'w', 'Shift'] },
-  { seconds: 2.5, caption: 'Back to the parked car', keys: ['s', 'd'] },
-  { seconds: 1.5, caption: 'Press E to get in', keys: ['s'], press: ['e'] },
-  { seconds: 0.5, caption: 'Press E to get in', press: ['e'] },
-  { seconds: 4, caption: 'Drive: W gas · S brake · A/D steer', keys: ['w'] },
-  { seconds: 2, caption: '', keys: ['w', 'a'] },
-  { seconds: 2, caption: 'Stop, then E to get out', keys: ['s'] },
+  // Establishing overhead orbit, then back to the third-person camera (Reset view puts it behind you).
+  { seconds: 5, caption: 'The Last Decision — a life in one neighborhood', press: ['c'], drag: 60 },
+  { seconds: 3, caption: 'Morning on your street', press: ['c'], click: 'Reset view' },
+  // With the camera behind you, W walks toward the school.
+  { seconds: 2, caption: 'Walk anywhere — neighbors keep to their side', keys: ['w'] },
+  { seconds: 0.7, caption: 'Hold Shift to run', keys: ['w', 'Shift'] },
+  // Beside the sedan parked near the school.
+  { seconds: 1.5, caption: 'Press E by a car to get in', press: ['e'] },
+  { seconds: 1.6, caption: 'Drive: W gas · S brake · A/D steer', keys: ['w'] },
+  { seconds: 1.2, caption: 'Drive: W gas · S brake · A/D steer', keys: ['s'] },
   { seconds: 1.5, caption: 'Stop, then E to get out', press: ['e'] },
   { seconds: 4.5, caption: 'Street lamps come on at dusk', click: 'Switch lighting', press: ['c'], drag: 55 },
-  { seconds: 3, caption: 'Your day is saved — see you tomorrow', drag: 35 },
+  { seconds: 4, caption: 'Your day is saved — see you tomorrow', drag: 35 },
 ];
-const STILLS = [1.5, 8, 13, 19, 24, 33];
+const STILLS = [2.5, 9, 11.5, 13.5, 16, 19.5];
 
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: 1 });
@@ -129,8 +128,13 @@ for (const shot of SHOTS) {
   await hold(shot.keys);
   for (const key of shot.press ?? []) await page.keyboard.press(key);
   if (shot.click) {
-    const button = page.getByRole('button', { name: new RegExp(shot.click) });
-    if (await button.count()) await button.first().click();
+    // Click through the DOM: the full-screen 3D view covers the page's buttons.
+    const clicked = await page.evaluate(text => {
+      const button = [...document.querySelectorAll('button')].find(item => item.textContent?.includes(text));
+      button?.click();
+      return Boolean(button);
+    }, shot.click);
+    if (!clicked) console.warn(`button not found: ${shot.click}`);
     await canvas.focus();
   }
   if (shot.caption) captions.push({ start: elapsed, end: elapsed + shot.seconds, text: shot.caption });
