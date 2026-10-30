@@ -20,6 +20,7 @@ import { addPlayableNeighborhoodDetails } from './neighborhoodEnvironment';
 import { upgradeNeighborhoodAssets } from './realEnvironmentAssets';
 import { createHousePainter, type HousePainter } from './housePaint';
 import { HousePhotoPaint } from './HousePhotoPaint';
+import { ScanImport } from './ScanImport';
 import { readHouseStyle } from './photoPalette.mjs';
 import { colorFor, modelFor, readLook, writeLook, type Look } from './appearance.mjs';
 import { Wardrobe } from './Wardrobe';
@@ -384,6 +385,7 @@ export default function WorldScene({
   const swapBodyRef = useRef<((model: string) => void) | null>(null);
   const emoteRef = useRef<(emote: 'jump' | 'dance') => void>(() => {});
   const housePainterRef = useRef<HousePainter | null>(null);
+  const sceneRef = useRef<Scene | null>(null);
   const [previewEmotion, setPreviewEmotion] = useState<Emotion>('neutral');
   const previewEmotionRef = useRef<Emotion>('neutral');
   const [modelStatus, setModelStatus] = useState('Loading character…');
@@ -472,6 +474,7 @@ export default function WorldScene({
       const scene = new Scene(engine);
       // Nothing in the world is clicked: skip ray-picking on every pointer move.
       scene.skipPointerMovePicking = true;
+      sceneRef.current = scene;
       scene.clearColor = new Color4(0.67, 0.83, 0.96, 1);
       const sun = new HemisphericLight('daylight', new Vector3(0, 1, 0), scene);
       sun.intensity = 0.65;
@@ -1281,6 +1284,7 @@ export default function WorldScene({
         schoolAssetCancelled = true;
         schoolAsset?.dispose();
         humanLoadCancelled = true;
+        sceneRef.current = null;
         swapBodyRef.current = null;
         riggedRef.current?.dispose();
         riggedRef.current = null;
@@ -1467,6 +1471,7 @@ export default function WorldScene({
       </div>
     </div>}
     {!error && <HousePhotoPaint characterId={characterId} painterRef={housePainterRef} />}
+    {!error && <ScanImport sceneRef={sceneRef} />}
     {!error && <p role="status" style={{ fontSize: '0.8rem', opacity: 0.8 }}>{modelStatus}</p>}
     {!error && inCity && <p style={{ fontSize: '0.75rem', opacity: 0.7 }}>Downtown map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a> (ODbL).</p>}
     {!error && propCredit && <p style={{ fontSize: '0.75rem', opacity: 0.7 }}>Some 3D props by <a href="https://polyhaven.com" target="_blank" rel="noreferrer">Poly Haven</a> (CC0).</p>}

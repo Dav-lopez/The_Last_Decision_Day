@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
     "test:movement": "node --test tests/3d-movement.test.mjs tests/3d-controls.test.mjs tests/camera-follow.test.mjs tests/playable-controls.test.mjs tests/world-interactions.test.mjs tests/vehicle-drive.test.mjs tests/surroundings-layout.test.mjs",
-    "test:appearance": "node --test tests/avatar-appearance.test.mjs tests/photo-palette.test.mjs",
+    "test:appearance": "node --test tests/avatar-appearance.test.mjs tests/photo-palette.test.mjs tests/scan-placement.test.mjs",
     "test:human": "node --test tests/human-motion.test.mjs tests/human-asset-bounds.test.mjs tests/avatar-facing.test.mjs tests/npc-instances.test.mjs tests/npc-blink.test.mjs tests/action-mixer.test.mjs tests/adaptive-quality.test.mjs",
     "test:emotion": "node --test tests/character-emotion.test.mjs tests/city-layout.test.mjs",
     "test:character": "node --test tests/rigged-character.test.mjs tests/generated-face.test.mjs tests/blink-cycle.test.mjs tests/eye-expression.test.mjs",
