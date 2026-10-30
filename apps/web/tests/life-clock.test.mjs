@@ -104,3 +104,19 @@ test('loading continues from the furthest-along day: account or this browser', a
   assert.equal(chooseStartingLife(browser, { ...account, saved: false }).source, 'browser', 'nothing saved on the account yet');
   assert.deepEqual(chooseStartingLife(browser, null), { life: browser, location: 'street', source: 'browser' });
 });
+
+test('cooking a meal takes 25 minutes and restores energy; you need a few hours between meals', async () => {
+  const { FOOD, eat } = await import('../src/world/lifeClock.mjs');
+  const lunch = eat({ day: 2, minute: 12 * 60, energy: 40 }, 'meal');
+  assert.equal(lunch.ok, true);
+  assert.deepEqual(lunch.life, { day: 2, minute: 12 * 60 + FOOD.meal.minutes, energy: 40 + FOOD.meal.energy });
+  const again = eat(lunch.life, 'meal', lunch.ateAt);
+  assert.deepEqual([again.ok, again.reason], [false, "You're not hungry yet."]);
+  const dinner = eat({ day: 2, minute: 18 * 60, energy: 50 }, 'meal', lunch.ateAt);
+  assert.equal(dinner.ok, true, 'six hours later');
+  assert.equal(eat({ day: 1, minute: 600, energy: 95 }, 'meal').life.energy, 100, 'capped');
+  const lateSnack = eat({ day: 1, minute: 1438, energy: 10 }, 'snack');
+  assert.deepEqual(lateSnack.life, { day: 2, minute: 3, energy: 16 }, 'past midnight rolls the day');
+  assert.equal(eat({ day: 1, minute: 600, energy: 50 }, 'snack', lateSnack.ateAt - 2000).ok, true);
+  assert.equal(eat({ day: 1, minute: 600, energy: 50 }, 'cake').ok, false);
+});

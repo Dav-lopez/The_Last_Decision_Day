@@ -16,6 +16,8 @@ public static class LifeRules
     public const int MaxDay = 100_000;
     /// <summary>Energy recovered per game hour of sleep (8 hours restores 100).</summary>
     public const double EnergyPerHourSlept = 12.5;
+    /// <summary>A cooked meal restores 18 energy; allow one meal (with margin) between saves.</summary>
+    public const int MealEnergyAllowance = 20;
     /// <summary>One night's sleep (up to a full day) may be skipped in a single save.</summary>
     public const int SleepAllowanceMinutes = MinutesPerDay;
     private const int ClockSlackMinutes = 5;
@@ -37,8 +39,8 @@ public static class LifeRules
         if (advanced < 0) return LifeSaveVerdict.Stale;
         var realSeconds = Math.Max(0, sinceStored.TotalSeconds);
         if (advanced > realSeconds + SleepAllowanceMinutes + ClockSlackMinutes) return LifeSaveVerdict.TooFarAhead;
-        // Energy only rises through sleep, which also moves the clock forward.
-        var maxGain = Math.Ceiling(advanced / 60.0 * EnergyPerHourSlept) + 1;
+        // Energy only rises through sleep (which moves the clock forward) or one meal.
+        var maxGain = Math.Ceiling(advanced / 60.0 * EnergyPerHourSlept) + MealEnergyAllowance + 1;
         if (next.Energy - stored.Energy > maxGain) return LifeSaveVerdict.EnergyTooHigh;
         return LifeSaveVerdict.Accepted;
     }

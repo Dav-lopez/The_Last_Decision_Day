@@ -18,16 +18,26 @@ import { schoolWaypoint } from './schoolWayfinding.mjs';
 import { createMovementInput } from './inputState.mjs';
 import { addPlayableNeighborhoodDetails } from './neighborhoodEnvironment';
 import { upgradeNeighborhoodAssets } from './realEnvironmentAssets';
+import { createHousePainter, type HousePainter } from './housePaint';
+import { HousePhotoPaint } from './HousePhotoPaint';
+import { readHouseStyle } from './photoPalette.mjs';
 import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mjs';
 import { PARKED_CARS } from './streetLayout.mjs';
 import { addWorldProps } from './polyHavenProps';
 import { buildHomeScene } from './homeScene';
+import './story.css';
+import { CAST, advanceStory, currentStep, markSceneSeen, pendingScene, readStory, writeStory,
+  type StoryEvent, type StoryLine, type StoryState } from './storyChapters.mjs';
 import { buildSurroundings } from './worldSurroundings';
+import { createAtmosphere } from './sceneAtmosphere';
+import { createCameraOcclusionGuard, createRenderPipeline, pickRenderQuality } from './renderQuality';
 import { loadNeighbors, type Neighbors, type Person } from './npcPeople';
 import { buildSchoolScene } from './schoolScene';
+import { BUS_RIDE_MINUTES, MAPLE_BUS_STOP, atBusStop, cameraClearance, createCityCollider, findBusStop, readCity, stepCityLocomotion, toWorld, type City } from './cityLayout.mjs';
+import { buildBusStop, buildCityScene } from './cityScene';
 import { CLASSROOM, CLASSROOM_SPAWN, SCHOOL_ORIGIN, atClassroomExit, deskInReach, nearTeacher, stepClassroomLocomotion } from './schoolInterior.mjs';
 import { attendLesson, currentEntry, isSchoolOpen, joinableLesson, schoolStatus } from './schoolSchedule.mjs';
-import { advanceLife, canSleep, chooseStartingLife, formatClock, isEvening, isExhausted, nearBed, normalizeLife, readLife,
+import { advanceLife, canSleep, eat, FOOD, chooseStartingLife, formatClock, isEvening, isExhausted, nearBed, normalizeLife, readLife,
   sleepUntilMorning, TIRED_ENERGY, toServerLife, writeLife, type Life, type LifeActivity, type ServerLife } from './lifeClock.mjs';
 
 /** Account save for the player's day; absent in the guest preview, which keeps the browser copy only. */
@@ -35,7 +45,7 @@ export type LifeSync = {
   load: () => Promise<ServerLife>;
   save: (life: ServerLife) => Promise<{ status: 'saved' | 'rejected'; life: ServerLife }>;
 };
-import { BED_SIDE, FRONT_DOORS, HOME_SPAWN, atHomeExit, wallsToFadeFor, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade } from './homeInterior.mjs';
+import { BED_SIDE, FRONT_DOORS, HOME_SPAWN, atHomeExit, nearFridge, nearStove, wallsToFadeFor, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade } from './homeInterior.mjs';
 import { canExitVehicle, chaseCameraAlpha, driveInput, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
 
@@ -367,6 +377,7 @@ export default function WorldScene({
   const lookRef = useRef(look);
   const avatarRef = useRef<ReturnType<typeof createAvatar> | null>(null);
   const riggedRef = useRef<RiggedAvatar | null>(null);
+  const housePainterRef = useRef<HousePainter | null>(null);
   const [previewEmotion, setPreviewEmotion] = useState<Emotion>('neutral');
   const previewEmotionRef = useRef<Emotion>('neutral');
   const [modelStatus, setModelStatus] = useState('Loading character…');
@@ -380,9 +391,14 @@ export default function WorldScene({
   const [driveNotice, setDriveNotice] = useState('');
   const [nearCar, setNearCar] = useState(false);
   const [propCredit, setPropCredit] = useState(false);
+  const [busPrompt, setBusPrompt] = useState<'downtown' | 'home' | null>(null);
+  const [inCity, setInCity] = useState<string | null>(null);
+  const [riding, setRiding] = useState<string | null>(null);
+  const busAction = busPrompt === 'downtown' ? 'Take the bus downtown (E)' : busPrompt === 'home' ? 'Take the bus home (E)' : null;
   const interactRef = useRef<() => void>(() => {});
   const [inHome, setInHome] = useState(false);
-  const [doorPrompt, setDoorPrompt] = useState<'enter' | 'locked' | 'exit' | 'bed' | 'school' | 'school-closed' | 'leave-school' | 'desk' | null>(null);
+  const [doorPrompt, setDoorPrompt] = useState<'enter' | 'locked' | 'exit' | 'bed' | 'cook' | 'snack' | 'school' | 'school-closed' | 'leave-school' | 'desk' | null>(null);
+  const [busyLabel, setBusyLabel] = useState<string | null>(null);
   const [atSchool, setAtSchool] = useState(false);
   const [inClass, setInClass] = useState<string | null>(null);
   const [lifeView, setLifeView] = useState<Life>(() => readLife(characterId));
@@ -390,13 +406,45 @@ export default function WorldScene({
   const [syncStatus, setSyncStatus] = useState<'idle' | 'saving' | 'saved' | 'offline'>('idle');
   const lifeSyncRef = useRef(lifeSync);
   lifeSyncRef.current = lifeSync;
-  const locationRef = useRef<'street' | 'home' | 'school'>('street');
+  const locationRef = useRef<'street' | 'home' | 'school' | 'city'>('street');
   // Latest props for the scene's long-lived callbacks (attendance is recorded with the server activity).
   const classActionRef = useRef({ demoMode, canExecuteActivity, onExecuteActivity });
   classActionRef.current = { demoMode, canExecuteActivity, onExecuteActivity };
+  // Story: progress, the open dialogue scene and a brief "chapter complete" banner.
+  const [story, setStory] = useState<StoryState>(() => readStory(characterId));
+  const storyRef = useRef(story);
+  const [dialogue, setDialogue] = useState<{ lines: ReadonlyArray<StoryLine>; index: number } | null>(null);
+  const dialogueRef = useRef(false);
+  const [storyBanner, setStoryBanner] = useState('');
+  const saveStory = (next: StoryState) => { storyRef.current = next; writeStory(characterId, next); setStory(next); };
+  const openPendingScene = () => {
+    const scene = pendingScene(storyRef.current);
+    if (!scene || dialogueRef.current) return;
+    saveStory(markSceneSeen(storyRef.current));
+    dialogueRef.current = true;
+    inputRef.current.clear();
+    setDialogue({ lines: scene, index: 0 });
+  };
+  const advanceDialogue = () => {
+    setDialogue(current => {
+      if (!current) return current;
+      if (current.index + 1 < current.lines.length) return { ...current, index: current.index + 1 };
+      dialogueRef.current = false;
+      return null;
+    });
+  };
+  const reportStory = (event: StoryEvent) => {
+    const result = advanceStory(storyRef.current, event);
+    if (!result.completed) return;
+    saveStory(result.state);
+    if (result.chapterDone) setStoryBanner(`${result.chapterDone.title} — complete`);
+    openPendingScene();
+  };
+  const storyActionsRef = useRef({ reportStory, openPendingScene, advanceDialogue });
+  storyActionsRef.current = { reportStory, openPendingScene, advanceDialogue };
   const toggleCamera = () => {
     // Indoors the camera stays in its cutaway view; the street mode returns on leaving.
-    if (locationRef.current !== 'street') return;
+    if (locationRef.current === 'home' || locationRef.current === 'school') return;
     const next = cameraModeRef.current === 'follow' ? 'overhead' : 'follow';
     cameraModeRef.current = next;
     cameraControlsRef.current?.setMode(next);
@@ -419,10 +467,29 @@ export default function WorldScene({
       scene.clearColor = new Color4(0.67, 0.83, 0.96, 1);
       const sun = new HemisphericLight('daylight', new Vector3(0, 1, 0), scene);
       sun.intensity = 0.65;
-      const directional = new DirectionalLight('sun', new Vector3(-0.4, -1, -0.6), scene);
+      // A lower, warmer sun gives longer shadows and more shape to buildings and faces.
+      const directional = new DirectionalLight('sun', new Vector3(-0.5, -0.78, -0.42), scene);
       directional.intensity = 1.35;
       directional.position.set(12, 22, 10);
       const schoolMarker = createNeighborhood(scene);
+      // The bus stop at the north end of Maple Street; the bus runs to a real downtown (OpenStreetMap).
+      const disposeMapleStop = buildBusStop(scene, MAPLE_BUS_STOP.x - 1.05, MAPLE_BUS_STOP.z, Math.PI / 2);
+      let downtown: { city: City; collider: ReturnType<typeof createCityCollider>; stop: PlanarPosition & { rotation: number; street: string; dx: number; dz: number }; dispose: () => void } | null = null;
+      const loadDowntown = async () => {
+        const index = await fetch('/city/index.json').then(response => response.ok ? response.json() : null);
+        const entry = Array.isArray(index?.cities) ? index.cities[0] : null;
+        if (!entry?.file) return;
+        const city = readCity(await fetch('/city/' + entry.file).then(response => response.ok ? response.json() : null));
+        if (!city || disposed) return;
+        const collider = createCityCollider(city);
+        const local = findBusStop(city, collider);
+        if (!local) return;
+        const world = toWorld([local.x, local.z]);
+        const disposeCity = buildCityScene(scene, city);
+        const disposeStop = buildBusStop(scene, world.x + local.awayX * 0.9, world.z + local.awayZ * 0.9, local.heading);
+        downtown = { city, collider, stop: { ...world, rotation: movementHeading(local.dx, local.dz), dx: local.dx, dz: local.dz, street: local.street }, dispose: () => { disposeCity(); disposeStop(); } };
+      };
+      loadDowntown().catch(() => { /* Downtown is optional; Maple Street plays without it. */ });
       // The town around the street, so the world reaches the horizon instead of ending at a cliff edge.
       buildSurroundings(scene);
       const home = buildHomeScene(scene);
@@ -430,6 +497,10 @@ export default function WorldScene({
       let schoolAsset: Awaited<ReturnType<typeof loadSchoolEnvironment>> = null;
       let schoolAssetCancelled = false;
       addPlayableNeighborhoodDetails(scene);
+      // Your house wears the colours from your photo (re-applied when the detailed house model arrives).
+      const housePainter = createHousePainter(scene);
+      housePainterRef.current = housePainter;
+      housePainter.paint(readHouseStyle(characterId));
       // Live car state: the driven car moves, and walking collides with it wherever it is parked.
       const cars: CarState[] = PARKED_CARS.map(car => ({ x: car.x, z: car.z, rotation: car.rotation, speed: 0 }));
       const carRoots: TransformNode[][] = addParkedCarFallbacks(scene).map(root => [root]);
@@ -440,7 +511,14 @@ export default function WorldScene({
           node.rotation.y = cars[index].rotation;
         }
       };
-      const lighting = createStreetLighting(scene, directional, sun);
+      const streetLighting = createStreetLighting(scene, directional, sun);
+      // Painted sky with clouds and a sun glow; fog fades the town into the horizon colour.
+      const atmosphere = createAtmosphere(scene, directional.direction);
+      const lighting = {
+        ...streetLighting,
+        setEvening(evening: boolean) { streetLighting.setEvening(evening); atmosphere.setEvening(evening); },
+      };
+      lighting.setEvening(false);
       lightingRef.current = lighting;
       const environmentLoad = { cancelled: false };
       const shadows = new ShadowGenerator(1024, directional);
@@ -525,6 +603,11 @@ export default function WorldScene({
       camera.checkCollisions = true;
       camera.collisionRadius = new Vector3(0.25, 0.25, 0.25);
       camera.attachControl(canvas, false);
+      // Filmic tone mapping, bloom, anti-aliasing and (on capable devices) ambient occlusion.
+      const renderPipeline = createRenderPipeline(scene, camera, pickRenderQuality(scene));
+      // Never let walls, roofs or trees come between the camera and the player (or their car).
+      const occlusion = createCameraOcclusionGuard(camera, scene, mesh =>
+        mesh.isDescendantOf(avatar) || carRoots.some(roots => roots.some(root => mesh.isDescendantOf(root))));
 
       let interaction: InteractionState = { mode: 'walking', targetId: null };
       let clock = 0;
@@ -574,7 +657,8 @@ export default function WorldScene({
       };
       syncLighting();
       const tickLife = (seconds: number, activity: LifeActivity) => {
-        if (schoolOpenRef.current) return;
+        // Time stands still while reading a panel or a story scene.
+        if (schoolOpenRef.current || dialogueRef.current) return;
         life = advanceLife(life, seconds, activity);
         syncLighting();
         lifeHudTimer += seconds;
@@ -608,8 +692,50 @@ export default function WorldScene({
         avatar.rotation.y = to.rotation;
         inputRef.current.clear();
       };
+      // The bus: a short fade, BUS_RIDE_MINUTES of game time, then you step off at the other stop.
+      let rideTimer = 0;
+      let pendingRide: 'downtown' | 'home' | null = null;
+      // Downtown streets are narrow: the camera moves in rather than ending up inside a building.
+      let cityCameraRadius: number | null = null;
+      let cityClampedRadius = -1;
+      const boardBus = (to: 'downtown' | 'home') => {
+        if (!downtown) { notify('The bus is running late. Try again in a moment.'); return; }
+        pendingRide = to;
+        rideTimer = 0;
+        inputRef.current.clear();
+        avatar.setEnabled(false);
+        setBusPrompt(null);
+        setRiding(to === 'downtown' ? `Riding the bus to ${downtown.city.name}…` : 'Riding the bus home to Maple Street…');
+      };
+      const arrive = () => {
+        const to = pendingRide;
+        pendingRide = null;
+        for (let minute = 0; minute < BUS_RIDE_MINUTES; minute++) life = advanceLife(life, 1, 'idle');
+        writeLife(characterId, life);
+        syncLighting();
+        setLifeView({ ...life });
+        avatar.setEnabled(true);
+        setRiding(null);
+        if (to === 'downtown' && downtown) {
+          locationRef.current = 'city';
+          placePlayer(downtown.stop);
+          // Camera behind you, looking down the street.
+          snapCamera(position, Math.atan2(-downtown.stop.dz, -downtown.stop.dx));
+          cityCameraRadius = null;
+          setInCity(downtown.city.name);
+          notify(`${downtown.city.name} · ${formatClock(life.minute)}. Walk around; the bus home leaves from this stop.`);
+        } else {
+          locationRef.current = 'street';
+          placePlayer({ x: MAPLE_BUS_STOP.x + 0.4, z: MAPLE_BUS_STOP.z - 0.8, rotation: Math.PI });
+          snapCamera(position, -Math.PI / 2);
+          setInCity(null);
+          notify(`Back on Maple Street · ${formatClock(life.minute)}`);
+        }
+        saveToAccount();
+      };
       const enterHome = () => {
         locationRef.current = 'home';
+        storyActionsRef.current.reportStory('entered-home');
         placePlayer(HOME_SPAWN);
         cameraControls.setMode('indoor', true);
         snapCamera(position, Math.PI / 2);
@@ -626,10 +752,12 @@ export default function WorldScene({
         cameraControls.setMode(cameraModeRef.current, true);
         snapCamera(position, -Math.PI / 2);
         setInHome(false);
+        storyActionsRef.current.reportStory('left-home');
         saveToAccount();
       };
       const enterSchool = () => {
         locationRef.current = 'school';
+        storyActionsRef.current.reportStory('entered-school');
         placePlayer(CLASSROOM_SPAWN);
         cameraControls.setMode('indoor', true);
         snapCamera(position, Math.PI / 2);
@@ -648,6 +776,19 @@ export default function WorldScene({
         saveToAccount();
       };
       let classTimer = 0;
+      // Kitchen: last meal/snack times (life-total minutes) and the short fade while eating.
+      const lastAte: { meal: number | null; snack: number | null } = { meal: null, snack: null };
+      let pendingFood: { kind: 'meal' | 'snack'; result: ReturnType<typeof eat> } | null = null;
+      let foodTimer = 0;
+      const startEating = (kind: 'meal' | 'snack') => {
+        const result = eat(life, kind, lastAte[kind]);
+        if (!result.ok) { notify(result.reason); return; }
+        pendingFood = { kind, result };
+        foodTimer = 0;
+        inputRef.current.clear();
+        setDoorPrompt(null);
+        setBusyLabel(kind === 'meal' ? 'Cooking and eating…' : 'Grabbing a snack…');
+      };
       let pendingLesson: ReturnType<typeof attendLesson> = null;
       // Continue the account's saved day (and wake up at home if that's where it ended).
       if (lifeSyncRef.current) {
@@ -670,11 +811,14 @@ export default function WorldScene({
       }
       // E (or the on-screen button): car in/out, the home's doors, then the nearest car.
       const interact = () => {
+        if (dialogueRef.current) { storyActionsRef.current.advanceDialogue(); return; }
         // Nothing to do mid-lesson or asleep; the fade finishes on its own.
-        if (schoolOpenRef.current || interaction.mode === 'sitting' || interaction.mode === 'sleeping') return;
+        if (schoolOpenRef.current || pendingFood || interaction.mode === 'sitting' || interaction.mode === 'sleeping') return;
         const index = drivenIndex();
         if (index < 0 && locationRef.current === 'home') {
           if (atHomeExit(position)) leaveHome();
+          else if (nearStove(position)) startEating('meal');
+          else if (nearFridge(position)) startEating('snack');
           else if (nearBed(position, BED_SIDE)) {
             const check = canSleep(life);
             if (!check.ok) { notify(check.reason); return; }
@@ -703,6 +847,11 @@ export default function WorldScene({
           setInClass(lesson.lesson.title);
           return;
         }
+        if (index < 0 && locationRef.current === 'city') {
+          if (downtown && atBusStop(position, downtown.stop)) boardBus('home');
+          return;
+        }
+        if (index < 0 && atBusStop(position, MAPLE_BUS_STOP)) { boardBus('downtown'); return; }
         if (index < 0 && isNearSchool(position)) {
           if (isSchoolOpen(life.minute)) enterSchool();
           else notify(schoolStatus(life.minute));
@@ -757,6 +906,10 @@ export default function WorldScene({
         } else if (key === 'c' && !event.repeat) {
           event.preventDefault();
           toggleCamera();
+        } else if (dialogueRef.current && (key === 'e' || key === 'Enter' || key === ' ') && !event.repeat) {
+          // E, Enter or Space moves the story scene on.
+          event.preventDefault();
+          storyActionsRef.current.advanceDialogue();
         } else if (key === 'e' && !event.repeat) {
           event.preventDefault();
           // Inside the classroom the teacher opens the school activities; everywhere else E is the action button.
@@ -801,6 +954,12 @@ export default function WorldScene({
         clock += delta;
         schoolMarker.position.y = 4.6 + Math.sin(markerTime * 2.5) * 0.12;
         const cameraForward = { x: cameraDirection.x, z: cameraDirection.z };
+        if (pendingRide) {
+          rideTimer += delta;
+          if (rideTimer >= 2.2) arrive();
+          scene.render();
+          return;
+        }
         if (interaction.mode === 'sleeping') {
           // A short fade stands in for the night; the clock jumps to 7:00 when it ends.
           sleepTimer += delta;
@@ -815,7 +974,27 @@ export default function WorldScene({
             interaction = transitionInteraction(interaction, 'exit');
             avatar.setEnabled(true);
             setSleeping(false);
+            storyActionsRef.current.reportStory('slept');
             notify(`Good morning! Day ${life.day} · ${formatClock(life.minute)} · slept ${Math.round(rest.hoursSlept)} h · energy ${Math.round(life.energy)}%`);
+          }
+          home.setFadedWalls(wallsToFade(camera.position), delta);
+          scene.render();
+          return;
+        }
+        if (pendingFood) {
+          foodTimer += delta;
+          if (foodTimer >= (pendingFood.kind === 'meal' ? 2 : 0.9)) {
+            const { kind, result } = pendingFood;
+            pendingFood = null;
+            life = result.life;
+            lastAte[kind] = result.ateAt ?? null;
+            warnedExhausted = false;
+            writeLife(characterId, life);
+            syncLighting();
+            setLifeView({ ...life });
+            setBusyLabel(null);
+            notify(kind === 'meal' ? `That hit the spot. +${FOOD.meal.energy} energy` : `A quick bite. +${FOOD.snack.energy} energy`);
+            saveToAccount();
           }
           home.setFadedWalls(wallsToFade(camera.position), delta);
           scene.render();
@@ -837,6 +1016,7 @@ export default function WorldScene({
             if (action.demoMode) notify(`${lesson.title} done! Sign in to have lessons count toward your grades.`);
             else if (!action.canExecuteActivity(1)) notify(`${lesson.title} done, but you have no school time left today, so it wasn't counted.`);
             else { action.onExecuteActivity('attend-class'); notify(`${lesson.title} done! Attendance recorded.`); }
+            storyActionsRef.current.reportStory('attended-class');
             saveToAccount();
           }
           school.setFadedWalls(wallsToFadeFor(SCHOOL_ORIGIN, CLASSROOM, camera.position), delta);
@@ -851,7 +1031,7 @@ export default function WorldScene({
         if (driven >= 0) {
           tickLife(delta, 'drive');
           // Car-relative controls: W/S accelerate, brake and reverse; A/D steer.
-          const keys = schoolOpenRef.current ? new Set<string>() : inputRef.current.pressed;
+          const keys = schoolOpenRef.current || dialogueRef.current ? new Set<string>() : inputRef.current.pressed;
           const others = cars.filter((_, index) => index !== driven);
           const next = stepVehicle(cars[driven], driveInput(keys), delta, others, peopleOut);
           cars[driven] = { x: next.x, z: next.z, rotation: next.rotation, speed: next.speed };
@@ -873,17 +1053,20 @@ export default function WorldScene({
           riggedRef.current?.update(0, delta);
           cameraControls.update(delta);
           cameraControls.follow(next, delta);
+          occlusion.update(delta);
           scene.render();
           return;
         }
         const atHome = locationRef.current === 'home';
         const inSchool = locationRef.current === 'school';
+        const city = locationRef.current === 'city' ? downtown : null;
         const tired = isExhausted(life);
-        const pressed = schoolOpenRef.current ? new Set<string>() : inputRef.current.pressed;
+        const pressed = schoolOpenRef.current || dialogueRef.current ? new Set<string>() : inputRef.current.pressed;
         // Exhausted players can still walk home, but not run.
         const walkKeys = tired ? new Set([...pressed].filter(key => key !== 'Shift')) : pressed;
         const locomotion = atHome
           ? stepHomeLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward)
+          : city ? stepCityLocomotion(city.collider, position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward)
           : inSchool ? stepClassroomLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward, peopleOut)
           : stepLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward, cars, peopleOut);
         tickLife(delta, locomotion.motion);
@@ -895,8 +1078,16 @@ export default function WorldScene({
           waypointTimer = 0;
           if (clock - noticeAt > 2.5) setDriveNotice(previous => previous ? '' : previous);
           if (atHome) {
-            const prompt = atHomeExit(position) ? 'exit' : nearBed(position, BED_SIDE) ? 'bed' : null;
+            const prompt = atHomeExit(position) ? 'exit' : nearStove(position) ? 'cook' : nearFridge(position) ? 'snack'
+              : nearBed(position, BED_SIDE) ? 'bed' : null;
             setDoorPrompt(previous => previous === prompt ? previous : prompt);
+          } else if (city) {
+            const bus = atBusStop(position, city.stop) ? 'home' : null;
+            setBusPrompt(previous => previous === bus ? previous : bus);
+            const metres = Math.ceil(Math.hypot(position.x - city.stop.x, position.z - city.stop.z));
+            const label = `${city.city.name} · bus stop ${metres} m`;
+            setWayfinding(previous => previous === label ? previous : label);
+            setNearCar(previous => previous ? false : previous);
           } else if (inSchool) {
             const prompt = atClassroomExit(position) ? 'leave-school' : deskInReach(position) ? 'desk' : null;
             setDoorPrompt(previous => previous === prompt ? previous : prompt);
@@ -910,10 +1101,13 @@ export default function WorldScene({
             setWayfinding(previous => previous === label ? previous : label);
             const carInReach = closestInteraction(position, carTargets()) !== null;
             setNearCar(previous => previous === carInReach ? previous : carInReach);
+            if (isNearSchool(position)) storyActionsRef.current.reportStory('reached-school');
             const door = streetDoorAt(position);
             const prompt = door ? (door.own ? 'enter' : 'locked')
               : isNearSchool(position) ? (isSchoolOpen(life.minute) ? 'school' : 'school-closed') : null;
             setDoorPrompt(previous => previous === prompt ? previous : prompt);
+            const bus = atBusStop(position, MAPLE_BUS_STOP) ? 'downtown' : null;
+            setBusPrompt(previous => previous === bus ? previous : bus);
           }
           const entry = currentEntry(life.minute);
           const joinable = joinableLesson(life.minute);
@@ -946,8 +1140,17 @@ export default function WorldScene({
           previousNear = nextNear;
           setNearSchool(nextNear);
         }
+        if (city) {
+          if (cityCameraRadius === null || Math.abs(camera.radius - cityClampedRadius) > 0.01) cityCameraRadius = camera.radius;
+          const along = camera.position.subtract(camera.target).normalize().scale(cityCameraRadius);
+          const clear = cameraClearance(city.collider, camera.target, { x: camera.target.x + along.x, z: camera.target.z + along.z });
+          const fit = clear / Math.max(0.25, Math.sin(camera.beta));
+          camera.radius = Math.min(cityCameraRadius, Math.max(camera.lowerRadiusLimit ?? 1.5, fit));
+          cityClampedRadius = camera.radius;
+        }
         cameraControls.update(delta);
         cameraControls.follow(position, delta);
+        occlusion.update(delta);
         home.setFadedWalls(atHome ? wallsToFade(camera.position) : [], delta);
         school.setFadedWalls(inSchool ? wallsToFadeFor(SCHOOL_ORIGIN, CLASSROOM, camera.position) : [], delta);
         scene.render();
@@ -967,8 +1170,14 @@ export default function WorldScene({
         writeLife(characterId, life);
         saveToAccount();
         disposed = true;
+        disposeMapleStop();
+        downtown?.dispose();
         neighbors?.dispose();
+        renderPipeline.dispose();
+        atmosphere.dispose();
         lighting.dispose();
+        housePainter.dispose();
+        housePainterRef.current = null;
         lightingRef.current = null;
         environmentLoad.cancelled = true;
         schoolAssetCancelled = true;
@@ -1005,8 +1214,19 @@ export default function WorldScene({
 
   useEffect(() => {
     schoolOpenRef.current = schoolOpen;
-    if (schoolOpen) inputRef.current.clear();
+    if (schoolOpen) { inputRef.current.clear(); storyActionsRef.current.reportStory('talked-teacher'); }
   }, [schoolOpen]);
+
+  // The opening scene plays once the world has had a moment to appear.
+  useEffect(() => {
+    const timer = window.setTimeout(() => storyActionsRef.current.openPendingScene(), 1800);
+    return () => window.clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    if (!storyBanner) return;
+    const timer = window.setTimeout(() => setStoryBanner(''), 5000);
+    return () => window.clearTimeout(timer);
+  }, [storyBanner]);
 
   const touch = (key: string, down: boolean, event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -1042,6 +1262,8 @@ export default function WorldScene({
   const actionLabel = driving ? 'Get out of car (E)'
     : doorPrompt === 'exit' ? 'Go outside (E)'
       : doorPrompt === 'bed' ? 'Sleep (E)'
+      : doorPrompt === 'cook' ? 'Cook a meal (E)'
+      : doorPrompt === 'snack' ? 'Grab a snack (E)'
       : doorPrompt === 'leave-school' ? 'Leave school (E)'
       : doorPrompt === 'desk' ? 'Sit down for class (E)'
       : doorPrompt === 'school' ? 'Go into school (E)'
@@ -1061,18 +1283,38 @@ export default function WorldScene({
           </span>
         </div>
         {sleeping && <div className="world-sleep" role="status" aria-live="polite"><span>Sleeping…</span></div>}
+        {busyLabel && <div className="world-sleep world-kitchen" role="status" aria-live="polite"><span>{busyLabel}</span></div>}
         {inClass && <div className="world-sleep world-class" role="status" aria-live="polite"><span>{inClass} class…</span></div>}
-        <div className="world-caption"><strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
+        <div className="world-caption"><strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : inCity ? inCity : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
+        {(() => {
+          const { chapter, step } = currentStep(story);
+          return <div className="story-objective" aria-live="polite"><small>{chapter.title}</small><strong>{step.objective}</strong></div>;
+        })()}
+        {storyBanner && <div className="story-banner" role="status">{storyBanner}</div>}
+        {dialogue && (() => {
+          const current = dialogue.lines[dialogue.index];
+          const cast = CAST[current.speaker];
+          return <div className="story-scene" role="dialog" aria-label="Story scene" onClick={() => advanceDialogue()}>
+            <div className="story-letterbox story-letterbox-top" />
+            <div className="story-letterbox story-letterbox-bottom" />
+            <div className={`story-box story-${cast.tone}`}>
+              {cast.name && <span className="story-speaker">{cast.name}</span>}
+              <p>{current.text}</p>
+              <span className="story-continue">{dialogue.index + 1}/{dialogue.lines.length} · E, Enter or click to continue ▸</span>
+            </div>
+          </div>;
+        })()}
         {driving && <div className="world-drive-hud" role="status" aria-live="polite">
           <strong>{driveSpeed}</strong>km/h · W/S gas, brake, reverse · A/D steer · E to get out when stopped
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
         </div>}
         {!driving && driveNotice && <div className="world-notice" role="status" aria-live="polite">{driveNotice}</div>}
-        {actionLabel && <button type="button" className="world-car-action"
+        {(busAction ?? actionLabel) && <button type="button" className="world-car-action"
           onClick={event => { interactRef.current(); focusWorld(event); }}>
-          {actionLabel}
+          {busAction ?? actionLabel}
         </button>}
+        {riding && <div className="world-sleep world-bus" role="status" aria-live="polite"><span>{riding}</span></div>}
         {nearSchool && <button type="button" className="world-enter"
           aria-expanded={schoolOpen} aria-controls="school-game-panel"
           onClick={() => setSchoolOpen(current => !current)}>
@@ -1107,7 +1349,7 @@ export default function WorldScene({
       </>}
     </div>
     {!error && <div className="world-controls">
-      <p>Click the world, then use WASD, arrow keys or the direction pad to move. Hold Shift or switch Run on to move faster. Release the direction to stop. Drag to orbit; scroll, pinch or use the zoom buttons to zoom. Press E at the school entrance to go in (7:30 AM–4 PM), E at a desk to take the current class, and E by the teacher for other school activities; Escape closes the panel. Press E at your front door (the house on the left) to go inside, and E at the inside door to go back out. Your energy drains as the day goes on; when you're tired or it's evening, press E beside your bed to sleep until 7:00 AM. Press E next to a car to drive it: W/S for gas, brake and reverse, A/D to steer, and E again to get out once stopped.</p>
+      <p>Click the world, then use WASD, arrow keys or the direction pad to move. Hold Shift or switch Run on to move faster. Release the direction to stop. Drag to orbit; scroll, pinch or use the zoom buttons to zoom. Press E at the school entrance to go in (7:30 AM–4 PM), E at a desk to take the current class, and E by the teacher for other school activities; Escape closes the panel. Press E at your front door (the house on the left) to go inside, and E at the inside door to go back out. Cook at the stove or grab a snack from the fridge for energy. Your energy drains as the day goes on; when you're tired or it's evening, press E beside your bed to sleep until 7:00 AM. Press E next to a car to drive it: W/S for gas, brake and reverse, A/D to steer, and E again to get out once stopped.</p>
       <div className="world-control-buttons">
         <div className="world-pad" aria-label="Touch movement controls">
           <div className="world-pad-top">{directionButton('▲', 'ArrowUp', 'Move forward')}</div>
@@ -1124,7 +1366,9 @@ export default function WorldScene({
         }}>{sprintEnabled ? 'RUN: ON' : 'RUN: OFF'}</button></div>
       </div>
     </div>}
+    {!error && <HousePhotoPaint characterId={characterId} painterRef={housePainterRef} />}
     {!error && <p role="status" style={{ fontSize: '0.8rem', opacity: 0.8 }}>{modelStatus}</p>}
+    {!error && inCity && <p style={{ fontSize: '0.75rem', opacity: 0.7 }}>Downtown map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a> (ODbL).</p>}
     {!error && propCredit && <p style={{ fontSize: '0.75rem', opacity: 0.7 }}>Some 3D props by <a href="https://polyhaven.com" target="_blank" rel="noreferrer">Poly Haven</a> (CC0).</p>}
     {!error && <div className="world-camera-toggle" role="group" aria-label="Camera controls">
       <button type="button" aria-label="Zoom in" onClick={event => { cameraControlsRef.current?.zoom('in'); focusWorld(event); }}>Zoom +</button>

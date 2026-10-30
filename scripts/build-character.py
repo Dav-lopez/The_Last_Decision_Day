@@ -16,6 +16,7 @@ import urllib.parse
 import urllib.request
 
 from facial_mouth import build_mouth_geometry
+from facial_gaze import GAZE_TARGETS, gaze_delta
 from facial_cheeks import build_cheek_geometry
 from facial_droplets import DROPLET_KINDS, DROPLET_SIDES, build_droplet_geometry
 
@@ -157,7 +158,7 @@ def build(source_dir):
             mid = (ymin + ymax) / 2
             span = max(0.001, ymax - ymin)
             names = (["browInnerUp", "browDownLeft", "browDownRight"] if mi == 0
-                     else ["eyeBlinkLeft", "eyeBlinkRight", "eyeWideLeft", "eyeWideRight", "eyeSquintLeft", "eyeSquintRight"])
+                     else ["eyeBlinkLeft", "eyeBlinkRight", "eyeWideLeft", "eyeWideRight", "eyeSquintLeft", "eyeSquintRight", *GAZE_TARGETS])
             for prim in prims:
                 targets = []
                 for name in names:
@@ -168,6 +169,10 @@ def build(source_dir):
                         eligible = ("Left" not in name and "Right" not in name) or x * side > 0
                         if not eligible:
                             deltas.append((0.0, 0.0, 0.0))
+                        elif name in GAZE_TARGETS:
+                            # Eye-gaze displacement is isolated to its matching
+                            # eye and remains within the original eye socket.
+                            deltas.append(gaze_delta(name, x, y, z, mid, span / 2))
                         elif name.startswith("brow"):
                             shift = (0.025 if name == "browInnerUp" else -0.018)
                             deltas.append((0.0, shift, 0.0))

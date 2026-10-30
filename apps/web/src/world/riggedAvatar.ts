@@ -1,11 +1,12 @@
 import { Color3, PBRMaterial, Scene, SceneLoader, TransformNode } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
 import { colorFor, type Look } from './appearance.mjs';
-import { faceTarget, approachFace, type Emotion } from './facialEmotions';
+import { faceTarget, type Emotion } from './facialEmotions';
 import { EMPTY_EFFECTS, smoothFacialEffects, targetFacialEffects } from './facialEffects';
 import { dropletCycle } from './facialDroplets.mjs';
 import { stepBlink } from './blinkCycle.mjs';
 import { composeEyeExpression } from './eyeExpression.mjs';
+import { advanceFacialMorph } from './faceDynamics.mjs';
 import { blendHumanWeights, classifyHumanMotion, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 
@@ -110,7 +111,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
     // Initialize with the full BlinkFrame type, including left/right eyelid values.
     let blinkState = stepBlink({ elapsed: 0, count: 0 }, 0);
     // Preserve the underlying emotional pose while a blink temporarily masks it.
-    const expressionInfluences = new Map<string, number>();
+    const expressionInfluences = new Map<string, { value: number; velocity: number }>();
     let disposed = false;
     return {
       root,
@@ -177,10 +178,14 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
             // slow expression filter prevents a full closure on short blinks.
             morph.influence = morph.name.endsWith('Left') ? blinkState.left : blinkState.right;
           } else {
-            const smoothed = approachFace(expressionInfluences.get(morph.name) ?? morph.influence,
-              faceTarget(emotion, morph.name), frameSeconds);
-            expressionInfluences.set(morph.name, smoothed);
-            morph.influence = composeEyeExpression(morph.name, smoothed, blinkState);
+            // Preserve facial muscle velocity across interrupted expressions.
+            // Blink and droplet morphs retain their dedicated timing paths.
+            const next = advanceFacialMorph(
+              expressionInfluences.get(morph.name) ?? { value: morph.influence, velocity: 0 },
+              faceTarget(emotion, morph.name), frameSeconds, morph.name,
+            );
+            expressionInfluences.set(morph.name, next);
+            morph.influence = composeEyeExpression(morph.name, next.value, blinkState);
           }
         }
         const target = classifyHumanMotion(movementSpeed);

@@ -1,4 +1,4 @@
-import { Color3, Mesh, MeshBuilder, StandardMaterial, type Scene } from '@babylonjs/core';
+import { Color3, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, type Scene } from '@babylonjs/core';
 import {
   DISTANT_HOUSES, DISTANT_TREES, FENCES, GROUND_SIZE, HILLS, PLAYABLE_HALF, ROAD_BARRICADE, ROAD_HALF, ROAD_REACH,
   SIDEWALK_CENTER, SIDEWALK_WIDTH,
@@ -24,14 +24,44 @@ export function buildSurroundings(scene: Scene): () => void {
     return mesh;
   };
   const freeze = () => { for (const mesh of meshes) mesh.freezeWorldMatrix(); };
+  // Small deterministic canvas textures: no downloads, same look on every load.
+  const canvasTexture = (name: string, size: number, draw: (context: CanvasRenderingContext2D, size: number) => void) => {
+    const texture = new DynamicTexture(name, { width: size, height: size }, scene, true);
+    draw(texture.getContext() as unknown as CanvasRenderingContext2D, size);
+    texture.update();
+    return texture;
+  };
+  const speckle = (context: CanvasRenderingContext2D, size: number, colours: string[], count: number, seed: number) => {
+    let state = seed;
+    const next = () => ((state = (state * 1664525 + 1013904223) >>> 0) / 4294967296);
+    for (let i = 0; i < count; i++) {
+      context.fillStyle = colours[i % colours.length];
+      context.fillRect(next() * size, next() * size, 1 + next() * 3, 1 + next() * 4);
+    }
+  };
 
   // Ground to the horizon, just below the playable lawn so the two never flicker.
   const ground = keep(MeshBuilder.CreateGround('town ground', { width: GROUND_SIZE, height: GROUND_SIZE }, scene));
   ground.position.y = -0.03;
-  ground.material = paint('town grass', '#6a925f');
+  const grassMaterial = paint('town grass', '#ffffff');
+  grassMaterial.diffuseTexture = canvasTexture('town grass blades', 256, (context, size) => {
+    context.fillStyle = '#62894f';
+    context.fillRect(0, 0, size, size);
+    speckle(context, size, ['#557d45', '#71985a', '#4d7340', '#7ea463'], 2600, 11);
+  });
+  const grassTexture = grassMaterial.diffuseTexture as DynamicTexture;
+  grassTexture.uScale = GROUND_SIZE / 6;
+  grassTexture.vScale = GROUND_SIZE / 6;
+  ground.material = grassMaterial;
 
   // The road and sidewalks carry on north of the street and behind the school.
-  const asphalt = paint('town asphalt', '#5d6164');
+  const asphalt = paint('town asphalt', '#ffffff');
+  asphalt.diffuseTexture = canvasTexture('town asphalt grain', 256, (context, size) => {
+    context.fillStyle = '#5a5e61';
+    context.fillRect(0, 0, size, size);
+    speckle(context, size, ['#4c5053', '#6c7174', '#62676a'], 3000, 23);
+  });
+  (asphalt.diffuseTexture as DynamicTexture).vScale = (ROAD_REACH - PLAYABLE_HALF) / 4;
   const concrete = paint('town sidewalk', '#c7c0b2');
   const paintLine = paint('town lane paint', '#e9e3c9');
   const length = ROAD_REACH - PLAYABLE_HALF;
@@ -58,14 +88,56 @@ export function buildSurroundings(scene: Scene): () => void {
   }
 
   // Houses: a body and a pitched roof per house, four siding tones.
-  const tones = ['#d8cbb7', '#899eac', '#c9a98f', '#b8c4b0'].map((hex, i) => {
+  // Each face of a house box shows lap siding, two windows with white trim and shutters.
+  const facade = (siding: string, shadow: string) => (context: CanvasRenderingContext2D, size: number) => {
+    context.fillStyle = siding;
+    context.fillRect(0, 0, size, size);
+    context.fillStyle = shadow;
+    for (let y = 0; y < size; y += 12) context.fillRect(0, y, size, 2);
+    for (const x of [0.16, 0.6]) {
+      const wx = x * size;
+      const wy = size * 0.3;
+      const ww = size * 0.24;
+      const wh = size * 0.3;
+      context.fillStyle = '#f2efe6';
+      context.fillRect(wx - 6, wy - 6, ww + 12, wh + 12);
+      context.fillStyle = '#5d7f96';
+      context.fillRect(wx, wy, ww, wh);
+      context.fillStyle = '#8fb3c9';
+      context.fillRect(wx + 4, wy + 4, ww * 0.42, wh * 0.4);
+      context.fillStyle = '#f2efe6';
+      context.fillRect(wx + ww / 2 - 2, wy, 4, wh);
+      context.fillRect(wx, wy + wh / 2 - 2, ww, 4);
+      context.fillStyle = '#3b4a57';
+      context.fillRect(wx - 22, wy - 4, 12, wh + 8);
+      context.fillRect(wx + ww + 10, wy - 4, 12, wh + 8);
+    }
+    context.fillStyle = '#e9e5da';
+    context.fillRect(0, size - 18, size, 18);
+  };
+  const tones = [['#d8cbb7', '#bfb19b'], ['#899eac', '#738797'], ['#c9a98f', '#ae8f76'], ['#b8c4b0', '#9eab96']].map(([hex, shade], i) => {
     const body = keep(MeshBuilder.CreateBox(`town house body ${i}`, { size: 1 }, scene));
-    body.material = paint(`town siding ${i}`, hex);
+    const siding = paint(`town siding ${i}`, '#ffffff');
+    siding.diffuseTexture = canvasTexture(`town facade ${i}`, 256, facade(hex, shade));
+    body.material = siding;
     body.isVisible = false;
     return body;
   });
   const roof = keep(MeshBuilder.CreateCylinder('town house roof', { diameter: 1, height: 1, tessellation: 3 }, scene));
-  roof.material = paint('town roof shingles', '#4a4f5a');
+  const shingles = paint('town roof shingles', '#ffffff');
+  shingles.diffuseTexture = canvasTexture('town shingle rows', 256, (context, size) => {
+    context.fillStyle = '#4b505b';
+    context.fillRect(0, 0, size, size);
+    for (let row = 0; row < size; row += 16) {
+      context.fillStyle = '#3a3e47';
+      context.fillRect(0, row, size, 2);
+      for (let x = (row / 16) % 2 ? 0 : 12; x < size; x += 24) context.fillRect(x, row, 2, 16);
+    }
+    speckle(context, size, ['#5a606b', '#40454f'], 900, 5);
+  });
+  (shingles.diffuseTexture as DynamicTexture).uScale = 3;
+  (shingles.diffuseTexture as DynamicTexture).vScale = 3;
+  roof.material = shingles;
   roof.isVisible = false;
   const doorBase = keep(MeshBuilder.CreateBox('town house door', { width: 1, height: 1, depth: 1 }, scene));
   doorBase.material = paint('town front door', '#5f4636');

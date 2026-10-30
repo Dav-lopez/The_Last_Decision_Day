@@ -5,12 +5,12 @@ function unit(value) {
 
 /**
  * Blend the already-smoothed emotional morph with the blink of the matching eye.
- * Only eye-wide/squint morphs are suppressed: mouth, cheek and brow expressions
+ * Only eye-wide/squint/gaze morphs are suppressed: mouth, cheek and brow expressions
  * must remain active throughout the blink.
  */
 export function composeEyeExpression(name, expression, blink) {
   const value = unit(expression);
-  if (!/^eye(?:Wide|Squint)(?:Left|Right)$/.test(name)) return value;
+  if (!/^eye(?:Wide|Squint|LookDown|LookUp)(?:Left|Right)$/.test(name)) return value;
   const lid = name.endsWith('Left') ? blink?.left : blink?.right;
   return value * (1 - unit(lid));
 }

@@ -15,6 +15,8 @@ jobs:
           python-version: '3.11'
       - name: Verify procedural mouth geometry
         run: python scripts/test_facial_mouth.py
+      - name: Verify bilateral eye-gaze geometry
+        run: python scripts/test_facial_gaze.py
       - name: Verify procedural droplet geometry
         run: python scripts/test_facial_droplets.py
       - name: Build pinned-source facial model
@@ -33,7 +35,8 @@ jobs:
           assert d.get('skins') and {'Idle', 'Walk', 'Run'} <= {a['name'] for a in d['animations']}
           expected = {'eyeBlinkLeft','eyeBlinkRight','eyeWideLeft','eyeWideRight','browInnerUp','browDownLeft','browDownRight',
                       'mouthSmileLeft','mouthSmileRight','mouthFrownLeft','mouthFrownRight','mouthPressLeft','mouthPressRight','jawOpen','mouthOpen',
-                      'tearTrackLeft','tearTrackRight','sweatTrackLeft','sweatTrackRight'}
+                      'tearTrackLeft','tearTrackRight','sweatTrackLeft','sweatTrackRight',
+                      'eyeLookDownLeft','eyeLookDownRight','eyeLookUpLeft','eyeLookUpRight'}
           found = set()
           for mesh in d['meshes']:
               names = mesh.get('extras', {}).get('targetNames', [])

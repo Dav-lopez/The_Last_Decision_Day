@@ -1,0 +1,10 @@
+export type PaletteColour = { hex: string; rgb: [number, number, number] | number[]; share: number };
+export type HouseRole = 'walls' | 'roof' | 'door' | 'trim' | 'interior';
+export type HouseStyle = Readonly<Record<HouseRole, string> & { swatches: ReadonlyArray<string> }>;
+export declare function hexToRgb(hex: string): [number, number, number] | null;
+export declare function describe(rgb: ArrayLike<number>): { lightness: number; saturation: number };
+export declare function extractPalette(pixels: ArrayLike<number>, count?: number, iterations?: number): PaletteColour[];
+export declare function houseStyleFrom(palette: ReadonlyArray<PaletteColour>, variant?: number): HouseStyle | null;
+export declare function readHouseStyle(characterId: string, storage?: Pick<Storage, 'getItem'> | null): HouseStyle | null;
+export declare function writeHouseStyle(characterId: string, style: HouseStyle | null, storage?: Pick<Storage, 'setItem' | 'removeItem'> | null): void;
+export declare function roleForMaterial(name: string): Exclude<HouseRole, 'interior'> | null;

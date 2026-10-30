@@ -20,6 +20,11 @@ export const PROP_TYPES = Object.freeze({
   shelf: Object.freeze({ targetHeight: 1.8, maxFootprint: 1.45, halfX: 0.72, halfZ: 0.22 }),
   desk: Object.freeze({ targetHeight: 0.75, maxFootprint: 0.95, halfX: 0.45, halfZ: 0.3 }),
   teacher_desk: Object.freeze({ targetHeight: 0.78, maxFootprint: 1.65, halfX: 0.8, halfZ: 0.4 }),
+  // Kitchen: procedural models (Poly Haven has no fridges, stoves or kitchen units).
+  fridge: Object.freeze({ targetHeight: 1.8, maxFootprint: 0.8, halfX: 0.4, halfZ: 0.375 }),
+  counter: Object.freeze({ targetHeight: 0.92, maxFootprint: 1.6, halfX: 0.8, halfZ: 0.3 }),
+  stove: Object.freeze({ targetHeight: 0.92, maxFootprint: 0.76, halfX: 0.38, halfZ: 0.325 }),
+  dining_table: Object.freeze({ targetHeight: 0.76, maxFootprint: 1.2, halfX: 0.6, halfZ: 0.4 }),
 });
 
 const ENTRY_OFFSET = 0.85;

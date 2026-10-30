@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  BED_SIDE, DOOR_HALF_WIDTH, FRONT_DOORS, HOME_BLOCKERS, HOME_EXIT_DOOR, HOME_FURNITURE, HOME_ORIGIN, HOME_SPAWN, ROOM,
+  BED_SIDE, FRIDGE_SPOT, STOVE_SPOT, nearFridge, nearStove, DOOR_HALF_WIDTH, FRONT_DOORS, HOME_BLOCKERS, HOME_EXIT_DOOR, HOME_FURNITURE, HOME_ORIGIN, HOME_SPAWN, ROOM,
   atHomeExit, homeBlocked, isInsideHome, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade,
 } from '../src/world/homeInterior.mjs';
 import { CAMERA_PRESETS } from '../src/world/cameraControls.mjs';
@@ -38,7 +38,7 @@ test('the player arrives inside the door, can reach the bed and the exit, and ne
   // Walk in, then across to the bedroom side (+X: screen-left for a camera looking down -Z).
   let position = walk(HOME_SPAWN, ['w'], 1.2);
   position = walk(position, ['a'], 1.85);
-  position = walk(position, ['w'], 1.0);
+  position = walk(position, ['w'], 2.65);
   assert.ok(Math.hypot(position.x - BED_SIDE.x, position.z - BED_SIDE.z) < 1.0, `reached ${JSON.stringify(position)} near the bed`);
   assert.equal(homeBlocked(BED_SIDE.x, BED_SIDE.z), false);
   // Pushing into each wall for a long time stays inside the room.
@@ -97,4 +97,24 @@ test('the indoor exit and street spawn match the room door', () => {
   assert.ok(Math.abs(HOME_EXIT_DOOR.x - HOME_ORIGIN.x) < DOOR_HALF_WIDTH);
   const spawn = streetSpawnFor(FRONT_DOORS[0]);
   assert.equal(spawn.rotation, Math.PI, 'faces the street after leaving');
+});
+
+test('the kitchen: fridge, counter and stove on the left wall, a dining table by the door, all reachable', () => {
+  for (const type of ['fridge', 'counter', 'stove', 'dining_table']) {
+    const site = HOME_FURNITURE.find(item => item.type === type);
+    assert.ok(site, `${type} placed`);
+    assert.equal(homeBlocked(site.x, site.z), true, `${type} is solid`);
+  }
+  for (const spot of [STOVE_SPOT, FRIDGE_SPOT]) assert.equal(homeBlocked(spot.x, spot.z), false, 'the spot in front is free');
+  assert.equal(nearStove(STOVE_SPOT), true);
+  assert.equal(nearFridge(FRIDGE_SPOT), true);
+  assert.equal(nearStove(FRIDGE_SPOT), false, 'stove and fridge prompts do not overlap');
+  assert.equal(nearStove({ x: Number.NaN, z: 0 }), false);
+  // From the front door: step in past the open door leaf, go left (D walks toward -X)
+  // between the sofa and the dining chairs, then along the counter (S) to the stove.
+  let position = walk(HOME_SPAWN, ['w'], 1.7);
+  position = walk(position, ['d'], 1.86);
+  assert.ok(nearFridge(position) || Math.abs(position.x - FRIDGE_SPOT.x) < 0.3, `at the fridge end of the kitchen (${JSON.stringify(position)})`);
+  position = walk(position, ['s'], 1.55);
+  assert.ok(nearStove(position), `reached the stove (${JSON.stringify(position)})`);
 });

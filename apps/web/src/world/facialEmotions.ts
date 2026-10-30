@@ -6,7 +6,7 @@ export const FACE_PRESETS: Record<Emotion, FaceWeights> = {
   happy: { mouthSmileLeft: .75, mouthSmileRight: .75, cheekSquintLeft: .3, cheekSquintRight: .3 },
   sad: { mouthFrownLeft: .7, mouthFrownRight: .7, browInnerUp: .55, eyeSquintLeft: .18, eyeSquintRight: .18 },
   angry: { browDownLeft: .75, browDownRight: .75, mouthPressLeft: .55, mouthPressRight: .55 },
-  fear: { eyeWideLeft: .75, eyeWideRight: .75, browInnerUp: .65, jawOpen: .3 },
+  fear: { eyeWideLeft: .75, eyeWideRight: .75, eyeLookUpLeft: .28, eyeLookUpRight: .28, browInnerUp: .65, jawOpen: .3 },
   embarrassed: { eyeLookDownLeft: .4, eyeLookDownRight: .4, mouthSmileLeft: .25, mouthSmileRight: .25 },
   exerted: { mouthOpen: .4, browDownLeft: .2, browDownRight: .2 },
 };
