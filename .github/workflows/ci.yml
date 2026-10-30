@@ -34,6 +34,7 @@ jobs:
       - run: npm run test:appearance
       - run: npm run test:human
       - run: npm run test:emotion
+      - run: node --test tests/facial-droplets.test.mjs
       - run: npm run test:character
       - run: npm run test:environment
       - run: npm run build
