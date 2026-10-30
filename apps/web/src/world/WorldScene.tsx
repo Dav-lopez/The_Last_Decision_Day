@@ -8,7 +8,7 @@ import type { Emotion } from './facialEmotions';
 import { resolveCharacterEmotion } from './characterEmotion.mjs';
 import { loadSchoolEnvironment } from './schoolEnvironment';
 import { smoothHumanHeading } from './humanMotion.mjs';
-import { movementHeading } from './riggedPresentation.mjs';
+import { HUMAN_HEIGHT, movementHeading } from './riggedPresentation.mjs';
 import { isNearSchool, type PlanarPosition } from './movement.mjs';
 import { stepLocomotion } from './locomotion.mjs';
 import { createCameraControls } from './cameraControls.mjs';
@@ -263,8 +263,14 @@ function createNeighborhood(scene: Scene) {
   return schoolMarker;
 }
 
+/** The placeholder body is modelled ~2.45 units tall; scale it to the same adult height as the rigged human. */
+const PLACEHOLDER_HEIGHT = 2.45;
+
 function createAvatar(scene: Scene) {
   const root = new TransformNode('player', scene);
+  const body = new TransformNode('placeholder body', scene);
+  body.parent = root;
+  body.scaling.setAll(HUMAN_HEIGHT / PLACEHOLDER_HEIGHT);
   const jacket = surface(scene, 'character jacket', '#5f83d8');
   const face = surface(scene, 'character skin', '#996b4f');
   const trousers = surface(scene, 'character trousers', '#28334a');
@@ -273,28 +279,28 @@ function createAvatar(scene: Scene) {
   const torso = MeshBuilder.CreateCapsule('character body', { height: 1.1, radius: 0.37 }, scene);
   torso.position.y = 1.15;
   torso.material = jacket;
-  torso.parent = root;
+  torso.parent = body;
 
   const head = MeshBuilder.CreateSphere('character head', { diameter: 0.68, segments: 12 }, scene);
   head.position.y = 2.02;
   head.material = face;
-  head.parent = root;
+  head.parent = body;
   const cap = MeshBuilder.CreateSphere('character hair', { diameterX: 0.72, diameterY: 0.25, diameterZ: 0.7, segments: 10 }, scene);
   cap.position.y = 2.31;
   cap.material = hair;
-  cap.parent = root;
+  cap.parent = body;
   const legs = [-0.2, 0.2].map(x => {
     const leg = MeshBuilder.CreateCapsule('character leg', { height: 0.7, radius: 0.14 }, scene);
     leg.position.set(x, 0.38, 0);
     leg.material = trousers;
-    leg.parent = root;
+    leg.parent = body;
     return leg;
   });
   const arms = [-0.49, 0.49].map(x => {
     const arm = MeshBuilder.CreateCapsule('character arm', { height: 0.84, radius: 0.15 }, scene);
     arm.position.set(x, 1.23, 0);
     arm.material = jacket;
-    arm.parent = root;
+    arm.parent = body;
     return arm;
   });
   // Small, lightweight details make the character legible from both the
@@ -306,16 +312,16 @@ function createAvatar(scene: Scene) {
     const eye = MeshBuilder.CreateSphere('character eye', { diameter: 0.095, segments: 8 }, scene);
     eye.position.set(x, 2.07, -0.315);
     eye.material = eyes;
-    eye.parent = root;
+    eye.parent = body;
   }
   const nose = MeshBuilder.CreateSphere('character nose', { diameter: 0.13, segments: 8 }, scene);
   nose.position.set(0, 1.98, -0.345);
   nose.material = face;
-  nose.parent = root;
+  nose.parent = body;
   const mouth = MeshBuilder.CreateBox('character mouth', { width: 0.16, height: 0.025, depth: 0.025 }, scene);
   mouth.position.set(0, 1.87, -0.31);
   mouth.material = eyes;
-  mouth.parent = root;
+  mouth.parent = body;
 
   // Parent extremities to their limbs so the walking animation carries them.
   arms.forEach(arm => {
@@ -333,7 +339,7 @@ function createAvatar(scene: Scene) {
   const pack = MeshBuilder.CreateBox('character backpack', { width: 0.62, height: 0.84, depth: 0.26 }, scene);
   pack.position.set(0, 1.18, 0.36);
   pack.material = backpack;
-  pack.parent = root;
+  pack.parent = body;
 
   return { root, jacket, face, hair, legs, arms };
 }
