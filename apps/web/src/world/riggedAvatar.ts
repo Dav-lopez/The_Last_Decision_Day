@@ -1,20 +1,33 @@
-import { Color3, PBRMaterial, Scene, SceneLoader, TransformNode, type AbstractMesh, type Material } from '@babylonjs/core';
+import { Color3, PBRMaterial, Scene, SceneLoader, TransformNode, type AbstractMesh, type AnimationGroup, type Material } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
 import { ZONE_MATERIALS, dressZones, type Look, type Zone } from './appearance.mjs';
 import { faceTarget, type Emotion } from './facialEmotions';
 import { EMPTY_EFFECTS, smoothFacialEffects, targetFacialEffects } from './facialEffects';
 import { dropletCycle } from './facialDroplets.mjs';
+import { skinSurface, hairSurface, skinRoughness } from './surfaceShading.mjs';
 import { stepBlink } from './blinkCycle.mjs';
 import { composeEyeExpression } from './eyeExpression.mjs';
 import { advanceFacialMorph } from './faceDynamics.mjs';
 import { idleGazeTarget } from './gazeDynamics.mjs';
 import { blendHumanWeights, classifyHumanMotion, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
+import { startAction, stepAction, stopAction, type ActionState } from './actionMixer.mjs';
+import type { BoundAction } from './characterActions';
 
 export type RiggedAvatar = {
   root: TransformNode;
   applyLook: (look: Look) => void;
   setEmotion: (emotion: Emotion) => void;
+  /** Clips from characterActions, bound to this character's bones. */
+  setActions: (actions: Map<string, BoundAction>) => void;
+  /** Play an action over locomotion (one at a time); false if it isn't available. */
+  playAction: (name: string, loop?: boolean) => boolean;
+  stopAction: () => void;
+  readonly action: string | null;
+  /** Lean the whole body (radians): roll about the facing axis, pitch forward. Smoothed. */
+  setLean: (roll: number, pitch: number) => void;
+  /** Bones (transform nodes) of this character copy. */
+  readonly bones: ReadonlyArray<TransformNode>;
   update: (speed: number, deltaSeconds: number) => void;
   dispose: () => void;
 };
@@ -32,12 +45,21 @@ export function dressCharacter(materials: ReadonlyArray<Material>, meshes: Reado
   const dress = dressZones(look);
   const linear = (hex: string) => Color3.FromHexString(hex).toLinearSpace();
   const skin = linear(dress.skin);
+  const hair = linear(dress.hairColour);
+  const skinDetail = skinSurface([skin.r, skin.g, skin.b]);
+  const hairDetail = hairSurface([hair.r, hair.g, hair.b]);
   for (const material of materials) {
     if (!(material instanceof PBRMaterial)) continue;
     const name = unprefixed(material.name);
     const zone = ZONE_BY_MATERIAL.get(name);
-    if (name === 'Student skin') material.albedoColor = skin.clone();
-    else if (name === 'Student hair') material.albedoColor = linear(dress.hairColour);
+    if (name === 'Student skin') {
+      material.albedoColor = skin.clone();
+      material.subSurface.tintColor = Color3.FromArray(skinDetail.subsurfaceTint);
+      material.subSurface.translucencyIntensity = skinDetail.translucencyIntensity;
+    } else if (name === 'Student hair') {
+      material.albedoColor = hair.clone();
+      material.sheen.color = Color3.FromArray(hairDetail.sheenColor);
+    }
     else if (zone) {
       const paint = dress.zones[zone];
       material.albedoColor = linear(paint.colour);
@@ -47,8 +69,8 @@ export function dressCharacter(materials: ReadonlyArray<Material>, meshes: Reado
       material.albedoColor = linear(dress.skirt.colour);
       material.metallic = 0;
       material.roughness = dress.skirt.roughness;
-    } else if (name === 'Student lips') material.albedoColor = Color3.Lerp(skin, new Color3(0.19, 0.055, 0.065), 0.35);
-    else if (name === 'Student cheek blush') material.albedoColor = Color3.Lerp(skin, new Color3(0.74, 0.12, 0.17), 0.45);
+    } else if (name === 'Student lips') material.albedoColor = Color3.FromArray(skinDetail.lip);
+    else if (name === 'Student cheek blush') material.albedoColor = Color3.FromArray(skinDetail.cheek);
   }
   for (const mesh of meshes) {
     const name = unprefixed(mesh.name);
@@ -85,7 +107,14 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
     // Source units are metres. Normalize by the rest-pose bounds, including hair,
     // and place the soles on the same ground used by collisions and the camera.
     normalizeRiggedVisual(root);
-    root.parent = parent;
+    // A lean node between the player and the model banks the body into turns.
+    const leanNode = new TransformNode('rigged player lean', scene);
+    leanNode.parent = parent;
+    root.parent = leanNode;
+    let lean = { roll: 0, pitch: 0, wantRoll: 0, wantPitch: 0 };
+    let actions = new Map<string, BoundAction>();
+    let action: ActionState | null = null;
+    let actionGroup: AnimationGroup | null = null;
     // Facial shading: preserve the authored eye texture and avoid the flat,
     // plastic-looking response of the source's uniform roughness settings.
     // These are conservative PBR adjustments, not a substitute for a scanned
@@ -96,8 +125,9 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
         material.metallic = 0;
         material.roughness = 0.82;
         material.subSurface.isTranslucencyEnabled = true;
-        material.subSurface.translucencyIntensity = 0.13;
-        material.subSurface.tintColor = new Color3(0.94, 0.71, 0.61);
+        const defaultSkin = skinSurface([0.6, 0.42, 0.31]);
+        material.subSurface.translucencyIntensity = defaultSkin.translucencyIntensity;
+        material.subSurface.tintColor = Color3.FromArray(defaultSkin.subsurfaceTint);
         material.subSurface.minimumThickness = 0;
         material.subSurface.maximumThickness = 0.45;
       } else if (material.name === 'Student eyes') {
@@ -108,7 +138,16 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
         material.clearCoat.roughness = 0.12;
       } else if (material.name === 'Student hair') {
         material.metallic = 0;
-        material.roughness = 0.69;
+        material.roughness = 0.72;
+        // Restrained coloured PBR sheen avoids a plastic clear coat on hair.
+        const hairDetail = hairSurface([0.06, 0.04, 0.07]);
+        material.sheen.isEnabled = true;
+        material.sheen.intensity = hairDetail.sheenIntensity;
+        material.sheen.roughness = hairDetail.sheenRoughness;
+        material.sheen.color = Color3.FromArray(hairDetail.sheenColor);
+      } else if (material.name === 'Student lips') {
+        material.metallic = 0;
+        material.roughness = 0.65;
       } else if (material.name === 'Student cheek blush') {
         material.metallic = 0;
         material.roughness = 0.92;
@@ -138,6 +177,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
     });
     let effects = { ...EMPTY_EFFECTS };
     let baseSkin = new Color3(0.6, 0.42, 0.31);
+    let baseBlush = Color3.FromArray(skinSurface([baseSkin.r, baseSkin.g, baseSkin.b]).cheek);
     const hasCheekBlush = container.materials.some(material => material.name === 'Student cheek blush');
     // Warn once when the checked-in GLB has not yet been regenerated with morphs.
     // Do not silently report working facial animation for a legacy model.
@@ -157,8 +197,29 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
     return {
       root,
       setEmotion(next) { emotion = next; },
+      setActions(next) {
+        for (const { group } of actions.values()) group.dispose();
+        actions = next;
+        action = null;
+        actionGroup = null;
+      },
+      playAction(name, loop) {
+        const clip = actions.get(name);
+        if (!clip || disposed) return false;
+        if (actionGroup && actionGroup !== clip.group) actionGroup.stop();
+        actionGroup = clip.group;
+        action = startAction(name, clip.duration, loop);
+        clip.group.start(action.loop, 1, clip.group.from, clip.group.to);
+        clip.group.setWeightForAllAnimatables(0);
+        return true;
+      },
+      stopAction() { action = stopAction(action); },
+      get action() { return action && action.stopAt === null ? action.name : null; },
+      setLean(roll, pitch) { lean.wantRoll = Number.isFinite(roll) ? roll : 0; lean.wantPitch = Number.isFinite(pitch) ? pitch : 0; },
+      get bones() { return root!.getChildTransformNodes(false); },
       applyLook(look) {
         baseSkin = dressCharacter(container.materials, container.meshes, look);
+        baseBlush = Color3.FromArray(skinSurface([baseSkin.r, baseSkin.g, baseSkin.b]).cheek);
       },
       update(speed, deltaSeconds) {
         if (disposed) return;
@@ -173,9 +234,9 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
           if (material.name === 'Student skin') {
             // Legacy GLBs retain their old subtle warmth cue. With cheek
             // geometry, keep the body skin unchanged and fade in only cheeks.
-            material.albedoColor = Color3.Lerp(baseSkin, new Color3(0.75, 0.24, 0.28),
+            material.albedoColor = Color3.Lerp(baseSkin, baseBlush,
               hasCheekBlush ? 0 : effects.blush * 0.18);
-            material.roughness = 0.82 - effects.sweat * 0.12;
+            material.roughness = skinRoughness(effects.sweat);
           } else if (material.name === 'Student cheek blush') {
             material.alpha = Math.min(0.65, Math.max(0, effects.blush * 0.65));
           } else if (material.name === 'Student eyes') {
@@ -219,13 +280,27 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
         weights = blendHumanWeights(transition.from, transition.target, transition.elapsed);
         groups.walk!.speedRatio = Math.max(0.65, Math.min(1.6, movementSpeed / HUMAN_WALK_SPEED));
         groups.run!.speedRatio = Math.max(0.65, Math.min(1.6, movementSpeed / HUMAN_RUN_SPEED));
-        for (const state of ['idle', 'walk', 'run'] as const) groups[state]!.setWeightForAllAnimatables(weights[state]);
+        // An action (talk, sit, drive, jump, dance…) takes over the body by its weight.
+        const step = stepAction(action, frameSeconds);
+        action = step.state;
+        if (actionGroup) {
+          actionGroup.setWeightForAllAnimatables(step.weight);
+          if (!action) { actionGroup.stop(); actionGroup = null; }
+        }
+        for (const state of ['idle', 'walk', 'run'] as const) groups[state]!.setWeightForAllAnimatables(weights[state] * (1 - step.weight));
+        const ease = 1 - Math.exp(-frameSeconds * 8);
+        lean.roll += (lean.wantRoll - lean.roll) * ease;
+        lean.pitch += (lean.wantPitch - lean.pitch) * ease;
+        leanNode.rotation.z = lean.roll;
+        leanNode.rotation.x = lean.pitch;
       },
       dispose() {
         if (disposed) return;
         disposed = true;
+        for (const { group } of actions.values()) group.dispose();
         container.dispose();
         root?.dispose();
+        leanNode.dispose();
       },
     };
   } catch (error) {

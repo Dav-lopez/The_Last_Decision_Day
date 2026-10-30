@@ -2,16 +2,21 @@ import { SceneLoader, TransformNode, type AnimationGroup, type AssetContainer, t
 import '@babylonjs/loaders/glTF';
 import { modelFor, normalizeLook } from './appearance.mjs';
 import { dressCharacter } from './riggedAvatar';
+import { bindActions, loadActionClips, type BoundAction } from './characterActions';
+import { startAction, stepAction, type ActionState } from './actionMixer.mjs';
 import { smoothHumanHeading, HUMAN_WALK_SPEED } from './humanMotion.mjs';
 import { NEIGHBORS, PERSON_RADIUS, carAhead, isOut, personHeading, routePose, shouldYield } from './npcLayout.mjs';
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 import { initialNpcBlink, collectNpcEyelids, advanceNpcBlink } from './npcBlink.mjs';
+import { collectNpcFaceTargets, initialNpcFace, advanceNpcFace, resetNpcFace } from './npcFace.mjs';
 
 type CarFootprint = { x: number; z: number; rotation: number };
 export type Person = { x: number; z: number; radius: number };
 export type Neighbors = {
   /** Advance everyone one frame; returns the people currently out, for collisions. */
   update: (seconds: number, minute: number, player: { x: number; z: number } | null, cars: ReadonlyArray<CarFootprint>) => Person[];
+  /** The nearest neighbour to (x, z), within reach, flinches (bumped by a car). */
+  react: (x: number, z: number) => void;
   dispose: () => void;
 };
 
@@ -54,12 +59,51 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     // Blink targets belong to each NPC's cloned meshes. Never animate the
     // original GLB container or the player's morph target manager.
     const eyelids = collectNpcEyelids(holder.getChildMeshes());
+    const faceTargets = collectNpcFaceTargets(holder.getChildMeshes());
     holder.setEnabled(false);
     const start = routePose(npc, 0);
-    return { npc, entries, holder, idle, walk, eyelids, blink: initialNpcBlink(index), walked: 0, walkWeight: 0, heading: personHeading(start.dx, start.dz), visible: false };
+    const reaction: { state: ActionState | null; clip: BoundAction | null } = { state: null, clip: null };
+    const actions = new Map<string, BoundAction>();
+    return { npc, entries, holder, idle, walk, reaction, actions, eyelids, blink: initialNpcBlink(index), faceTargets, face: initialNpcFace(index), walked: 0, walkWeight: 0, heading: personHeading(start.dx, start.dz), visible: false };
+  });
+
+  // Action clips (a separate download): people standing together talk with their hands; anyone can flinch.
+  void Promise.all(models.map(model => loadActionClips(scene, model))).then(clipSets => {
+    if (scene.isDisposed) return;
+    for (const person of people) {
+      const clips = clipSets[models.indexOf(modelFor(person.npc.look))];
+      if (!clips) continue;
+      const prefix = `npc ${person.npc.id} `;
+      const bound = bindActions(clips, person.holder.getChildTransformNodes(false), `npc ${person.npc.id}`,
+        name => name.startsWith(prefix) ? name.slice(prefix.length) : name);
+      for (const [name, clip] of bound) person.actions.set(name, clip);
+      const talk = bound.get('Talk');
+      if (person.npc.route.kind === 'stand' && talk) {
+        // Standing in a group: Talk replaces Idle (offset so the pair don't gesture in unison).
+        person.idle.stop();
+        person.idle = talk.group;
+        talk.group.start(true, 1, talk.group.from, talk.group.to);
+        talk.group.goToFrame(talk.group.from + (talk.group.to - talk.group.from) * ((person.npc.id.length % 5) / 5));
+        if (!person.visible) talk.group.pause();
+      }
+    }
   });
 
   return {
+    react(x, z) {
+      let nearest: (typeof people)[number] | null = null;
+      let best = 2.6;
+      for (const person of people) {
+        if (!person.visible) continue;
+        const d = Math.hypot(person.holder.position.x - x, person.holder.position.z - z);
+        if (d < best) { best = d; nearest = person; }
+      }
+      const hit = nearest?.actions.get('Hit');
+      if (!nearest || !hit || nearest.reaction.state) return;
+      nearest.reaction = { state: startAction('Hit', hit.duration, false), clip: hit };
+      hit.group.start(false, 1, hit.group.from, hit.group.to);
+      hit.group.setWeightForAllAnimatables(0);
+    },
     update(seconds, minute, player, cars) {
       const dt = Number.isFinite(seconds) ? Math.max(0, Math.min(seconds, 0.1)) : 0;
       const outside: Person[] = [];
@@ -69,6 +113,7 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
           person.visible = out;
           person.holder.setEnabled(out);
           for (const group of [person.idle, person.walk]) out ? group.play(true) : group.pause();
+          if (!out) person.face = resetNpcFace(person.face, person.faceTargets);
         }
         if (!out) continue;
         // Advance only visible residents, avoiding hidden-scene morph updates.
@@ -82,8 +127,24 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
         }
         const target = blocked ? 0 : 1;
         person.walkWeight += Math.sign(target - person.walkWeight) * Math.min(Math.abs(target - person.walkWeight), dt / CROSSFADE);
-        person.walk.setWeightForAllAnimatables(person.walkWeight);
-        person.idle.setWeightForAllAnimatables(1 - person.walkWeight);
+        const flinch = stepAction(person.reaction.state, dt);
+        person.reaction.state = flinch.state;
+        if (person.reaction.clip) {
+          person.reaction.clip.group.setWeightForAllAnimatables(flinch.weight);
+          if (!flinch.state) { person.reaction.clip.group.stop(); person.reaction.clip = null; }
+        }
+        person.walk.setWeightForAllAnimatables(person.walkWeight * (1 - flinch.weight));
+        person.idle.setWeightForAllAnimatables((1 - person.walkWeight) * (1 - flinch.weight));
+        // Each visible NPC owns their own morph targets and expression spring.
+        // Conversations move jaw/lips, nearby stationary residents acknowledge
+        // the player, and Hit actions briefly override those poses with surprise.
+        person.face = advanceNpcFace(person.face, dt, person.faceTargets, {
+          talking: person.npc.route.kind === 'stand' && person.actions.has('Talk'),
+          nearby: Boolean(player && Math.hypot(player.x - pose.x, player.z - pose.z) < 2.5),
+          moving: person.walkWeight > 0.15,
+          flinch: flinch.weight,
+          blink: person.blink,
+        });
         person.heading = smoothHumanHeading(person.heading, personHeading(pose.dx, pose.dz), dt, 8);
         person.holder.position.set(pose.x, 0, pose.z);
         person.holder.rotation.y = person.heading;
@@ -92,7 +153,11 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
       return outside;
     },
     dispose() {
-      for (const person of people) { person.entries.dispose(); person.holder.dispose(); }
+      for (const person of people) {
+        for (const { group } of person.actions.values()) group.dispose();
+        person.entries.dispose();
+        person.holder.dispose();
+      }
       for (const c of loaded) c?.dispose();
     },
   };

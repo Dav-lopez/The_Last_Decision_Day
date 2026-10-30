@@ -1,0 +1,12 @@
+import type { PlanarPosition } from './movement.mjs';
+export type Ball = { x: number; y: number; z: number; vx: number; vy: number; vz: number; spin: number };
+export type Pitch = { x: number; z: number; halfLength: number; halfWidth: number; goalHalfWidth: number; goalHeight: number; goalDepth: number };
+export declare const BALL_RADIUS: number;
+export declare const PITCH: Readonly<Pitch>;
+export declare const KICK: Readonly<{ power: number; lift: number; chipPower: number; chipLift: number; reach: number }>;
+export declare function newBall(pitch?: Pitch): Ball;
+export declare function onPitch(position: PlanarPosition, pitch?: Pitch, margin?: number): boolean;
+export declare function stepBall(ball: Ball, seconds: number, pitch?: Pitch): { ball: Ball; goal: 'east' | 'west' | null };
+export declare function touchBall(ball: Ball, player: PlanarPosition, velocity: PlanarPosition): Ball;
+export declare function kickBall(ball: Ball, player: PlanarPosition, facing: PlanarPosition, chip?: boolean): Ball | null;
+export declare function facingOf(heading: number): PlanarPosition;
