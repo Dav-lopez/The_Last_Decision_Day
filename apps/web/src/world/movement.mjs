@@ -60,9 +60,11 @@ export function movementVector(keys, cameraForward = { x: 0, z: -1 }) {
 }
 
 /** Pedestrian collision against buildings, trees, lamp posts and cars wherever they are now. */
-export function isBlocked(x, z, cars = PARKED_CARS) {
+export function isBlocked(x, z, cars = PARKED_CARS, people = []) {
   const radius = 0.38;
   if (cars.some(car => carContains(car, x, z, radius))) return true;
+  // Neighbours (see npcLayout) are circles; they also step aside for the player.
+  if (people.some(person => Math.hypot(x - person.x, z - person.z) < radius + (person.radius ?? 0.3))) return true;
   const insideBuilding = STATIC_SOLIDS.some(area =>
     x + radius > area.minX && x - radius < area.maxX &&
     z + radius > area.minZ && z - radius < area.maxZ);
@@ -73,7 +75,7 @@ export function isBlocked(x, z, cars = PARKED_CARS) {
     STREET_LIGHTS.some(light => Math.hypot(x - light.x, z - light.z) < radius + 0.1);
 }
 
-export function stepPosition(position, keys, elapsedSeconds, speed = 4, cameraForward = { x: 0, z: -1 }, cars = PARKED_CARS) {
+export function stepPosition(position, keys, elapsedSeconds, speed = 4, cameraForward = { x: 0, z: -1 }, cars = PARKED_CARS, people = []) {
   if (!Number.isFinite(elapsedSeconds) || elapsedSeconds <= 0 ||
       !Number.isFinite(speed) || speed <= 0) return { ...position };
   // Cap catch-up movement and sweep in short increments to avoid tunneling
@@ -89,8 +91,8 @@ export function stepPosition(position, keys, elapsedSeconds, speed = 4, cameraFo
     const z = Math.max(-WORLD_RADIUS + 0.4,
       Math.min(WORLD_RADIUS - 0.4, next.z + vector.z * stride));
     // Resolve each axis separately so the avatar slides along obstacles.
-    const nextX = isBlocked(x, next.z, cars) ? next.x : x;
-    const nextZ = isBlocked(nextX, z, cars) ? next.z : z;
+    const nextX = isBlocked(x, next.z, cars, people) ? next.x : x;
+    const nextZ = isBlocked(nextX, z, cars, people) ? next.z : z;
     next = { x: nextX, z: nextZ };
   }
   return next;
