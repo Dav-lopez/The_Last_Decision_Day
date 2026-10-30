@@ -19,6 +19,16 @@ class MouthGeometryTests(unittest.TestCase):
         self.assertTrue(all(len(t) == 10 for t in g["targets"]))
         self.assertEqual(len(set(g["names"])), len(g["names"]))
 
+    def test_lips_follow_pinned_face_contour(self):
+        g = self.geo
+        front_depths = [point[2] for point in g["positions"]]
+        # Regression: a previous 0.124..0.130 Z placement floated well
+        # ahead of the measured 0.07..0.095 Z source face surface.
+        self.assertGreater(min(front_depths), 0.07)
+        self.assertLess(max(front_depths), 0.102)
+        self.assertGreater(front_depths[2], front_depths[0])
+        self.assertGreater(front_depths[2], front_depths[7])
+
     def test_smile_and_frown_are_side_specific(self):
         g = self.geo
         for name in ("mouthSmileLeft", "mouthSmileRight", "mouthFrownLeft", "mouthFrownRight"):
