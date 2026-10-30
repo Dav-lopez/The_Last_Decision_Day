@@ -18,6 +18,7 @@ import urllib.request
 from facial_mouth import build_mouth_geometry
 from facial_gaze import GAZE_TARGETS, gaze_delta
 from facial_cheeks import build_cheek_geometry
+from facial_nose import build_nose_geometry
 from facial_droplets import DROPLET_KINDS, DROPLET_SIDES, build_droplet_geometry
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -258,6 +259,27 @@ def build(source_dir):
     b.doc["nodes"].append({"name": "Student cheek surface", "mesh": cheek_mesh, "skin": 0})
     b.doc["nodes"][body["scenes"][0]["nodes"][0]]["children"].append(len(b.doc["nodes"]) - 1)
 
+    # A gently sculpted, front-facing nose bridge and tip add actual 3D
+    # facial depth. It shares the customizable skin material and Head joint,
+    # rather than floating as an unskinned or differently colored attachment.
+    nose = build_nose_geometry(body_joint["Head"])
+    nose_mesh = len(b.doc["meshes"])
+    b.doc["meshes"].append({
+        "name": "Student sculpted nose",
+        "primitives": [{
+            "attributes": {
+                "POSITION": b.accessor(nose["positions"], "VEC3", bounds=True),
+                "NORMAL": b.accessor(nose["normals"], "VEC3"),
+                "JOINTS_0": b.accessor(nose["joints"], "VEC4", 5121),
+                "WEIGHTS_0": b.accessor(nose["weights"], "VEC4"),
+            },
+            "indices": b.accessor(nose["indices"], "SCALAR", 5123),
+            "material": 0,
+        }],
+    })
+    b.doc["nodes"].append({"name": "Student nose surface", "mesh": nose_mesh, "skin": 0})
+    b.doc["nodes"][body["scenes"][0]["nodes"][0]]["children"].append(len(b.doc["nodes"]) - 1)
+
     # Transparent, head-skinned droplet surfaces are authored into the GLB,
     # not parented to the world origin. A dedicated morph slides each patch
     # down the face; Babylon fades it in only for the corresponding emotion.
@@ -347,7 +369,7 @@ def build(source_dir):
                 "sources": [{"file": n, "url": MIRROR+urllib.parse.quote(p), "sha256": h} for n, (p, h) in SOURCES.items()],
                 "output": {"file": "human.glb", "bytes": len(glb), "sha256": hashlib.sha256(glb).hexdigest(),
                            "morphTargets": sorted({name for mesh in b.doc["meshes"] for name in mesh.get("extras", {}).get("targetNames", [])})},
-                "modifications": ["Keep only Idle_Loop, Walk_Loop and Sprint_Loop, exported as Idle/Walk/Run.", "Rebase local rotations onto the character bind pose; retain target limb lengths.", "Preserve pelvis bob and remove horizontal root travel; gameplay controls world movement.", "Add parted hair, remap hair joints, split clothing/skin materials for browser customization.", "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes.", "Add a skinned expressive lip surface with smile, frown, press and open morphs.", "Add head-skinned cheek squint targets and transparent blush surfaces.", "Add head-skinned animated translucent tear and sweat droplets."]}
+                "modifications": ["Keep only Idle_Loop, Walk_Loop and Sprint_Loop, exported as Idle/Walk/Run.", "Rebase local rotations onto the character bind pose; retain target limb lengths.", "Preserve pelvis bob and remove horizontal root travel; gameplay controls world movement.", "Add parted hair, remap hair joints, split clothing/skin materials for browser customization.", "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes.", "Add a skinned expressive lip surface with smile, frown, press and open morphs.", "Add head-skinned cheek squint targets and transparent blush surfaces.", "Add head-skinned animated translucent tear and sweat droplets.", "Add a head-skinned sculpted nose bridge and tip sharing the skin material."]}
     (OUTPUT / "human.source.json").write_text(json.dumps(manifest, indent=2)+"\n")
     print(f"Built {len(glb):,} bytes with {len(b.doc['animations'])} animation clips.")
 
