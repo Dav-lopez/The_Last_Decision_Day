@@ -1,0 +1,7 @@
+.world-scoreboard { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 10px;
+  padding: 6px 12px; border-radius: 10px; background: rgba(10, 20, 36, 0.86); color: #f4f6fb; font-size: 0.95rem; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3); }
+.world-scoreboard strong { letter-spacing: 0.02em; }
+.world-scoreboard small { opacity: 0.75; font-size: 0.72rem; }
+.world-scoreboard button { padding: 4px 10px; font-size: 0.78rem; }
+.world-car-action.world-match-start { bottom: auto; top: 96px; }
+@media (max-width: 640px) { .world-scoreboard small { display: none; } }
