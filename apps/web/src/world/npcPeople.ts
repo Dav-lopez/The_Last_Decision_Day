@@ -1,6 +1,7 @@
-import { Color3, PBRMaterial, SceneLoader, TransformNode, type AnimationGroup, type Scene, type ShadowGenerator } from '@babylonjs/core';
+import { SceneLoader, TransformNode, type AnimationGroup, type AssetContainer, type Material, type Scene, type ShadowGenerator } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
-import { colorFor } from './appearance.mjs';
+import { modelFor, normalizeLook } from './appearance.mjs';
+import { dressCharacter } from './riggedAvatar';
 import { smoothHumanHeading, HUMAN_WALK_SPEED } from './humanMotion.mjs';
 import { NEIGHBORS, PERSON_RADIUS, carAhead, isOut, personHeading, routePose, shouldYield } from './npcLayout.mjs';
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
@@ -21,14 +22,19 @@ const CROSSFADE = 0.25;
  * Resolves null if the model can't load; the street simply stays empty.
  */
 export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Promise<Neighbors | null> {
-  const container = await SceneLoader.LoadAssetContainerAsync('/models/', 'human.glb', scene);
-  if (scene.isDisposed) { container.dispose(); return null; }
-  const clipIndex = (name: string) => container.animationGroups.findIndex(group => group.name === name);
-  const idleIndex = clipIndex('Idle');
-  const walkIndex = clipIndex('Walk');
-  if (idleIndex < 0 || walkIndex < 0) { container.dispose(); return null; }
+  // One download per body type; each neighbour is a copy of theirs.
+  const models = [...new Set(NEIGHBORS.map(npc => modelFor(npc.look)))];
+  const loaded = await Promise.all(models.map(model => SceneLoader.LoadAssetContainerAsync('/models/', model, scene).catch(() => null)));
+  const containers = new Map(models.map((model, i) => [model, loaded[i]]));
+  if (scene.isDisposed || !containers.get('human.glb')) { for (const c of loaded) c?.dispose(); return null; }
+  const clipIndex = (container: AssetContainer, name: string) => container.animationGroups.findIndex(group => group.name === name);
+  const idleIndex = clipIndex(containers.get('human.glb')!, 'Idle');
+  const walkIndex = clipIndex(containers.get('human.glb')!, 'Walk');
+  if (idleIndex < 0 || walkIndex < 0) { for (const c of loaded) c?.dispose(); return null; }
 
   const people = NEIGHBORS.map(npc => {
+    // A body that failed to load falls back to the default model.
+    const container = containers.get(modelFor(npc.look)) ?? containers.get('human.glb')!;
     const entries = container.instantiateModelsToScene(name => `npc ${npc.id} ${name}`, true);
     const holder = new TransformNode(`npc ${npc.id}`, scene);
     const visual = new TransformNode(`npc ${npc.id} visual`, scene);
@@ -41,17 +47,8 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     entries.animationGroups.forEach((group, index) => { if (index !== idleIndex && index !== walkIndex) group.stop(); });
     for (const group of [idle, walk]) { group.start(true); group.setWeightForAllAnimatables(group === idle ? 1 : 0); }
     walk.speedRatio = npc.speed / HUMAN_WALK_SPEED;
-    const materials = new Set(holder.getChildMeshes().map(mesh => mesh.material).filter(Boolean));
-    for (const material of materials) {
-      if (!(material instanceof PBRMaterial)) continue;
-      const part = material.name.endsWith('Student skin') ? 'skin'
-        : material.name.endsWith('Student jacket') ? 'outfit'
-          : material.name.endsWith('Student hair') ? 'hair' : null;
-      if (part) material.albedoColor = Color3.FromHexString(colorFor(part, npc.look[part])).toLinearSpace();
-      else if (material.name.endsWith('Student lips')) {
-        material.albedoColor = Color3.Lerp(Color3.FromHexString(colorFor('skin', npc.look.skin)).toLinearSpace(), new Color3(0.19, 0.055, 0.065), 0.35);
-      }
-    }
+    const materials = [...new Set(holder.getChildMeshes().map(mesh => mesh.material).filter((m): m is Material => Boolean(m)))];
+    dressCharacter(materials, holder.getChildMeshes(), normalizeLook(npc.look));
     for (const mesh of holder.getChildMeshes()) { mesh.receiveShadows = true; shadows?.addShadowCaster(mesh, false); mesh.isPickable = false; }
     holder.setEnabled(false);
     const start = routePose(npc, 0);
@@ -90,7 +87,7 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     },
     dispose() {
       for (const person of people) { person.entries.dispose(); person.holder.dispose(); }
-      container.dispose();
+      for (const c of loaded) c?.dispose();
     },
   };
 }

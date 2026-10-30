@@ -44,18 +44,18 @@ const segment = (ax, az, bx, bz) => ({ kind: 'segment', a: Object.freeze({ x: ax
 const stand = (x, z, facing) => ({ kind: 'stand', at: Object.freeze({ x, z }), facing });
 
 export const NEIGHBORS = Object.freeze([
-  person('jogger-west', { skin: 'light', hair: 'blonde', outfit: 'red' }, segment(-SIDEWALK_X, 10.4, -SIDEWALK_X, -5.3), 1.35, 0, H(6.5), H(21)),
-  person('walker-east', { skin: 'deep', hair: 'dark', outfit: 'green' }, segment(SIDEWALK_X, -5.3, SIDEWALK_X, 10.4), 1.1, 6, H(7), H(21)),
-  person('commuter-west', { skin: 'olive', hair: 'brown', outfit: 'gold' }, segment(-SIDEWALK_X, 10.4, -SIDEWALK_X, -5.3), 1.25, 11, H(7.5), H(20)),
-  person('neighbor-east', { skin: 'warm', hair: 'brown', outfit: 'blue' }, segment(SIDEWALK_X, -5.3, SIDEWALK_X, 10.4), 1.2, 15, H(8), H(19)),
-  person('crosser', { skin: 'deep', hair: 'dark', outfit: 'red' }, segment(-SIDEWALK_X, 5.5, SIDEWALK_X, 5.5), 1.15, 2, H(7), H(20)),
+  person('jogger-west', { body: 'female', skin: 'light', hair: 'blonde', hairStyle: 'buns', top: 'tank', outfit: 'red', bottom: 'leggings', bottomColor: 'black', shoes: 'sneakers', shoeColor: 'white' }, segment(-SIDEWALK_X, 10.4, -SIDEWALK_X, -5.3), 1.35, 0, H(6.5), H(21)),
+  person('walker-east', { skin: 'deep', hair: 'black', hairStyle: 'buzzed', facialHair: 'beard', top: 'hoodie', outfit: 'green', bottom: 'jeans', bottomColor: 'denim', shoes: 'hightops', shoeColor: 'black' }, segment(SIDEWALK_X, -5.3, SIDEWALK_X, 10.4), 1.1, 6, H(7), H(21)),
+  person('commuter-west', { body: 'female', skin: 'olive', hair: 'brown', hairStyle: 'long', top: 'longsleeve', outfit: 'gold', bottom: 'trousers', bottomColor: 'charcoal', shoes: 'flats', shoeColor: 'black' }, segment(-SIDEWALK_X, 10.4, -SIDEWALK_X, -5.3), 1.25, 11, H(7.5), H(20)),
+  person('neighbor-east', { skin: 'warm', hair: 'gray', hairStyle: 'parted', top: 'tshirt', outfit: 'blue', bottom: 'shorts', bottomColor: 'tan', shoes: 'sandals', shoeColor: 'brown' }, segment(SIDEWALK_X, -5.3, SIDEWALK_X, 10.4), 1.2, 15, H(8), H(19)),
+  person('crosser', { body: 'female', skin: 'deep', hair: 'black', hairStyle: 'pixie', top: 'tshirt', outfit: 'white', bottom: 'skirt', bottomColor: 'red', shoes: 'boots', shoeColor: 'brown' }, segment(-SIDEWALK_X, 5.5, SIDEWALK_X, 5.5), 1.15, 2, H(7), H(20)),
   // Two classmates chat on the school lawn during school hours, facing each other.
-  person('student-a', { skin: 'light', hair: 'brown', outfit: 'green' }, stand(-2.3, -5.05, Math.atan2(-0.5, -0.45)), 0, 0, H(7.5), H(16)),
-  person('student-b', { skin: 'warm', hair: 'blonde', outfit: 'gold' }, stand(-1.8, -4.6, Math.atan2(0.5, 0.45)), 0, 0, H(7.5), H(16)),
+  person('student-a', { body: 'female', skin: 'porcelain', hair: 'auburn', hairStyle: 'long', top: 'hoodie', outfit: 'purple', bottom: 'jeans', bottomColor: 'denim', shoes: 'sneakers', shoeColor: 'white' }, stand(-2.3, -5.05, Math.atan2(-0.5, -0.45)), 0, 0, H(7.5), H(16)),
+  person('student-b', { skin: 'brown', hair: 'dark', hairStyle: 'parted', top: 'tshirt', outfit: 'gold', bottom: 'jeans', bottomColor: 'navy', shoes: 'hightops', shoeColor: 'red' }, stand(-1.8, -4.6, Math.atan2(0.5, 0.45)), 0, 0, H(7.5), H(16)),
   // Inside the classroom (see schoolInterior): the teacher at the board and two classmates by the windows.
-  person('teacher', { skin: 'olive', hair: 'dark', outfit: 'blue' }, stand(TEACHER_STANDS.x, TEACHER_STANDS.z, Math.PI), 0, 0, H(7.5), H(16)),
-  person('classmate-a', { skin: 'deep', hair: 'dark', outfit: 'red' }, stand(SCHOOL_ORIGIN.x + 4.1, SCHOOL_ORIGIN.z - 2.5, Math.atan2(0.6, 0.5)), 0, 0, H(7.75), H(15.5)),
-  person('classmate-b', { skin: 'light', hair: 'blonde', outfit: 'green' }, stand(SCHOOL_ORIGIN.x + 3.5, SCHOOL_ORIGIN.z - 3.0, Math.atan2(-0.6, -0.5)), 0, 0, H(7.75), H(15.5)),
+  person('teacher', { body: 'female', skin: 'olive', hair: 'dark', hairStyle: 'buns', top: 'longsleeve', outfit: 'navy', bottom: 'skirt', bottomColor: 'charcoal', shoes: 'dress', shoeColor: 'black' }, stand(TEACHER_STANDS.x, TEACHER_STANDS.z, Math.PI), 0, 0, H(7.5), H(16)),
+  person('classmate-a', { skin: 'deep', hair: 'black', hairStyle: 'buzzed', top: 'longsleeve', outfit: 'red', bottom: 'trousers', bottomColor: 'black', shoes: 'sneakers', shoeColor: 'black' }, stand(SCHOOL_ORIGIN.x + 4.1, SCHOOL_ORIGIN.z - 2.5, Math.atan2(0.6, 0.5)), 0, 0, H(7.75), H(15.5)),
+  person('classmate-b', { body: 'female', skin: 'light', hair: 'platinum', hairStyle: 'pixie', top: 'crop', outfit: 'sky', bottom: 'jeans', bottomColor: 'denim', shoes: 'sneakers', shoeColor: 'pink' }, stand(SCHOOL_ORIGIN.x + 3.5, SCHOOL_ORIGIN.z - 3.0, Math.atan2(-0.6, -0.5)), 0, 0, H(7.75), H(15.5)),
 ]);
 
 export function isOut(npc, minute) {

@@ -1,6 +1,6 @@
-import { Color3, PBRMaterial, Scene, SceneLoader, TransformNode } from '@babylonjs/core';
+import { Color3, PBRMaterial, Scene, SceneLoader, TransformNode, type AbstractMesh, type Material } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
-import { colorFor, type Look } from './appearance.mjs';
+import { ZONE_MATERIALS, dressZones, type Look, type Zone } from './appearance.mjs';
 import { faceTarget, type Emotion } from './facialEmotions';
 import { EMPTY_EFFECTS, smoothFacialEffects, targetFacialEffects } from './facialEffects';
 import { dropletCycle } from './facialDroplets.mjs';
@@ -18,9 +18,49 @@ export type RiggedAvatar = {
   dispose: () => void;
 };
 
+const ZONE_BY_MATERIAL = new Map(Object.entries(ZONE_MATERIALS).map(([zone, name]) => [name, zone as Zone]));
+const unprefixed = (name: string) => name.replace(/^.* (?=Student )/, '');
+
+/**
+ * Paints a character copy for a look: skin, hair colour and style, and each
+ * outfit zone (sleeves, legs, socks, shoes, soles) as clothing or skin, plus
+ * the skirt. Names may carry a clone prefix (NPC copies). Returns the skin
+ * colour (linear) for the blush effect.
+ */
+export function dressCharacter(materials: ReadonlyArray<Material>, meshes: ReadonlyArray<AbstractMesh>, look: Look) {
+  const dress = dressZones(look);
+  const linear = (hex: string) => Color3.FromHexString(hex).toLinearSpace();
+  const skin = linear(dress.skin);
+  for (const material of materials) {
+    if (!(material instanceof PBRMaterial)) continue;
+    const name = unprefixed(material.name);
+    const zone = ZONE_BY_MATERIAL.get(name);
+    if (name === 'Student skin') material.albedoColor = skin.clone();
+    else if (name === 'Student hair') material.albedoColor = linear(dress.hairColour);
+    else if (zone) {
+      const paint = dress.zones[zone];
+      material.albedoColor = linear(paint.colour);
+      material.metallic = 0;
+      material.roughness = paint.roughness;
+    } else if (name === 'Student skirt' && dress.skirt) {
+      material.albedoColor = linear(dress.skirt.colour);
+      material.metallic = 0;
+      material.roughness = dress.skirt.roughness;
+    } else if (name === 'Student lips') material.albedoColor = Color3.Lerp(skin, new Color3(0.19, 0.055, 0.065), 0.35);
+    else if (name === 'Student cheek blush') material.albedoColor = Color3.Lerp(skin, new Color3(0.74, 0.12, 0.17), 0.45);
+  }
+  for (const mesh of meshes) {
+    const name = unprefixed(mesh.name);
+    const hair = /^Student hair (\w+)/.exec(name);
+    if (hair) mesh.setEnabled(dress.hair.includes(hair[1]));
+    else if (name.startsWith('Student skirt')) mesh.setEnabled(Boolean(dress.skirt));
+  }
+  return skin;
+}
+
 /** Quarantine imports until a usable mesh, skeleton and every required clip exist. */
-export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Promise<RiggedAvatar | null> {
-  const container = await SceneLoader.LoadAssetContainerAsync('/models/', 'human.glb', scene);
+export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, model = 'human.glb'): Promise<RiggedAvatar | null> {
+  const container = await SceneLoader.LoadAssetContainerAsync('/models/', model, scene);
   if (scene.isDisposed) { container.dispose(); return null; }
   let root: TransformNode | undefined;
   try {
@@ -117,24 +157,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
       root,
       setEmotion(next) { emotion = next; },
       applyLook(look) {
-        for (const material of container.materials) {
-          if (!(material instanceof PBRMaterial)) continue;
-          const part = material.name === 'Student skin' ? 'skin'
-            : material.name === 'Student jacket' ? 'outfit'
-              : material.name === 'Student hair' ? 'hair' : null;
-          if (part) {
-            const selected = Color3.FromHexString(colorFor(part, look[part])).toLinearSpace();
-            material.albedoColor = selected;
-            if (part === 'skin') baseSkin = selected.clone();
-          } else if (material.name === 'Student lips') {
-            // Match the chosen skin tone while retaining a muted lip tint.
-            const skin = Color3.FromHexString(colorFor('skin', look.skin)).toLinearSpace();
-            material.albedoColor = Color3.Lerp(skin, new Color3(0.19, 0.055, 0.065), 0.35);
-          } else if (material.name === 'Student cheek blush') {
-            const skin = Color3.FromHexString(colorFor('skin', look.skin)).toLinearSpace();
-            material.albedoColor = Color3.Lerp(skin, new Color3(0.74, 0.12, 0.17), 0.45);
-          }
-        }
+        baseSkin = dressCharacter(container.materials, container.meshes, look);
       },
       update(speed, deltaSeconds) {
         if (disposed) return;
