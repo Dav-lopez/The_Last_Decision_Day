@@ -1,0 +1,17 @@
+{
+  "comment": "Poly Haven CC0 models fetched by tools/assets/polyhaven_fetch.py. Pin an exact asset id in `prefer` to override keyword selection; `rotation` (radians) turns a model whose front is not +Z.",
+  "resolution": "1k",
+  "maxBytes": 6000000,
+  "slots": [
+    { "slot": "plant", "keywords": ["potted", "plant"], "required": true, "placed": true },
+    { "slot": "bench", "keywords": ["bench"], "exclude": ["work", "workbench"], "required": true, "placed": true },
+    { "slot": "sofa", "keywords": ["sofa", "couch"], "required": false, "placed": true },
+    { "slot": "armchair", "keywords": ["armchair"], "required": false, "placed": true },
+    { "slot": "coffee_table", "keywords": ["coffee"], "required": false, "placed": true },
+    { "slot": "dining_chair", "keywords": ["chair"], "exclude": ["office", "outdoor"], "required": false, "placed": true },
+    { "slot": "bed", "keywords": ["bed"], "required": false, "placed": true },
+    { "slot": "floor_lamp", "keywords": ["lamp"], "exclude": ["street", "outdoor", "wall"], "required": false, "placed": true },
+    { "slot": "car", "keywords": ["car", "sedan", "hatchback", "vehicle"], "exclude": ["toy", "cart", "wreck", "rusty", "abandoned"], "required": false, "placed": true },
+    { "slot": "shelf", "keywords": ["shelf", "bookcase", "cabinet"], "required": false, "placed": true }
+  ]
+}

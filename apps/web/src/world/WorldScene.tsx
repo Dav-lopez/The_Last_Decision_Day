@@ -19,6 +19,20 @@ import { createMovementInput } from './inputState.mjs';
 import { addPlayableNeighborhoodDetails } from './neighborhoodEnvironment';
 import { upgradeNeighborhoodAssets } from './realEnvironmentAssets';
 import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mjs';
+import { PARKED_CARS } from './streetLayout.mjs';
+import { addWorldProps } from './polyHavenProps';
+import { buildHomeScene } from './homeScene';
+import { advanceLife, canSleep, chooseStartingLife, formatClock, isEvening, isExhausted, nearBed, normalizeLife, readLife,
+  sleepUntilMorning, TIRED_ENERGY, toServerLife, writeLife, type Life, type LifeActivity, type ServerLife } from './lifeClock.mjs';
+
+/** Account save for the player's day; absent in the guest preview, which keeps the browser copy only. */
+export type LifeSync = {
+  load: () => Promise<ServerLife>;
+  save: (life: ServerLife) => Promise<{ status: 'saved' | 'rejected'; life: ServerLife }>;
+};
+import { BED_SIDE, FRONT_DOORS, HOME_SPAWN, atHomeExit, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade } from './homeInterior.mjs';
+import { canExitVehicle, chaseCameraAlpha, driveInput, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
+import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
 
 type SchoolActivityView = { id: string; title: string; description: string; timeCost: number };
 type SchoolPreview = { activityId: string; before: Record<string, number>; after: Record<string, number> };
@@ -34,6 +48,7 @@ type WorldProps = {
   onPreviewActivity: (activityId: string) => void;
   onExecuteActivity: (activityId: string) => void;
   preview: SchoolPreview | null;
+  lifeSync?: LifeSync;
 };
 const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift']);
 
@@ -331,7 +346,7 @@ function createAvatar(scene: Scene) {
 /** The WebGL view is optional: login and school actions remain usable if 3D fails. */
 export default function WorldScene({
   characterId, displayName, demoMode = false, onSchoolEnter, activities, timeRemaining, busy,
-  canExecuteActivity, onPreviewActivity, onExecuteActivity, preview,
+  canExecuteActivity, onPreviewActivity, onExecuteActivity, preview, lifeSync,
 }: WorldProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const inputRef = useRef(createMovementInput());
@@ -355,7 +370,23 @@ export default function WorldScene({
   const cameraControlsRef = useRef<ReturnType<typeof createCameraControls> | null>(null);
   const lightingRef = useRef<ReturnType<typeof createStreetLighting> | null>(null);
   const [evening, setEvening] = useState(false);
+  const [driving, setDriving] = useState(false);
+  const [driveSpeed, setDriveSpeed] = useState(0);
+  const [driveNotice, setDriveNotice] = useState('');
+  const [nearCar, setNearCar] = useState(false);
+  const [propCredit, setPropCredit] = useState(false);
+  const interactRef = useRef<() => void>(() => {});
+  const [inHome, setInHome] = useState(false);
+  const [doorPrompt, setDoorPrompt] = useState<'enter' | 'locked' | 'exit' | 'bed' | null>(null);
+  const [lifeView, setLifeView] = useState<Life>(() => readLife(characterId));
+  const [sleeping, setSleeping] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'saving' | 'saved' | 'offline'>('idle');
+  const lifeSyncRef = useRef(lifeSync);
+  lifeSyncRef.current = lifeSync;
+  const locationRef = useRef<'street' | 'home'>('street');
   const toggleCamera = () => {
+    // Indoors the camera stays in its cutaway view; the street mode returns on leaving.
+    if (locationRef.current === 'home') return;
     const next = cameraModeRef.current === 'follow' ? 'overhead' : 'follow';
     cameraModeRef.current = next;
     cameraControlsRef.current?.setMode(next);
@@ -382,10 +413,20 @@ export default function WorldScene({
       directional.intensity = 1.35;
       directional.position.set(12, 22, 10);
       const schoolMarker = createNeighborhood(scene);
+      const home = buildHomeScene(scene);
       let schoolAsset: Awaited<ReturnType<typeof loadSchoolEnvironment>> = null;
       let schoolAssetCancelled = false;
       addPlayableNeighborhoodDetails(scene);
-      addParkedCarFallbacks(scene);
+      // Live car state: the driven car moves, and walking collides with it wherever it is parked.
+      const cars: CarState[] = PARKED_CARS.map(car => ({ x: car.x, z: car.z, rotation: car.rotation, speed: 0 }));
+      const carRoots: TransformNode[][] = addParkedCarFallbacks(scene).map(root => [root]);
+      const placeCar = (index: number) => {
+        for (const node of carRoots[index] ?? []) {
+          node.position.x = cars[index].x;
+          node.position.z = cars[index].z;
+          node.rotation.y = cars[index].rotation;
+        }
+      };
       const lighting = createStreetLighting(scene, directional, sun);
       lightingRef.current = lighting;
       const environmentLoad = { cancelled: false };
@@ -395,7 +436,12 @@ export default function WorldScene({
       shadows.bias = 0.0005;
       shadows.normalBias = 0.02;
       shadows.setDarkness(0.3);
-      void upgradeNeighborhoodAssets(scene, environmentLoad, shadows);
+      void addWorldProps(scene, environmentLoad, shadows)
+        .then(manifest => { if (manifest && !environmentLoad.cancelled) setPropCredit(true); })
+        .catch(error => console.warn('Street props unavailable', error));
+      void upgradeNeighborhoodAssets(scene, environmentLoad, shadows, roots => {
+        roots.forEach((root, index) => { carRoots[index]?.push(root); placeCar(index); });
+      });
       // Limit shadow-map draw calls to the large world silhouettes.
       // Ground and paving receive shadows but do not cast; small facade details
       // are omitted from the shadow pass while remaining visible in the scene.
@@ -460,6 +506,177 @@ export default function WorldScene({
       camera.collisionRadius = new Vector3(0.25, 0.25, 0.25);
       camera.attachControl(canvas, false);
 
+      let interaction: InteractionState = { mode: 'walking', targetId: null };
+      let clock = 0;
+      // Day clock and energy: browser-saved per character until the daily-loop save lands on the server.
+      let life = readLife(characterId);
+      let lifeHudTimer = 0;
+      let lifeSaveTimer = 0;
+      let lastEvening: boolean | null = null;
+      let warnedExhausted = false;
+      let sleepTimer = 0;
+      let accountSaveTimer = 0;
+      let saveInFlight = false;
+      let lifeLoaded = !lifeSyncRef.current;
+      let disposed = false;
+      // The account copy wins when the server says this save isn't possible (another device is ahead, or
+      // the browser copy drifted); adopting it keeps every device on the same day.
+      const adoptAccountLife = (server: ServerLife) => {
+        life = normalizeLife(server);
+        writeLife(characterId, life);
+        syncLighting();
+        setLifeView({ ...life });
+      };
+      const saveToAccount = () => {
+        const sync = lifeSyncRef.current;
+        if (!sync || !lifeLoaded || saveInFlight || disposed) return;
+        saveInFlight = true;
+        setSyncStatus('saving');
+        sync.save(toServerLife(life, locationRef.current)).then(result => {
+          if (disposed) return;
+          if (result.status === 'rejected') {
+            adoptAccountLife(result.life);
+            notify('Your day was synced from your account.');
+          }
+          setSyncStatus('saved');
+        }).catch(() => { if (!disposed) setSyncStatus('offline'); })
+          .finally(() => { saveInFlight = false; });
+      };
+      const syncLighting = () => {
+        const nowEvening = isEvening(life.minute);
+        // Follow the clock only when day turns to evening (or back), so the manual switch still works in between.
+        if (nowEvening !== lastEvening) {
+          lastEvening = nowEvening;
+          lighting.setEvening(nowEvening);
+          setEvening(nowEvening);
+        }
+      };
+      syncLighting();
+      const tickLife = (seconds: number, activity: LifeActivity) => {
+        if (schoolOpenRef.current) return;
+        life = advanceLife(life, seconds, activity);
+        syncLighting();
+        lifeHudTimer += seconds;
+        lifeSaveTimer += seconds;
+        if (lifeHudTimer >= 0.25) {
+          lifeHudTimer = 0;
+          const shown = { ...life };
+          setLifeView(previous => Math.floor(previous.minute) === Math.floor(shown.minute) &&
+            Math.round(previous.energy) === Math.round(shown.energy) && previous.day === shown.day ? previous : shown);
+        }
+        if (lifeSaveTimer >= 5) { lifeSaveTimer = 0; writeLife(characterId, life); }
+        accountSaveTimer += seconds;
+        if (accountSaveTimer >= 20) { accountSaveTimer = 0; saveToAccount(); }
+        if (isExhausted(life) && !warnedExhausted) {
+          warnedExhausted = true;
+          notify("You're exhausted and can't run. Go home and sleep.");
+        }
+      };
+      let noticeAt = -Infinity;
+      const notify = (message: string) => { noticeAt = clock; setDriveNotice(message); };
+      const carTargets = () => cars.map((car, index) => ({ id: `car-${index}`, type: 'vehicle' as const, x: car.x, z: car.z }));
+      const drivenIndex = () => interaction.mode === 'driving' && interaction.targetId ? Number(interaction.targetId.slice(4)) : -1;
+      const snapCamera = (to: PlanarPosition, alpha: number) => {
+        camera.alpha = alpha;
+        camera.inertialAlphaOffset = 0;
+        camera.setTarget(new Vector3(to.x, 1.25, to.z), false, false, true);
+      };
+      const placePlayer = (to: PlanarPosition & { rotation: number }) => {
+        position = { x: to.x, z: to.z };
+        avatar.position.set(to.x, 0, to.z);
+        avatar.rotation.y = to.rotation;
+        inputRef.current.clear();
+      };
+      const enterHome = () => {
+        locationRef.current = 'home';
+        placePlayer(HOME_SPAWN);
+        cameraControls.setMode('indoor', true);
+        snapCamera(position, Math.PI / 2);
+        setWayfinding('');
+        setNearCar(false);
+        setDriveNotice('');
+        setInHome(true);
+        saveToAccount();
+      };
+      const leaveHome = () => {
+        const door = FRONT_DOORS.find(candidate => candidate.own)!;
+        locationRef.current = 'street';
+        placePlayer(streetSpawnFor(door));
+        cameraControls.setMode(cameraModeRef.current, true);
+        snapCamera(position, -Math.PI / 2);
+        setInHome(false);
+        saveToAccount();
+      };
+      // Continue the account's saved day (and wake up at home if that's where it ended).
+      if (lifeSyncRef.current) {
+        lifeSyncRef.current.load().then(server => {
+          if (disposed) return;
+          const start = chooseStartingLife(life, server);
+          life = start.life;
+          lifeLoaded = true;
+          writeLife(characterId, life);
+          syncLighting();
+          setLifeView({ ...life });
+          if (start.location === 'home' && locationRef.current === 'street' && interaction.mode === 'walking') enterHome();
+          else if (start.source === 'browser') saveToAccount();
+          setSyncStatus('saved');
+        }).catch(() => {
+          // Keep playing on the browser copy; saves resume once the account answers.
+          lifeLoaded = true;
+          if (!disposed) setSyncStatus('offline');
+        });
+      }
+      // E (or the on-screen button): car in/out, the home's doors, then the nearest car.
+      const interact = () => {
+        if (schoolOpenRef.current) return;
+        const index = drivenIndex();
+        if (index < 0 && locationRef.current === 'home') {
+          if (atHomeExit(position)) leaveHome();
+          else if (nearBed(position, BED_SIDE)) {
+            const check = canSleep(life);
+            if (!check.ok) { notify(check.reason); return; }
+            interaction = transitionInteraction(interaction, { id: 'home-bed', type: 'bed', x: BED_SIDE.x, z: BED_SIDE.z });
+            inputRef.current.clear();
+            avatar.setEnabled(false);
+            sleepTimer = 0;
+            setDoorPrompt(null);
+            setSleeping(true);
+          }
+          return;
+        }
+        const door = index < 0 ? streetDoorAt(position) : null;
+        if (door) {
+          if (door.own) enterHome();
+          else notify("The neighbors' door is locked.");
+          return;
+        }
+        if (index < 0) {
+          const target = closestInteraction(position, carTargets());
+          if (!target) return;
+          interaction = transitionInteraction(interaction, target);
+          inputRef.current.clear();
+          avatar.setEnabled(false);
+          setNearCar(false);
+          setDriveNotice('');
+          setDriveSpeed(0);
+          setDriving(true);
+          return;
+        }
+        const car = cars[index];
+        if (!canExitVehicle(car)) { notify('Stop the car before getting out.'); return; }
+        const exit = vehicleExitPosition(car, cars);
+        if (!exit) { notify('No room to open a door here. Move the car a little.'); return; }
+        car.speed = 0;
+        position = exit;
+        avatar.position.set(exit.x, 0, exit.z);
+        avatar.rotation.y = car.rotation;
+        interaction = transitionInteraction(interaction, 'exit');
+        inputRef.current.clear();
+        avatar.setEnabled(true);
+        setDriveNotice('');
+        setDriving(false);
+      };
+      interactRef.current = interact;
       const normalizeKey = (key: string) => key.length === 1 ? key.toLowerCase() : key;
       const onKeyDown = (event: KeyboardEvent) => {
         // Escape must also work when a button inside the school overlay has focus.
@@ -476,9 +693,10 @@ export default function WorldScene({
         } else if (key === 'c' && !event.repeat) {
           event.preventDefault();
           toggleCamera();
-        } else if (key === 'e' && nearSchoolRef.current && !event.repeat) {
+        } else if (key === 'e' && !event.repeat) {
           event.preventDefault();
-          setSchoolOpen(open => !open);
+          if (nearSchoolRef.current && interaction.mode === 'walking') setSchoolOpen(open => !open);
+          else interact();
         }
       };
       const onKeyUp = (event: KeyboardEvent) => {
@@ -509,26 +727,95 @@ export default function WorldScene({
       let elapsed = 0;
       let waypointTimer = 0;
       let markerTime = 0;
+      let hudTimer = 0;
       engine.runRenderLoop(() => {
         const delta = Math.min(engine!.getDeltaTime() / 1000, 0.05);
         // Controls follow the orbit camera: W always walks away from the viewer.
         const cameraDirection = camera.getForwardRay().direction;
         markerTime += delta;
+        clock += delta;
         schoolMarker.position.y = 4.6 + Math.sin(markerTime * 2.5) * 0.12;
         const cameraForward = { x: cameraDirection.x, z: cameraDirection.z };
-        const locomotion = stepLocomotion(position, schoolOpenRef.current ? new Set<string>() : inputRef.current.pressed,
-          delta, sprintEnabledRef.current, cameraForward);
+        if (interaction.mode === 'sleeping') {
+          // A short fade stands in for the night; the clock jumps to 7:00 when it ends.
+          sleepTimer += delta;
+          if (sleepTimer >= 2.2) {
+            const rest = sleepUntilMorning(life);
+            life = rest.life;
+            warnedExhausted = false;
+            writeLife(characterId, life);
+            syncLighting();
+            setLifeView({ ...life });
+            saveToAccount();
+            interaction = transitionInteraction(interaction, 'exit');
+            avatar.setEnabled(true);
+            setSleeping(false);
+            notify(`Good morning! Day ${life.day} · ${formatClock(life.minute)} · slept ${Math.round(rest.hoursSlept)} h · energy ${Math.round(life.energy)}%`);
+          }
+          home.setFadedWalls(wallsToFade(camera.position), delta);
+          scene.render();
+          return;
+        }
+        const driven = drivenIndex();
+        if (driven >= 0) {
+          tickLife(delta, 'drive');
+          // Car-relative controls: W/S accelerate, brake and reverse; A/D steer.
+          const keys = schoolOpenRef.current ? new Set<string>() : inputRef.current.pressed;
+          const others = cars.filter((_, index) => index !== driven);
+          const next = stepVehicle(cars[driven], driveInput(keys), delta, others);
+          cars[driven] = { x: next.x, z: next.z, rotation: next.rotation, speed: next.speed };
+          placeCar(driven);
+          // Swing the camera behind the car while moving; parked, the player may orbit freely.
+          if (Math.abs(next.speed) > 1) camera.alpha = smoothHumanHeading(camera.alpha, chaseCameraAlpha(next.rotation), delta, 2.5);
+          hudTimer += delta;
+          if (hudTimer >= 0.15) {
+            hudTimer = 0;
+            const kmh = speedKmh(next.speed);
+            setDriveSpeed(previous => previous === kmh ? previous : kmh);
+            if (next.collided) notify('Bump! Reverse with S to back away.');
+            else if (clock - noticeAt > 2.5) setDriveNotice(previous => previous ? '' : previous);
+            const waypoint = schoolWaypoint(next, cameraForward);
+            const label = waypoint.distance === null ? '' : 'School · ' + Math.ceil(waypoint.distance) + ' units · ' + waypoint.direction;
+            setWayfinding(previous => previous === label ? previous : label);
+          }
+          if (previousNear) { previousNear = false; nearSchoolRef.current = false; setNearSchool(false); }
+          riggedRef.current?.update(0, delta);
+          cameraControls.update(delta);
+          cameraControls.follow(next, delta);
+          scene.render();
+          return;
+        }
+        const atHome = locationRef.current === 'home';
+        const tired = isExhausted(life);
+        const pressed = schoolOpenRef.current ? new Set<string>() : inputRef.current.pressed;
+        // Exhausted players can still walk home, but not run.
+        const walkKeys = tired ? new Set([...pressed].filter(key => key !== 'Shift')) : pressed;
+        const locomotion = atHome
+          ? stepHomeLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward)
+          : stepLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward, cars);
+        tickLife(delta, locomotion.motion);
         const { position: next, moving, speed: movementSpeed } = locomotion;
         if (moving) avatar.rotation.y = smoothHumanHeading(avatar.rotation.y, movementHeading(next.x - position.x, next.z - position.z), delta);
         position = next;
         waypointTimer += delta;
         if (waypointTimer >= 0.25) {
           waypointTimer = 0;
-          const waypoint = schoolWaypoint(position, cameraForward);
-          const label = waypoint.distance === null ? ''
-            : waypoint.direction === 'at entrance' ? 'School entrance reached'
-              : 'School entrance · ' + Math.ceil(waypoint.distance) + ' units · ' + waypoint.direction;
-          setWayfinding(previous => previous === label ? previous : label);
+          if (clock - noticeAt > 2.5) setDriveNotice(previous => previous ? '' : previous);
+          if (atHome) {
+            const prompt = atHomeExit(position) ? 'exit' : nearBed(position, BED_SIDE) ? 'bed' : null;
+            setDoorPrompt(previous => previous === prompt ? previous : prompt);
+          } else {
+            const waypoint = schoolWaypoint(position, cameraForward);
+            const label = waypoint.distance === null ? ''
+              : waypoint.direction === 'at entrance' ? 'School entrance reached'
+                : 'School entrance · ' + Math.ceil(waypoint.distance) + ' units · ' + waypoint.direction;
+            setWayfinding(previous => previous === label ? previous : label);
+            const carInReach = closestInteraction(position, carTargets()) !== null;
+            setNearCar(previous => previous === carInReach ? previous : carInReach);
+            const door = streetDoorAt(position);
+            const prompt = door ? (door.own ? 'enter' : 'locked') : null;
+            setDoorPrompt(previous => previous === prompt ? previous : prompt);
+          }
         }
         avatar.position.x = position.x;
         avatar.position.z = position.z;
@@ -550,7 +837,7 @@ export default function WorldScene({
           avatar.position.y = 0;
           for (const limb of [...avatarParts.legs, ...avatarParts.arms]) limb.rotation.x = 0;
         }
-        const nextNear = isNearSchool(position);
+        const nextNear = !atHome && isNearSchool(position);
         nearSchoolRef.current = nextNear;
         if (nextNear !== previousNear) {
           previousNear = nextNear;
@@ -558,6 +845,7 @@ export default function WorldScene({
         }
         cameraControls.update(delta);
         cameraControls.follow(position, delta);
+        home.setFadedWalls(atHome ? wallsToFade(camera.position) : [], delta);
         scene.render();
       });
       engine.resize();
@@ -572,6 +860,9 @@ export default function WorldScene({
         window.removeEventListener('resize', resize);
         document.removeEventListener('visibilitychange', onVisibilityChange);
         cameraControlsRef.current = null;
+        writeLife(characterId, life);
+        saveToAccount();
+        disposed = true;
         lighting.dispose();
         lightingRef.current = null;
         environmentLoad.cancelled = true;
@@ -643,12 +934,35 @@ export default function WorldScene({
       onKeyUp={event => keyboardTouch(key, false, event)}
       onBlur={() => { inputRef.current.release(`pad:${key}: `); inputRef.current.release(`pad:${key}:Enter`); }}>{symbol}</button>;
 
+  const actionLabel = driving ? 'Get out of car (E)'
+    : doorPrompt === 'exit' ? 'Go outside (E)'
+      : doorPrompt === 'bed' ? 'Sleep (E)'
+      : doorPrompt === 'enter' ? 'Go inside your home (E)'
+        : doorPrompt === 'locked' ? "Neighbors' house (E)"
+          : nearCar && !inHome ? 'Get in car (E)' : '';
   return <div className="world-root" aria-label="Playable 3D neighborhood">
     <div className="world-viewport">
       {!error && <canvas ref={canvasRef} tabIndex={0} aria-label={`3D world for ${displayName}; click to focus, use WASD or arrow keys to move`} />}
       {error ? <p className="world-fallback" role="status">{error}</p> : <>
-        <div className="world-caption"><strong>{displayName}</strong> · {demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
+        <div className="world-life" role="status" aria-label={`Day ${lifeView.day}, ${formatClock(lifeView.minute)}, energy ${Math.round(lifeView.energy)} percent`}>
+          <span>Day {lifeView.day} · {formatClock(lifeView.minute)}{lifeSync && syncStatus !== 'idle' &&
+            <small className="world-sync"> · {syncStatus === 'offline' ? 'Saved in this browser' : syncStatus === 'saving' ? 'Saving…' : 'Saved to your account'}</small>}</span>
+          <span className="world-energy" data-low={lifeView.energy <= TIRED_ENERGY ? 'true' : undefined}>
+            Energy <span className="world-energy-bar" aria-hidden="true"><span style={{ width: `${Math.round(lifeView.energy)}%` }} /></span> {Math.round(lifeView.energy)}%
+          </span>
+        </div>
+        {sleeping && <div className="world-sleep" role="status" aria-live="polite"><span>Sleeping…</span></div>}
+        <div className="world-caption"><strong>{displayName}</strong> · {inHome ? 'At home' : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
+        {driving && <div className="world-drive-hud" role="status" aria-live="polite">
+          <strong>{driveSpeed}</strong>km/h · W/S gas, brake, reverse · A/D steer · E to get out when stopped
+          {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
+        </div>}
+        {!driving && driveNotice && <div className="world-notice" role="status" aria-live="polite">{driveNotice}</div>}
+        {actionLabel && <button type="button" className="world-car-action"
+          onClick={event => { interactRef.current(); focusWorld(event); }}>
+          {actionLabel}
+        </button>}
         {nearSchool && <button type="button" className="world-enter"
           aria-expanded={schoolOpen} aria-controls="school-game-panel"
           onClick={() => setSchoolOpen(current => !current)}>
@@ -683,7 +997,7 @@ export default function WorldScene({
       </>}
     </div>
     {!error && <div className="world-controls">
-      <p>Click the world, then use WASD, arrow keys or the direction pad to move. Hold Shift or switch Run on to move faster. Release the direction to stop. Drag to orbit; scroll, pinch or use the zoom buttons to zoom. Press E at the school entrance; Escape closes the panel.</p>
+      <p>Click the world, then use WASD, arrow keys or the direction pad to move. Hold Shift or switch Run on to move faster. Release the direction to stop. Drag to orbit; scroll, pinch or use the zoom buttons to zoom. Press E at the school entrance; Escape closes the panel. Press E at your front door (the house on the left) to go inside, and E at the inside door to go back out. Your energy drains as the day goes on; when you're tired or it's evening, press E beside your bed to sleep until 7:00 AM. Press E next to a car to drive it: W/S for gas, brake and reverse, A/D to steer, and E again to get out once stopped.</p>
       <div className="world-control-buttons">
         <div className="world-pad" aria-label="Touch movement controls">
           <div className="world-pad-top">{directionButton('▲', 'ArrowUp', 'Move forward')}</div>
@@ -701,6 +1015,7 @@ export default function WorldScene({
       </div>
     </div>}
     {!error && <p role="status" style={{ fontSize: '0.8rem', opacity: 0.8 }}>{modelStatus}</p>}
+    {!error && propCredit && <p style={{ fontSize: '0.75rem', opacity: 0.7 }}>Some 3D props by <a href="https://polyhaven.com" target="_blank" rel="noreferrer">Poly Haven</a> (CC0).</p>}
     {!error && <div className="world-camera-toggle" role="group" aria-label="Camera controls">
       <button type="button" aria-label="Zoom in" onClick={event => { cameraControlsRef.current?.zoom('in'); focusWorld(event); }}>Zoom +</button>
       <button type="button" aria-label="Zoom out" onClick={event => { cameraControlsRef.current?.zoom('out'); focusWorld(event); }}>Zoom −</button>
