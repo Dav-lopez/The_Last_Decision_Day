@@ -1,4 +1,5 @@
 import { CAREERS, rankOf, type CareerId, type CareerState } from './careers.mjs';
+import { RANGE_DRILLS, gradeFor } from './trainingRange.mjs';
 
 const clock = (m: number) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:00`;
 
@@ -11,6 +12,10 @@ export function CareersPanel({ career, onWearUniform, onQuit }: { career: Career
     {job && rank ? <>
       <p><strong>{rank.title}</strong> · {job.title} · {career.shifts} shift{career.shifts === 1 ? '' : 's'} worked · savings ${career.money}</p>
       <p>{rank.nextTitle ? `${rank.shiftsToNext} more shift${rank.shiftsToNext === 1 ? '' : 's'} to ${rank.nextTitle}.` : 'Top rank reached.'} Work shifts at the {job.workplace} downtown ({clock(job.hours[0])}–{clock(job.hours[1])}): take the bus from Maple Street and press E at the sign.</p>
+      <p>{RANGE_DRILLS[job.id].title}: {(() => {
+        const best = career.training?.best[job.id];
+        return best ? `best ${Math.round(best * 100)}% (${gradeFor(best, 1).title}).` : 'not taken yet.';
+      })()} Press T at the {job.workplace} sign to train at the {RANGE_DRILLS[job.id].place.toLowerCase()}.</p>
       <div className="wardrobe-options">
         <button type="button" className="wardrobe-option" onClick={onWearUniform}>Wear uniform</button>
         <button type="button" className="wardrobe-option" onClick={onQuit}>Quit job</button>

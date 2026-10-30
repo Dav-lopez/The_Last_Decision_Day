@@ -6,7 +6,8 @@ export type Career = Readonly<{
   shiftsPerRank: number; duties: readonly string[]; hours: readonly [number, number] | readonly number[];
   uniform: Readonly<{ top: string; outfit: string; bottom: string; bottomColor: string; shoes: string; shoeColor: string }>;
 }>;
-export type CareerState = { career: CareerId | null; shifts: number; money: number; lastShiftAt: number | null };
+export type TrainingRecord = { best: Partial<Record<CareerId, number>>; lastPaidAt: number | null };
+export type CareerState = { career: CareerId | null; shifts: number; money: number; lastShiftAt: number | null; training?: TrainingRecord };
 export declare const SHIFT_HOURS: number;
 export declare const SHIFT_ENERGY: number;
 export declare const CAREERS: Readonly<Record<CareerId, Career>>;

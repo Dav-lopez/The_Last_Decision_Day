@@ -47,7 +47,7 @@ test('switching careers starts over but keeps savings; bad saves are cleaned', (
   const army = joinCareer(police, 'soldier');
   assert.deepEqual([army.career, army.shifts, army.money], ['soldier', 0, 500]);
   assert.equal(joinCareer(army, 'astronaut').career, 'soldier');
-  assert.deepEqual(quitCareer(army), { career: null, shifts: 0, money: 500, lastShiftAt: null });
+  assert.deepEqual(quitCareer(army), { career: null, shifts: 0, money: 500, lastShiftAt: null, training: { best: {}, lastPaidAt: null } });
   assert.deepEqual(normalizeCareer({ career: 'hacker', shifts: -3, money: 'lots' }), NO_CAREER);
   const store = new Map();
   const storage = { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) };

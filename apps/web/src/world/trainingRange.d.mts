@@ -1,0 +1,40 @@
+import type { CareerId, CareerState } from './careers.mjs';
+export type RangeTheme = 'paper' | 'steel' | 'flame';
+export type RangeCue = 'shot' | 'rifle' | 'spray';
+export type RangeDrill = Readonly<{
+  id: CareerId; title: string; place: string; tool: string; theme: RangeTheme;
+  magazine: number; rounds: number; seconds: number; targets: number; hitsPerTarget: number; distances: readonly number[];
+  radius: number; zoom: number; sway: number; recoil: number; cooldown: number; reload: number; exposure: readonly number[];
+  brief: string; cue: RangeCue; reloadWord: string;
+}>;
+export type Grade = Readonly<{ id: 'expert' | 'sharpshooter' | 'marksman' | 'unqualified'; title: string; at: number; bonus: number }>;
+export type RangeTarget = Readonly<{ id: number; at: number; duration: number; lane: number; laneX: number; distance: number }>;
+export type Breath = { air: number; gasping: boolean; steady?: boolean };
+export type Hit = { x: number; y: number; ring: number };
+export type RangeSession = {
+  drill: CareerId; seed: number; time: number; score: number; shots: number; scored: number; loaded: number; reserve: number;
+  reloading: number; cooldown: number; recoil: number; breath: Breath & { steady: boolean } | Breath; hits: Record<number, Hit[]>; done: boolean;
+};
+export type Shot = { ring: number; targetId: number | null; local: { x: number; y: number } | null };
+export declare const RANGE_DRILLS: Readonly<Record<CareerId, RangeDrill>>;
+export declare const GRADES: readonly Grade[];
+export declare const TRAINING_MINUTES: number;
+export declare const TRAINING_ENERGY: number;
+export declare const PAID_GAP_MINUTES: number;
+export declare function maxScore(drill: RangeDrill): number;
+export declare function rangeSchedule(drill: RangeDrill, seed?: number): readonly RangeTarget[];
+export declare function targetFacing(target: RangeTarget, time: number): number;
+export declare function stepBreath(breath: Breath | null | undefined, holding: boolean, seconds: number): Breath & { steady: boolean };
+export declare function aimSway(drill: RangeDrill, time: number, state?: { steady?: boolean; gasping?: boolean; energy?: number }): { x: number; y: number };
+export declare function ringFor(drill: RangeDrill, dx: number, dy: number): number;
+export declare function resolveShot(drill: RangeDrill, schedule: readonly RangeTarget[], hits: Record<number, Hit[]>, aim: { x: number; y: number }, time: number): Shot;
+export declare function targetAngles(drill: RangeDrill, target: RangeTarget): { x: number; y: number };
+export declare function gradeFor(score: number, max: number): Grade;
+export declare function startSession(drill: RangeDrill, seed?: number): RangeSession;
+export declare function stepSession(drill: RangeDrill, session: RangeSession, seconds: number, holdingBreath?: boolean): RangeSession;
+export declare function reload(drill: RangeDrill, session: RangeSession): RangeSession;
+export declare function fire(drill: RangeDrill, session: RangeSession, schedule: readonly RangeTarget[], aim: { x: number; y: number }): { session: RangeSession; shot: Shot | null };
+export declare function normalizeTraining(value: unknown): { best: Partial<Record<CareerId, number>>; lastPaidAt: number | null };
+export declare function canTrain(career: CareerState, now: { minute: number; energy: number; hours?: readonly number[] }): { ok: true } | { ok: false; reason: string };
+export declare function finishTraining(career: CareerState, result: { score: number; totalMinutes: number }):
+  { grade: Grade; pay: number; fraction: number; personalBest: boolean; practice: boolean; state: CareerState } | null;
