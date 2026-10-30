@@ -39,6 +39,66 @@
       "sha256": "69591853d817488edaa8fd9bf8fc1d821eaeaf789f8627b3cd23b41c4ed67997"
     },
     {
+      "file": "female.gltf",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/Base%20Characters/Godot%20-%20UE/Superhero_Female_FullBody.gltf",
+      "sha256": "adedf28000a0716f689b009a70314506fc62f827498f77ba852acb5610f3f3f4"
+    },
+    {
+      "file": "female.bin",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/Base%20Characters/Godot%20-%20UE/Superhero_Female_FullBody.bin",
+      "sha256": "3a8220a485b33d05d879115a50697728b45a151781106033afb8b8c243fca208"
+    },
+    {
+      "file": "hair-long.gltf",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/Hairstyles/Rigged%20to%20Head%20Bone/glTF%20%28Godot%20-Unreal%29/Hair_Long.gltf",
+      "sha256": "27e2c63e8f98c79fb600268ffcc92b36c621b8653b5a7dcbadb08328f3f887a9"
+    },
+    {
+      "file": "hair-long.bin",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/Hairstyles/Rigged%20to%20Head%20Bone/glTF%20%28Godot%20-Unreal%29/Hair_Long.bin",
+      "sha256": "268fd531d2c2ac321783d36fcf106d15c5c76e8923eec2c8704d5fe9de953589"
+    },
+    {
+      "file": "hair-buns.gltf",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/Hairstyles/Rigged%20to%20Head%20Bone/glTF%20%28Godot%20-Unreal%29/Hair_Buns.gltf",
+      "sha256": "cbdd6f509ec8f1021361b53da6fa1a077b95762ebc8bc2d8acae59bb0cb263c1"
+    },
+    {
+      "file": "hair-buns.bin",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/Hairstyles/Rigged%20to%20Head%20Bone/glTF%20%28Godot%20-Unreal%29/Hair_Buns.bin",
+      "sha256": "811606cc84f0bfdefa2e6f1396f3d94c35138308a96d78a4f447b2e7dfc6ed6c"
+    },
+    {
+      "file": "hair-pixie.gltf",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/Hairstyles/Rigged%20to%20Head%20Bone/glTF%20%28Godot%20-Unreal%29/Hair_BuzzedFemale.gltf",
+      "sha256": "096a7a4ea5bcadc588f4c1e95f04b3461f8a20f3643a0308cfd23e81e180ab32"
+    },
+    {
+      "file": "hair-pixie.bin",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/Hairstyles/Rigged%20to%20Head%20Bone/glTF%20%28Godot%20-Unreal%29/Hair_BuzzedFemale.bin",
+      "sha256": "48fcdac8751e85c1d08ac9ff25b5c4d649e5b5d450d37ad8743b9f111a3a7e04"
+    },
+    {
+      "file": "hair-buzzed.gltf",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/Hairstyles/Rigged%20to%20Head%20Bone/glTF%20%28Godot%20-Unreal%29/Hair_Buzzed.gltf",
+      "sha256": "6e709c691d4feccda9788df917bf9604e751f02da21cee2bc81bcc3d26b3b580"
+    },
+    {
+      "file": "hair-buzzed.bin",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/Hairstyles/Rigged%20to%20Head%20Bone/glTF%20%28Godot%20-Unreal%29/Hair_Buzzed.bin",
+      "sha256": "5d4b5452ff879ed1d516694be57d1106c070c7133e747a8c9432b01ebf20e908"
+    },
+    {
+      "file": "hair-beard.gltf",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/Hairstyles/Rigged%20to%20Head%20Bone/glTF%20%28Godot%20-Unreal%29/Hair_Beard.gltf",
+      "sha256": "80013b9791ce12c65fbe693cf669b02ef5c38091c653bf13b9415d2d8380e0ce"
+    },
+    {
+      "file": "hair-beard.bin",
+      "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/Hairstyles/Rigged%20to%20Head%20Bone/glTF%20%28Godot%20-Unreal%29/Hair_Beard.bin",
+      "sha256": "bf2f46ef5808665ef31082f787bc68c51ff063e81b76ca1a51ac86a9ae723be7"
+    },
+    {
       "file": "character-license.txt",
       "url": "https://raw.githubusercontent.com/NafisRayan/Animate-Rigged-Humanoid-No-Blender/5821923af517ac5fdc82505faa92a0d575fc1b1a/Universal%20Base%20Characters%5BStandard%5D/Universal%20Base%20Characters%5BStandard%5D/License_Standard.txt",
       "sha256": "e08f717c3cfd999f4b44f2be4522b11a3ac3c0e5b6364b3a8788d25d4c90ff94"
@@ -49,16 +109,23 @@
       "sha256": "d77329b05c4c206e76c83285ecdd1e5f2b3df2350ec80657ebdb5a706a0fc0de"
     }
   ],
+  "body": "male",
   "output": {
     "file": "human.glb",
-    "bytes": 775548,
-    "sha256": "d4c25edd94b78b22805a33baa915aae246778e3d2ea8f728164de4f8f6962a03",
+    "bytes": 1366672,
+    "sha256": "4d5206cc2e8845f8ebdf9ef2172caa85cf90f1deebfc00f30637534308e0a774",
     "morphTargets": [
       "browDownLeft",
       "browDownRight",
       "browInnerUp",
+      "cheekSquintLeft",
+      "cheekSquintRight",
       "eyeBlinkLeft",
       "eyeBlinkRight",
+      "eyeLookDownLeft",
+      "eyeLookDownRight",
+      "eyeLookUpLeft",
+      "eyeLookUpRight",
       "eyeSquintLeft",
       "eyeSquintRight",
       "eyeWideLeft",
@@ -70,7 +137,11 @@
       "mouthPressLeft",
       "mouthPressRight",
       "mouthSmileLeft",
-      "mouthSmileRight"
+      "mouthSmileRight",
+      "sweatTrackLeft",
+      "sweatTrackRight",
+      "tearTrackLeft",
+      "tearTrackRight"
     ]
   },
   "modifications": [
@@ -79,6 +150,12 @@
     "Preserve pelvis bob and remove horizontal root travel; gameplay controls world movement.",
     "Add parted hair, remap hair joints, split clothing/skin materials for browser customization.",
     "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes.",
-    "Add a skinned expressive lip surface with smile, frown, press and open morphs."
+    "Add a skinned expressive lip surface with smile, frown, press and open morphs.",
+    "Add head-skinned cheek squint targets and transparent blush surfaces.",
+    "Add head-skinned animated translucent tear and sweat droplets.",
+    "Add a head-skinned sculpted nose bridge and tip sharing the skin material.",
+    "Split the outfit into zones painted in the browser (sleeves, midriff, waist, thighs, knees, shins, socks, shoes, soles).",
+    "Ship every hairstyle (parted, buzzed, pixie, long, buns, beard) moved onto this head by the eye-centre difference; the browser shows one.",
+    "Add a skinned flared skirt (pelvis and thighs), hidden unless worn."
   ]
 }

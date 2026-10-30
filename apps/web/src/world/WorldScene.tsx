@@ -21,7 +21,8 @@ import { upgradeNeighborhoodAssets } from './realEnvironmentAssets';
 import { createHousePainter, type HousePainter } from './housePaint';
 import { HousePhotoPaint } from './HousePhotoPaint';
 import { readHouseStyle } from './photoPalette.mjs';
-import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mjs';
+import { colorFor, modelFor, readLook, writeLook, type Look } from './appearance.mjs';
+import { Wardrobe } from './Wardrobe';
 import { PARKED_CARS } from './streetLayout.mjs';
 import { addWorldProps } from './polyHavenProps';
 import { buildHomeScene } from './homeScene';
@@ -377,6 +378,7 @@ export default function WorldScene({
   const lookRef = useRef(look);
   const avatarRef = useRef<ReturnType<typeof createAvatar> | null>(null);
   const riggedRef = useRef<RiggedAvatar | null>(null);
+  const swapBodyRef = useRef<((model: string) => void) | null>(null);
   const housePainterRef = useRef<HousePainter | null>(null);
   const [previewEmotion, setPreviewEmotion] = useState<Emotion>('neutral');
   const previewEmotionRef = useRef<Emotion>('neutral');
@@ -573,20 +575,39 @@ export default function WorldScene({
       const placeholderMeshes = avatar.getChildMeshes();
       for (const mesh of placeholderMeshes) shadows.addShadowCaster(mesh, false);
       let humanLoadCancelled = false;
-      void loadRiggedAvatar(scene, avatar).then(human => {
-        if (humanLoadCancelled || scene.isDisposed) { human?.dispose(); return; }
-        if (!human) return;
-        riggedRef.current = human;
-        human.applyLook(lookRef.current);
-        human.setEmotion(resolveCharacterEmotion(previewEmotionRef.current, 0));
-        avatar.position.y = 0;
-        for (const mesh of placeholderMeshes) {
-          mesh.setEnabled(false);
-          shadows.removeShadowCaster(mesh, false);
-        }
-        for (const mesh of human.root.getChildMeshes()) shadows.addShadowCaster(mesh, false);
-        setModelStatus('Character ready · Idle, walk and run');
-      }).catch(() => { if (!humanLoadCancelled) setModelStatus('Basic character in use. Reload to retry loading the human character.'); });
+      // The body type is its own model: changing it swaps the character in place.
+      let loadedModel = '';
+      let loadToken = 0;
+      const loadHuman = (model: string) => {
+        if (model === loadedModel) return;
+        loadedModel = model;
+        const token = ++loadToken;
+        void loadRiggedAvatar(scene, avatar, model).then(human => {
+          if (humanLoadCancelled || scene.isDisposed || token !== loadToken) { human?.dispose(); return; }
+          if (!human) return;
+          const previous = riggedRef.current;
+          if (previous) {
+            for (const mesh of previous.root.getChildMeshes()) shadows.removeShadowCaster(mesh, false);
+            previous.dispose();
+          }
+          riggedRef.current = human;
+          human.applyLook(lookRef.current);
+          human.setEmotion(resolveCharacterEmotion(previewEmotionRef.current, 0));
+          avatar.position.y = 0;
+          for (const mesh of placeholderMeshes) {
+            mesh.setEnabled(false);
+            shadows.removeShadowCaster(mesh, false);
+          }
+          for (const mesh of human.root.getChildMeshes()) shadows.addShadowCaster(mesh, false);
+          setModelStatus('Character ready · Idle, walk and run');
+        }).catch(() => {
+          if (humanLoadCancelled || token !== loadToken) return;
+          loadedModel = '';
+          if (!riggedRef.current) setModelStatus('Basic character in use. Reload to retry loading the human character.');
+        });
+      };
+      loadHuman(modelFor(lookRef.current));
+      swapBodyRef.current = loadHuman;
       let position: PlanarPosition = { x: 0, z: 3.8 };
       avatar.position.set(position.x, 0, position.z);
       const camera = new ArcRotateCamera('third-person camera', Math.PI / 2, 1.15, 7.5,
@@ -1183,6 +1204,7 @@ export default function WorldScene({
         schoolAssetCancelled = true;
         schoolAsset?.dispose();
         humanLoadCancelled = true;
+        swapBodyRef.current = null;
         riggedRef.current?.dispose();
         riggedRef.current = null;
         engine?.dispose();
@@ -1200,6 +1222,7 @@ export default function WorldScene({
     writeLook(characterId, look);
     lookRef.current = look;
     riggedRef.current?.applyLook(look);
+    swapBodyRef.current?.(modelFor(look));
     const parts = avatarRef.current;
     if (parts) {
       parts.jacket.diffuseColor = Color3.FromHexString(colorFor('outfit', look.outfit));
@@ -1395,26 +1418,7 @@ export default function WorldScene({
       </div>
       <p role="status" aria-live="polite">{previewEmotion === 'sad' ? 'Crying preview selected · tears pending detailed face integration' : previewEmotion === 'embarrassed' ? 'Blushing preview selected · cheek shading pending' : previewEmotion === 'exerted' ? 'Exertion preview selected · sweat rendering pending' : `Current expression: ${previewEmotion}`}. When Neutral is selected, sprinting automatically triggers exertion. Facial animation requires a model with compatible blendshapes.</p>
     </section>}
-    {!error && <section className="world-customize" aria-label="Customize character appearance">
-      <h3>Character appearance</h3>
-      <div className="world-looks">
-        {(['skin', 'hair', 'outfit'] as const).map(part =>
-          <fieldset key={part}>
-            <legend>{part === 'skin' ? 'Skin tone' : part === 'hair' ? 'Hair color' : 'Outfit'}</legend>
-            <div className="world-swatch-list">
-              {LOOKS[part].map(choice =>
-                <button key={choice.id} type="button" className="world-swatch"
-                  aria-label={`${choice.label} ${part}`}
-                  aria-pressed={look[part] === choice.id}
-                  title={choice.label}
-                  style={{ '--swatch': choice.hex } as CSSProperties}
-                  onClick={() => setLook(current => ({ ...current, [part]: choice.id }))}>
-                  <span className="world-swatch-dot" aria-hidden="true" /><span>{choice.label}</span>
-                </button>)}
-            </div>
-          </fieldset>)}
-      </div>
-      <p>Outfit and appearance choices are saved in this browser only. {demoMode ? 'Guest appearance is not linked to an account.' : 'Server-synced customization is coming later.'}</p>
-    </section>}
+    {!error && <Wardrobe look={look} setLook={setLook}
+      note={`Outfit and appearance choices are saved in this browser only. ${demoMode ? 'Guest appearance is not linked to an account.' : 'Server-synced customization is coming later.'}`} />}
   </div>;
 }

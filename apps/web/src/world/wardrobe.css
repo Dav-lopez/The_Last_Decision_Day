@@ -1,0 +1,11 @@
+.wardrobe-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.wardrobe-tab { padding: 7px 12px; background: #1b3049; color: #dbe6f6; border: 1px solid #425b79; border-radius: 999px; font-size: .82rem; }
+.wardrobe-tab[aria-selected=true] { background: #f2d48b; color: #1a2234; border-color: #f2d48b; font-weight: 700; }
+.wardrobe-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.wardrobe-panel fieldset { min-width: 0; margin: 0; padding: 8px; border: 1px solid #425b79; border-radius: 10px; }
+.wardrobe-panel legend { font-size: .85rem; font-weight: 700; padding: 0 5px; }
+.wardrobe-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.wardrobe-option { padding: 6px 10px; background: #253d57; color: #f2f6ff; border: 2px solid transparent; border-radius: 8px; font-size: .78rem; }
+.wardrobe-option[aria-pressed=true] { border-color: #f2d48b; box-shadow: 0 0 0 1px #f2d48b; }
+.wardrobe-swatch { padding: 5px; border-radius: 50%; }
+.wardrobe-swatch .world-swatch-dot { width: 20px; height: 20px; }

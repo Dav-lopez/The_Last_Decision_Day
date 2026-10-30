@@ -1,5 +1,5 @@
 import type { PlanarPosition } from './movement.mjs';
-export type NpcLook = { skin: string; hair: string; outfit: string };
+export type NpcLook = { skin: string; hair: string; outfit: string } & Partial<import('./appearance.mjs').Look>;
 export type NpcRoute =
   | { kind: 'segment'; a: Readonly<PlanarPosition>; b: Readonly<PlanarPosition> }
   | { kind: 'stand'; at: Readonly<PlanarPosition>; facing: number };
