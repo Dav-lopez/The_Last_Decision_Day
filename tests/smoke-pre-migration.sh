@@ -25,5 +25,5 @@ check 'web index' 200 "$BASE/"
 check 'web SPA fallback' 200 "$BASE/game/unknown-route"
 check 'API liveness' 200 "$BASE/api/v1/health/live"
 check 'API readiness without migration' 503 "$BASE/api/v1/health/ready"
-check 'SignalR negotiate' 200 "$BASE/hubs/world/negotiate?negotiateVersion=1" POST
+check 'SignalR negotiate requires sign-in' 401 "$BASE/hubs/world/negotiate?negotiateVersion=1" POST
 exit "$fail"
