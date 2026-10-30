@@ -112,8 +112,8 @@
   "body": "male",
   "output": {
     "file": "human.glb",
-    "bytes": 1359284,
-    "sha256": "909833cf1380c6313aafdd1c3210b5e9ba828aaec80be0c37cce210137e9fd50",
+    "bytes": 1366672,
+    "sha256": "4d5206cc2e8845f8ebdf9ef2172caa85cf90f1deebfc00f30637534308e0a774",
     "morphTargets": [
       "browDownLeft",
       "browDownRight",
@@ -153,6 +153,7 @@
     "Add a skinned expressive lip surface with smile, frown, press and open morphs.",
     "Add head-skinned cheek squint targets and transparent blush surfaces.",
     "Add head-skinned animated translucent tear and sweat droplets.",
+    "Add a head-skinned sculpted nose bridge and tip sharing the skin material.",
     "Split the outfit into zones painted in the browser (sleeves, midriff, waist, thighs, knees, shins, socks, shoes, soles).",
     "Ship every hairstyle (parted, buzzed, pixie, long, buns, beard) moved onto this head by the eye-centre difference; the browser shows one.",
     "Add a skinned flared skirt (pelvis and thighs), hidden unless worn."

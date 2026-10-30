@@ -112,8 +112,8 @@
   "body": "female",
   "output": {
     "file": "human-female.glb",
-    "bytes": 1326656,
-    "sha256": "044ef1fe7e0b60aa40c2cb9d190f4039bd4fa8dff732fa6f584eb7a481c4b527",
+    "bytes": 1334084,
+    "sha256": "1445ebf228e444cda5d08a334a1bb2b418c3dff2e65cba2b15329ff559be8c95",
     "morphTargets": [
       "browDownLeft",
       "browDownRight",
@@ -153,6 +153,7 @@
     "Add a skinned expressive lip surface with smile, frown, press and open morphs.",
     "Add head-skinned cheek squint targets and transparent blush surfaces.",
     "Add head-skinned animated translucent tear and sweat droplets.",
+    "Add a head-skinned sculpted nose bridge and tip sharing the skin material.",
     "Split the outfit into zones painted in the browser (sleeves, midriff, waist, thighs, knees, shins, socks, shoes, soles).",
     "Ship every hairstyle (parted, buzzed, pixie, long, buns, beard) moved onto this head by the eye-centre difference; the browser shows one.",
     "Add a skinned flared skirt (pelvis and thighs), hidden unless worn."
