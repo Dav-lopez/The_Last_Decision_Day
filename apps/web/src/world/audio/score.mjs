@@ -102,4 +102,10 @@ export const CUES = Object.freeze({
   map: [N(.12,.02,2200,0,'bandpass'), [700,.05,.015,.05]],
   chat: [[880,.06,.03,0],[1175,.09,.025,.07]],
   emote: [[523,.08,.025,0],[784,.12,.025,.08]],
+  // Training range: kept short and soft (the player is wearing ear defenders).
+  shot: [N(.09,.07,2600), [110,.07,.04,0]],
+  rifle: [N(.14,.08,2000), [70,.12,.05,0], N(.25,.015,700,.05)],
+  spray: [N(.32,.035,1600,0,'bandpass')],
+  ding: [[1760,.45,.028,0],[2637,.3,.012,0]],
+  reload: [N(.035,.03,4200,0,'highpass'), N(.04,.03,3200,.2,'highpass')],
 });

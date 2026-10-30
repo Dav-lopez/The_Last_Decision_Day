@@ -5,6 +5,7 @@
  * Browser-local for now, like the look and the story.
  */
 import { CITY_ORIGIN } from './cityLayout.mjs';
+import { normalizeTraining } from './trainingRange.mjs';
 
 export const SHIFT_HOURS = 4;
 export const SHIFT_ENERGY = 30;
@@ -39,13 +40,13 @@ export const CAREERS = Object.freeze({
   }),
 });
 
-export const NO_CAREER = Object.freeze({ career: null, shifts: 0, money: 0, lastShiftAt: null });
+export const NO_CAREER = Object.freeze({ career: null, shifts: 0, money: 0, lastShiftAt: null, training: Object.freeze({ best: Object.freeze({}), lastPaidAt: null }) });
 
 export function normalizeCareer(value) {
   const safe = value && typeof value === 'object' ? value : {};
   const career = safe.career in CAREERS ? safe.career : null;
   const count = v => Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
-  return { career, shifts: career ? count(safe.shifts) : 0, money: count(safe.money), lastShiftAt: Number.isFinite(safe.lastShiftAt) ? safe.lastShiftAt : null };
+  return { career, shifts: career ? count(safe.shifts) : 0, money: count(safe.money), lastShiftAt: Number.isFinite(safe.lastShiftAt) ? safe.lastShiftAt : null, training: normalizeTraining(safe.training) };
 }
 
 export function rankOf(state) {

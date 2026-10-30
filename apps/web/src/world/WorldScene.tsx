@@ -27,6 +27,8 @@ import { readHouseStyle } from './photoPalette.mjs';
 import { colorFor, modelFor, readLook, writeLook, type Look } from './appearance.mjs';
 import { Wardrobe } from './Wardrobe';
 import { WorldMap, type MapMarker, type MapSnapshot, type TravelTarget } from './WorldMap';
+import { TrainingRange, type RangeOutcome } from './TrainingRange';
+import { RANGE_DRILLS, TRAINING_MINUTES, canTrain, finishTraining } from './trainingRange.mjs';
 import { AudioPanel } from './audio/AudioPanel';
 import type { GameAudio } from './audio/director.mjs';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
@@ -407,6 +409,13 @@ export default function WorldScene({
   const [mapOpen, setMapOpen] = useState(false);
   const mapReadRef = useRef<() => MapSnapshot>(() => ({ location: 'street', you: null, city: null, street: [], downtown: [], canTravel: false }));
   const travelRef = useRef<(to: TravelTarget) => void>(() => {});
+  // Career training range (an overlay): open while you're at your own workplace.
+  const [rangeOpen, setRangeOpen] = useState<CareerId | null>(null);
+  const rangeOpenRef = useRef<CareerId | null>(null);
+  const rangeRef = useRef<{ open: () => void; finish: (score: number) => RangeOutcome; canRetry: () => boolean }>({
+    open: () => {}, finish: () => null, canRetry: () => false,
+  });
+  const closeRange = useCallback(() => { rangeOpenRef.current = null; setRangeOpen(null); }, []);
   const kickRef = useRef<(chip: boolean) => void>(() => {});
   const [career, setCareer] = useState<CareerState>(() => readCareer(characterId));
   const careerRef = useRef(career);
@@ -895,6 +904,35 @@ export default function WorldScene({
         pendingDrive = { to, index, timer: 0 };
         setRiding(to === 'downtown' ? `Driving to ${downtown.city.name}…` : 'Driving home to Maple Street…');
       };
+      const trainingCheck = () => {
+        const job = careerRef.current.career ? CAREERS[careerRef.current.career] : null;
+        return canTrain(careerRef.current, { minute: life.minute, energy: life.energy, hours: job?.hours });
+      };
+      rangeRef.current = {
+        open: () => {
+          const id = careerRef.current.career;
+          if (!id || interaction.mode !== 'walking' || workplaceAt(position) !== id) { notify('Training ranges are at your own workplace downtown.'); return; }
+          const check = trainingCheck();
+          if (!check.ok) { notify(check.reason); return; }
+          inputRef.current.clear();
+          rangeOpenRef.current = id;
+          setRangeOpen(id);
+          setLook(look => ({ ...look, ...CAREERS[id].uniform }));
+        },
+        // An hour of hard practice: the clock moves on and it's tiring.
+        finish: (score) => {
+          const result = finishTraining(careerRef.current, { score, totalMinutes: lifeTotalMinutes(life) });
+          if (!result) return null;
+          for (let minute = 0; minute < TRAINING_MINUTES; minute++) life = advanceLife(life, 1, 'run');
+          writeLife(characterId, life);
+          syncLighting();
+          setLifeView({ ...life });
+          saveCareer(result.state);
+          saveToAccount();
+          return { grade: result.grade, pay: result.pay, practice: result.practice, personalBest: result.personalBest };
+        },
+        canRetry: () => trainingCheck().ok,
+      };
       // Quick travel from the map: a taxi, ten game minutes, on foot only.
       let pendingTaxi: { to: TravelTarget; timer: number } | null = null;
       travelRef.current = (to) => {
@@ -1301,6 +1339,7 @@ export default function WorldScene({
           } else if (MOVE_KEYS.has(event.key)) event.preventDefault();
           return;
         }
+        if (rangeOpenRef.current) return;
         if (document.activeElement !== canvas) return;
         const key = normalizeKey(event.key);
         if (MOVE_KEYS.has(key)) {
@@ -1332,6 +1371,9 @@ export default function WorldScene({
         } else if (key === ' ' && !event.repeat) {
           event.preventDefault();
           emoteRef.current('jump');
+        } else if (key === 't' && !event.repeat) {
+          event.preventDefault();
+          rangeRef.current.open();
         } else if (key === 'g' && !event.repeat) {
           event.preventDefault();
           emoteRef.current('dance');
@@ -1390,9 +1432,11 @@ export default function WorldScene({
           match: Boolean(match && match.phase !== 'fulltime'),
           speed: delta>0 && audioDistance<1 ? audioDistance/delta : 0,
           drivingSpeed: audioCar>=0 ? cars[audioCar].speed : null,
-          reading: schoolOpenRef.current || dialogueRef.current || npcActiveRef.current,
+          reading: schoolOpenRef.current || dialogueRef.current || npcActiveRef.current || Boolean(rangeOpenRef.current),
           paused: Boolean(pendingRide || pendingFood || pendingShift || pendingTaxi || pendingDrive || interaction.mode==='sleeping' || interaction.mode==='sitting'),
           evening: isEvening(life.minute) });
+        // The training range covers the screen: freeze the world (and its clock) underneath.
+        if (rangeOpenRef.current) return;
         // Controls follow the orbit camera: W always walks away from the viewer.
         const cameraDirection = camera.getForwardRay().direction;
         markerTime += delta;
@@ -1529,7 +1573,7 @@ export default function WorldScene({
         if (driven >= 0) {
           tickLife(delta, 'drive');
           // Car-relative controls: W/S accelerate, brake and reverse; A/D steer.
-          const keys = schoolOpenRef.current || dialogueRef.current || npcActiveRef.current ? new Set<string>() : inputRef.current.pressed;
+          const keys = schoolOpenRef.current || dialogueRef.current || npcActiveRef.current || rangeOpenRef.current ? new Set<string>() : inputRef.current.pressed;
           const others = cars.filter((_, index) => index !== driven);
           const before = cars[driven];
           // Downtown, the real buildings are what the car runs into.
@@ -1590,7 +1634,7 @@ export default function WorldScene({
         const inSchool = locationRef.current === 'school';
         const city = locationRef.current === 'city' ? downtown : null;
         const tired = isExhausted(life);
-        const pressed = schoolOpenRef.current || dialogueRef.current || npcActiveRef.current ? new Set<string>() : inputRef.current.pressed;
+        const pressed = schoolOpenRef.current || dialogueRef.current || npcActiveRef.current || rangeOpenRef.current ? new Set<string>() : inputRef.current.pressed;
         // Exhausted players can still walk home, but not run.
         const walkKeys = tired ? new Set([...pressed].filter(key => key !== 'Shift')) : pressed;
         const locomotion = atHome
@@ -1935,6 +1979,10 @@ export default function WorldScene({
             </div>
           </div>;
         })()}
+        {rangeOpen && <TrainingRange drill={RANGE_DRILLS[rangeOpen]} energy={lifeView.energy}
+          onFinish={score => rangeRef.current.finish(score)} canRetry={() => rangeRef.current.canRetry()}
+          onLeave={() => { closeRange(); canvasRef.current?.focus(); }}
+          cue={name => audioRef.current?.cue(name)} />}
         {npcChat && <div className="npc-chat-backdrop" role="dialog" aria-modal="true"
           aria-label={`Conversation with ${npcChat.conversation.name}`}>
           <section className="npc-chat-card">
@@ -1960,6 +2008,8 @@ export default function WorldScene({
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
         </div>}
         {!driving && driveNotice && <div className="world-notice" role="status" aria-live="polite">{driveNotice}</div>}
+        {workPrompt && inCity && career.career === workPrompt && !rangeOpen && <button type="button" className="world-car-action world-range-start"
+          onClick={event => { rangeRef.current.open(); focusWorld(event); }}>{RANGE_DRILLS[workPrompt].title} (T)</button>}
         {matchPrompt && inCity && !scoreboard && <button type="button" className="world-car-action world-match-start"
           onClick={event => { matchRef.current.start(); focusWorld(event); }}>Start a five-a-side match (M)</button>}
         {(busAction ?? workAction ?? (ballPrompt && inCity ? 'Kick (E or F) · Shift+F chips' : null) ?? actionLabel) && <button type="button" className="world-car-action"
