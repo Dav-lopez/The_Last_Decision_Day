@@ -1,6 +1,8 @@
 import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
+import OnlineRoomPanel from './world/multiplayer/OnlineRoomPanel';
+import type { RoomClient } from './world/multiplayer/roomClient.mjs';
 import { canStartSchoolActivity, millisecondsUntilReset, type SchoolTimeBalance } from './schoolTime';
 import { createSchoolActionGate } from './schoolActionGate.mjs';
 
@@ -67,6 +69,7 @@ async function post<T>(path: string, payload?: unknown): Promise<T> {
 }
 
 function App() {
+  const onlineRef = useRef<RoomClient | null>(null);
   const schoolSection = useRef<HTMLHeadingElement>(null);
   const pendingAction = useRef<{ activityId: string; key: string } | null>(null);
   const actionGate = useRef(createSchoolActionGate());
@@ -261,7 +264,7 @@ function App() {
   return <main className="page">
     <header><h1>The Last Decision</h1><p>Your life. Your choices. Your consequences.</p></header>
     {(profile || guestDemo) ? <Suspense fallback={<div className="hero hero-placeholder" role="status">Loading your 3D neighborhood…</div>}>
-      <WorldScene key={profile?.id ?? 'guest-demo'} characterId={profile?.id ?? 'guest-demo'}
+      <WorldScene online={profile ? onlineRef : undefined} key={profile?.id ?? 'guest-demo'} characterId={profile?.id ?? 'guest-demo'}
         displayName={profile?.displayName ?? 'Guest explorer'} demoMode={!profile}
         onSchoolEnter={() => schoolSection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
         activities={activities} timeRemaining={timeBalance?.remaining ?? null} busy={busy}
@@ -271,10 +274,11 @@ function App() {
         preview={preview} lifeSync={profile ? accountLifeSync : undefined} />
     </Suspense> :
       <Suspense fallback={<div className="hero hero-placeholder" role="status">Preparing your neighborhood…</div>}><LandingWorld /></Suspense>}
+    {profile && <OnlineRoomPanel key={profile.id} clientRef={onlineRef} />}
     <section className="panel" aria-live="polite">
       {loading ? <p>Loading your account…</p> : guestDemo && !session ? <>
         <h2>Explore the neighborhood</h2>
-        <p>This is a free, local 3D preview. Walk to the school, rotate the camera, and customize your avatar. School activities, accounts, and progress saving require a connected server and an invitation.</p>
+        <p>This is a free, local 3D preview. Walk to the school, rotate the camera, and customize your avatar. Online two-player rooms, school activities, accounts, and progress saving require a connected server and an invitation.</p>
         <button type="button" onClick={() => setGuestDemo(false)}>Exit demo and sign in</button>
       </> : !session ? <>
         <div className="tabs">

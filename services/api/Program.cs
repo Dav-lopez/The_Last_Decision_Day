@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using TheLastDecision.Api;
 using TheLastDecision.Api.School;
 using TheLastDecision.Api.Observability;
+using TheLastDecision.Api.Multiplayer;
 
 var builder = WebApplication.CreateBuilder(args);
 RequestObservability.ConfigureLogging(builder);
@@ -33,7 +34,10 @@ builder.Services.Configure<ForwardedHeadersOptions>(TrustedProxyHeaders.Configur
 
 builder.Services.AddDbContext<GameDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddScoped<AttributeService>();
-builder.Services.AddSignalR();
+builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = 4096);
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<WorldRooms>();
+builder.Services.AddScoped<IWorldPlayerDirectory, WorldPlayerDirectory>();
 builder.Services.AddAuthentication("GameCookie").AddCookie("GameCookie", options =>
 {
     options.Cookie.Name = "__Host-tld-session";
@@ -124,6 +128,8 @@ app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();
 app.UseAntiforgery();
+app.UseWebSockets();
+app.Use((context, next) => WorldTransportSecurity.Validate(context, next, app.Configuration));
 app.MapIdentityEndpoints();
 app.MapCharacterEndpoints();
 app.MapLifeEndpoints();
@@ -162,5 +168,5 @@ app.MapGet("/api/v1/health/ready", async (GameDbContext db, ILogger<Program> log
     }
 });
 app.MapGet("/api/v1/school/activities", () => Results.Ok(SchoolActivities.Catalog));
-app.MapHub<WorldHub>("/hubs/world");
+app.MapHub<WorldHub>("/hubs/world", options => options.CloseOnAuthenticationExpiration = true).RequireAuthorization();
 app.Run();

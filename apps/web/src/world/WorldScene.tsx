@@ -3,6 +3,8 @@ import {
   ArcRotateCamera, Color3, Color4, DirectionalLight, DynamicTexture, Engine, HemisphericLight,
   MeshBuilder, Scene, ShadowGenerator, StandardMaterial, TransformNode, Vector3,
 } from '@babylonjs/core';
+import { createRemotePlayers } from './multiplayer/remotePlayers';
+import type { RoomClient } from './multiplayer/roomClient.mjs';
 import { loadRiggedAvatar, type RiggedAvatar } from './riggedAvatar';
 import type { Emotion } from './facialEmotions';
 import { resolveCharacterEmotion } from './characterEmotion.mjs';
@@ -63,6 +65,7 @@ import { closestInteraction, transitionInteraction, type InteractionState } from
 type SchoolActivityView = { id: string; title: string; description: string; timeCost: number };
 type SchoolPreview = { activityId: string; before: Record<string, number>; after: Record<string, number> };
 type WorldProps = {
+  online?: { current: RoomClient | null };
   characterId: string;
   displayName: string;
   demoMode?: boolean;
@@ -372,7 +375,7 @@ function createAvatar(scene: Scene) {
 /** The WebGL view is optional: login and school actions remain usable if 3D fails. */
 export default function WorldScene({
   characterId, displayName, demoMode = false, onSchoolEnter, activities, timeRemaining, busy,
-  canExecuteActivity, onPreviewActivity, onExecuteActivity, preview, lifeSync,
+  canExecuteActivity, onPreviewActivity, onExecuteActivity, preview, lifeSync, online,
 }: WorldProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const inputRef = useRef(createMovementInput());
@@ -706,6 +709,9 @@ export default function WorldScene({
 
       let interaction: InteractionState = { mode: 'walking', targetId: null };
       let clock = 0;
+      const remotePlayers = createRemotePlayers(scene, shadows);
+      let onlineElapsed = 0;
+      let previousOnlinePosition = { ...position };
       // Day clock and energy: browser-saved per character until the daily-loop save lands on the server.
       let life = readLife(characterId);
       let lifeHudTimer = 0;
@@ -1114,6 +1120,18 @@ export default function WorldScene({
         clock += delta;
         schoolMarker.position.y = 4.6 + Math.sin(markerTime * 2.5) * 0.12;
         const cameraForward = { x: cameraDirection.x, z: cameraDirection.z };
+        remotePlayers.update(online?.current?.read(), locationRef.current, delta);
+        onlineElapsed += delta;
+        if (onlineElapsed >= 0.2) {
+          const index = drivenIndex();
+          const currentPosition = index >= 0 ? cars[index] : position;
+          const distance = Math.hypot(currentPosition.x - previousOnlinePosition.x, currentPosition.z - previousOnlinePosition.z);
+          online?.current?.publish({ x: currentPosition.x, z: currentPosition.z,
+            rotation: index >= 0 ? cars[index].rotation : avatar.rotation.y, location: locationRef.current,
+            speed: Math.min(35, distance > 5 ? 0 : distance / onlineElapsed),
+            mode: index >= 0 ? 'driving' : pendingRide || pendingShift || interaction.mode !== 'walking' ? 'busy' : 'walking' });
+          previousOnlinePosition = { ...currentPosition }; onlineElapsed = 0;
+        }
         if (pendingShift) {
           pendingShift.timer += delta;
           if (pendingShift.timer >= 2.4) {
@@ -1407,6 +1425,7 @@ export default function WorldScene({
         writeLife(characterId, life);
         saveToAccount();
         disposed = true;
+        remotePlayers.dispose();
         lightBar.dispose();
         siren.dispose();
         sirenRef.current = null;
