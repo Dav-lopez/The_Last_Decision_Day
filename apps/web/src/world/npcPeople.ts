@@ -5,12 +5,13 @@ import { dressCharacter } from './riggedAvatar';
 import { bindActions, loadActionClips, type BoundAction } from './characterActions';
 import { startAction, stepAction, type ActionState } from './actionMixer.mjs';
 import { smoothHumanHeading, HUMAN_WALK_SPEED } from './humanMotion.mjs';
-import { NEIGHBORS, PERSON_RADIUS, carAhead, isOut, personHeading, routePose, shouldYield } from './npcLayout.mjs';
+import { NEIGHBORS, PERSON_RADIUS, carAhead, carComing, crossingPace, dodgeFrom, isOut, personHeading, routePose, shouldYield } from './npcLayout.mjs';
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 import { initialNpcBlink, collectNpcEyelids, advanceNpcBlink } from './npcBlink.mjs';
 import { collectNpcFaceTargets, initialNpcFace, advanceNpcFace, resetNpcFace } from './npcFace.mjs';
 
-type CarFootprint = { x: number; z: number; rotation: number };
+type CarFootprint = { x: number; z: number; rotation: number; speed?: number };
+const DODGE_SPEED = 3.2;
 export type Person = { x: number; z: number; radius: number };
 export type Neighbors = {
   /** Advance everyone one frame; returns the people currently out, for collisions. */
@@ -66,7 +67,7 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     const start = routePose(npc, 0);
     const reaction: { state: ActionState | null; clip: BoundAction | null } = { state: null, clip: null };
     const actions = new Map<string, BoundAction>();
-    return { npc, entries, holder, idle, walk, reaction, actions, eyelids, blink: initialNpcBlink(index), faceTargets, face: initialNpcFace(index), walked: 0, walkWeight: 0, heading: personHeading(start.dx, start.dz), visible: false };
+    return { npc, entries, holder, idle, walk, reaction, actions, eyelids, blink: initialNpcBlink(index), faceTargets, face: initialNpcFace(index), walked: 0, walkWeight: 0, heading: personHeading(start.dx, start.dz), visible: false, dodge: { x: 0, z: 0 }, dodgeTarget: { x: 0, z: 0 }, dodgeHold: 0 };
   });
 
   // Action clips (a separate download): people standing together talk with their hands; anyone can flinch.
@@ -91,6 +92,13 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     }
   });
 
+  const startle = (person: (typeof people)[number]) => {
+    const hit = person.actions.get('Hit');
+    if (!hit || person.reaction.state) return;
+    person.reaction = { state: startAction('Hit', hit.duration, false), clip: hit };
+    hit.group.start(false, 1, hit.group.from, hit.group.to);
+    hit.group.setWeightForAllAnimatables(0);
+  };
   let speaker: { id: string | null; mood: 'neutral' | 'happy' | 'sad' } = { id: null, mood: 'neutral' };
   return {
     setConversation(id, mood = 'neutral') { speaker = { id, mood }; },
@@ -102,11 +110,7 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
         const d = Math.hypot(person.holder.position.x - x, person.holder.position.z - z);
         if (d < best) { best = d; nearest = person; }
       }
-      const hit = nearest?.actions.get('Hit');
-      if (!nearest || !hit || nearest.reaction.state) return;
-      nearest.reaction = { state: startAction('Hit', hit.duration, false), clip: hit };
-      hit.group.start(false, 1, hit.group.from, hit.group.to);
-      hit.group.setWeightForAllAnimatables(0);
+      if (nearest) startle(nearest);
     },
     update(seconds, minute, player, cars) {
       const dt = Number.isFinite(seconds) ? Math.max(0, Math.min(seconds, 0.1)) : 0;
@@ -124,13 +128,35 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
         person.blink = advanceNpcBlink(person.blink, dt, person.eyelids);
         let pose = routePose(person.npc, person.walked);
         const obstacles = player ? [{ x: player.x, z: player.z, radius: 0.38 }] : [];
-        const blocked = !pose.moving || shouldYield(pose, obstacles) || carAhead(person.npc, person.walked, cars);
+        // Give way to traffic at the kerb; once out on the road, hurry across.
+        const blocked = !pose.moving || shouldYield(pose, obstacles) || carAhead(person.npc, person.walked, cars) || carComing(person.npc, person.walked, cars);
+        const pace = blocked ? 1 : crossingPace(pose, cars);
         if (!blocked) {
-          person.walked += person.npc.speed * dt;
+          person.walked += person.npc.speed * pace * dt;
           pose = routePose(person.npc, person.walked);
         }
-        const target = blocked ? 0 : 1;
-        person.walkWeight += Math.sign(target - person.walkWeight) * Math.min(Math.abs(target - person.walkWeight), dt / CROSSFADE);
+        person.walk.speedRatio = (person.npc.speed * pace) / HUMAN_WALK_SPEED;
+        // A car about to reach them: step smartly out of its path, then drift back.
+        const here = { x: pose.x + person.dodge.x, z: pose.z + person.dodge.z };
+        const escape = dodgeFrom(here, cars);
+        if (escape) {
+          const fresh = person.dodgeHold <= 0 && Math.hypot(person.dodge.x, person.dodge.z) < 0.05;
+          person.dodgeTarget = { x: person.dodge.x + escape.x, z: person.dodge.z + escape.z };
+          person.dodgeHold = 1.4;
+          if (fresh) startle(person);
+        } else {
+          person.dodgeHold = Math.max(0, person.dodgeHold - dt);
+          if (person.dodgeHold <= 0) person.dodgeTarget = { x: 0, z: 0 };
+        }
+        const target = person.dodgeTarget;
+        const gap = Math.hypot(target.x - person.dodge.x, target.z - person.dodge.z);
+        if (gap > 1e-4) {
+          const step = Math.min(1, (DODGE_SPEED * dt) / gap);
+          person.dodge = { x: person.dodge.x + (target.x - person.dodge.x) * step, z: person.dodge.z + (target.z - person.dodge.z) * step };
+        }
+        pose = { ...pose, x: pose.x + person.dodge.x, z: pose.z + person.dodge.z };
+        const weight = blocked ? 0 : 1;
+        person.walkWeight += Math.sign(weight - person.walkWeight) * Math.min(Math.abs(weight - person.walkWeight), dt / CROSSFADE);
         const flinch = stepAction(person.reaction.state, dt);
         person.reaction.state = flinch.state;
         if (person.reaction.clip) {
