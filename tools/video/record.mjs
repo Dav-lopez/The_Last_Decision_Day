@@ -45,8 +45,19 @@ page.on('pageerror', error => console.error('page error:', error.message));
 // No backend in this recording: answer the account checks as a signed-out guest.
 await page.route('**/api/**', route => route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }));
 // Load in real time (React and Suspense need timers); the clock is frozen only once the world is ready.
+const consoleLines = [];
+page.on('console', message => consoleLines.push(`${message.type()}: ${message.text()}`));
+page.on('requestfailed', request => consoleLines.push(`request failed: ${request.url()} ${request.failure()?.errorText}`));
 await page.goto(url);
-await page.getByRole('button', { name: /Try the 3D demo/ }).click({ timeout: 60000 });
+try {
+  await page.getByRole('button', { name: /Try the 3D demo/ }).click({ timeout: 60000 });
+} catch (error) {
+  // Leave evidence for the workflow to commit: what the page actually showed.
+  await page.screenshot({ path: join(outDir, '..', 'media', 'debug-start.jpg'), type: 'jpeg', quality: 80 }).catch(() => {});
+  writeFileSync(join(outDir, '..', 'media', 'debug-start.txt'),
+    `URL: ${page.url()}\n\nTEXT:\n${await page.locator('body').innerText().catch(() => '?')}\n\nCONSOLE:\n${consoleLines.join('\n')}\n`);
+  throw error;
+}
 
 // Film only the 3D view: fill the window with it, keep its HUD, hide the page around it.
 await page.addStyleTag({ content: `
