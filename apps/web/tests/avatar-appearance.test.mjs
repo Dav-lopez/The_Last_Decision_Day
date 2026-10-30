@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+// Run the facial surface swatch checks in the existing appearance CI job.
+import './surface-shading.test.mjs';
 import { LOOKS, STYLES, DEFAULT_LOOK, ZONES, ZONE_MATERIALS, normalizeLook, colorFor, dressZones, modelFor, readLook, withBody, writeLook } from '../src/world/appearance.mjs';
 
 test('all appearance choices have unique IDs; colours are valid hex', () => {
