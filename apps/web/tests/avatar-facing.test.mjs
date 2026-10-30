@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { LoadAssetContainerAsync, Matrix, NullEngine, Scene, TransformNode, Vector3 } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF/index.js';
-import { movementHeading, normalizeRiggedVisual } from '../src/world/riggedPresentation.mjs';
+import { HUMAN_HEIGHT, movementHeading, normalizeRiggedVisual } from '../src/world/riggedPresentation.mjs';
 
 const directions = [[0,-1],[0,1],[1,0],[-1,0],[1,1],[-1,1],[1,-1],[-1,-1]];
 
@@ -36,7 +36,7 @@ test('actual imported human faces movement and remains grounded after orientatio
   assert.ok(importedRoot);
   const neutral=visual.getHierarchyBoundingVectors(true);
   assert.ok(Math.abs(neutral.min.y)<1e-5,'soles on the ground');
-  assert.ok(Math.abs(neutral.max.y-neutral.min.y-2.2)<1e-5,'height unchanged');
+  assert.ok(Math.abs(neutral.max.y-neutral.min.y-HUMAN_HEIGHT)<1e-5,'adult height in metres');
   for(const [dx,dz] of directions) {
     parent.rotation.y=movementHeading(dx,dz);
     parent.computeWorldMatrix(true);visual.computeWorldMatrix(true);importedRoot.computeWorldMatrix(true);

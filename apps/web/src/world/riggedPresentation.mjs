@@ -1,5 +1,11 @@
+/**
+ * The world is built at 1 unit = 1 metre (2.05 m doors, a 3.6 m sedan, 3.1 m
+ * walls), so the player is an average adult height, not a 2.2 m giant.
+ */
+export const HUMAN_HEIGHT = 1.75;
+
 /** The procedural player faces -Z. Normalize imported +Z glTF humans to that convention. */
-export function normalizeRiggedVisual(root, targetHeight = 2.2) {
+export function normalizeRiggedVisual(root, targetHeight = HUMAN_HEIGHT) {
   root.rotation.y = Math.PI;
   const { min, max } = root.getHierarchyBoundingVectors(true);
   const height = max.y - min.y;
