@@ -1,0 +1,236 @@
+{
+  "source": "https://polyhaven.com",
+  "license": "CC0-1.0",
+  "assets": [
+    {
+      "slot": "plant",
+      "id": "anthurium_botany_01",
+      "name": "Anthurium Botany 01",
+      "authors": [
+        "Rico Cilliers",
+        "Rob Tuytel"
+      ],
+      "page": "https://polyhaven.com/a/anthurium_botany_01",
+      "file": "plant.glb",
+      "bytes": 1047320,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 1,
+      "sizeMeters": [
+        65534,
+        11704,
+        42132
+      ]
+    },
+    {
+      "slot": "bench",
+      "id": "bench_vice_01",
+      "name": "Bench Vice 01",
+      "authors": [
+        "Antanas Kep",
+        "Yann Kervran"
+      ],
+      "page": "https://polyhaven.com/a/bench_vice_01",
+      "file": "bench.glb",
+      "bytes": 452740,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 4,
+      "sizeMeters": [
+        59342,
+        65534,
+        65534
+      ]
+    },
+    {
+      "slot": "sofa",
+      "id": "ArmChair_01",
+      "name": "Arm Chair 01",
+      "authors": [
+        "Kirill Sannikov"
+      ],
+      "page": "https://polyhaven.com/a/ArmChair_01",
+      "file": "sofa.glb",
+      "bytes": 495308,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 1,
+      "sizeMeters": [
+        52206,
+        65534,
+        47116
+      ]
+    },
+    {
+      "slot": "armchair",
+      "id": "chinese_armchair",
+      "name": "Chinese Armchair",
+      "authors": [
+        "Kirill Sannikov"
+      ],
+      "page": "https://polyhaven.com/a/chinese_armchair",
+      "file": "armchair.glb",
+      "bytes": 239700,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 1,
+      "sizeMeters": [
+        35020,
+        65534,
+        32554
+      ]
+    },
+    {
+      "slot": "coffee_table",
+      "id": "CoffeeCart_01",
+      "name": "Coffee Cart 01",
+      "authors": [
+        "Joe Seabuhr"
+      ],
+      "page": "https://polyhaven.com/a/CoffeeCart_01",
+      "file": "coffee_table.glb",
+      "bytes": 1011592,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 3,
+      "sizeMeters": [
+        65534,
+        50558,
+        65534
+      ]
+    },
+    {
+      "slot": "dining_chair",
+      "id": "BarberShopChair_01",
+      "name": "Barber Shop Chair 01",
+      "authors": [
+        "Fernando Quinn"
+      ],
+      "page": "https://polyhaven.com/a/BarberShopChair_01",
+      "file": "dining_chair.glb",
+      "bytes": 533788,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 1,
+      "sizeMeters": [
+        33300,
+        65534,
+        58446
+      ]
+    },
+    {
+      "slot": "bed",
+      "id": "GothicBed_01",
+      "name": "Gothic Bed 01",
+      "authors": [
+        "Kirill Sannikov"
+      ],
+      "page": "https://polyhaven.com/a/GothicBed_01",
+      "file": "bed.glb",
+      "bytes": 675324,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 1,
+      "sizeMeters": [
+        47988,
+        49278,
+        65534
+      ]
+    },
+    {
+      "slot": "floor_lamp",
+      "id": "Lantern_01",
+      "name": "Lantern 01",
+      "authors": [
+        "Rajil Jose Macatangay"
+      ],
+      "page": "https://polyhaven.com/a/Lantern_01",
+      "file": "floor_lamp.glb",
+      "bytes": 915092,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 2,
+      "sizeMeters": [
+        65534,
+        65534,
+        65534
+      ]
+    },
+    {
+      "slot": "car",
+      "id": "covered_car",
+      "name": "Covered Car",
+      "authors": [
+        "MP"
+      ],
+      "page": "https://polyhaven.com/a/covered_car",
+      "file": "car.glb",
+      "bytes": 501108,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 1,
+      "sizeMeters": [
+        26762,
+        21114,
+        65534
+      ]
+    },
+    {
+      "slot": "desk",
+      "id": "SchoolDesk_01",
+      "name": "School Desk 01",
+      "authors": [
+        "Ethan Place"
+      ],
+      "page": "https://polyhaven.com/a/SchoolDesk_01",
+      "file": "desk.glb",
+      "bytes": 183828,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 1,
+      "sizeMeters": [
+        52846,
+        65534,
+        40540
+      ]
+    },
+    {
+      "slot": "teacher_desk",
+      "id": "ClassicConsole_01",
+      "name": "Classic Console 01",
+      "authors": [
+        "Kirill Sannikov"
+      ],
+      "page": "https://polyhaven.com/a/ClassicConsole_01",
+      "file": "teacher_desk.glb",
+      "bytes": 440664,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 1,
+      "sizeMeters": [
+        65534,
+        40308,
+        25026
+      ]
+    },
+    {
+      "slot": "shelf",
+      "id": "GothicCabinet_01",
+      "name": "Gothic Cabinet 01",
+      "authors": [
+        "Kirill Sannikov"
+      ],
+      "page": "https://polyhaven.com/a/GothicCabinet_01",
+      "file": "shelf.glb",
+      "bytes": 559468,
+      "placed": true,
+      "rotation": 0.0,
+      "meshes": 1,
+      "sizeMeters": [
+        47716,
+        65534,
+        30994
+      ]
+    }
+  ]
+}

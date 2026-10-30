@@ -1,0 +1,63 @@
+TAP version 13
+# Subtest: props stay off buildings, the road, trees, lamps, parked cars and each other
+ok 1 - props stay off buildings, the road, trees, lamps, parked cars and each other
+  ---
+  duration_ms: 1.720855
+  type: 'test'
+  ...
+# Subtest: porch plants flank each front door and benches face the street beside the school
+ok 2 - porch plants flank each front door and benches face the street beside the school
+  ---
+  duration_ms: 0.279943
+  type: 'test'
+  ...
+# Subtest: props block walking but leave the school entrance reachable from the street
+ok 3 - props block walking but leave the school entrance reachable from the street
+  ---
+  duration_ms: 3.187464
+  type: 'test'
+  ...
+# Subtest: model scale matches target height without exceeding the footprint
+ok 4 - model scale matches target height without exceeding the footprint
+  ---
+  duration_ms: 0.330788
+  type: 'test'
+  ...
+# Subtest: shipped Poly Haven models, when present, are CC0, self-contained and listed with credits
+not ok 5 - shipped Poly Haven models, when present, are CC0, self-contained and listed with credits
+  ---
+  duration_ms: 2.262717
+  type: 'test'
+  location: '/home/runner/work/The_Last_Decision_Day/The_Last_Decision_Day/apps/web/tests/polyhaven-props.test.mjs:54:1'
+  failureType: 'testCodeFailure'
+  error: 'anthurium_botany_01 has implausible size 65534,11704,42132'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/runner/work/The_Last_Decision_Day/The_Last_Decision_Day/apps/web/tests/polyhaven-props.test.mjs:70:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a scanned car is turned along the street and fitted to the parking footprint
+ok 6 - a scanned car is turned along the street and fitted to the parking footprint
+  ---
+  duration_ms: 0.453137
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 5
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 75.400548
+exit 1
