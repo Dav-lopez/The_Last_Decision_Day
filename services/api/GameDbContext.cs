@@ -14,6 +14,7 @@ public sealed class GameDbContext(DbContextOptions<GameDbContext> options) : DbC
     public DbSet<AttributeEvent> AttributeEvents => Set<AttributeEvent>();
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
     public DbSet<SchoolActivityExecution> SchoolActivityExecutions => Set<SchoolActivityExecution>();
+    public DbSet<CharacterLife> CharacterLives => Set<CharacterLife>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -69,6 +70,13 @@ public sealed class GameDbContext(DbContextOptions<GameDbContext> options) : DbC
         b.Entity<SchoolActivityExecution>().Property(x => x.CreatedAt).HasDefaultValueSql("now()");
         b.Entity<SchoolActivityExecution>().ToTable(t => t.HasCheckConstraint("CK_SchoolExecution_ValidCharge", "\"TimeCost\" BETWEEN 1 AND 8"));
         b.Entity<SchoolActivityExecution>().ToTable(t => t.HasCheckConstraint("CK_SchoolExecution_ActivityId", "char_length(\"ActivityId\") BETWEEN 1 AND 64"));
+        b.Entity<CharacterLife>().HasIndex(x => x.CharacterId).IsUnique();
+        b.Entity<CharacterLife>().HasOne<Character>().WithOne().HasForeignKey<CharacterLife>(x => x.CharacterId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<CharacterLife>().Property(x => x.Location).HasMaxLength(16).IsRequired();
+        b.Entity<CharacterLife>().ToTable(t => t.HasCheckConstraint("CK_CharacterLife_Day", "\"Day\" >= 1"));
+        b.Entity<CharacterLife>().ToTable(t => t.HasCheckConstraint("CK_CharacterLife_Minute", "\"Minute\" BETWEEN 0 AND 1439"));
+        b.Entity<CharacterLife>().ToTable(t => t.HasCheckConstraint("CK_CharacterLife_Energy", "\"Energy\" BETWEEN 0 AND 100"));
+        b.Entity<CharacterLife>().ToTable(t => t.HasCheckConstraint("CK_CharacterLife_Location", "\"Location\" IN ('street','home')"));
     }
 }
 public sealed class Character
@@ -135,4 +143,16 @@ public sealed class SchoolActivityExecution
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public string BeforeJson { get; set; } = "";
     public string AfterJson { get; set; } = "";
+}
+
+/// <summary>The character's day: game clock, energy and where they are. One row per character.</summary>
+public sealed class CharacterLife
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CharacterId { get; set; }
+    public int Day { get; set; } = 1;
+    public int Minute { get; set; } = 420;
+    public int Energy { get; set; } = 100;
+    public string Location { get; set; } = "street";
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

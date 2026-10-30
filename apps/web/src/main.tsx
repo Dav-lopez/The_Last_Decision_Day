@@ -29,6 +29,28 @@ async function csrf(): Promise<string> {
   return result.token;
 }
 
+const LIFE_PATH = '/api/v1/characters/me/life';
+type SavedLife = { day: number; minute: number; energy: number; location: 'street' | 'home'; saved?: boolean };
+
+/** The signed-in player's day, saved to their account (see LifeEndpoints on the API). */
+const accountLifeSync = {
+  load: () => request<SavedLife>(LIFE_PATH),
+  async save(life: SavedLife): Promise<{ status: 'saved' | 'rejected'; life: SavedLife }> {
+    const token = await csrf();
+    const response = await fetch(LIFE_PATH, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token },
+      body: JSON.stringify(life),
+    });
+    const body = await response.json().catch(() => ({})) as { error?: string; current?: SavedLife } & Partial<SavedLife>;
+    if (response.ok) return { status: 'saved', life: body as SavedLife };
+    // 409: another device saved a later day. 422: this save isn't possible from the last one.
+    if ((response.status === 409 || response.status === 422) && body.current) return { status: 'rejected', life: body.current };
+    throw new Error(body.error ?? `Saving your day failed (${response.status})`);
+  },
+};
+
 async function post<T>(path: string, payload?: unknown): Promise<T> {
   const token = await csrf();
   return request<T>(path, {
@@ -239,7 +261,7 @@ function App() {
         canExecuteActivity={cost => !busy && canStartSchoolActivity(timeBalance, cost)}
         onPreviewActivity={id => void previewActivity(id)}
         onExecuteActivity={id => void executeActivity(id)}
-        preview={preview} />
+        preview={preview} lifeSync={profile ? accountLifeSync : undefined} />
     </Suspense> :
       <Suspense fallback={<div className="hero hero-placeholder" role="status">Preparing your neighborhood…</div>}><LandingWorld /></Suspense>}
     <section className="panel" aria-live="polite">

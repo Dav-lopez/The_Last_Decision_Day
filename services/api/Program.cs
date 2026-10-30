@@ -126,6 +126,7 @@ app.UseAuthorization();
 app.UseAntiforgery();
 app.MapIdentityEndpoints();
 app.MapCharacterEndpoints();
+app.MapLifeEndpoints();
 app.MapSchoolPreviewEndpoints();
 app.MapSchoolExecutionEndpoints();
 app.MapSchoolHistoryEndpoints();

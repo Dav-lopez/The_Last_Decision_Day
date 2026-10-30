@@ -88,3 +88,19 @@ test('life is saved per character in the browser and survives bad data', () => {
   assert.deepEqual(readLife('a', broken), { ...NEW_LIFE });
   assert.equal(writeLife('a', NEW_LIFE, broken), false);
 });
+
+test('saves send whole minutes and energy with the location', async () => {
+  const { toServerLife } = await import('../src/world/lifeClock.mjs');
+  assert.deepEqual(toServerLife({ day: 2, minute: 615.9, energy: 61.6 }, 'home'), { day: 2, minute: 615, energy: 62, location: 'home' });
+  assert.deepEqual(toServerLife({ day: 2, minute: 1439.99, energy: 0 }, 'garage'), { day: 2, minute: 1439, energy: 0, location: 'street' });
+});
+
+test('loading continues from the furthest-along day: account or this browser', async () => {
+  const { chooseStartingLife } = await import('../src/world/lifeClock.mjs');
+  const browser = { day: 2, minute: 600, energy: 50 };
+  const account = { day: 3, minute: 420, energy: 100, location: 'home', saved: true };
+  assert.deepEqual(chooseStartingLife(browser, account), { life: { day: 3, minute: 420, energy: 100 }, location: 'home', source: 'account' });
+  assert.equal(chooseStartingLife({ day: 4, minute: 0, energy: 30 }, account).source, 'browser');
+  assert.equal(chooseStartingLife(browser, { ...account, saved: false }).source, 'browser', 'nothing saved on the account yet');
+  assert.deepEqual(chooseStartingLife(browser, null), { life: browser, location: 'street', source: 'browser' });
+});
