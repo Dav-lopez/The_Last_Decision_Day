@@ -18,6 +18,9 @@ import { schoolWaypoint } from './schoolWayfinding.mjs';
 import { createMovementInput } from './inputState.mjs';
 import { addPlayableNeighborhoodDetails } from './neighborhoodEnvironment';
 import { upgradeNeighborhoodAssets } from './realEnvironmentAssets';
+import { createHousePainter, type HousePainter } from './housePaint';
+import { HousePhotoPaint } from './HousePhotoPaint';
+import { readHouseStyle } from './photoPalette.mjs';
 import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mjs';
 import { PARKED_CARS } from './streetLayout.mjs';
 import { addWorldProps } from './polyHavenProps';
@@ -367,6 +370,7 @@ export default function WorldScene({
   const lookRef = useRef(look);
   const avatarRef = useRef<ReturnType<typeof createAvatar> | null>(null);
   const riggedRef = useRef<RiggedAvatar | null>(null);
+  const housePainterRef = useRef<HousePainter | null>(null);
   const [previewEmotion, setPreviewEmotion] = useState<Emotion>('neutral');
   const previewEmotionRef = useRef<Emotion>('neutral');
   const [modelStatus, setModelStatus] = useState('Loading character…');
@@ -430,6 +434,10 @@ export default function WorldScene({
       let schoolAsset: Awaited<ReturnType<typeof loadSchoolEnvironment>> = null;
       let schoolAssetCancelled = false;
       addPlayableNeighborhoodDetails(scene);
+      // Your house wears the colours from your photo (re-applied when the detailed house model arrives).
+      const housePainter = createHousePainter(scene);
+      housePainterRef.current = housePainter;
+      housePainter.paint(readHouseStyle(characterId));
       // Live car state: the driven car moves, and walking collides with it wherever it is parked.
       const cars: CarState[] = PARKED_CARS.map(car => ({ x: car.x, z: car.z, rotation: car.rotation, speed: 0 }));
       const carRoots: TransformNode[][] = addParkedCarFallbacks(scene).map(root => [root]);
@@ -969,6 +977,8 @@ export default function WorldScene({
         disposed = true;
         neighbors?.dispose();
         lighting.dispose();
+        housePainter.dispose();
+        housePainterRef.current = null;
         lightingRef.current = null;
         environmentLoad.cancelled = true;
         schoolAssetCancelled = true;
@@ -1124,6 +1134,7 @@ export default function WorldScene({
         }}>{sprintEnabled ? 'RUN: ON' : 'RUN: OFF'}</button></div>
       </div>
     </div>}
+    {!error && <HousePhotoPaint characterId={characterId} painterRef={housePainterRef} />}
     {!error && <p role="status" style={{ fontSize: '0.8rem', opacity: 0.8 }}>{modelStatus}</p>}
     {!error && propCredit && <p style={{ fontSize: '0.75rem', opacity: 0.7 }}>Some 3D props by <a href="https://polyhaven.com" target="_blank" rel="noreferrer">Poly Haven</a> (CC0).</p>}
     {!error && <div className="world-camera-toggle" role="group" aria-label="Camera controls">
