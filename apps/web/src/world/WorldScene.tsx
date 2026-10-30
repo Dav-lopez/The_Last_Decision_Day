@@ -1389,7 +1389,7 @@ export default function WorldScene({
         markerTime += delta;
         clock += delta;
         const conversationalNeighbor = interaction.mode === 'walking'
-          ? nearbyNpc(position, locationRef.current, life.minute) : null;
+          ? nearbyNpc(position, locationRef.current, life.minute, neighbors?.positions()) : null;
         if (conversationalNeighbor !== nearNpcRef.current) {
           nearNpcRef.current = conversationalNeighbor;
           setNearNpc(conversationalNeighbor);

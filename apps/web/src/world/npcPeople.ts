@@ -18,7 +18,9 @@ export type Neighbors = {
   update: (seconds: number, minute: number, player: { x: number; z: number } | null, cars: ReadonlyArray<CarFootprint>) => Person[];
   /** The nearest neighbour to (x, z), within reach, flinches (bumped by a car). */
   react: (x: number, z: number) => void;
-  /** Highlight the speaking resident and apply the latest reply emotion. */
+  /** Where each resident who is out stands right now (resident id → position). */
+  positions: () => Record<string, { x: number; z: number }>;
+  /** Highlight the speaking resident and apply the latest reply emotion; they stop and face the player. */
   setConversation: (residentId: string | null, mood?: 'neutral' | 'happy' | 'sad') => void;
   dispose: () => void;
 };
@@ -100,7 +102,9 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     hit.group.setWeightForAllAnimatables(0);
   };
   let speaker: { id: string | null; mood: 'neutral' | 'happy' | 'sad' } = { id: null, mood: 'neutral' };
+  const live: Record<string, { x: number; z: number }> = {};
   return {
+    positions: () => live,
     setConversation(id, mood = 'neutral') { speaker = { id, mood }; },
     react(x, z) {
       let nearest: (typeof people)[number] | null = null;
@@ -123,13 +127,14 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
           for (const group of [person.idle, person.walk]) out ? group.play(true) : group.pause();
           if (!out) person.face = resetNpcFace(person.face, person.faceTargets);
         }
-        if (!out) continue;
+        if (!out) { delete live[person.npc.id]; continue; }
         // Advance only visible residents, avoiding hidden-scene morph updates.
         person.blink = advanceNpcBlink(person.blink, dt, person.eyelids);
         let pose = routePose(person.npc, person.walked);
         const obstacles = player ? [{ x: player.x, z: player.z, radius: 0.38 }] : [];
         // Give way to traffic at the kerb; once out on the road, hurry across.
-        const blocked = !pose.moving || shouldYield(pose, obstacles) || carAhead(person.npc, person.walked, cars) || carComing(person.npc, person.walked, cars);
+        const talking = speaker.id === person.npc.id;
+        const blocked = talking || !pose.moving || shouldYield(pose, obstacles) || carAhead(person.npc, person.walked, cars) || carComing(person.npc, person.walked, cars);
         const pace = blocked ? 1 : crossingPace(pose, cars);
         if (!blocked) {
           person.walked += person.npc.speed * pace * dt;
@@ -176,10 +181,14 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
           flinch: flinch.weight,
           blink: person.blink,
         });
-        person.heading = smoothHumanHeading(person.heading, personHeading(pose.dx, pose.dz), dt, 8);
+        // In conversation they turn to face you.
+        const facing = talking && player && Math.hypot(player.x - pose.x, player.z - pose.z) > 0.05
+          ? personHeading(player.x - pose.x, player.z - pose.z) : personHeading(pose.dx, pose.dz);
+        person.heading = smoothHumanHeading(person.heading, facing, dt, 8);
         person.holder.position.set(pose.x, 0, pose.z);
         person.holder.rotation.y = person.heading;
         outside.push({ x: pose.x, z: pose.z, radius: PERSON_RADIUS });
+        live[person.npc.id] = { x: pose.x, z: pose.z };
       }
       return outside;
     },

@@ -44,9 +44,74 @@ export const NPC_DIALOGUES = Object.freeze({
       option('dismiss', 'Say the school rules are pointless', "You can disagree, but respect matters. Let's talk once you're ready to listen.", -2, 'sad'),
     ]),
   }),
+  // Maple Street neighbours, met out walking. They stop and turn to you while you talk.
+  okafor: Object.freeze({
+    name: 'Mr. Okafor', speaker: 'okafor', resident: 'neighbor-east', place: 'street',
+    persona: 'Warm retired teacher and keen gardener who calls the player "young one". Kind, unhurried, never pushy.',
+    first: "Ah, the new family! Welcome to Maple Street, young one. I'm Mr. Okafor. I used to teach, and now I mostly argue with my tomatoes.",
+    again: "Hello again, young one. The tomatoes send their regards.",
+    wary: "Young one. I hope today is a better day for both of us.",
+    choices: Object.freeze([
+      option('street', 'Ask what Maple Street is like', "Quiet, mostly. Everybody waves, and somebody always knows your business. Ruth especially. Be kind, and the street is kind back.", 2, 'happy'),
+      option('football', 'Ask if he still plays football', "I played centre back in Lagos, forty years ago. The knees remember. There's five-a-side at Central Park downtown. Keep your passes simple and your head up.", 1, 'happy'),
+      option('dismiss', 'Tell him you are busy', "Of course. Busy is a good problem to have. Go well.", -1, 'sad'),
+    ]),
+  }),
+  tess: Object.freeze({
+    name: 'Tess', speaker: 'tess', resident: 'jogger-west', place: 'street',
+    persona: 'Upbeat PE teacher, always mid-run and a little breathless. Encouraging about rest, food and exercise without numbers or pressure.',
+    first: "Hey! I'm Tess, from number four. Can't stop long, I'm mid-run!",
+    again: "Oh hi! Still on my laps!",
+    wary: "Oh. Hi. Quick chat?",
+    choices: Object.freeze([
+      option('training', 'Ask how to get fitter', "Honestly? Sleep well, eat proper meals and do things you enjoy. Rest days count as training too. Your energy bar will thank you.", 2, 'happy'),
+      option('route', 'Ask where she runs', "Up and down Maple Street, and on weekends the trails by downtown. The hill by the school is my nemesis.", 1, 'happy'),
+      option('dismiss', 'Laugh at how out of breath she is', "Wow, okay. Try it sometime!", -2, 'sad'),
+    ]),
+  }),
+  marcus: Object.freeze({
+    name: 'Marcus', speaker: 'marcus', resident: 'walker-east', place: 'street',
+    persona: 'Mechanic with dry humour who knows every car on the street. Gives sensible, safe driving tips.',
+    first: "Hey, kid. Marcus. I fix cars downtown, mostly other people's mistakes.",
+    again: "What's good? Car treating you right?",
+    wary: "Hey. You're the one who bumped into everything, right?",
+    choices: Object.freeze([
+      option('driving', 'Ask for driving tips', "Brake before the turn, not during it. Give people on the crossing time; they'll wait for you if you're slow and steady. And park on your driveway, not in the lane.", 2, 'happy'),
+      option('car', 'Ask about the car on your driveway', "Good little sedan. Original paint. Treat it gently and it'll get you downtown and back for years.", 1, 'happy'),
+      option('dismiss', 'Say mechanics are overpaid', "Ha. Say that when your engine's smoking.", -2, 'sad'),
+    ]),
+  }),
+  elena: Object.freeze({
+    name: 'Elena', speaker: 'elena', resident: 'commuter-west', place: 'street',
+    persona: 'Busy, practical commuter who works downtown near the Municipal Building. Gives honest career advice.',
+    first: "Oh, hi! Elena. Sorry, I'm always half running for the bus.",
+    again: "Hello! Quickly, though, the bus waits for no one.",
+    wary: "Hi. I don't have long.",
+    choices: Object.freeze([
+      option('careers', 'Ask about jobs downtown', "There's everything down there: police, the fire station, offices, shops. Pick a career that suits you, then show up on time. That's honestly half of it.", 2, 'happy'),
+      option('bus', 'Ask how to get downtown', "Take the bus from the stop on Maple Street, or a taxi if you're in a hurry. Press N to see the map. Or drive, if you're feeling brave.", 1, 'happy'),
+      option('dismiss', 'Tell her to slow down', "I'll slow down when the bus does!", -1, 'sad'),
+    ]),
+  }),
+  ruth: Object.freeze({
+    name: 'Ruth', speaker: 'ruth', resident: 'crosser', place: 'street',
+    persona: "Curious neighbour who knows everyone's business and lowers her voice for the good parts. Hints, never certainty.",
+    first: "Well hello there! You must be the new one. I'm Ruth. I know everybody, dear, and everybody knows me.",
+    again: "Psst. Hello again.",
+    wary: "Hmph. Hello.",
+    choices: Object.freeze([
+      option('note', 'Ask Ruth about the mysterious note', "A note on your doorstep? Ooh. I saw someone near the school noticeboard at dusk last week. Ask your classmates, and keep your eyes open, dear.", 2, 'happy'),
+      option('gossip', 'Ask what is new on the street', "The house on the corner sat empty for three years, you know. And Marcus swears he once raced a bus. He lost.", 1, 'happy'),
+      option('dismiss', 'Tell her to mind her own business', "Well! Some of us are only being friendly.", -2, 'sad'),
+    ]),
+  }),
 });
 
 const IDS = Object.freeze(Object.keys(NPC_DIALOGUES));
+/** Residents who walk Maple Street; their live positions come from the scene. */
+const WALKERS = Object.freeze(['okafor', 'tess', 'marcus', 'elena', 'ruth']);
+const TALK_RANGE = 1.8;
+const WALKER_RANGE = 2.2;
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 const safeInt = (value, low, high) => Number.isSafeInteger(value) ? clamp(value, low, high) : 0;
 const emptyRelation = () => ({ trust: 0, conversations: 0, lastChoice: null });
@@ -78,17 +143,24 @@ export function writeNpcRelations(characterId, relations, storage = globalThis.l
   catch { return false; }
 }
 
-/** Nearest visible classmate standing within 1.8 m; never speaks through walls. */
-export function nearbyNpc(position, location, minute) {
+/**
+ * Nearest resident you can talk to: a classmate standing within 1.8 m, or a
+ * neighbour out walking within 2.2 m of where the scene says they are now
+ * (`live`: resident id → position). Never speaks through walls.
+ */
+export function nearbyNpc(position, location, minute, live = null) {
   if (location !== 'street' || !Number.isFinite(position?.x) || !Number.isFinite(position?.z)) return null;
-  let best = 1.8;
+  let best = Infinity;
   let match = null;
-  for (const id of ['maya', 'jordan']) {
+  for (const id of ['maya', 'jordan', ...WALKERS]) {
     const npc = NPC_DIALOGUES[id];
     const resident = NEIGHBORS.find(person => person.id === npc.resident);
-    if (!resident || !isOut(resident, minute) || resident.route.kind !== 'stand') continue;
-    const distance = Math.hypot(position.x - resident.route.at.x, position.z - resident.route.at.z);
-    if (distance <= best) { best = distance; match = id; }
+    if (!resident || !isOut(resident, minute)) continue;
+    const at = resident.route.kind === 'stand' ? resident.route.at : live?.[resident.id];
+    if (!at || !Number.isFinite(at.x) || !Number.isFinite(at.z)) continue;
+    const distance = Math.hypot(position.x - at.x, position.z - at.z);
+    const range = resident.route.kind === 'stand' ? TALK_RANGE : WALKER_RANGE;
+    if (distance <= range && distance < best) { best = distance; match = id; }
   }
   return match;
 }
@@ -124,6 +196,6 @@ export function chooseNpcReply(relations, id, choiceId) {
   };
   return {
     state: next, reply: choice.reply, mood: choice.mood, trustDelta: next.people[id].trust - prior.trust,
-    event: id === 'maya' ? 'talked-maya' : id === 'jordan' ? 'talked-jordan' : 'talked-teacher',
+    event: id === 'maya' ? 'talked-maya' : id === 'jordan' ? 'talked-jordan' : id === 'rivera' ? 'talked-teacher' : 'talked-neighbour',
   };
 }
