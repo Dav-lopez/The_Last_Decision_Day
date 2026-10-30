@@ -4,18 +4,20 @@
  * Rotation uses Babylon's Y convention: 0 faces +Z (toward the street/viewer).
  */
 import { HOUSE_SITES } from './suburbLayout.mjs';
+import { CAR_HALF_LENGTH, CAR_HALF_WIDTH } from './streetLayout.mjs';
 
 export const PROP_TYPES = Object.freeze({
-  plant: Object.freeze({ targetHeight: 1.1, maxFootprint: 0.8, halfX: 0.3, halfZ: 0.3 }),
-  bench: Object.freeze({ targetHeight: 1.05, maxFootprint: 1.7, halfX: 0.8, halfZ: 0.32 }),
-  // Home furniture (world units: the 2.2-unit player is ~1.75 m, so ~1.26 units per metre).
-  sofa: Object.freeze({ targetHeight: 1.05, maxFootprint: 2.2, halfX: 1.05, halfZ: 0.45 }),
-  armchair: Object.freeze({ targetHeight: 1.15, maxFootprint: 1.0, halfX: 0.45, halfZ: 0.45 }),
-  coffee_table: Object.freeze({ targetHeight: 0.55, maxFootprint: 1.15, halfX: 0.55, halfZ: 0.33 }),
-  dining_chair: Object.freeze({ targetHeight: 1.15, maxFootprint: 0.62, halfX: 0.28, halfZ: 0.28 }),
-  bed: Object.freeze({ targetHeight: 1.25, maxFootprint: 2.5, halfX: 0.85, halfZ: 1.2 }),
-  floor_lamp: Object.freeze({ targetHeight: 2.0, maxFootprint: 0.55, halfX: 0.22, halfZ: 0.22 }),
-  shelf: Object.freeze({ targetHeight: 2.1, maxFootprint: 1.5, halfX: 0.72, halfZ: 0.22 }),
+  // Real-world sizes: the world is 1 unit = 1 metre and the player is 1.75 m.
+  // targetHeight/maxFootprint scale imported models; halfX/halfZ are the collision footprint.
+  plant: Object.freeze({ targetHeight: 0.9, maxFootprint: 0.65, halfX: 0.3, halfZ: 0.3 }),
+  bench: Object.freeze({ targetHeight: 0.85, maxFootprint: 1.6, halfX: 0.8, halfZ: 0.32 }),
+  sofa: Object.freeze({ targetHeight: 0.85, maxFootprint: 2.1, halfX: 1.05, halfZ: 0.45 }),
+  armchair: Object.freeze({ targetHeight: 0.95, maxFootprint: 0.9, halfX: 0.45, halfZ: 0.45 }),
+  coffee_table: Object.freeze({ targetHeight: 0.45, maxFootprint: 1.1, halfX: 0.55, halfZ: 0.33 }),
+  dining_chair: Object.freeze({ targetHeight: 0.95, maxFootprint: 0.55, halfX: 0.28, halfZ: 0.28 }),
+  bed: Object.freeze({ targetHeight: 1.0, maxFootprint: 2.4, halfX: 0.85, halfZ: 1.2 }),
+  floor_lamp: Object.freeze({ targetHeight: 1.6, maxFootprint: 0.45, halfX: 0.22, halfZ: 0.22 }),
+  shelf: Object.freeze({ targetHeight: 1.8, maxFootprint: 1.45, halfX: 0.72, halfZ: 0.22 }),
 });
 
 const ENTRY_OFFSET = 0.85;
@@ -56,4 +58,21 @@ export function propScale(type, size) {
   const [x, y, z] = size ?? [];
   if (!spec || ![x, y, z].every(value => Number.isFinite(value) && value > 0)) return null;
   return Math.min(spec.targetHeight / y, spec.maxFootprint / Math.max(x, z));
+}
+
+/**
+ * Fit an imported car to the parking footprint used by driving and collision:
+ * its long axis along local Z, scaled so it is no longer or wider than the
+ * sedan it replaces. `rotation` from the manifest flips a model facing backward.
+ * Returns null for a model that wouldn't look like a car at that size.
+ */
+export function carFit(size, manualRotation = 0) {
+  const [x, y, z] = size ?? [];
+  if (![x, y, z].every(value => Number.isFinite(value) && value > 0)) return null;
+  const length = Math.max(x, z);
+  const width = Math.min(x, z);
+  const scale = Math.min(2 * CAR_HALF_LENGTH / length, 2 * CAR_HALF_WIDTH / width);
+  const height = y * scale;
+  if (length / width < 1.6 || height < 1.0 || height > 2.2) return null;
+  return { scale, rotation: (x > z ? Math.PI / 2 : 0) + (Number.isFinite(manualRotation) ? manualRotation : 0) };
 }

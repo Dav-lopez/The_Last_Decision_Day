@@ -1,7 +1,7 @@
 import { Color3, MeshBuilder, Scene, SceneLoader, ShadowGenerator, StandardMaterial, TransformNode } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
 import { cloneEnvironmentAtSites } from './environmentInstances.mjs';
-import { PROP_SITES, propScale, type PropSite, type PropType } from './propLayout.mjs';
+import { PROP_SITES, carFit, propScale, type PropSite, type PropType } from './propLayout.mjs';
 import { HOME_FURNITURE } from './homeInterior.mjs';
 
 /** Every placed prop: street plants and benches plus the home's furniture. */
@@ -124,6 +124,39 @@ export function readManifest(value: unknown): PolyHavenManifest | null {
   return { license: manifest.license, assets };
 }
 
+let manifestRequest: Promise<PolyHavenManifest | null> | null = null;
+/** One shared, validated manifest request per page load; null when no models shipped. */
+export function fetchPolyHavenManifest(): Promise<PolyHavenManifest | null> {
+  manifestRequest ??= fetch(BASE + 'manifest.json', { cache: 'no-cache' })
+    .then(response => response.ok ? response.json() : null)
+    .then(readManifest)
+    .catch(() => null);
+  return manifestRequest;
+}
+
+/**
+ * A disabled template for the Poly Haven car, re-centred on its footprint, with
+ * its length along Z and scaled to the parked-car size; null keeps the sedan.
+ */
+export async function loadPolyHavenCar(scene: Scene): Promise<TransformNode | null> {
+  const asset = (await fetchPolyHavenManifest())?.assets.find(entry => entry.slot === 'car');
+  const fit = asset ? carFit(asset.sizeMeters, asset.rotation) : null;
+  if (!asset || !fit || scene.isDisposed) return null;
+  const loaded = await SceneLoader.ImportMeshAsync('', BASE, asset.file, scene);
+  const template = new TransformNode('polyhaven car template', scene);
+  const orient = new TransformNode('polyhaven car orientation', scene);
+  const pivot = new TransformNode('polyhaven car pivot', scene);
+  orient.parent = template;
+  pivot.parent = orient;
+  for (const mesh of loaded.meshes) if (!mesh.parent) mesh.parent = pivot;
+  const { min, max } = pivot.getHierarchyBoundingVectors(true);
+  pivot.position.set(-(min.x + max.x) / 2, -min.y, -(min.z + max.z) / 2);
+  orient.rotation.y = fit.rotation;
+  orient.scaling.setAll(fit.scale);
+  template.setEnabled(false);
+  return template;
+}
+
 /**
  * Street props and home furniture. Show stand-ins immediately, then replace each prop type with its Poly Haven
  * model when manifest.json and the GLB are available. Failures keep the stand-ins.
@@ -134,14 +167,7 @@ export async function addWorldProps(scene: Scene, signal: { cancelled: boolean }
   for (const roots of fallbacks.values()) for (const root of roots) {
     for (const mesh of root.getChildMeshes()) { mesh.receiveShadows = true; if (castsStreetShadow(root)) shadows?.addShadowCaster(mesh, false); }
   }
-  let manifest: PolyHavenManifest | null = null;
-  try {
-    const response = await fetch(BASE + 'manifest.json', { cache: 'no-cache' });
-    if (!response.ok) return null;
-    manifest = readManifest(await response.json());
-  } catch {
-    return null;
-  }
+  const manifest = await fetchPolyHavenManifest();
   if (!manifest) return null;
   for (const type of fallbacks.keys()) {
     const asset = manifest.assets.find(entry => entry.slot === type);

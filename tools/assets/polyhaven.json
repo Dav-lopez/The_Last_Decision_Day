@@ -11,6 +11,7 @@
     { "slot": "dining_chair", "keywords": ["chair"], "exclude": ["office", "outdoor"], "required": false, "placed": true },
     { "slot": "bed", "keywords": ["bed"], "required": false, "placed": true },
     { "slot": "floor_lamp", "keywords": ["lamp"], "exclude": ["street", "outdoor", "wall"], "required": false, "placed": true },
+    { "slot": "car", "keywords": ["car", "sedan", "hatchback", "vehicle"], "exclude": ["toy", "cart", "wreck", "rusty", "abandoned"], "required": false, "placed": true },
     { "slot": "shelf", "keywords": ["shelf", "bookcase", "cabinet"], "required": false, "placed": true }
   ]
 }
