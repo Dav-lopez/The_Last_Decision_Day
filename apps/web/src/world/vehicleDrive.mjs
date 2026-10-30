@@ -3,7 +3,7 @@
  * Units are metres, seconds and radians. A car's Babylon Y rotation r points
  * its front (local +Z) along (sin r, cos r); positive steering turns right.
  */
-import { BUILDING_AREAS, TREE_TRUNKS, WORLD_RADIUS, carContains, isBlocked } from './movement.mjs';
+import { STATIC_SOLIDS, TREE_TRUNKS, WORLD_RADIUS, carContains, isBlocked } from './movement.mjs';
 import { CAR_HALF_LENGTH, CAR_HALF_WIDTH, STREET_LIGHTS } from './streetLayout.mjs';
 
 export const VEHICLE = Object.freeze({
@@ -56,7 +56,7 @@ export function vehicleBlocked(car, otherCars = []) {
   const points = footprintPoints(car);
   for (const point of points) {
     if (Math.abs(point.x) > limit || Math.abs(point.z) > limit) return true;
-    if (BUILDING_AREAS.some(area => point.x > area.minX && point.x < area.maxX && point.z > area.minZ && point.z < area.maxZ)) return true;
+    if (STATIC_SOLIDS.some(area => point.x > area.minX && point.x < area.maxX && point.z > area.minZ && point.z < area.maxZ)) return true;
     if (TREE_TRUNKS.some(tree => Math.hypot(point.x - tree.x, point.z - tree.z) < 0.3)) return true;
     if (STREET_LIGHTS.some(light => Math.hypot(point.x - light.x, point.z - light.z) < 0.15)) return true;
     if (otherCars.some(other => carContains(other, point.x, point.z))) return true;

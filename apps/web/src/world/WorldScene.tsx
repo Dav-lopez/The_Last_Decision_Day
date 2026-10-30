@@ -20,6 +20,7 @@ import { addPlayableNeighborhoodDetails } from './neighborhoodEnvironment';
 import { upgradeNeighborhoodAssets } from './realEnvironmentAssets';
 import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mjs';
 import { PARKED_CARS } from './streetLayout.mjs';
+import { addNeighborhoodProps } from './polyHavenProps';
 import { canExitVehicle, chaseCameraAlpha, driveInput, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
 
@@ -356,6 +357,7 @@ export default function WorldScene({
   const [driveSpeed, setDriveSpeed] = useState(0);
   const [driveNotice, setDriveNotice] = useState('');
   const [nearCar, setNearCar] = useState(false);
+  const [propCredit, setPropCredit] = useState(false);
   const interactRef = useRef<() => void>(() => {});
   const toggleCamera = () => {
     const next = cameraModeRef.current === 'follow' ? 'overhead' : 'follow';
@@ -406,6 +408,9 @@ export default function WorldScene({
       shadows.bias = 0.0005;
       shadows.normalBias = 0.02;
       shadows.setDarkness(0.3);
+      void addNeighborhoodProps(scene, environmentLoad, shadows)
+        .then(manifest => { if (manifest && !environmentLoad.cancelled) setPropCredit(true); })
+        .catch(error => console.warn('Street props unavailable', error));
       void upgradeNeighborhoodAssets(scene, environmentLoad, shadows, roots => {
         roots.forEach((root, index) => { carRoots[index]?.push(root); placeCar(index); });
       });
@@ -792,6 +797,7 @@ export default function WorldScene({
       </div>
     </div>}
     {!error && <p role="status" style={{ fontSize: '0.8rem', opacity: 0.8 }}>{modelStatus}</p>}
+    {!error && propCredit && <p style={{ fontSize: '0.75rem', opacity: 0.7 }}>Some 3D props by <a href="https://polyhaven.com" target="_blank" rel="noreferrer">Poly Haven</a> (CC0).</p>}
     {!error && <div className="world-camera-toggle" role="group" aria-label="Camera controls">
       <button type="button" aria-label="Zoom in" onClick={event => { cameraControlsRef.current?.zoom('in'); focusWorld(event); }}>Zoom +</button>
       <button type="button" aria-label="Zoom out" onClick={event => { cameraControlsRef.current?.zoom('out'); focusWorld(event); }}>Zoom −</button>

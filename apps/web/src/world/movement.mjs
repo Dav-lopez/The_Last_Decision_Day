@@ -1,5 +1,6 @@
 /** Pure movement and interaction rules shared by desktop and touch inputs. */
 import { PARKED_CARS, CAR_HALF_WIDTH, CAR_HALF_LENGTH, STREET_LIGHTS } from './streetLayout.mjs';
+import { PROP_BLOCKERS } from './propLayout.mjs';
 export const WORLD_RADIUS = 11.5;
 export const SCHOOL_DOOR = Object.freeze({ x: 0, z: -5.5 });
 export const TREE_TRUNKS = Object.freeze([
@@ -12,6 +13,8 @@ export const BUILDING_AREAS = Object.freeze([
   { minX: -10.5, maxX: -6.3, minZ: -7.5, maxZ: -2.6 }, // homes
   { minX: 6.3, maxX: 10.5, minZ: -7.5, maxZ: -2.6 },
 ]);
+/** Buildings and street props: everything solid that never moves. */
+export const STATIC_SOLIDS = Object.freeze([...BUILDING_AREAS, ...PROP_BLOCKERS]);
 /** Buildings plus the cars at their original parking spots (kept for existing callers). */
 export const SOLID_AREAS = Object.freeze([
   ...BUILDING_AREAS,
@@ -60,7 +63,7 @@ export function movementVector(keys, cameraForward = { x: 0, z: -1 }) {
 export function isBlocked(x, z, cars = PARKED_CARS) {
   const radius = 0.38;
   if (cars.some(car => carContains(car, x, z, radius))) return true;
-  const insideBuilding = BUILDING_AREAS.some(area =>
+  const insideBuilding = STATIC_SOLIDS.some(area =>
     x + radius > area.minX && x - radius < area.maxX &&
     z + radius > area.minZ && z - radius < area.maxZ);
   // Tree trunks are cylinders (diameter 0.42) rather than rectangular walls.
