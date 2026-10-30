@@ -48,6 +48,32 @@ await page.route('**/api/**', route => route.fulfill({ status: 401, contentType:
 const consoleLines = [];
 page.on('console', message => consoleLines.push(`${message.type()}: ${message.text()}`));
 page.on('requestfailed', request => consoleLines.push(`request failed: ${request.url()} ${request.failure()?.errorText}`));
+// Frame stepping: once started, the page's requestAnimationFrame callbacks are held and run only
+// when we step, with performance.now advanced by exactly one frame. Timers and Playwright's own
+// screenshot machinery keep running in real time.
+await page.addInitScript(() => {
+  const realNow = performance.now.bind(performance);
+  const realRaf = window.requestAnimationFrame.bind(window);
+  let manual = false;
+  let now = 0;
+  let queue = [];
+  performance.now = () => (manual ? now : realNow());
+  window.requestAnimationFrame = callback => {
+    if (!manual) return realRaf(callback);
+    queue.push(callback);
+    return queue.length;
+  };
+  window.__videoClock = {
+    start() { now = realNow(); manual = true; },
+    step(ms) {
+      now += ms;
+      const due = queue;
+      queue = [];
+      for (const callback of due) callback(now);
+      return due.length;
+    },
+  };
+});
 await page.goto(url);
 try {
   await page.getByRole('button', { name: /Try the 3D demo/ }).click({ timeout: 60000 });
@@ -72,8 +98,10 @@ const ready = page.getByText(/Character ready/);
 await ready.waitFor({ timeout: 120000 }).catch(() => console.warn('character status not seen; filming anyway'));
 await page.waitForTimeout(8000);
 // From here every frame is exactly 1/30 s of game time, however slowly it renders.
-await page.clock.install();
-await page.clock.pauseAt(Date.now() + 1000);
+await page.evaluate(() => window.__videoClock.start());
+// The last real frame queues the first held one.
+await page.waitForTimeout(200);
+const step = () => page.evaluate(ms => window.__videoClock.step(ms), 1000 / FPS);
 
 const canvas = page.locator('canvas').first();
 await canvas.click({ position: { x: WIDTH / 2, y: HEIGHT / 2 } });
@@ -104,7 +132,8 @@ for (const shot of SHOTS) {
   if (shot.drag) { await page.mouse.move(dragX, centre.y); await page.mouse.down(); }
   for (let i = 0; i < frames; i++) {
     if (shot.drag) { dragX += shot.drag / FPS; await page.mouse.move(dragX, centre.y); }
-    await page.clock.runFor(1000 / FPS);
+    const ran = await step();
+    if (ran === 0 && frame === 0) console.warn('no animation frame was waiting; is the render loop running?');
     if (mode === 'full') {
       frame++;
       await page.screenshot({ path: join(outDir, 'frames', `${String(frame).padStart(5, '0')}.jpg`), type: 'jpeg', quality: 92 });
