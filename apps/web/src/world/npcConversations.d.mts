@@ -3,7 +3,7 @@ export type NpcMood = 'neutral' | 'happy' | 'sad';
 export type NpcRelation = { trust: number; conversations: number; lastChoice: string | null };
 export type NpcRelations = { version: number; people: Record<NpcId, NpcRelation> };
 export type NpcConversation = { id: NpcId; name: string; speaker: NpcId; resident: string; greeting: string; choices: Array<{ id: string; label: string }> };
-export type NpcReply = { state: NpcRelations; reply: string; mood: NpcMood; trustDelta: number; event: 'talked-maya' | 'talked-jordan' | 'talked-teacher' | 'talked-neighbour' };
+export type NpcReply = { state: NpcRelations; reply: string; mood: NpcMood; trustDelta: number; event: 'talked-maya' | 'talked-jordan' | 'talked-teacher' | 'talked-ruth' | 'talked-okafor' | 'talked-marcus' | 'talked-elena' | 'talked-tess' };
 export declare const NPC_DIALOGUES: Readonly<Record<NpcId, { name: string; speaker: NpcId; resident: string; place: string; persona: string; first: string; again: string; wary: string; choices: ReadonlyArray<{ id: string; label: string; reply: string; trust: number; mood: NpcMood }> }>>;
 export declare function newNpcRelations(): NpcRelations;
 export declare function normalizeNpcRelations(value: unknown): NpcRelations;
