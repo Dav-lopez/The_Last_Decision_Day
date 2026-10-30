@@ -13,6 +13,8 @@ on:
       - 'scripts/facial_eyelids.py'
       - 'scripts/facial_cornea.py'
       - 'scripts/test_facial_cornea.py'
+      - 'scripts/facial_release_parity.py'
+      - 'scripts/test_facial_release_parity.py'
       - 'scripts/test_facial_eyelids.py'
       - 'scripts/test_facial_nose.py'
       - 'scripts/test_facial_cheeks.py'
@@ -39,9 +41,12 @@ jobs:
           python scripts/test_facial_nose.py
           python scripts/test_facial_eyelids.py
           python scripts/test_facial_cornea.py
+          python scripts/test_facial_release_parity.py
           python scripts/test_facial_droplets.py
       - name: Generate character from pinned licensed sources
         run: python scripts/build-character.py
+      - name: Verify male/female facial release parity
+        run: python scripts/facial_release_parity.py
       - name: Inspect facial rig
         run: |
           python scripts/validate-face-glb.py apps/web/public/models/human.glb
@@ -116,5 +121,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: human-facial-rig-glb
-          path: apps/web/public/models/human.glb
+          path: |
+            apps/web/public/models/human.glb
+            apps/web/public/models/human-female.glb
+            apps/web/public/models/human.source.json
+            apps/web/public/models/human-female.source.json
           retention-days: 14
