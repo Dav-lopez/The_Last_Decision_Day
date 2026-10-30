@@ -1,5 +1,5 @@
 
-added 93 packages, and audited 94 packages in 6s
+added 93 packages, and audited 94 packages in 5s
 
 10 packages are looking for funding
   run `npm fund` for details
@@ -12,13 +12,13 @@ found 0 vulnerabilities
 Installing dependencies...
 Switching to root user to install dependencies...
 Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
-Get:6 https://packages.microsoft.com/ubuntu/26.04/prod resolute InRelease [3964 B]
+Get:3 https://packages.microsoft.com/ubuntu/26.04/prod resolute InRelease [3964 B]
+Hit:2 http://azure.archive.ubuntu.com/ubuntu resolute InRelease
+Get:4 http://azure.archive.ubuntu.com/ubuntu resolute-updates InRelease [137 kB]
+Get:5 http://azure.archive.ubuntu.com/ubuntu resolute-backports InRelease [137 kB]
+Get:6 http://azure.archive.ubuntu.com/ubuntu resolute-security InRelease [137 kB]
 Get:7 https://packages.microsoft.com/ubuntu/26.04/prod resolute/main arm64 Packages [120 kB]
 Get:8 https://packages.microsoft.com/ubuntu/26.04/prod resolute/main amd64 Packages [131 kB]
-Hit:2 http://azure.archive.ubuntu.com/ubuntu resolute InRelease
-Get:3 http://azure.archive.ubuntu.com/ubuntu resolute-updates InRelease [137 kB]
-Get:4 http://azure.archive.ubuntu.com/ubuntu resolute-backports InRelease [137 kB]
-Get:5 http://azure.archive.ubuntu.com/ubuntu resolute-security InRelease [137 kB]
 Get:9 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 Packages [804 kB]
 Get:10 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main Translation-en [184 kB]
 Get:11 http://azure.archive.ubuntu.com/ubuntu resolute-updates/universe amd64v3 Packages [375 kB]
@@ -29,7 +29,7 @@ Get:15 http://azure.archive.ubuntu.com/ubuntu resolute-security/main amd64v3 Pac
 Get:16 http://azure.archive.ubuntu.com/ubuntu resolute-security/main Translation-en [141 kB]
 Get:17 http://azure.archive.ubuntu.com/ubuntu resolute-security/universe amd64v3 Packages [206 kB]
 Get:18 http://azure.archive.ubuntu.com/ubuntu resolute-security/universe Translation-en [67.9 kB]
-Fetched 3824 kB in 0s (8518 kB/s)
+Fetched 3824 kB in 0s (10.4 MB/s)
 Reading package lists...
 Reading package lists...
 Building dependency tree...
@@ -106,7 +106,7 @@ Get:7 http://azure.archive.ubuntu.com/ubuntu resolute/main amd64v3 xfonts-encodi
 Get:8 http://azure.archive.ubuntu.com/ubuntu resolute/main amd64v3 xfonts-utils amd64 1:7.7+7build1 [97.3 kB]
 Get:9 http://azure.archive.ubuntu.com/ubuntu resolute/universe amd64v3 xfonts-cyrillic all 1:1.0.5+nmu1build1 [384 kB]
 Get:10 http://azure.archive.ubuntu.com/ubuntu resolute/universe amd64v3 xfonts-scalable all 1:1.0.3-1.3build1 [304 kB]
-Fetched 21.9 MB in 17s (1291 kB/s)
+Fetched 21.9 MB in 17s (1282 kB/s)
 Selecting previously unselected package fonts-ipafont-gothic.
 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 212715 files and directories currently installed.)
 Preparing to unpack .../0-fonts-ipafont-gothic_00303-23ubuntu1_all.deb ...
@@ -203,9 +203,9 @@ Chrome Headless Shell 156.0.8078.4 (playwright chromium-headless-shell v1248) do
 Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
 Hit:2 http://azure.archive.ubuntu.com/ubuntu resolute InRelease
 Hit:3 http://azure.archive.ubuntu.com/ubuntu resolute-updates InRelease
+Hit:6 https://packages.microsoft.com/ubuntu/26.04/prod resolute InRelease
 Hit:4 http://azure.archive.ubuntu.com/ubuntu resolute-backports InRelease
 Hit:5 http://azure.archive.ubuntu.com/ubuntu resolute-security InRelease
-Hit:6 https://packages.microsoft.com/ubuntu/26.04/prod resolute InRelease
 Reading package lists...
 Reading package lists...
 Building dependency tree...
@@ -346,7 +346,7 @@ Get:87 http://azure.archive.ubuntu.com/ubuntu resolute/main amd64v3 libwebrtc-au
 Get:88 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 libspa-0.2-modules amd64 1.6.2-1ubuntu1.2 [1163 kB]
 Get:89 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 libpipewire-0.3-0t64 amd64 1.6.2-1ubuntu1.2 [302 kB]
 Get:90 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 libpipewire-0.3-common all 1.6.2-1ubuntu1.2 [12.1 kB]
-Fetched 69.3 MB in 56s (1245 kB/s)
+Fetched 69.3 MB in 56s (1238 kB/s)
 Selecting previously unselected package libva2:amd64.
 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 212982 files and directories currently installed.)
 Preparing to unpack .../00-libva2_2.23.0-1ubuntu1_amd64v3.deb ...
@@ -724,5 +724,42 @@ No VM guests are running outdated hypervisor (qemu) binaries on this host.
 > the-last-decision-web@0.1.0 build
 > tsc -b && vite build
 
-src/world/WorldScene.tsx(33,23): error TS2300: Duplicate identifier 'formatClock'.
-src/world/WorldScene.tsx(57,82): error TS2300: Duplicate identifier 'formatClock'.
+[36mvite v6.4.5 [32mbuilding for production...[36m[39m
+transforming...
+[33mnode_modules/@microsoft/signalr/dist/esm/Utils.js (190:0): A comment
+
+"/*#__PURE__*/"
+
+in "node_modules/@microsoft/signalr/dist/esm/Utils.js" contains an annotation that Rollup cannot interpret due to the position of the comment. The comment will be removed to avoid issues.[39m
+[33mnode_modules/@microsoft/signalr/dist/esm/Utils.js (208:0): A comment
+
+"/*#__PURE__*/"
+
+in "node_modules/@microsoft/signalr/dist/esm/Utils.js" contains an annotation that Rollup cannot interpret due to the position of the comment. The comment will be removed to avoid issues.[39m
+[32m✓[39m 3487 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                          [39m[1m[2m    0.51 kB[22m[1m[22m[2m │ gzip:     0.31 kB[22m
+[2mdist/[22m[2massets/[22m[35mWorldScene-C3kZxUc8.css      [39m[1m[2m    4.77 kB[22m[1m[22m[2m │ gzip:     1.60 kB[22m
+[2mdist/[22m[2massets/[22m[35mindex-BeLCJ80F.css           [39m[1m[2m   11.12 kB[22m[1m[22m[2m │ gzip:     3.18 kB[22m
+[2mdist/[22m[2massets/[22m[36mLandingWorld-CDzAd6Ec.js     [39m[1m[2m    6.09 kB[22m[1m[22m[2m │ gzip:     2.76 kB[22m
+[2mdist/[22m[2massets/[22m[36mindex-54fI_glP.js            [39m[1m[2m   75.85 kB[22m[1m[22m[2m │ gzip:    21.15 kB[22m
+[2mdist/[22m[2massets/[22m[36mreact-DBoTRrZA.js            [39m[1m[2m  142.79 kB[22m[1m[22m[2m │ gzip:    45.72 kB[22m
+[2mdist/[22m[2massets/[22m[36mWorldScene-CuUd3Gcd.js       [39m[1m[2m  189.91 kB[22m[1m[22m[2m │ gzip:    70.91 kB[22m
+[2mdist/[22m[2massets/[22m[36mbabylon-loaders-dhHbPaza.js  [39m[1m[2m  482.88 kB[22m[1m[22m[2m │ gzip:   114.40 kB[22m
+[2mdist/[22m[2massets/[22m[36mbabylon-Crkl6wgY.js          [39m[1m[33m7,500.07 kB[39m[22m[2m │ gzip: 1,664.05 kB[22m
+[33m
+(!) Some chunks are larger than 2500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+[32m✓ built in 2m 25s[39m
+at pitch | Central Park pitch · goals 0 · bus stop 262 m | 
+still pitch-arrival
+match | Central Park pitch · goals 0 · bus stop 262 m | 
+still kickoff
+still match-1
+still match-overhead
+still match-overhead-2
+still match-play
+scoreboard: Blue 0 – 0 Red · 3:54F shoot · Shift+F chip · Q passPass (Q)
