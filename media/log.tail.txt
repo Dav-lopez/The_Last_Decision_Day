@@ -1,5 +1,5 @@
 
-added 75 packages, and audited 76 packages in 2s
+added 75 packages, and audited 76 packages in 3s
 
 9 packages are looking for funding
   run `npm fund` for details
@@ -15,9 +15,9 @@ Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
 Get:6 https://packages.microsoft.com/ubuntu/26.04/prod resolute InRelease [3964 B]
 Hit:2 http://azure.archive.ubuntu.com/ubuntu resolute InRelease
 Get:3 http://azure.archive.ubuntu.com/ubuntu resolute-updates InRelease [137 kB]
+Get:7 https://packages.microsoft.com/ubuntu/26.04/prod resolute/main amd64 Packages [131 kB]
 Get:4 http://azure.archive.ubuntu.com/ubuntu resolute-backports InRelease [137 kB]
 Get:5 http://azure.archive.ubuntu.com/ubuntu resolute-security InRelease [137 kB]
-Get:7 https://packages.microsoft.com/ubuntu/26.04/prod resolute/main amd64 Packages [131 kB]
 Get:8 https://packages.microsoft.com/ubuntu/26.04/prod resolute/main arm64 Packages [120 kB]
 Get:9 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 Packages [804 kB]
 Get:10 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main Translation-en [184 kB]
@@ -29,7 +29,7 @@ Get:15 http://azure.archive.ubuntu.com/ubuntu resolute-security/main amd64v3 Pac
 Get:16 http://azure.archive.ubuntu.com/ubuntu resolute-security/main Translation-en [141 kB]
 Get:17 http://azure.archive.ubuntu.com/ubuntu resolute-security/universe amd64v3 Packages [206 kB]
 Get:18 http://azure.archive.ubuntu.com/ubuntu resolute-security/universe Translation-en [67.9 kB]
-Fetched 3824 kB in 0s (14.9 MB/s)
+Fetched 3824 kB in 0s (13.3 MB/s)
 Reading package lists...
 Reading package lists...
 Building dependency tree...
@@ -106,7 +106,7 @@ Get:7 http://azure.archive.ubuntu.com/ubuntu resolute/main amd64v3 xfonts-encodi
 Get:8 http://azure.archive.ubuntu.com/ubuntu resolute/main amd64v3 xfonts-utils amd64 1:7.7+7build1 [97.3 kB]
 Get:9 http://azure.archive.ubuntu.com/ubuntu resolute/universe amd64v3 xfonts-cyrillic all 1:1.0.5+nmu1build1 [384 kB]
 Get:10 http://azure.archive.ubuntu.com/ubuntu resolute/universe amd64v3 xfonts-scalable all 1:1.0.3-1.3build1 [304 kB]
-Fetched 21.9 MB in 1s (28.7 MB/s)
+Fetched 21.9 MB in 1s (37.6 MB/s)
 Selecting previously unselected package fonts-ipafont-gothic.
 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 212715 files and directories currently installed.)
 Preparing to unpack .../0-fonts-ipafont-gothic_00303-23ubuntu1_all.deb ...
@@ -201,11 +201,11 @@ Downloading Chrome Headless Shell 156.0.8078.4 (playwright chromium-headless-she
 |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■| 100% of 120 MiB
 Chrome Headless Shell 156.0.8078.4 (playwright chromium-headless-shell v1248) downloaded to /home/runner/.cache/ms-playwright/chromium_headless_shell-1248
 Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
+Hit:6 https://packages.microsoft.com/ubuntu/26.04/prod resolute InRelease
 Hit:2 http://azure.archive.ubuntu.com/ubuntu resolute InRelease
 Hit:3 http://azure.archive.ubuntu.com/ubuntu resolute-updates InRelease
 Hit:4 http://azure.archive.ubuntu.com/ubuntu resolute-backports InRelease
 Hit:5 http://azure.archive.ubuntu.com/ubuntu resolute-security InRelease
-Hit:6 https://packages.microsoft.com/ubuntu/26.04/prod resolute InRelease
 Reading package lists...
 Reading package lists...
 Building dependency tree...
@@ -346,7 +346,7 @@ Get:87 http://azure.archive.ubuntu.com/ubuntu resolute/main amd64v3 libwebrtc-au
 Get:88 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 libspa-0.2-modules amd64 1.6.2-1ubuntu1.2 [1163 kB]
 Get:89 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 libpipewire-0.3-0t64 amd64 1.6.2-1ubuntu1.2 [302 kB]
 Get:90 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 libpipewire-0.3-common all 1.6.2-1ubuntu1.2 [12.1 kB]
-Fetched 69.3 MB in 7s (10.5 MB/s)
+Fetched 69.3 MB in 4s (15.9 MB/s)
 Selecting previously unselected package libva2:amd64.
 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 212982 files and directories currently installed.)
 Preparing to unpack .../00-libva2_2.23.0-1ubuntu1_amd64v3.deb ...
@@ -767,14 +767,64 @@ computing gzip size...
 - Using dynamic import() to code-split the application
 - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
-[32m✓ built in 8.41s[39m
+[32m✓ built in 8.66s[39m
 shot done at 5.0s: The Last Decision — a life in one neighborhood
 shot done at 8.0s: Morning on your street
 shot done at 10.0s: Walk anywhere — neighbors keep to their side
 shot done at 10.7s: Hold Shift to run
 shot done at 12.2s: Press E by a car to get in
 shot done at 13.8s: Drive: W gas · S brake · A/D steer
-shot done at 15.0s: Drive: W gas · S brake · A/D steer
-shot done at 16.5s: Stop, then E to get out
-shot done at 21.0s: Street lamps come on at dusk
-shot done at 25.0s: Your day is saved — see you tomorrow
+shot done at 14.6s: Drive: W gas · S brake · A/D steer
+shot done at 15.1s: Stop, then E to get out
+shot done at 16.6s: Stop, then E to get out
+shot done at 21.1s: Street lamps come on at dusk
+shot done at 25.1s: Your day is saved — see you tomorrow
+ffmpeg version 8.0.1-3ubuntu2 Copyright (c) 2000-2025 the FFmpeg developers
+  built with gcc 15 (Ubuntu 15.2.0-13ubuntu3)
+  configuration: --prefix=/usr --extra-version=3ubuntu2 --toolchain=hardened --libdir=/usr/lib/x86_64-linux-gnu --incdir=/usr/include/x86_64-linux-gnu --arch=amd64 --enable-gpl --disable-stripping --disable-pocketsphinx --disable-libcaca --disable-libmfx --disable-omx --enable-gnutls --enable-libaom --enable-libass --enable-libbs2b --enable-libcdio --enable-libcodec2 --enable-libdav1d --enable-libflite --enable-libfontconfig --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgme --enable-libgsm --enable-libharfbuzz --enable-libmp3lame --enable-libmysofa --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-librubberband --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libtheora --enable-libtwolame --enable-libvidstab --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libx265 --enable-libxml2 --enable-libxvid --enable-libzimg --enable-openal --enable-opencl --enable-opengl --disable-sndio --enable-libvpl --enable-libdc1394 --enable-libdrm --enable-libiec61883 --enable-chromaprint --enable-frei0r --enable-ladspa --enable-libbluray --enable-libdvdnav --enable-libdvdread --enable-libjack --enable-libjxl --enable-libpulse --enable-librabbitmq --enable-librist --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libx264 --enable-libzmq --enable-libzvbi --enable-lv2 --enable-sdl2 --enable-libplacebo --enable-librav1e --enable-librsvg --enable-shared
+  libavutil      60.  8.100 / 60.  8.100
+  libavcodec     62. 11.100 / 62. 11.100
+  libavformat    62.  3.100 / 62.  3.100
+  libavdevice    62.  1.100 / 62.  1.100
+  libavfilter    11.  4.100 / 11.  4.100
+  libswscale      9.  1.100 /  9.  1.100
+  libswresample   6.  1.100 /  6.  1.100
+Input #0, image2, from 'video-out/frames/%05d.jpg':
+  Duration: 00:00:25.07, start: 0.000000, bitrate: N/A
+  Stream #0:0: Video: mjpeg (Baseline), yuvj420p(pc, bt470bg/unknown/unknown), 1280x720 [SAR 1:1 DAR 16:9], 30 fps, 30 tbr, 30 tbn
+Stream mapping:
+  Stream #0:0 -> #0:0 (mjpeg (native) -> h264 (libx264))
+Press [q] to stop, [?] for help
+[swscaler @ 0x7787f409c840] deprecated pixel format used, make sure you did set range correctly
+[libx264 @ 0x6378eefd3880] using SAR=1/1
+[libx264 @ 0x6378eefd3880] using cpu capabilities: MMX2 SSE2Fast SSSE3 SSE4.2 AVX FMA3 BMI2 AVX2 AVX512
+[libx264 @ 0x6378eefd3880] profile High, level 3.1, 4:2:0, 8-bit
+[libx264 @ 0x6378eefd3880] 264 - core 165 - H.264/MPEG-4 AVC codec - Copyleft 2003-2025 - http://www.videolan.org/x264.html - options: cabac=1 ref=1 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=2 psy=1 psy_rd=1.00:0.00 mixed_ref=0 me_range=16 chroma_me=1 trellis=0 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=0 threads=6 lookahead_threads=2 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=1 keyint=250 keyint_min=25 scenecut=40 intra_refresh=0 rc_lookahead=10 rc=crf mbtree=1 crf=20.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00
+Output #0, mp4, to 'media/the-last-decision-gameplay.partial.mp4':
+  Metadata:
+    encoder         : Lavf62.3.100
+  Stream #0:0: Video: h264 (avc1 / 0x31637661), yuv420p(pc, bt470bg/unknown/unknown, progressive), 1280x720 [SAR 1:1 DAR 16:9], q=2-31, 30 fps, 15360 tbn
+    Metadata:
+      encoder         : Lavc62.11.100 libx264
+    Side data:
+      ICC Profile
+      cpb: bitrate max/min/avg: 0/0/0 buffer size: 0 vbv_delay: N/A
+frame=   73 fps=0.0 q=26.0 size=    1280KiB time=00:00:02.36 bitrate=4430.8kbits/s speed=4.73x elapsed=0:00:00.50    frame=  161 fps=161 q=26.0 size=    2816KiB time=00:00:05.30 bitrate=4352.7kbits/s speed= 5.3x elapsed=0:00:01.00    frame=  299 fps=199 q=26.0 size=    3584KiB time=00:00:09.90 bitrate=2965.7kbits/s speed= 6.6x elapsed=0:00:01.50    frame=  399 fps=199 q=26.0 size=    5376KiB time=00:00:13.23 bitrate=3328.0kbits/s speed=6.61x elapsed=0:00:02.00    frame=  509 fps=203 q=26.0 size=    6912KiB time=00:00:16.90 bitrate=3350.5kbits/s speed=6.75x elapsed=0:00:02.50    frame=  601 fps=200 q=26.0 size=    8192KiB time=00:00:19.96 bitrate=3361.1kbits/s speed=6.65x elapsed=0:00:03.00    frame=  694 fps=198 q=26.0 size=    9728KiB time=00:00:23.06 bitrate=3454.9kbits/s speed=6.58x elapsed=0:00:03.50    [mp4 @ 0x6378eefd2e40] Starting second pass: moving the moov atom to the beginning of the file
+[out#0/mp4 @ 0x6378eefd2d40] video:10744KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: 0.093521%
+frame=  752 fps=199 q=-1.0 Lsize=   10754KiB time=00:00:25.00 bitrate=3523.9kbits/s speed=6.62x elapsed=0:00:03.77    
+[libx264 @ 0x6378eefd3880] frame I:4     Avg QP:13.32  size: 60880
+[libx264 @ 0x6378eefd3880] frame P:225   Avg QP:19.41  size: 27348
+[libx264 @ 0x6378eefd3880] frame B:523   Avg QP:24.10  size:  8804
+[libx264 @ 0x6378eefd3880] consecutive B-frames:  3.5%  9.0%  7.2% 80.3%
+[libx264 @ 0x6378eefd3880] mb I  I16..4: 55.7%  9.9% 34.4%
+[libx264 @ 0x6378eefd3880] mb P  I16..4: 18.0%  5.1%  4.1%  P16..4: 15.1% 12.5%  9.8%  0.0%  0.0%    skip:35.4%
+[libx264 @ 0x6378eefd3880] mb B  I16..4:  2.8%  0.7%  0.2%  B16..8: 16.1% 10.1%  1.9%  direct: 4.9%  skip:63.2%  L0:34.4% L1:38.1% BI:27.6%
+[libx264 @ 0x6378eefd3880] 8x8 transform intra:18.6% inter:16.3%
+[libx264 @ 0x6378eefd3880] coded y,uvDC,uvAC intra: 25.3% 31.4% 16.0% inter: 9.7% 6.9% 1.8%
+[libx264 @ 0x6378eefd3880] i16 v,h,dc,p: 61% 31%  6%  1%
+[libx264 @ 0x6378eefd3880] i8 v,h,dc,ddl,ddr,vr,hd,vl,hu: 14% 24% 34%  5%  6%  4%  5%  3%  4%
+[libx264 @ 0x6378eefd3880] i4 v,h,dc,ddl,ddr,vr,hd,vl,hu: 25% 26% 20%  5%  4%  5%  5%  5%  4%
+[libx264 @ 0x6378eefd3880] i8c dc,h,v,p: 51% 31% 16%  2%
+[libx264 @ 0x6378eefd3880] Weighted P-Frames: Y:7.6% UV:7.1%
+[libx264 @ 0x6378eefd3880] kb/s:3511.01
+wrote media/the-last-decision-gameplay.mp4 (11012122 bytes, 25.1s)
