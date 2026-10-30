@@ -1,0 +1,14 @@
+export type Area = { minX: number; maxX: number; minZ: number; maxZ: number };
+export type DistantHouse = Readonly<{ x: number; z: number; rotation: number; width: number; depth: number; height: number; tone: number }>;
+export declare const PLAYABLE_HALF: number;
+export declare const ROAD_HALF: number;
+export declare const SIDEWALK_CENTER: number;
+export declare const SIDEWALK_WIDTH: number;
+export declare const ROAD_REACH: number;
+export declare const GROUND_SIZE: number;
+export declare const DISTANT_HOUSES: ReadonlyArray<DistantHouse>;
+export declare const HOUSE_FOOTPRINTS: ReadonlyArray<Area>;
+export declare const DISTANT_TREES: ReadonlyArray<Readonly<{ x: number; z: number; scale: number; tone: number }>>;
+export declare const HILLS: ReadonlyArray<Readonly<{ x: number; z: number; radius: number; height: number }>>;
+export declare const FENCES: ReadonlyArray<Readonly<{ from: { x: number; z: number }; to: { x: number; z: number } }>>;
+export declare const ROAD_BARRICADE: Readonly<{ z: number; halfWidth: number }>;

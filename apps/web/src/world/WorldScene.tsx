@@ -22,6 +22,7 @@ import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mj
 import { PARKED_CARS } from './streetLayout.mjs';
 import { addWorldProps } from './polyHavenProps';
 import { buildHomeScene } from './homeScene';
+import { buildSurroundings } from './worldSurroundings';
 import { loadNeighbors, type Neighbors, type Person } from './npcPeople';
 import { advanceLife, canSleep, chooseStartingLife, formatClock, isEvening, isExhausted, nearBed, normalizeLife, readLife,
   sleepUntilMorning, TIRED_ENERGY, toServerLife, writeLife, type Life, type LifeActivity, type ServerLife } from './lifeClock.mjs';
@@ -414,6 +415,8 @@ export default function WorldScene({
       directional.intensity = 1.35;
       directional.position.set(12, 22, 10);
       const schoolMarker = createNeighborhood(scene);
+      // The town around the street, so the world reaches the horizon instead of ending at a cliff edge.
+      buildSurroundings(scene);
       const home = buildHomeScene(scene);
       let schoolAsset: Awaited<ReturnType<typeof loadSchoolEnvironment>> = null;
       let schoolAssetCancelled = false;
@@ -787,7 +790,7 @@ export default function WorldScene({
             if (next.collided) notify('Bump! Reverse with S to back away.');
             else if (clock - noticeAt > 2.5) setDriveNotice(previous => previous ? '' : previous);
             const waypoint = schoolWaypoint(next, cameraForward);
-            const label = waypoint.distance === null ? '' : 'School · ' + Math.ceil(waypoint.distance) + ' units · ' + waypoint.direction;
+            const label = waypoint.distance === null ? '' : 'School · ' + Math.ceil(waypoint.distance) + ' m · ' + waypoint.direction;
             setWayfinding(previous => previous === label ? previous : label);
           }
           if (previousNear) { previousNear = false; nearSchoolRef.current = false; setNearSchool(false); }
@@ -820,7 +823,7 @@ export default function WorldScene({
             const waypoint = schoolWaypoint(position, cameraForward);
             const label = waypoint.distance === null ? ''
               : waypoint.direction === 'at entrance' ? 'School entrance reached'
-                : 'School entrance · ' + Math.ceil(waypoint.distance) + ' units · ' + waypoint.direction;
+                : 'School entrance · ' + Math.ceil(waypoint.distance) + ' m · ' + waypoint.direction;
             setWayfinding(previous => previous === label ? previous : label);
             const carInReach = closestInteraction(position, carTargets()) !== null;
             setNearCar(previous => previous === carInReach ? previous : carInReach);
