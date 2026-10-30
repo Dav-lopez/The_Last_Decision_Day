@@ -55,7 +55,7 @@ test('clothes decide which zones show skin', () => {
   assert.deepEqual(skinZones({ ...base, top: 'longsleeve', bottom: 'jeans' }), []);
   assert.deepEqual(skinZones({ ...base, top: 'tshirt', bottom: 'jeans' }), ['forearm']);
   assert.deepEqual(skinZones({ ...base, top: 'tank', bottom: 'shorts' }), ['forearm', 'knee', 'lower-shin', 'shin', 'upper-arm']);
-  assert.ok(skinZones({ ...base, top: 'crop', bottom: 'jeans' }).includes('waist'), 'crop top shows the midriff');
+  assert.deepEqual(skinZones({ ...base, top: 'crop', bottom: 'jeans' }), ['forearm', 'midriff', 'upper-arm'], 'crop top shows the midriff, not the hips');
   const skirt = dressZones({ ...base, bottom: 'skirt', bottomColor: 'red' });
   assert.equal(skirt.skirt.colour, colorFor('bottomColor', 'red'));
   assert.equal(dressZones({ ...base, bottom: 'jeans' }).skirt, null);
