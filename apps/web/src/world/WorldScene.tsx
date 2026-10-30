@@ -5,6 +5,7 @@ import {
 } from '@babylonjs/core';
 import { loadRiggedAvatar, type RiggedAvatar } from './riggedAvatar';
 import type { Emotion } from './facialEmotions';
+import { resolveCharacterEmotion } from './characterEmotion.mjs';
 import { loadSchoolEnvironment } from './schoolEnvironment';
 import { smoothHumanHeading, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
 import { isNearSchool, stepPosition, type PlanarPosition } from './movement.mjs';
@@ -413,7 +414,7 @@ export default function WorldScene({
         if (!human) return;
         riggedRef.current = human;
         human.applyLook(lookRef.current);
-        human.setEmotion(previewEmotionRef.current);
+        human.setEmotion(resolveCharacterEmotion(previewEmotionRef.current, 0));
         avatar.position.y = 0;
         for (const mesh of placeholderMeshes) {
           mesh.setEnabled(false);
@@ -500,7 +501,12 @@ export default function WorldScene({
         }
         avatar.position.x = position.x;
         avatar.position.z = position.z;
-        riggedRef.current?.update(movementSpeed, delta);
+        if (riggedRef.current) {
+          // The neutral preview follows gameplay: sprinting briefly produces
+          // exertion, while an explicitly selected emotion remains in control.
+          riggedRef.current.setEmotion(resolveCharacterEmotion(previewEmotionRef.current, movementSpeed));
+          riggedRef.current.update(movementSpeed, delta);
+        }
         if (moving && !riggedRef.current) {
           elapsed += delta * 13;
           avatar.position.y = Math.abs(Math.sin(elapsed)) * 0.06;
@@ -672,7 +678,7 @@ export default function WorldScene({
             {emotion.charAt(0).toUpperCase() + emotion.slice(1)}
           </button>)}
       </div>
-      <p role="status" aria-live="polite">{previewEmotion === 'sad' ? 'Crying preview selected · tears pending detailed face integration' : previewEmotion === 'embarrassed' ? 'Blushing preview selected · cheek shading pending' : previewEmotion === 'exerted' ? 'Exertion preview selected · sweat rendering pending' : `Current expression: ${previewEmotion}`}. Facial animation requires a model with compatible blendshapes.</p>
+      <p role="status" aria-live="polite">{previewEmotion === 'sad' ? 'Crying preview selected · tears pending detailed face integration' : previewEmotion === 'embarrassed' ? 'Blushing preview selected · cheek shading pending' : previewEmotion === 'exerted' ? 'Exertion preview selected · sweat rendering pending' : `Current expression: ${previewEmotion}`}. When Neutral is selected, sprinting automatically triggers exertion. Facial animation requires a model with compatible blendshapes.</p>
     </section>}
     {!error && <section className="world-customize" aria-label="Customize character appearance">
       <h3>Character appearance</h3>
