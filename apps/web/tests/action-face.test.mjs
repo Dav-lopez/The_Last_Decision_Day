@@ -58,3 +58,39 @@ test('bad time, fade and morph input never produce nonfinite weights', () => {
     }
   }
 });
+
+
+import { advanceSharedFacialMorph } from '../src/world/facialMorphSync.mjs';
+import { advanceFacialMorph } from '../src/world/faceDynamics.mjs';
+
+test('split lip and cheek meshes receive one identical spring step per frame', () => {
+  const motions = new Map(), frame = new Map();
+  const expected = advanceFacialMorph({ value: 0, velocity: 0 }, 0.8, 1 / 60, 'mouthOpen');
+  const lip = advanceSharedFacialMorph('mouthOpen', 0, 0.8, 1 / 60, null, motions, frame);
+  const duplicateLip = advanceSharedFacialMorph('mouthOpen', 0.9, 0, 1 / 60, null, motions, frame);
+  assert.equal(lip, expected.value);
+  assert.equal(duplicateLip, lip, 'a second mesh must not advance the spring again');
+  assert.deepEqual(motions.get('mouthOpen'), expected);
+
+  frame.clear();
+  const following = advanceSharedFacialMorph('mouthOpen', 0, 0, 1 / 60, null, motions, frame);
+  const expectedFollowing = advanceFacialMorph(expected, 0, 1 / 60, 'mouthOpen');
+  assert.equal(following, expectedFollowing.value, 'a new frame must use the retained spring velocity');
+  assert.equal(advanceSharedFacialMorph('mouthOpen', 0, 1, 1 / 60, null, motions, frame), following);
+});
+
+test('eye surfaces share blink-masked gaze without losing the underlying expression', () => {
+  const motions = new Map(), frame = new Map();
+  const closed = advanceSharedFacialMorph('eyeWideLeft', 0, 0.9, 0.04,
+    { left: 1, right: 0 }, motions, frame);
+  assert.equal(closed, 0);
+  assert.equal(advanceSharedFacialMorph('eyeWideLeft', 0, 0, 0.04,
+    { left: 0, right: 0 }, motions, frame), 0);
+  assert.ok(motions.get('eyeWideLeft').value > 0, 'blink masking must not erase the spring');
+  frame.clear();
+  const open = advanceSharedFacialMorph('eyeWideLeft', 0, 0.9, 0.04,
+    { left: 0, right: 0 }, motions, frame);
+  assert.ok(open > 0);
+  assert.equal(advanceSharedFacialMorph('eyeWideLeft', 0, 0.9, 0.04,
+    { left: 0, right: 0 }, motions, frame), open);
+});

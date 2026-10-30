@@ -6,8 +6,7 @@ import { EMPTY_EFFECTS, smoothFacialEffects, targetFacialEffects } from './facia
 import { dropletCycle } from './facialDroplets.mjs';
 import { skinSurface, hairSurface, skinRoughness } from './surfaceShading.mjs';
 import { stepBlink } from './blinkCycle.mjs';
-import { composeEyeExpression } from './eyeExpression.mjs';
-import { advanceFacialMorph } from './faceDynamics.mjs';
+import { advanceSharedFacialMorph } from './facialMorphSync.mjs';
 import { idleGazeTarget } from './gazeDynamics.mjs';
 import { actionFacialWeight } from './actionFacial.mjs';
 import { blendHumanWeights, classifyHumanMotion, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
@@ -194,6 +193,8 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
     let blinkState = stepBlink({ elapsed: 0, count: 0 }, 0);
     // Preserve the underlying emotional pose while a blink temporarily masks it.
     const expressionInfluences = new Map<string, { value: number; velocity: number }>();
+    // A morph name may appear on several skinned facial surfaces in the same GLB.
+    const frameExpressionWeights = new Map<string, number>();
     let disposed = false;
     return {
       root,
@@ -254,6 +255,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
         // the body clip and its speech articulation, including stop transitions.
         const step = stepAction(action, frameSeconds);
         action = step.state;
+        frameExpressionWeights.clear();
         for (const morph of facialTargets) {
           const dropletKind = morph.name.startsWith('tearTrack') ? 'tear'
             : morph.name.startsWith('sweatTrack') ? 'sweat' : null;
@@ -270,15 +272,13 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
           } else {
             // Preserve facial muscle velocity across interrupted expressions.
             // Blink and droplet morphs retain their dedicated timing paths.
-            const next = advanceFacialMorph(
-              expressionInfluences.get(morph.name) ?? { value: morph.influence, velocity: 0 },
+            morph.influence = advanceSharedFacialMorph(
+              morph.name, morph.influence,
               Math.min(1, Math.max(faceTarget(emotion, morph.name),
                 actionFacialWeight(morph.name, step.state, step.weight)) +
                 idleGazeTarget(morph.name, effectTime, emotion, movementSpeed)),
-              frameSeconds, morph.name,
+              frameSeconds, blinkState, expressionInfluences, frameExpressionWeights,
             );
-            expressionInfluences.set(morph.name, next);
-            morph.influence = composeEyeExpression(morph.name, next.value, blinkState);
           }
         }
         const target = classifyHumanMotion(movementSpeed);

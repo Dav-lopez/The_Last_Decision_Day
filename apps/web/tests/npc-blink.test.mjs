@@ -137,3 +137,24 @@ test('NPC replies produce visible happy and disappointed expressions without cha
   assert.ok(npcFaceTarget('mouthPressLeft', 0, { emotion: 'sad' }) > 0.1);
   assert.ok(npcFaceTarget('browInnerUp', 0, { emotion: 'sad' }) > 0.2);
 });
+
+
+test('split NPC mouth surfaces stay synchronized and animate once per frame', () => {
+  const lip = { name: 'mouthOpen', influence: 0 };
+  const secondSurface = { name: 'mouthOpen', influence: 0.7 };
+  let state = initialNpcFace(0);
+  const context = { talking: true };
+  state = advanceNpcFace(state, 0.016, [lip, secondSurface], context);
+  assert.equal(lip.influence, secondSurface.influence);
+  assert.ok(lip.influence > 0);
+  assert.equal(state.motions.size, 1, 'duplicate names share one spring');
+  const first = state.motions.get('mouthOpen');
+  state = advanceNpcFace(state, 0.016, [secondSurface, lip], context);
+  assert.equal(lip.influence, secondSurface.influence, 'mesh order cannot change the expression');
+  assert.ok(state.motions.get('mouthOpen').value > first.value);
+  state = resetNpcFace(state, [lip, secondSurface]);
+  assert.equal(state.motions.size, 0);
+  assert.equal(state.frame.size, 0);
+  assert.equal(lip.influence, 0);
+  assert.equal(secondSurface.influence, 0);
+});
