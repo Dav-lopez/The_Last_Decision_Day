@@ -8,3 +8,4 @@ export declare const JUMP: Readonly<{ height: number; duration: number }>;
 export declare function jumpHeight(elapsed: number, jump?: { height: number; duration: number }): number;
 export declare function bodyLean(input: { yawRate: number; speed: number; acceleration?: number; kind?: 'person' | 'car'; tired?: boolean }): { roll: number; pitch: number };
 export declare function headingDelta(from: number, to: number): number;
+export declare function jumpFor(input?: { speed?: number; energy?: number }): { height: number; duration: number };
