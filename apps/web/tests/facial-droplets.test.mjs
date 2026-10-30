@@ -24,3 +24,52 @@ test('invalid kinds and sides are rejected', () => {
   assert.throws(() => dropletCycle(1, 'rain', 'Left'));
   assert.throws(() => dropletCycle(1, 'tear', 'Center'));
 });
+
+import { calculateFacialEffectTargets, stepFacialEffectWeights } from '../src/world/facialEffectDynamics.mjs';
+
+const noEffects = { tears: 0, blush: 0, sweat: 0, wateryEyes: 0 };
+function effectsAfter(target, seconds, frames) {
+  let state = noEffects;
+  for (let i = 0; i < frames; i++) state = stepFacialEffectWeights(state, target, seconds / frames);
+  return state;
+}
+
+test('watery eyes precede visible tear tracks during sadness', () => {
+  const state = effectsAfter(calculateFacialEffectTargets('sad', 0), 0.3, 18);
+  assert.ok(state.wateryEyes > 0.8);
+  assert.ok(state.tears > 0 && state.tears < 0.4);
+});
+
+test('exertion sweat fades more slowly than it builds', () => {
+  const rising = effectsAfter(calculateFacialEffectTargets('exerted', 0), 0.4, 20);
+  const falling = stepFacialEffectWeights(rising, noEffects, 0.4);
+  assert.ok(rising.sweat > 0.45);
+  assert.ok(falling.sweat > rising.sweat * 0.65);
+});
+
+test('effect attack and release envelopes are frame-rate independent', () => {
+  const target = calculateFacialEffectTargets('sad', 0);
+  const coarse = effectsAfter(target, 1, 10);
+  const fine = effectsAfter(target, 1, 120);
+  for (const key of Object.keys(noEffects)) assert.ok(Math.abs(coarse[key] - fine[key]) < 1e-12, key);
+});
+
+test('invalid timing and intensity cannot corrupt facial material opacity', () => {
+  assert.deepEqual(calculateFacialEffectTargets('neutral', NaN), noEffects);
+  for (const seconds of [NaN, Infinity, -2, 0, 1e9]) {
+    const state = stepFacialEffectWeights(
+      { tears: NaN, blush: Infinity, sweat: -2, wateryEyes: 5 },
+      { tears: Infinity, blush: -4, sweat: 2, wateryEyes: 0.5 },
+      seconds,
+    );
+    for (const value of Object.values(state)) assert.ok(Number.isFinite(value) && value >= 0 && value <= 1);
+  }
+});
+
+test('switching emotions releases stale tear and eye effects', () => {
+  const sad = effectsAfter(calculateFacialEffectTargets('sad', 0), 1, 60);
+  const embarrassed = stepFacialEffectWeights(sad, calculateFacialEffectTargets('embarrassed', 0), 0.5);
+  assert.ok(embarrassed.tears < sad.tears);
+  assert.ok(embarrassed.wateryEyes < sad.wateryEyes);
+  assert.ok(embarrassed.blush > 0);
+});
