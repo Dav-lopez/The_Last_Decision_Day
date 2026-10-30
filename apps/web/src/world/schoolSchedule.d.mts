@@ -1,0 +1,14 @@
+import type { Life } from './lifeClock.mjs';
+export type TimetableEntry = Readonly<{ id: string; title: string; start: number; end: number; kind: 'class' | 'break' }>;
+export declare const SCHOOL_OPENS: number;
+export declare const SCHOOL_CLOSES: number;
+export declare const EARLY_MINUTES: number;
+export declare const LATE_MINUTES: number;
+export declare const CLASS_ENERGY_FACTOR: number;
+export declare const TIMETABLE: ReadonlyArray<TimetableEntry>;
+export declare function isSchoolOpen(minute: number): boolean;
+export declare function currentEntry(minute: number): TimetableEntry | null;
+export declare function joinableLesson(minute: number): TimetableEntry | null;
+export declare function nextLesson(minute: number): TimetableEntry | null;
+export declare function attendLesson(life: Life, minute?: number): { lesson: TimetableEntry; life: Life } | null;
+export declare function schoolStatus(minute: number): string;

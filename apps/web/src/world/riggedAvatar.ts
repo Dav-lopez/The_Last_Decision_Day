@@ -4,6 +4,8 @@ import { colorFor, type Look } from './appearance.mjs';
 import { faceTarget, approachFace, type Emotion } from './facialEmotions';
 import { EMPTY_EFFECTS, smoothFacialEffects, targetFacialEffects } from './facialEffects';
 import { dropletCycle } from './facialDroplets.mjs';
+import { stepBlink } from './blinkCycle.mjs';
+import { composeEyeExpression } from './eyeExpression.mjs';
 import { blendHumanWeights, classifyHumanMotion, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 
@@ -105,8 +107,10 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
         'Regenerate the model with scripts/build-character.py and review the generated asset PR.');
     }
     let effectTime = 0;
-    let blinkTime = 0;
-    let blinkCount = 0;
+    // Initialize with the full BlinkFrame type, including left/right eyelid values.
+    let blinkState = stepBlink({ elapsed: 0, count: 0 }, 0);
+    // Preserve the underlying emotional pose while a blink temporarily masks it.
+    const expressionInfluences = new Map<string, number>();
     let disposed = false;
     return {
       root,
@@ -133,8 +137,12 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
       },
       update(speed, deltaSeconds) {
         if (disposed) return;
-        effects = smoothFacialEffects(effects, targetFacialEffects(emotion, speed), deltaSeconds);
-        effectTime += Math.max(0, Math.min(0.1, Number.isFinite(deltaSeconds) ? deltaSeconds : 0));
+        // Bad physics frames or background-tab resumes must not corrupt facial
+        // morphs/materials or skip the animation transition in a single frame.
+        const frameSeconds = Number.isFinite(deltaSeconds) ? Math.max(0, Math.min(deltaSeconds, 0.1)) : 0;
+        const movementSpeed = Number.isFinite(speed) ? Math.max(0, speed) : 0;
+        effects = smoothFacialEffects(effects, targetFacialEffects(emotion, movementSpeed), frameSeconds);
+        effectTime += frameSeconds;
         for (const material of container.materials) {
           if (!(material instanceof PBRMaterial)) continue;
           if (material.name === 'Student skin') {
@@ -154,10 +162,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
             material.alpha = Math.min(0.82, (kind === 'tear' ? effects.tears : effects.sweat) * opacity * 0.82);
           }
         }
-        blinkTime += Math.max(0, Math.min(0.1, deltaSeconds));
-        const interval = 2.8 + (blinkCount % 4) * 0.45;
-        const blink = blinkTime > interval ? Math.max(0, 1 - Math.abs((blinkTime - interval) / 0.12 - 1)) : 0;
-        if (blinkTime > interval + 0.24) { blinkTime = 0; blinkCount++; }
+        blinkState = stepBlink(blinkState, frameSeconds);
         for (const morph of facialTargets) {
           const dropletKind = morph.name.startsWith('tearTrack') ? 'tear'
             : morph.name.startsWith('sweatTrack') ? 'sweat' : null;
@@ -167,14 +172,23 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
             continue;
           }
           const eyelid = morph.name === 'eyeBlinkLeft' || morph.name === 'eyeBlinkRight';
-          morph.influence = approachFace(morph.influence, Math.max(faceTarget(emotion, morph.name), eyelid ? blink : 0), deltaSeconds);
+          if (eyelid) {
+            // The blink curve already eases the eyelid. Passing it through the
+            // slow expression filter prevents a full closure on short blinks.
+            morph.influence = morph.name.endsWith('Left') ? blinkState.left : blinkState.right;
+          } else {
+            const smoothed = approachFace(expressionInfluences.get(morph.name) ?? morph.influence,
+              faceTarget(emotion, morph.name), frameSeconds);
+            expressionInfluences.set(morph.name, smoothed);
+            morph.influence = composeEyeExpression(morph.name, smoothed, blinkState);
+          }
         }
-        const target = classifyHumanMotion(speed);
+        const target = classifyHumanMotion(movementSpeed);
         if (target !== transition.target) transition = { from: { ...weights }, target, elapsed: 0 };
-        transition.elapsed = Math.min(0.2, transition.elapsed + deltaSeconds);
+        transition.elapsed = Math.min(0.2, transition.elapsed + frameSeconds);
         weights = blendHumanWeights(transition.from, transition.target, transition.elapsed);
-        groups.walk!.speedRatio = Math.max(0.65, Math.min(1.6, speed / HUMAN_WALK_SPEED));
-        groups.run!.speedRatio = Math.max(0.65, Math.min(1.6, speed / HUMAN_RUN_SPEED));
+        groups.walk!.speedRatio = Math.max(0.65, Math.min(1.6, movementSpeed / HUMAN_WALK_SPEED));
+        groups.run!.speedRatio = Math.max(0.65, Math.min(1.6, movementSpeed / HUMAN_RUN_SPEED));
         for (const state of ['idle', 'walk', 'run'] as const) groups[state]!.setWeightForAllAnimatables(weights[state]);
       },
       dispose() {

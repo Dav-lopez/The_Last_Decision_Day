@@ -1,4 +1,4 @@
-export type PropType = 'plant' | 'bench' | 'sofa' | 'armchair' | 'coffee_table' | 'dining_chair' | 'bed' | 'floor_lamp' | 'shelf';
+export type PropType = 'plant' | 'bench' | 'sofa' | 'armchair' | 'coffee_table' | 'dining_chair' | 'bed' | 'floor_lamp' | 'shelf' | 'desk' | 'teacher_desk';
 export type PropSite = Readonly<{ id: string; type: PropType; x: number; z: number; rotation: number }>;
 export declare const PROP_TYPES: Readonly<Record<PropType, Readonly<{ targetHeight: number; maxFootprint: number; halfX: number; halfZ: number }>>>;
 export declare const PROP_SITES: ReadonlyArray<PropSite>;
