@@ -9,6 +9,7 @@ import { NEIGHBORS, PERSON_RADIUS, carAhead, carComing, crossingPace, dodgeFrom,
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 import { initialNpcBlink, collectNpcEyelids, advanceNpcBlink } from './npcBlink.mjs';
 import { collectNpcFaceTargets, initialNpcFace, advanceNpcFace, resetNpcFace } from './npcFace.mjs';
+import { createNpcFacialMaterials } from './npcFacialMaterials.mjs';
 
 type CarFootprint = { x: number; z: number; rotation: number; speed?: number };
 const DODGE_SPEED = 3.2;
@@ -60,6 +61,9 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     walk.speedRatio = npc.speed / HUMAN_WALK_SPEED;
     const materials = [...new Set(holder.getChildMeshes().map(mesh => mesh.material).filter((m): m is Material => Boolean(m)))];
     dressCharacter(materials, holder.getChildMeshes(), normalizeLook(npc.look));
+    // NPC copies own independent PBR facial materials, tear/sweat tracks and
+    // complexion-aware blush, not just the existing mouth/eyelid morphs.
+    const facialMaterials = createNpcFacialMaterials(materials, holder.getChildMeshes(), normalizeLook(npc.look), index);
     for (const mesh of holder.getChildMeshes()) { mesh.receiveShadows = true; shadows?.addShadowCaster(mesh, false); mesh.isPickable = false; }
     // Blink targets belong to each NPC's cloned meshes. Never animate the
     // original GLB container or the player's morph target manager.
@@ -69,7 +73,7 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     const start = routePose(npc, 0);
     const reaction: { state: ActionState | null; clip: BoundAction | null } = { state: null, clip: null };
     const actions = new Map<string, BoundAction>();
-    return { npc, entries, holder, idle, walk, reaction, actions, eyelids, blink: initialNpcBlink(index), faceTargets, face: initialNpcFace(index), walked: 0, walkWeight: 0, heading: personHeading(start.dx, start.dz), visible: false, dodge: { x: 0, z: 0 }, dodgeTarget: { x: 0, z: 0 }, dodgeHold: 0 };
+    return { npc, entries, holder, idle, walk, reaction, actions, eyelids, blink: initialNpcBlink(index), faceTargets, face: initialNpcFace(index), facialMaterials, walked: 0, walkWeight: 0, heading: personHeading(start.dx, start.dz), visible: false, dodge: { x: 0, z: 0 }, dodgeTarget: { x: 0, z: 0 }, dodgeHold: 0 };
   });
 
   // Action clips (a separate download): people standing together talk with their hands; anyone can flinch.
@@ -125,7 +129,10 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
           person.visible = out;
           person.holder.setEnabled(out);
           for (const group of [person.idle, person.walk]) out ? group.play(true) : group.pause();
-          if (!out) person.face = resetNpcFace(person.face, person.faceTargets);
+          if (!out) {
+            person.face = resetNpcFace(person.face, person.faceTargets);
+            person.facialMaterials.reset();
+          }
         }
         if (!out) { delete live[person.npc.id]; continue; }
         // Advance only visible residents, avoiding hidden-scene morph updates.
@@ -181,6 +188,9 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
           flinch: flinch.weight,
           blink: person.blink,
         });
+        // Surface reactions use the same conversation mood and Hit response
+        // as the facial morphs; hidden residents never run these updates.
+        person.facialMaterials.update(dt, talking ? speaker.mood : 'neutral', person.walkWeight > 0.15, flinch.weight);
         // In conversation they turn to face you.
         const facing = talking && player && Math.hypot(player.x - pose.x, player.z - pose.z) > 0.05
           ? personHeading(player.x - pose.x, player.z - pose.z) : personHeading(pose.dx, pose.dz);
