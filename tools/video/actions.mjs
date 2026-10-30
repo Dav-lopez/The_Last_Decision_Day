@@ -159,8 +159,12 @@ await clickText('Reset view'); await canvas.focus(); await settle(0.5);
 await hold(['w', 'Shift', 'd']); await frames(0.5, 'lean-run');
 await hold([]); await settle(0.5);
 // Into the sedan by the school: walk forward, E, drive.
-await hold(['w']); await frames(1.9); await hold([]);
+const carPrompt = () => page.evaluate(() => [...document.querySelectorAll('button')].some(b => /Get in car/.test(b.textContent ?? '')));
+for (let t = 0; t < 40 && !(await carPrompt()); t++) { await hold(['w']); await frames(0.1); }
+await hold([]);
+console.log('car in reach:', await carPrompt());
 await page.keyboard.press('e'); await settle(1.5); await frames(0.1, 'driver-seated');
+await hold(['s']); await frames(1.0, 'car-reversing'); await hold([]); await settle(0.5);
 await hold(['w']); await frames(1.0, 'car-accelerating');
 await hold(['w', 'a']); await frames(0.6, 'car-turning');
 await hold(['s']); await frames(0.4, 'car-braking');
