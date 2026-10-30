@@ -534,7 +534,7 @@ export default function WorldScene({
         for (const node of carRoots[index] ?? []) { node.rotation.x = carBody.pitch; node.rotation.z = carBody.roll; }
       };
       // The driver stays visible behind the wheel (left seat), playing the Drive clip.
-      const DRIVER_SEAT = { x: -0.36, y: 0.02, z: -0.12 };
+      const DRIVER_SEAT = { x: -0.3, y: -0.3, z: -0.12 }; // seated pose: head below the roof line
       const seatDriver = (car: CarState) => {
         const c = Math.cos(car.rotation); const sn = Math.sin(car.rotation);
         avatar.position.set(car.x + DRIVER_SEAT.x * c + DRIVER_SEAT.z * sn, DRIVER_SEAT.y, car.z - DRIVER_SEAT.x * sn + DRIVER_SEAT.z * c);
