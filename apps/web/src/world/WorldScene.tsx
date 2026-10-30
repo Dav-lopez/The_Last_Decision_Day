@@ -25,6 +25,9 @@ import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mj
 import { PARKED_CARS } from './streetLayout.mjs';
 import { addWorldProps } from './polyHavenProps';
 import { buildHomeScene } from './homeScene';
+import './story.css';
+import { CAST, advanceStory, currentStep, markSceneSeen, pendingScene, readStory, writeStory,
+  type StoryEvent, type StoryLine, type StoryState } from './storyChapters.mjs';
 import { buildSurroundings } from './worldSurroundings';
 import { loadNeighbors, type Neighbors, type Person } from './npcPeople';
 import { buildSchoolScene } from './schoolScene';
@@ -404,6 +407,38 @@ export default function WorldScene({
   // Latest props for the scene's long-lived callbacks (attendance is recorded with the server activity).
   const classActionRef = useRef({ demoMode, canExecuteActivity, onExecuteActivity });
   classActionRef.current = { demoMode, canExecuteActivity, onExecuteActivity };
+  // Story: progress, the open dialogue scene and a brief "chapter complete" banner.
+  const [story, setStory] = useState<StoryState>(() => readStory(characterId));
+  const storyRef = useRef(story);
+  const [dialogue, setDialogue] = useState<{ lines: ReadonlyArray<StoryLine>; index: number } | null>(null);
+  const dialogueRef = useRef(false);
+  const [storyBanner, setStoryBanner] = useState('');
+  const saveStory = (next: StoryState) => { storyRef.current = next; writeStory(characterId, next); setStory(next); };
+  const openPendingScene = () => {
+    const scene = pendingScene(storyRef.current);
+    if (!scene || dialogueRef.current) return;
+    saveStory(markSceneSeen(storyRef.current));
+    dialogueRef.current = true;
+    inputRef.current.clear();
+    setDialogue({ lines: scene, index: 0 });
+  };
+  const advanceDialogue = () => {
+    setDialogue(current => {
+      if (!current) return current;
+      if (current.index + 1 < current.lines.length) return { ...current, index: current.index + 1 };
+      dialogueRef.current = false;
+      return null;
+    });
+  };
+  const reportStory = (event: StoryEvent) => {
+    const result = advanceStory(storyRef.current, event);
+    if (!result.completed) return;
+    saveStory(result.state);
+    if (result.chapterDone) setStoryBanner(`${result.chapterDone.title} — complete`);
+    openPendingScene();
+  };
+  const storyActionsRef = useRef({ reportStory, openPendingScene, advanceDialogue });
+  storyActionsRef.current = { reportStory, openPendingScene, advanceDialogue };
   const toggleCamera = () => {
     // Indoors the camera stays in its cutaway view; the street mode returns on leaving.
     if (locationRef.current === 'home' || locationRef.current === 'school') return;
@@ -606,7 +641,8 @@ export default function WorldScene({
       };
       syncLighting();
       const tickLife = (seconds: number, activity: LifeActivity) => {
-        if (schoolOpenRef.current) return;
+        // Time stands still while reading a panel or a story scene.
+        if (schoolOpenRef.current || dialogueRef.current) return;
         life = advanceLife(life, seconds, activity);
         syncLighting();
         lifeHudTimer += seconds;
@@ -683,6 +719,7 @@ export default function WorldScene({
       };
       const enterHome = () => {
         locationRef.current = 'home';
+        storyActionsRef.current.reportStory('entered-home');
         placePlayer(HOME_SPAWN);
         cameraControls.setMode('indoor', true);
         snapCamera(position, Math.PI / 2);
@@ -699,10 +736,12 @@ export default function WorldScene({
         cameraControls.setMode(cameraModeRef.current, true);
         snapCamera(position, -Math.PI / 2);
         setInHome(false);
+        storyActionsRef.current.reportStory('left-home');
         saveToAccount();
       };
       const enterSchool = () => {
         locationRef.current = 'school';
+        storyActionsRef.current.reportStory('entered-school');
         placePlayer(CLASSROOM_SPAWN);
         cameraControls.setMode('indoor', true);
         snapCamera(position, Math.PI / 2);
@@ -743,6 +782,7 @@ export default function WorldScene({
       }
       // E (or the on-screen button): car in/out, the home's doors, then the nearest car.
       const interact = () => {
+        if (dialogueRef.current) { storyActionsRef.current.advanceDialogue(); return; }
         // Nothing to do mid-lesson or asleep; the fade finishes on its own.
         if (schoolOpenRef.current || interaction.mode === 'sitting' || interaction.mode === 'sleeping') return;
         const index = drivenIndex();
@@ -835,6 +875,10 @@ export default function WorldScene({
         } else if (key === 'c' && !event.repeat) {
           event.preventDefault();
           toggleCamera();
+        } else if (dialogueRef.current && (key === 'e' || key === 'Enter' || key === ' ') && !event.repeat) {
+          // E, Enter or Space moves the story scene on.
+          event.preventDefault();
+          storyActionsRef.current.advanceDialogue();
         } else if (key === 'e' && !event.repeat) {
           event.preventDefault();
           // Inside the classroom the teacher opens the school activities; everywhere else E is the action button.
@@ -899,6 +943,7 @@ export default function WorldScene({
             interaction = transitionInteraction(interaction, 'exit');
             avatar.setEnabled(true);
             setSleeping(false);
+            storyActionsRef.current.reportStory('slept');
             notify(`Good morning! Day ${life.day} · ${formatClock(life.minute)} · slept ${Math.round(rest.hoursSlept)} h · energy ${Math.round(life.energy)}%`);
           }
           home.setFadedWalls(wallsToFade(camera.position), delta);
@@ -921,6 +966,7 @@ export default function WorldScene({
             if (action.demoMode) notify(`${lesson.title} done! Sign in to have lessons count toward your grades.`);
             else if (!action.canExecuteActivity(1)) notify(`${lesson.title} done, but you have no school time left today, so it wasn't counted.`);
             else { action.onExecuteActivity('attend-class'); notify(`${lesson.title} done! Attendance recorded.`); }
+            storyActionsRef.current.reportStory('attended-class');
             saveToAccount();
           }
           school.setFadedWalls(wallsToFadeFor(SCHOOL_ORIGIN, CLASSROOM, camera.position), delta);
@@ -935,7 +981,7 @@ export default function WorldScene({
         if (driven >= 0) {
           tickLife(delta, 'drive');
           // Car-relative controls: W/S accelerate, brake and reverse; A/D steer.
-          const keys = schoolOpenRef.current ? new Set<string>() : inputRef.current.pressed;
+          const keys = schoolOpenRef.current || dialogueRef.current ? new Set<string>() : inputRef.current.pressed;
           const others = cars.filter((_, index) => index !== driven);
           const next = stepVehicle(cars[driven], driveInput(keys), delta, others, peopleOut);
           cars[driven] = { x: next.x, z: next.z, rotation: next.rotation, speed: next.speed };
@@ -964,7 +1010,7 @@ export default function WorldScene({
         const inSchool = locationRef.current === 'school';
         const city = locationRef.current === 'city' ? downtown : null;
         const tired = isExhausted(life);
-        const pressed = schoolOpenRef.current ? new Set<string>() : inputRef.current.pressed;
+        const pressed = schoolOpenRef.current || dialogueRef.current ? new Set<string>() : inputRef.current.pressed;
         // Exhausted players can still walk home, but not run.
         const walkKeys = tired ? new Set([...pressed].filter(key => key !== 'Shift')) : pressed;
         const locomotion = atHome
@@ -1003,6 +1049,7 @@ export default function WorldScene({
             setWayfinding(previous => previous === label ? previous : label);
             const carInReach = closestInteraction(position, carTargets()) !== null;
             setNearCar(previous => previous === carInReach ? previous : carInReach);
+            if (isNearSchool(position)) storyActionsRef.current.reportStory('reached-school');
             const door = streetDoorAt(position);
             const prompt = door ? (door.own ? 'enter' : 'locked')
               : isNearSchool(position) ? (isSchoolOpen(life.minute) ? 'school' : 'school-closed') : null;
@@ -1112,8 +1159,19 @@ export default function WorldScene({
 
   useEffect(() => {
     schoolOpenRef.current = schoolOpen;
-    if (schoolOpen) inputRef.current.clear();
+    if (schoolOpen) { inputRef.current.clear(); storyActionsRef.current.reportStory('talked-teacher'); }
   }, [schoolOpen]);
+
+  // The opening scene plays once the world has had a moment to appear.
+  useEffect(() => {
+    const timer = window.setTimeout(() => storyActionsRef.current.openPendingScene(), 1800);
+    return () => window.clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    if (!storyBanner) return;
+    const timer = window.setTimeout(() => setStoryBanner(''), 5000);
+    return () => window.clearTimeout(timer);
+  }, [storyBanner]);
 
   const touch = (key: string, down: boolean, event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -1171,6 +1229,24 @@ export default function WorldScene({
         {inClass && <div className="world-sleep world-class" role="status" aria-live="polite"><span>{inClass} class…</span></div>}
         <div className="world-caption"><strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : inCity ? inCity : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
+        {(() => {
+          const { chapter, step } = currentStep(story);
+          return <div className="story-objective" aria-live="polite"><small>{chapter.title}</small><strong>{step.objective}</strong></div>;
+        })()}
+        {storyBanner && <div className="story-banner" role="status">{storyBanner}</div>}
+        {dialogue && (() => {
+          const current = dialogue.lines[dialogue.index];
+          const cast = CAST[current.speaker];
+          return <div className="story-scene" role="dialog" aria-label="Story scene" onClick={() => advanceDialogue()}>
+            <div className="story-letterbox story-letterbox-top" />
+            <div className="story-letterbox story-letterbox-bottom" />
+            <div className={`story-box story-${cast.tone}`}>
+              {cast.name && <span className="story-speaker">{cast.name}</span>}
+              <p>{current.text}</p>
+              <span className="story-continue">{dialogue.index + 1}/{dialogue.lines.length} · E, Enter or click to continue ▸</span>
+            </div>
+          </div>;
+        })()}
         {driving && <div className="world-drive-hud" role="status" aria-live="polite">
           <strong>{driveSpeed}</strong>km/h · W/S gas, brake, reverse · A/D steer · E to get out when stopped
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
