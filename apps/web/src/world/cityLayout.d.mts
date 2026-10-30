@@ -1,0 +1,21 @@
+import type { PlanarPosition } from './movement.mjs';
+export type Ring = ReadonlyArray<readonly [number, number] | number[]>;
+export type CityBuilding = { id: number; ring: number[][]; height: number; kind: string; name: string; shop: boolean };
+export type CityRoad = { id: number; points: number[][]; kind: string; width: number; name: string };
+export type CityPark = { id: number; ring: number[][]; name: string };
+export type City = { id: string; name: string; attribution: string; halfSize: number[]; buildings: CityBuilding[]; roads: CityRoad[]; parks: CityPark[] };
+export type CityCollider = { blockedLocal: (x: number, z: number, people?: ReadonlyArray<{ x: number; z: number; radius?: number }>) => boolean };
+export declare const CITY_ORIGIN: Readonly<PlanarPosition>;
+export declare function readCity(data: unknown): City | null;
+export declare function ringArea(ring: Ring): number;
+export declare function triangulate(ring: Ring): number[][];
+export declare function pointInRing(x: number, z: number, ring: Ring): boolean;
+export declare function createCityCollider(city: City): CityCollider;
+export declare function toWorld(point: readonly number[]): PlanarPosition;
+export declare function toLocal(position: PlanarPosition): [number, number];
+export declare function findBusStop(city: City, collider: CityCollider): { x: number; z: number; heading: number; street: string } | null;
+export declare function stepCityLocomotion(collider: CityCollider, position: PlanarPosition, keys: ReadonlySet<string>, seconds: number,
+  sprintEnabled: boolean, cameraForward?: PlanarPosition): { position: PlanarPosition; speed: number; moving: boolean; motion: 'idle' | 'walk' | 'run' };
+export declare const MAPLE_BUS_STOP: Readonly<PlanarPosition>;
+export declare const BUS_RIDE_MINUTES: number;
+export declare function atBusStop(position: PlanarPosition, stop: PlanarPosition | null | undefined): boolean;

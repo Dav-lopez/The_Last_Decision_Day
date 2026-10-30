@@ -1,0 +1,9 @@
+{
+  "cities": [
+    {
+      "id": "boulder-pearl-street",
+      "name": "Downtown Boulder, Colorado",
+      "file": "boulder-pearl-street.json"
+    }
+  ]
+}

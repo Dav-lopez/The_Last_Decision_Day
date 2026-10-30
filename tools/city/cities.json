@@ -1,0 +1,6 @@
+{
+  "comment": "Real places built from OpenStreetMap (© OpenStreetMap contributors, ODbL). bbox is [south, west, north, east] in degrees. Add a city here and run the city workflow.",
+  "cities": [
+    { "id": "boulder-pearl-street", "name": "Downtown Boulder, Colorado", "bbox": [40.0148, -105.2840, 40.0200, -105.2760] }
+  ]
+}
