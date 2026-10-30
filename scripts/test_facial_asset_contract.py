@@ -68,7 +68,7 @@ def fixture():
 def glb(doc, binary):
     encoded = json.dumps(doc, separators=(",", ":")).encode()
     encoded += b" " * (-len(encoded) % 4)
-    binary += b"\\0" * (-len(binary) % 4)
+    binary += b"\0" * (-len(binary) % 4)
     total = 28 + len(encoded) + len(binary)
     return (struct.pack("<III", 0x46546C67, 2, total) +
             struct.pack("<II", len(encoded), 0x4E4F534A) + encoded +
