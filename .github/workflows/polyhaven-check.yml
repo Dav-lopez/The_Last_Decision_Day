@@ -1,0 +1,39 @@
+name: Poly Haven fetch (diagnostic)
+# Same steps as "Propose Poly Haven models PR", but commits the models, the
+# manifest and the full test output back to this branch so failures can be read.
+on:
+  push:
+    branches: [media/polyhaven-models]
+    paths: [tools/assets/**, .github/workflows/polyhaven-check.yml, apps/web/tests/polyhaven-*.mjs]
+permissions:
+  contents: write
+defaults:
+  run:
+    shell: bash -o pipefail {0}
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fetch, install and test (logged)
+        run: |
+          mkdir -p diagnostics
+          python tools/assets/polyhaven_fetch.py 2>&1 | tee diagnostics/fetch.log; echo "fetch exit ${PIPESTATUS[0]}" >> diagnostics/fetch.log
+          npm --prefix apps/web install > diagnostics/npm.log 2>&1
+          node --test apps/web/tests/polyhaven-props.test.mjs > diagnostics/props-test.log 2>&1; echo "exit $?" >> diagnostics/props-test.log
+          node --test apps/web/tests/polyhaven-import.test.mjs > diagnostics/import-test.log 2>&1; echo "exit $?" >> diagnostics/import-test.log
+      - name: Commit models and diagnostics
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add diagnostics apps/web/public/models/polyhaven || true
+          git commit -m "diagnostics: Poly Haven fetch [skip ci]" || echo "nothing new"
+          git push
