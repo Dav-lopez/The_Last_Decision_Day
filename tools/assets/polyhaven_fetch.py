@@ -71,6 +71,16 @@ def download_checked(entry: dict, target: Path) -> None:
     target.write_bytes(data)
 
 
+def real_size(info: dict, asset_id: str) -> list[float]:
+    """Poly Haven lists real-world dimensions in millimetres as [width, depth, height] (Blender, Z up).
+    The game is Y up, so return [x, height, z] in metres."""
+    dimensions = info.get('dimensions')
+    if not (isinstance(dimensions, list) and len(dimensions) == 3 and all(isinstance(v, (int, float)) and v > 0 for v in dimensions)):
+        raise SystemExit(f'{asset_id} has no usable dimensions in its Poly Haven info')
+    width, depth, height = (round(v / 1000, 3) for v in dimensions)
+    return [width, height, depth]
+
+
 def glb_summary(path: Path) -> dict:
     raw = path.read_bytes()
     assert raw[:4] == b'glTF', f'{path.name} is not a GLB'
@@ -80,17 +90,12 @@ def glb_summary(path: Path) -> dict:
     assert document['asset']['version'] == '2.0'
     meshes = document.get('meshes', [])
     assert meshes, f'{path.name} contains no meshes'
-    lows, highs = [float('inf')] * 3, [float('-inf')] * 3
-    for mesh in meshes:
-        for primitive in mesh['primitives']:
-            accessor = document['accessors'][primitive['attributes']['POSITION']]
-            for axis in range(3):
-                lows[axis] = min(lows[axis], accessor['min'][axis])
-                highs[axis] = max(highs[axis], accessor['max'][axis])
     # External URIs would break offline/self-hosted play; everything must be embedded.
     for image in document.get('images', []):
         assert 'uri' not in image, f'{path.name} references an external image'
-    return {'meshes': len(meshes), 'sizeMeters': [round(h - l, 3) for l, h in zip(lows, highs)]}
+    # Sizes come from Poly Haven's listed dimensions (real_size): quantized geometry stores
+    # positions as integers, so accessor bounds are not metres.
+    return {'meshes': len(meshes)}
 
 
 def convert(source_gltf: Path, target: Path, texture_size: int) -> None:
@@ -135,7 +140,7 @@ def main() -> int:
                     break
             if target.stat().st_size > config['maxBytes']:
                 raise SystemExit(f'{asset_id} is still {target.stat().st_size} bytes after downscaling')
-        summary = glb_summary(target)
+        summary = {**glb_summary(target), 'sizeMeters': real_size(info, asset_id)}
         record = {
             'slot': slot['slot'], 'id': asset_id, 'name': info.get('name', asset_id),
             'authors': sorted(info.get('authors', {})), 'page': f'https://polyhaven.com/a/{asset_id}',
