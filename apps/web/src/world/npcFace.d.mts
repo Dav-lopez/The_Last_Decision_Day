@@ -7,7 +7,7 @@ export type NpcFaceContext = {
   blink?: { left: number; right: number };
 };
 export type NpcMorph = { name: string; influence: number };
-export type NpcFaceState = { elapsed: number; motions: Map<string, { value: number; velocity: number }> };
+export type NpcFaceState = { elapsed: number; motions: Map<string, { value: number; velocity: number }>; frame: Map<string, number> };
 export declare function collectNpcFaceTargets(meshes: ReadonlyArray<{ morphTargetManager?: { numTargets: number; getTarget(index: number): NpcMorph } | null }>): NpcMorph[];
 export declare function initialNpcFace(index: number): NpcFaceState;
 export declare function npcFaceTarget(name: string, elapsed: number, context?: NpcFaceContext): number;

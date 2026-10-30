@@ -1,5 +1,4 @@
-import { advanceFacialMorph } from './faceDynamics.mjs';
-import { composeEyeExpression } from './eyeExpression.mjs';
+import { advanceSharedFacialMorph } from './facialMorphSync.mjs';
 import { idleGazeTarget } from './gazeDynamics.mjs';
 
 const FACIAL_MORPH = /^(?:eye(?:Look(?:Up|Down)|Wide|Squint)(?:Left|Right)|brow(?:InnerUp|DownLeft|DownRight)|cheekSquint(?:Left|Right)|jawOpen|mouth(?:Open|SmileLeft|SmileRight|PressLeft|PressRight))$/;
@@ -21,7 +20,7 @@ export function collectNpcFaceTargets(meshes) {
 /** Stable offset keeps residents from speaking and glancing in synchrony. */
 export function initialNpcFace(index) {
   const id = Number.isSafeInteger(index) && index >= 0 ? index : 0;
-  return { elapsed: (id * 0.83) % 14.4, motions: new Map() };
+  return { elapsed: (id * 0.83) % 14.4, motions: new Map(), frame: new Map() };
 }
 
 /** Small, bounded poses layered over each resident's existing locomotion/action clips. */
@@ -54,17 +53,19 @@ export function advanceNpcFace(state, seconds, targets, context = {}) {
   const dt = Number.isFinite(seconds) ? Math.max(0, Math.min(seconds, 0.1)) : 0;
   const elapsed = (Number.isFinite(state?.elapsed) ? Math.max(0, state.elapsed) : 0) + dt;
   const motions = state?.motions instanceof Map ? state.motions : new Map();
+  const frame = state?.frame instanceof Map ? state.frame : new Map();
+  frame.clear();
   for (const morph of targets) {
-    const prior = motions.get(morph.name) ?? { value: Number.isFinite(morph.influence) ? morph.influence : 0, velocity: 0 };
-    const next = advanceFacialMorph(prior, npcFaceTarget(morph.name, elapsed, context), dt, morph.name);
-    motions.set(morph.name, next);
-    morph.influence = composeEyeExpression(morph.name, next.value, context.blink);
+    morph.influence = advanceSharedFacialMorph(
+      morph.name, morph.influence, npcFaceTarget(morph.name, elapsed, context),
+      dt, context.blink, motions, frame,
+    );
   }
-  return { elapsed, motions };
+  return { elapsed, motions, frame };
 }
 
 /** Reset invisible residents so a previous surprise does not reappear hours later. */
 export function resetNpcFace(state, targets) {
   for (const morph of targets) morph.influence = 0;
-  return { elapsed: Number.isFinite(state?.elapsed) ? state.elapsed : 0, motions: new Map() };
+  return { elapsed: Number.isFinite(state?.elapsed) ? state.elapsed : 0, motions: new Map(), frame: new Map() };
 }
