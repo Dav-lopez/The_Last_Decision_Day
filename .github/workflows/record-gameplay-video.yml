@@ -1,0 +1,48 @@
+name: Record gameplay video
+# Runs when this media branch is pushed. Builds the game, films a scripted
+# guest tour in headless Chrome and commits the result back to the branch.
+on:
+  push:
+    branches: [media/gameplay-video]
+    paths: [tools/video/**, .github/workflows/record-gameplay-video.yml]
+permissions:
+  contents: write
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install the game and the recorder
+        run: |
+          npm --prefix apps/web install
+          npm --prefix tools/video install --no-save playwright@1.56.1
+          npx --prefix tools/video playwright install --with-deps chromium
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+      - name: Build the game
+        run: npm --prefix apps/web run build
+      - name: Film the tour
+        run: |
+          MODE=$(cat tools/video/MODE)
+          npx --prefix apps/web vite preview --host 127.0.0.1 --port 4173 --strictPort &
+          npx --yes wait-on@8 http://127.0.0.1:4173/ --timeout 60000
+          node tools/video/record.mjs http://127.0.0.1:4173/ video-out "$MODE"
+      - name: Encode the video
+        if: hashFiles('tools/video/MODE') != ''
+        run: |
+          mkdir -p media
+          if [ "$(cat tools/video/MODE)" = "full" ]; then
+            python3 tools/video/encode.py video-out media/the-last-decision-gameplay.mp4
+          else
+            cp video-out/preview-*.jpg media/
+          fi
+      - name: Commit the result to this branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add media
+          git commit -m "media: $(cat tools/video/MODE) render [skip ci]" || echo "nothing new"
+          git push
