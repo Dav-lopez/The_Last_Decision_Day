@@ -1488,7 +1488,9 @@ export default function WorldScene({
             if (next.collided) notify('Bump! Reverse with S to back away.');
             else if (clock - noticeAt > 2.5) setDriveNotice(previous => previous ? '' : previous);
             const waypoint = schoolWaypoint(next, cameraForward);
-            const label = waypoint.distance === null ? '' : 'School · ' + Math.ceil(waypoint.distance) + ' m · ' + waypoint.direction;
+            const label = locationRef.current === 'city' && downtown
+              ? `${downtown.city.name} · drive to the edge of downtown to go home · map: N`
+              : waypoint.distance === null ? '' : 'School · ' + Math.ceil(waypoint.distance) + ' m · ' + waypoint.direction + ' · road to downtown: north';
             setWayfinding(previous => previous === label ? previous : label);
           }
           if (previousNear) { previousNear = false; nearSchoolRef.current = false; setNearSchool(false); }
