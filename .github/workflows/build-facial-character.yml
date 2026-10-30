@@ -10,6 +10,8 @@ on:
       - 'scripts/test_facial_mouth.py'
       - 'scripts/facial_cheeks.py'
       - 'scripts/facial_nose.py'
+      - 'scripts/facial_ears.py'
+      - 'scripts/test_facial_ears.py'
       - 'scripts/facial_eyelids.py'
       - 'scripts/facial_cornea.py'
       - 'scripts/test_facial_cornea.py'
@@ -39,6 +41,7 @@ jobs:
           python scripts/test_facial_gaze.py
           python scripts/test_facial_cheeks.py
           python scripts/test_facial_nose.py
+          python scripts/test_facial_ears.py
           python scripts/test_facial_eyelids.py
           python scripts/test_facial_cornea.py
           python scripts/test_facial_release_parity.py
@@ -106,6 +109,12 @@ jobs:
           assert {'POSITION', 'NORMAL', 'JOINTS_0', 'WEIGHTS_0'} <= set(nose_prim['attributes'])
           assert d['accessors'][nose_prim['attributes']['POSITION']]['count'] >= 100
           assert any(n.get('mesh') == d['meshes'].index(nose) and n.get('skin') == 0 for n in d['nodes'])
+          ears = next(mesh for mesh in d['meshes'] if mesh['name'] == 'Student sculpted ears')
+          ear_prim = ears['primitives'][0]
+          assert ear_prim['material'] == 0, 'Ears must inherit customizable skin material'
+          assert {'POSITION', 'NORMAL', 'JOINTS_0', 'WEIGHTS_0'} <= set(ear_prim['attributes'])
+          assert d['accessors'][ear_prim['attributes']['POSITION']]['count'] >= 140
+          assert any(n.get('mesh') == d['meshes'].index(ears) and n.get('skin') == 0 for n in d['nodes'])
           assert len(d.get('skins', [])) > 0
           assert {'Idle','Walk','Run'} <= {a['name'] for a in d.get('animations', [])}
           print('Facial geometry, skin and locomotion clips verified')
