@@ -84,8 +84,8 @@ function App() {
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [birthDate, setBirthDate] = useState('');
-  const [inviteToken, setInviteToken] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [gameAge, setGameAge] = useState(18);
   const [busy, setBusy] = useState(false);
@@ -216,7 +216,7 @@ function App() {
     setBusy(true); setMessage('');
     try {
       const data = mode === 'login' ? { email, password } :
-        { email, password, dateOfBirth: birthDate, inviteToken };
+        { email, password, dateOfBirth: birthDate };
       const result = await post<Session>(`/api/v1/auth/${mode}`, data);
       actionGate.current.resetSession();
       pendingAction.current = null;
@@ -230,7 +230,7 @@ function App() {
         else if (response.status !== 404)
           setMessage('Signed in, but the character profile could not be loaded. Refresh to retry.');
       }
-      setPassword('');
+      setPassword(''); setConfirmPassword('');
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Authentication failed.'); }
     finally { setBusy(false); }
   }
@@ -288,8 +288,8 @@ function App() {
           <label>Email<input type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required /></label>
           <label>Password<input type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={mode === 'register' ? 12 : undefined} value={password} onChange={e => setPassword(e.target.value)} required /></label>
           {mode === 'register' && <>
+            <label>Confirm password<input type="password" autoComplete="new-password" minLength={12} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required /></label>
             <label>Date of birth<input type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)} required /></label>
-            <label>Invitation token<input autoComplete="off" value={inviteToken} onChange={e => setInviteToken(e.target.value)} required /></label>
           </>}
           <button disabled={busy}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}</button>
           <p>{mode === 'login' ? 'New here? Choose Create account above. An invitation is required.' : 'Already have an account? Choose Sign in above.'}</p>
