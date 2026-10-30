@@ -1,0 +1,28 @@
+name: Build city from OpenStreetMap (diagnostic)
+on:
+  push:
+    branches: [media/osm-city]
+    paths: [tools/city/**, .github/workflows/osm-city.yml]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Query OpenStreetMap and write city files
+        run: |
+          mkdir -p diagnostics
+          python tools/city/osm_city.py 2>&1 | tee diagnostics/city.log
+      - name: Commit the city data
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add diagnostics apps/web/public/city || true
+          git commit -m "city: OpenStreetMap build [skip ci]" || echo "nothing new"
+          git push
