@@ -3,9 +3,10 @@ import '@babylonjs/loaders/glTF';
 import { cloneEnvironmentAtSites } from './environmentInstances.mjs';
 import { PROP_SITES, carFit, propScale, type PropSite, type PropType } from './propLayout.mjs';
 import { HOME_FURNITURE } from './homeInterior.mjs';
+import { CLASSROOM_FURNITURE } from './schoolInterior.mjs';
 
 /** Every placed prop: street plants and benches plus the home's furniture. */
-const ALL_SITES: ReadonlyArray<PropSite> = [...PROP_SITES, ...HOME_FURNITURE];
+const ALL_SITES: ReadonlyArray<PropSite> = [...PROP_SITES, ...HOME_FURNITURE, ...CLASSROOM_FURNITURE];
 
 export type PolyHavenAsset = { slot: string; id: string; name: string; file: string; placed: boolean; rotation: number; sizeMeters: number[] };
 export type PolyHavenManifest = { license: string; assets: PolyHavenAsset[] };
@@ -102,6 +103,17 @@ function addFallbackProps(scene: Scene): Map<PropType, TransformNode[]> {
         lampShade.position.y = 1.78; lampShade.material = m.shade; lampShade.parent = root;
         break;
       }
+      case 'desk':
+        box('desk top', 0.88, 0.04, 0.58, 0, 0.74, 0, m.wood);
+        box('desk book box', 0.82, 0.12, 0.5, 0, 0.6, 0, m.metal);
+        legs(0.4, 0.25, 0.72, m.metal);
+        break;
+      case 'teacher_desk':
+        box('teacher desk top', 1.58, 0.05, 0.78, 0, 0.76, 0, m.wood);
+        box('teacher desk front panel', 1.5, 0.6, 0.04, 0, 0.44, 0.35, m.wood);
+        for (const x of [-0.75, 0.75]) box('teacher desk side', 0.04, 0.74, 0.76, x, 0.37, 0, m.wood);
+        box('teacher desk books', 0.3, 0.12, 0.22, -0.5, 0.85, -0.1, m.blanket);
+        break;
       case 'shelf':
         for (const x of [-0.7, 0.7]) box('shelf side', 0.05, 2.05, 0.4, x, 1.025, 0, m.wood);
         for (let level = 0; level < 5; level++) box('shelf board', 1.4, 0.04, 0.4, 0, 0.06 + level * 0.48, 0, m.wood);

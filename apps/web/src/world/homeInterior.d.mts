@@ -22,4 +22,5 @@ export declare function stepHomeLocomotion(position: PlanarPosition, keys: Reado
   sprintEnabled: boolean, cameraForward?: PlanarPosition): {
     position: PlanarPosition; speed: number; moving: boolean; motion: 'idle' | 'walk' | 'run';
   };
+export declare function wallsToFadeFor(origin: PlanarPosition, room: { halfWidth: number; halfDepth: number }, cameraPosition: PlanarPosition): WallId[];
 export declare function wallsToFade(cameraPosition: PlanarPosition): WallId[];

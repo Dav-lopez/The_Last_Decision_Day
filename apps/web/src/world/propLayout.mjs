@@ -18,6 +18,8 @@ export const PROP_TYPES = Object.freeze({
   bed: Object.freeze({ targetHeight: 1.0, maxFootprint: 2.4, halfX: 0.85, halfZ: 1.2 }),
   floor_lamp: Object.freeze({ targetHeight: 1.6, maxFootprint: 0.45, halfX: 0.22, halfZ: 0.22 }),
   shelf: Object.freeze({ targetHeight: 1.8, maxFootprint: 1.45, halfX: 0.72, halfZ: 0.22 }),
+  desk: Object.freeze({ targetHeight: 0.75, maxFootprint: 0.95, halfX: 0.45, halfZ: 0.3 }),
+  teacher_desk: Object.freeze({ targetHeight: 0.78, maxFootprint: 1.65, halfX: 0.8, halfZ: 0.4 }),
 });
 
 const ENTRY_OFFSET = 0.85;
