@@ -20,6 +20,7 @@ from facial_gaze import GAZE_TARGETS, gaze_delta
 from facial_cheeks import build_cheek_geometry
 from facial_nose import build_nose_geometry
 from facial_eyelids import build_eyelid_geometry
+from facial_cornea import build_cornea_geometry
 from facial_droplets import DROPLET_KINDS, DROPLET_SIDES, build_droplet_geometry
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -491,6 +492,35 @@ def build(files, variant):
     b.doc["nodes"].append({"name": "Student eyelid rim surface", "mesh": eyelid_mesh, "skin": 0})
     b.doc["nodes"][scene_root]["children"].append(len(b.doc["nodes"]) - 1)
 
+    # Shallow convex corneal films add a controlled specular response over the
+    # existing eye texture. Bilateral blink/gaze morphs follow the same rig,
+    # and all vertices follow the Head joint on both body variants.
+    cornea = on_this_face(build_cornea_geometry(body_joint["Head"]))
+    cornea_material = len(b.doc["materials"])
+    cornea_mat = matte("Student corneal film", [.82, .93, 1.0], .07)
+    cornea_mat["doubleSided"] = False
+    cornea_mat["alphaMode"] = "BLEND"
+    cornea_mat["pbrMetallicRoughness"]["baseColorFactor"][3] = 0.16
+    b.doc["materials"].append(cornea_mat)
+    cornea_mesh = len(b.doc["meshes"])
+    b.doc["meshes"].append({
+        "name": "Student corneal shells",
+        "primitives": [{
+            "attributes": {
+                "POSITION": b.accessor(cornea["positions"], "VEC3", bounds=True),
+                "NORMAL": b.accessor(cornea["normals"], "VEC3"),
+                "JOINTS_0": b.accessor(cornea["joints"], "VEC4", 5121),
+                "WEIGHTS_0": b.accessor(cornea["weights"], "VEC4"),
+            },
+            "indices": b.accessor(cornea["indices"], "SCALAR", 5123),
+            "material": cornea_material,
+            "targets": [{"POSITION": b.accessor(deltas, "VEC3")} for deltas in cornea["targets"]],
+        }],
+        "extras": {"targetNames": list(cornea["names"])},
+    })
+    b.doc["nodes"].append({"name": "Student corneal surface", "mesh": cornea_mesh, "skin": 0})
+    b.doc["nodes"][scene_root]["children"].append(len(b.doc["nodes"]) - 1)
+
     # Transparent, head-skinned droplet surfaces are authored into the GLB,
     # not parented to the world origin. A dedicated morph slides each patch
     # down the face; Babylon fades it in only for the corresponding emotion.
@@ -583,7 +613,7 @@ def build(files, variant):
                 "body": variant,
                 "output": {"file": config["output"], "bytes": len(glb), "sha256": hashlib.sha256(glb).hexdigest(),
                            "morphTargets": sorted({name for mesh in b.doc["meshes"] for name in mesh.get("extras", {}).get("targetNames", [])})},
-                "modifications": ["Keep only Idle_Loop, Walk_Loop and Sprint_Loop, exported as Idle/Walk/Run.", "Rebase local rotations onto the character bind pose; retain target limb lengths.", "Preserve pelvis bob and remove horizontal root travel; gameplay controls world movement.", "Add parted hair, remap hair joints, split clothing/skin materials for browser customization.", "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes.", "Add a skinned expressive lip surface with smile, frown, press and open morphs.", "Add head-skinned cheek squint targets and transparent blush surfaces.", "Add head-skinned animated translucent tear and sweat droplets.", "Add a head-skinned sculpted nose bridge and tip sharing the skin material.", "Add skinned upper/lower eyelid rims and tapered lashes driven by bilateral blink morphs.", "Split the outfit into zones painted in the browser (sleeves, midriff, waist, thighs, knees, shins, socks, shoes, soles).", "Ship every hairstyle (parted, buzzed, pixie, long, buns, beard) moved onto this head by the eye-centre difference; the browser shows one.", "Add a skinned flared skirt (pelvis and thighs), hidden unless worn."]}
+                "modifications": ["Keep only Idle_Loop, Walk_Loop and Sprint_Loop, exported as Idle/Walk/Run.", "Rebase local rotations onto the character bind pose; retain target limb lengths.", "Preserve pelvis bob and remove horizontal root travel; gameplay controls world movement.", "Add parted hair, remap hair joints, split clothing/skin materials for browser customization.", "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes.", "Add a skinned expressive lip surface with smile, frown, press and open morphs.", "Add head-skinned cheek squint targets and transparent blush surfaces.", "Add head-skinned animated translucent tear and sweat droplets.", "Add a head-skinned sculpted nose bridge and tip sharing the skin material.", "Add skinned upper/lower eyelid rims and tapered lashes driven by bilateral blink morphs.", "Add shallow transparent head-skinned corneal films with bilateral blink and gaze morphs.", "Split the outfit into zones painted in the browser (sleeves, midriff, waist, thighs, knees, shins, socks, shoes, soles).", "Ship every hairstyle (parted, buzzed, pixie, long, buns, beard) moved onto this head by the eye-centre difference; the browser shows one.", "Add a skinned flared skirt (pelvis and thighs), hidden unless worn."]}
     (OUTPUT / config["manifest"]).write_text(json.dumps(manifest, indent=2)+"\n")
     print(f"Built {config['output']}: {len(glb):,} bytes with {len(b.doc['animations'])} animation clips.")
 
