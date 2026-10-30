@@ -5,6 +5,7 @@ import { faceTarget, approachFace, type Emotion } from './facialEmotions';
 import { EMPTY_EFFECTS, smoothFacialEffects, targetFacialEffects } from './facialEffects';
 import { dropletCycle } from './facialDroplets.mjs';
 import { stepBlink } from './blinkCycle.mjs';
+import { composeEyeExpression } from './eyeExpression.mjs';
 import { blendHumanWeights, classifyHumanMotion, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 
@@ -106,7 +107,10 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
         'Regenerate the model with scripts/build-character.py and review the generated asset PR.');
     }
     let effectTime = 0;
-    let blinkState = { elapsed: 0, count: 0 };
+    // Initialize with the full BlinkFrame type, including left/right eyelid values.
+    let blinkState = stepBlink({ elapsed: 0, count: 0 }, 0);
+    // Preserve the underlying emotional pose while a blink temporarily masks it.
+    const expressionInfluences = new Map<string, number>();
     let disposed = false;
     return {
       root,
@@ -173,7 +177,10 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
             // slow expression filter prevents a full closure on short blinks.
             morph.influence = morph.name.endsWith('Left') ? blinkState.left : blinkState.right;
           } else {
-            morph.influence = approachFace(morph.influence, faceTarget(emotion, morph.name), frameSeconds);
+            const smoothed = approachFace(expressionInfluences.get(morph.name) ?? morph.influence,
+              faceTarget(emotion, morph.name), frameSeconds);
+            expressionInfluences.set(morph.name, smoothed);
+            morph.influence = composeEyeExpression(morph.name, smoothed, blinkState);
           }
         }
         const target = classifyHumanMotion(movementSpeed);
