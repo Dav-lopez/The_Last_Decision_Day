@@ -43,6 +43,22 @@ test('chapter one plays from arrival to the note in order, one scene per step', 
   assert.equal(currentStep(state).chapter.id, 'the-note');
 });
 
+test('the mystery-note chapter advances only from real classmate conversations', () => {
+  let state = { chapter: 1, step: 0, seen: true };
+  assert.equal(advanceStory(state, 'talked-jordan').completed, null);
+  let result = advanceStory(state, 'talked-maya');
+  assert.equal(result.completed?.id, 'ask-around');
+  state = result.state;
+  assert.equal(currentStep(state).step.id, 'ask-jordan');
+  result = advanceStory(state, 'talked-jordan');
+  assert.equal(result.completed?.id, 'ask-jordan');
+  state = result.state;
+  result = advanceStory(state, 'talked-teacher');
+  assert.equal(result.completed?.id, 'ask-rivera');
+  assert.equal(result.chapterDone?.id, 'the-note');
+  assert.equal(currentStep(result.state).chapter.id, 'follow-the-lead');
+});
+
 test('the last chapter waits for new content instead of wrapping around', () => {
   const last = { chapter: CHAPTERS.length - 1, step: CHAPTERS.at(-1).steps.length - 1, seen: true };
   for (const event of STORY_EVENTS) assert.deepEqual(advanceStory(last, event).state, last);

@@ -25,7 +25,7 @@ export function initialNpcFace(index) {
 }
 
 /** Small, bounded poses layered over each resident's existing locomotion/action clips. */
-export function npcFaceTarget(name, elapsed, { talking = false, nearby = false, moving = false, flinch = 0 } = {}) {
+export function npcFaceTarget(name, elapsed, { talking = false, nearby = false, moving = false, flinch = 0, emotion = 'neutral' } = {}) {
   if (!FACIAL_MORPH.test(name)) return 0;
   const startled = Number.isFinite(flinch) ? Math.min(1, Math.max(0, flinch)) : 0;
   const speaking = talking && !moving ? 1 - startled : 0;
@@ -35,9 +35,10 @@ export function npcFaceTarget(name, elapsed, { talking = false, nearby = false, 
   let pose = 0;
   if (name === 'jawOpen') pose = speaking * (0.06 + syllables * 0.24);
   else if (name === 'mouthOpen') pose = speaking * (0.04 + syllables * 0.19) + startled * 0.28;
-  else if (name.startsWith('mouthSmile')) pose = (speaking * 0.16 + greeting * 0.08) * (name.endsWith('Left') ? 0.94 : 1);
+  else if (name.startsWith('mouthSmile')) pose = (speaking * 0.16 + greeting * 0.08 + (emotion === 'happy' ? 0.28 : 0)) * (name.endsWith('Left') ? 0.94 : 1);
+  else if (name.startsWith('mouthPress')) pose = emotion === 'sad' ? 0.20 : 0;
   else if (name.startsWith('cheekSquint')) pose = speaking * 0.06 + greeting * 0.03;
-  else if (name === 'browInnerUp') pose = speaking * 0.06 + greeting * 0.09 + startled * 0.38;
+  else if (name === 'browInnerUp') pose = speaking * 0.06 + greeting * 0.09 + startled * 0.38 + (emotion === 'sad' ? 0.24 : 0);
   else if (name.startsWith('eyeWide')) pose = startled * 0.46;
   else if (name.startsWith('eyeLook')) {
     pose = idleGazeTarget(name, elapsed, 'neutral', moving || talking || startled > 0.1 ? 1 : 0);

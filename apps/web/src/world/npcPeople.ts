@@ -17,6 +17,8 @@ export type Neighbors = {
   update: (seconds: number, minute: number, player: { x: number; z: number } | null, cars: ReadonlyArray<CarFootprint>) => Person[];
   /** The nearest neighbour to (x, z), within reach, flinches (bumped by a car). */
   react: (x: number, z: number) => void;
+  /** Highlight the speaking resident and apply the latest reply emotion. */
+  setConversation: (residentId: string | null, mood?: 'neutral' | 'happy' | 'sad') => void;
   dispose: () => void;
 };
 
@@ -89,7 +91,9 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     }
   });
 
+  let speaker: { id: string | null; mood: 'neutral' | 'happy' | 'sad' } = { id: null, mood: 'neutral' };
   return {
+    setConversation(id, mood = 'neutral') { speaker = { id, mood }; },
     react(x, z) {
       let nearest: (typeof people)[number] | null = null;
       let best = 2.6;
@@ -139,7 +143,8 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
         // Conversations move jaw/lips, nearby stationary residents acknowledge
         // the player, and Hit actions briefly override those poses with surprise.
         person.face = advanceNpcFace(person.face, dt, person.faceTargets, {
-          talking: person.npc.route.kind === 'stand' && person.actions.has('Talk'),
+          talking: speaker.id === person.npc.id || (person.npc.route.kind === 'stand' && person.actions.has('Talk')),
+          emotion: speaker.id === person.npc.id ? speaker.mood : 'neutral',
           nearby: Boolean(player && Math.hypot(player.x - pose.x, player.z - pose.z) < 2.5),
           moving: person.walkWeight > 0.15,
           flinch: flinch.weight,

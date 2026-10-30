@@ -1,5 +1,5 @@
 export type StoryEvent = 'game-start' | 'left-home' | 'reached-school' | 'entered-school' | 'attended-class'
-  | 'talked-teacher' | 'ate' | 'entered-home' | 'slept' | 'drove';
+  | 'talked-teacher' | 'talked-maya' | 'talked-jordan' | 'ate' | 'entered-home' | 'slept' | 'drove';
 export type SpeakerId = 'narrator' | 'you' | 'mom' | 'maya' | 'jordan' | 'rivera' | 'stranger';
 export type StoryLine = Readonly<{ speaker: SpeakerId; text: string }>;
 export type StoryStep = Readonly<{ id: string; objective: string; completeOn: ReadonlyArray<StoryEvent>; skipOn: ReadonlyArray<StoryEvent>; scene: ReadonlyArray<StoryLine> | null }>;

@@ -48,6 +48,8 @@ import { createAtmosphere } from './sceneAtmosphere';
 import { createCameraOcclusionGuard, createRenderPipeline, pickRenderQuality } from './renderQuality';
 import { createQuality, stepQuality } from './adaptiveQuality.mjs';
 import { loadNeighbors, type Neighbors, type Person } from './npcPeople';
+import { NPC_DIALOGUES, nearbyNpc, beginNpcConversation, chooseNpcReply, readNpcRelations, writeNpcRelations,
+  type NpcId, type NpcConversation, type NpcReply, type NpcRelations } from './npcConversations.mjs';
 import { buildSchoolScene } from './schoolScene';
 import { BUS_RIDE_MINUTES, MAPLE_BUS_STOP, atBusStop, cameraClearance, createCityCollider, findBusStop, readCity, stepCityLocomotion, toWorld, type City } from './cityLayout.mjs';
 import { buildBusStop, buildCityScene } from './cityScene';
@@ -390,6 +392,9 @@ export default function WorldScene({
   const schoolOpenRef = useRef(false);
   const [error, setError] = useState('');
   const [nearSchool, setNearSchool] = useState(false);
+  const [nearNpc, setNearNpc] = useState<NpcId | null>(null);
+  const nearNpcRef = useRef<NpcId | null>(null);
+  const npcSceneRef = useRef<Neighbors | null>(null);
   const [wayfinding, setWayfinding] = useState('');
   const [schoolOpen, setSchoolOpen] = useState(false);
   const [look, setLook] = useState<Look>(() => readLook(characterId));
@@ -475,6 +480,50 @@ export default function WorldScene({
   };
   const storyActionsRef = useRef({ reportStory, openPendingScene, advanceDialogue });
   storyActionsRef.current = { reportStory, openPendingScene, advanceDialogue };
+  // Choice-based, playable NPC interactions; persisted per character.
+  type NpcChat = { conversation: NpcConversation; outcome: NpcReply | null };
+  const [npcRelations, setNpcRelations] = useState<NpcRelations>(() => readNpcRelations(characterId));
+  const npcRelationsRef = useRef(npcRelations);
+  const [npcChat, setNpcChat] = useState<NpcChat | null>(null);
+  const npcChatRef = useRef<NpcChat | null>(null);
+  const npcActiveRef = useRef(false);
+  const openNpcChat = (id: NpcId) => {
+    if (dialogueRef.current || npcActiveRef.current) return;
+    const conversation = beginNpcConversation(id, npcRelationsRef.current);
+    if (!conversation) return;
+    setSchoolOpen(false);
+    schoolOpenRef.current = false;
+    inputRef.current.clear();
+    npcActiveRef.current = true;
+    const chat: NpcChat = { conversation, outcome: null };
+    npcChatRef.current = chat;
+    setNpcChat(chat);
+    npcSceneRef.current?.setConversation(conversation.resident, 'neutral');
+  };
+  const chooseNpc = (choiceId: string) => {
+    const current = npcChatRef.current;
+    if (!current || current.outcome) return;
+    const outcome = chooseNpcReply(npcRelationsRef.current, current.conversation.id, choiceId);
+    if (!outcome) return;
+    npcRelationsRef.current = outcome.state;
+    setNpcRelations(outcome.state);
+    writeNpcRelations(characterId, outcome.state);
+    const chat: NpcChat = { ...current, outcome };
+    npcChatRef.current = chat;
+    npcSceneRef.current?.setConversation(current.conversation.resident, outcome.mood);
+    setNpcChat(chat);
+  };
+  const closeNpcChat = () => {
+    const current = npcChatRef.current;
+    if (!current) return;
+    npcActiveRef.current = false;
+    npcChatRef.current = null;
+    npcSceneRef.current?.setConversation(null);
+    setNpcChat(null);
+    if (current.outcome) storyActionsRef.current.reportStory(current.outcome.event);
+  };
+  const npcActionsRef = useRef({ open: openNpcChat, choose: chooseNpc, close: closeNpcChat });
+  npcActionsRef.current = { open: openNpcChat, choose: chooseNpc, close: closeNpcChat };
   const toggleCamera = () => {
     // Indoors the camera stays in its cutaway view; the street mode returns on leaving.
     if (locationRef.current === 'home' || locationRef.current === 'school') return;
@@ -631,7 +680,7 @@ export default function WorldScene({
       let peopleOut: Person[] = [];
       void loadNeighbors(scene, shadows).then(loaded => {
         if (environmentLoad.cancelled || scene.isDisposed) loaded?.dispose();
-        else neighbors = loaded;
+        else { neighbors = loaded; npcSceneRef.current = loaded; }
       }).catch(error => console.warn('Neighbours unavailable', error));
       void addWorldProps(scene, environmentLoad, shadows)
         .then(manifest => { if (manifest && !environmentLoad.cancelled) setPropCredit(true); })
@@ -785,7 +834,7 @@ export default function WorldScene({
       syncLighting();
       const tickLife = (seconds: number, activity: LifeActivity) => {
         // Time stands still while reading a panel or a story scene.
-        if (schoolOpenRef.current || dialogueRef.current) return;
+        if (schoolOpenRef.current || dialogueRef.current || npcActiveRef.current) return;
         life = advanceLife(life, seconds, activity);
         syncLighting();
         lifeHudTimer += seconds;
@@ -954,6 +1003,7 @@ export default function WorldScene({
       // E (or the on-screen button): car in/out, the home's doors, then the nearest car.
       const interact = () => {
         if (dialogueRef.current) { storyActionsRef.current.advanceDialogue(); return; }
+        if (npcActiveRef.current) return;
         // Nothing to do mid-lesson or asleep; the fade finishes on its own.
         if (schoolOpenRef.current || pendingFood || interaction.mode === 'sitting' || interaction.mode === 'sleeping') return;
         const index = drivenIndex();
@@ -987,6 +1037,10 @@ export default function WorldScene({
           classTimer = 0;
           setDoorPrompt(null);
           setInClass(lesson.lesson.title);
+          return;
+        }
+        if (index < 0 && locationRef.current === 'street' && nearNpcRef.current) {
+          npcActionsRef.current.open(nearNpcRef.current);
           return;
         }
         if (index < 0 && locationRef.current === 'city') {
@@ -1088,7 +1142,7 @@ export default function WorldScene({
       let jumpTimer = 0;
       emoteRef.current = (emote) => {
         const human = riggedRef.current;
-        if (!human || interaction.mode !== 'walking' || schoolOpenRef.current || dialogueRef.current) return;
+        if (!human || interaction.mode !== 'walking' || schoolOpenRef.current || dialogueRef.current || npcActiveRef.current) return;
         if (emote === 'jump') {
           if (jumpTimer > 0) return;
           jumpTimer = 1e-4;
@@ -1102,6 +1156,19 @@ export default function WorldScene({
         if (event.key === 'Escape' && schoolOpenRef.current) {
           event.preventDefault();
           setSchoolOpen(false);
+          return;
+        }
+        if (npcActiveRef.current) {
+          const chat = npcChatRef.current;
+          if (event.key === 'Escape') {
+            event.preventDefault(); npcActionsRef.current.close();
+          } else if (!chat?.outcome && /^[1-3]$/.test(event.key) && !event.repeat) {
+            event.preventDefault();
+            const option = chat?.conversation.choices[Number(event.key) - 1];
+            if (option) npcActionsRef.current.choose(option.id);
+          } else if (chat?.outcome && ['Enter', 'e', ' '].includes(event.key) && !event.repeat) {
+            event.preventDefault(); npcActionsRef.current.close();
+          } else if (MOVE_KEYS.has(event.key)) event.preventDefault();
           return;
         }
         if (document.activeElement !== canvas) return;
@@ -1187,13 +1254,19 @@ export default function WorldScene({
         audioRef.current?.update({ location: locationRef.current,
           speed: delta>0 && audioDistance<1 ? audioDistance/delta : 0,
           drivingSpeed: audioCar>=0 ? cars[audioCar].speed : null,
-          reading: schoolOpenRef.current || dialogueRef.current,
+          reading: schoolOpenRef.current || dialogueRef.current || npcActiveRef.current,
           paused: Boolean(pendingRide || pendingFood || pendingShift || interaction.mode==='sleeping' || interaction.mode==='sitting'),
           evening: isEvening(life.minute) });
         // Controls follow the orbit camera: W always walks away from the viewer.
         const cameraDirection = camera.getForwardRay().direction;
         markerTime += delta;
         clock += delta;
+        const conversationalNeighbor = interaction.mode === 'walking'
+          ? nearbyNpc(position, locationRef.current, life.minute) : null;
+        if (conversationalNeighbor !== nearNpcRef.current) {
+          nearNpcRef.current = conversationalNeighbor;
+          setNearNpc(conversationalNeighbor);
+        }
         schoolMarker.position.y = 4.6 + Math.sin(markerTime * 2.5) * 0.12;
         const cameraForward = { x: cameraDirection.x, z: cameraDirection.z };
         remotePlayers.update(online?.current?.read(), locationRef.current, delta);
@@ -1307,7 +1380,7 @@ export default function WorldScene({
         if (driven >= 0) {
           tickLife(delta, 'drive');
           // Car-relative controls: W/S accelerate, brake and reverse; A/D steer.
-          const keys = schoolOpenRef.current || dialogueRef.current ? new Set<string>() : inputRef.current.pressed;
+          const keys = schoolOpenRef.current || dialogueRef.current || npcActiveRef.current ? new Set<string>() : inputRef.current.pressed;
           const others = cars.filter((_, index) => index !== driven);
           const before = cars[driven];
           const next = stepVehicle(before, driveInput(keys), delta, others, peopleOut);
@@ -1352,7 +1425,7 @@ export default function WorldScene({
         const inSchool = locationRef.current === 'school';
         const city = locationRef.current === 'city' ? downtown : null;
         const tired = isExhausted(life);
-        const pressed = schoolOpenRef.current || dialogueRef.current ? new Set<string>() : inputRef.current.pressed;
+        const pressed = schoolOpenRef.current || dialogueRef.current || npcActiveRef.current ? new Set<string>() : inputRef.current.pressed;
         // Exhausted players can still walk home, but not run.
         const walkKeys = tired ? new Set([...pressed].filter(key => key !== 'Shift')) : pressed;
         const locomotion = atHome
@@ -1540,6 +1613,7 @@ export default function WorldScene({
         disposeMapleStop();
         downtown?.dispose();
         neighbors?.dispose();
+        npcSceneRef.current = null;
         renderPipeline.dispose();
         atmosphere.dispose();
         lighting.dispose();
@@ -1640,6 +1714,7 @@ export default function WorldScene({
     ? (career.career === workPrompt ? `Start shift at the ${CAREERS[workPrompt].workplace} (E)` : `Apply: ${CAREERS[workPrompt].title} (E)`)
     : null;
   const actionLabel = driving ? 'Get out of car (E)'
+    : nearNpc && !inHome && !atSchool ? `Talk to ${NPC_DIALOGUES[nearNpc].name} (E)`
     : doorPrompt === 'exit' ? 'Go outside (E)'
       : doorPrompt === 'bed' ? 'Sleep (E)'
       : doorPrompt === 'cook' ? 'Cook a meal (E)'
@@ -1687,6 +1762,26 @@ export default function WorldScene({
             </div>
           </div>;
         })()}
+        {npcChat && <div className="npc-chat-backdrop" role="dialog" aria-modal="true"
+          aria-label={`Conversation with ${npcChat.conversation.name}`}>
+          <section className="npc-chat-card">
+            <div className="npc-chat-heading"><strong>{npcChat.conversation.name}</strong>
+              <button type="button" aria-label="Leave conversation" onClick={() => closeNpcChat()}>Close</button></div>
+            <p>{npcChat.outcome ? npcChat.outcome.reply : npcChat.conversation.greeting}</p>
+            {npcChat.outcome ? <>
+              <div className="npc-chat-result" role="status">
+                Relationship {npcChat.outcome.trustDelta > 0 ? '+' : ''}{npcChat.outcome.trustDelta}
+                · Trust {npcRelations.people[npcChat.conversation.id].trust}
+                <span> · Saved to this browser</span>
+              </div>
+              <button type="button" onClick={() => closeNpcChat()}>Continue story</button>
+            </> : <div className="npc-chat-choices">
+              {npcChat.conversation.choices.map((choice, index) => <button type="button" key={choice.id}
+                onClick={() => chooseNpc(choice.id)}>{index + 1}. {choice.label}</button>)}
+              <small>Choose with 1–3, or tap an answer. Escape to leave.</small>
+            </div>}
+          </section>
+        </div>}
         {driving && <div className="world-drive-hud" role="status" aria-live="polite">
           <strong>{driveSpeed}</strong>km/h · W/S gas, brake, reverse · A/D steer · E to get out when stopped
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
@@ -1706,6 +1801,9 @@ export default function WorldScene({
         </button>}
         {nearSchool && schoolOpen && <section className="world-school-panel" id="school-game-panel" aria-label="School activities in game">
           <h3>School</h3>
+          <button type="button" className="npc-teacher-talk" onClick={() => openNpcChat('rivera')}>
+            Have a conversation with Ms. Rivera
+          </button>
           {demoMode ? <p>You've reached the school! This guest preview is for exploring the 3D world only. Sign in with an invitation to access server-verified school activities and save progress.</p> : <>
             <p>{timeRemaining === null ? 'Loading your school time…' : `${timeRemaining} time units remaining today.`}</p>
             {activities.length === 0 && <p>No school activities available yet.</p>}

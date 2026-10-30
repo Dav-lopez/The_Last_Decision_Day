@@ -11,7 +11,7 @@
 /** Events the world reports. */
 export const STORY_EVENTS = Object.freeze([
   'game-start', 'left-home', 'reached-school', 'entered-school', 'attended-class',
-  'talked-teacher', 'ate', 'entered-home', 'slept', 'drove',
+  'talked-teacher', 'talked-maya', 'talked-jordan', 'ate', 'entered-home', 'slept', 'drove',
 ]);
 
 export const CAST = Object.freeze({
@@ -70,11 +70,27 @@ export const CHAPTERS = Object.freeze([
     id: 'the-note',
     title: 'Chapter 2 · The Note',
     steps: Object.freeze([
-      step('ask-around', 'Ask Maya and Jordan about the note (coming soon)', [], [
+      step('ask-around', 'Find Maya on the school lawn and ask about the note', ['talked-maya'], [
         ['narrator', 'Morning. A folded note has been slipped under your front door. No stamp. No name.'],
         ['stranger', '"Everyone on Maple Street gets one last decision. Choose carefully. — A."'],
         ['you', '…Who is A?'],
         ['narrator', 'Somebody on this street knows something.'],
+      ]),
+      step('ask-jordan', 'Find Jordan on the school lawn and ask what he knows', ['talked-jordan'], [
+        ['maya', 'Jordan may have seen something. Ask him before jumping to conclusions.'],
+      ]),
+      step('ask-rivera', 'Speak to Ms. Rivera inside the school about the note', ['talked-teacher'], [
+        ['jordan', 'I saw that mark on the school noticeboard. Maybe Ms. Rivera can help.'],
+      ]),
+    ]),
+  }),
+  Object.freeze({
+    id: 'follow-the-lead',
+    title: 'Chapter 3 · Follow the Lead',
+    steps: Object.freeze([
+      step('back-to-class', 'Attend another school class while you work out your next move', ['attended-class'], [
+        ['rivera', 'If you feel unsafe about the note, tell a trusted adult. You do not have to solve this alone.'],
+        ['narrator', 'The note is still a mystery, but now you have people you can trust.'],
       ]),
     ]),
   }),

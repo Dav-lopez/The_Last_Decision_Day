@@ -19,3 +19,19 @@
 .story-mystery{border-top-color:#ff6b6b}.story-mystery .story-speaker{color:#ff8b8b}.story-mystery p{font-family:Georgia,serif}
 @media(max-width:640px){.story-objective{top:150px;right:8px;max-width:calc(100% - 16px)}.story-box p{font-size:.95rem}}
 @media (prefers-reduced-motion:reduce){.story-banner,.story-letterbox{animation:none}}
+
+/* In-world conversation and choice panel. Lives above story HUD and touch controls. */
+.npc-chat-backdrop{position:absolute;inset:0;z-index:8;display:flex;align-items:flex-end;justify-content:center;padding:12px;background:#05101bc9;overflow-y:auto}
+.npc-chat-card{width:min(690px,100%);max-height:100%;overflow-y:auto;overscroll-behavior:contain;background:#13253bf7;color:#f5f8fd;border:1px solid #9bb9d5;border-top:3px solid #ffd27a;border-radius:12px;padding:14px 17px;box-shadow:0 14px 30px #0009}
+.npc-chat-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:7px}
+.npc-chat-heading strong{color:#ffd27a;font-size:1.04rem}
+.npc-chat-card p{margin:9px 0 12px;line-height:1.45}
+.npc-chat-card button{cursor:pointer;min-height:40px;border-radius:7px}
+.npc-chat-card button:focus-visible{outline:3px solid #ffd27a;outline-offset:2px}
+.npc-chat-choices{display:grid;gap:7px}
+.npc-chat-choices button{text-align:left;white-space:normal;padding:10px 12px;background:#284766;color:#fff;border:1px solid #658aaf}
+.npc-chat-choices button:hover{background:#365d7f}
+.npc-chat-choices small,.npc-chat-result{color:#c2d7ea;font-size:.78rem}
+.npc-chat-result{padding:8px 0 12px}
+.npc-teacher-talk{display:block;width:100%;margin:4px 0 12px;background:#d6b8ff;color:#17233a;font-weight:700}
+@media(max-width:640px){.npc-chat-backdrop{padding:8px;align-items:center}.npc-chat-card{padding:12px}.npc-chat-choices button{min-height:46px}}
