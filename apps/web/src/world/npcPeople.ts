@@ -4,6 +4,7 @@ import { colorFor } from './appearance.mjs';
 import { smoothHumanHeading, HUMAN_WALK_SPEED } from './humanMotion.mjs';
 import { NEIGHBORS, PERSON_RADIUS, carAhead, isOut, personHeading, routePose, shouldYield } from './npcLayout.mjs';
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
+import { initialNpcBlink, collectNpcEyelids, advanceNpcBlink } from './npcBlink.mjs';
 
 type CarFootprint = { x: number; z: number; rotation: number };
 export type Person = { x: number; z: number; radius: number };
@@ -28,7 +29,7 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
   const walkIndex = clipIndex('Walk');
   if (idleIndex < 0 || walkIndex < 0) { container.dispose(); return null; }
 
-  const people = NEIGHBORS.map(npc => {
+  const people = NEIGHBORS.map((npc, index) => {
     const entries = container.instantiateModelsToScene(name => `npc ${npc.id} ${name}`, true);
     const holder = new TransformNode(`npc ${npc.id}`, scene);
     const visual = new TransformNode(`npc ${npc.id} visual`, scene);
@@ -53,9 +54,12 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
       }
     }
     for (const mesh of holder.getChildMeshes()) { mesh.receiveShadows = true; shadows?.addShadowCaster(mesh, false); mesh.isPickable = false; }
+    // Blink targets belong to each NPC's cloned meshes. Never animate the
+    // original GLB container or the player's morph target manager.
+    const eyelids = collectNpcEyelids(holder.getChildMeshes());
     holder.setEnabled(false);
     const start = routePose(npc, 0);
-    return { npc, entries, holder, idle, walk, walked: 0, walkWeight: 0, heading: personHeading(start.dx, start.dz), visible: false };
+    return { npc, entries, holder, idle, walk, eyelids, blink: initialNpcBlink(index), walked: 0, walkWeight: 0, heading: personHeading(start.dx, start.dz), visible: false };
   });
 
   return {
@@ -70,6 +74,8 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
           for (const group of [person.idle, person.walk]) out ? group.play(true) : group.pause();
         }
         if (!out) continue;
+        // Advance only visible residents, avoiding hidden-scene morph updates.
+        person.blink = advanceNpcBlink(person.blink, dt, person.eyelids);
         let pose = routePose(person.npc, person.walked);
         const obstacles = player ? [{ x: player.x, z: player.z, radius: 0.38 }] : [];
         const blocked = !pose.moving || shouldYield(pose, obstacles) || carAhead(person.npc, person.walked, cars);
