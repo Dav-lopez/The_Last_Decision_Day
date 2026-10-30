@@ -28,3 +28,7 @@ export declare function toServerLife(life: Life, location: LifeLocation): Server
 export declare function chooseStartingLife(local: Life, server: ServerLife | null | undefined): {
   life: Life; location: LifeLocation; source: 'browser' | 'account';
 };
+export type FoodKind = 'meal' | 'snack';
+export declare const FOOD: Readonly<Record<FoodKind, Readonly<{ minutes: number; energy: number; gap: number; label: string }>>>;
+export declare function lifeTotalMinutes(life: Life): number;
+export declare function eat(life: Life, kind: FoodKind, lastAte?: number | null): { ok: boolean; reason: string; life: Life; ateAt?: number };
