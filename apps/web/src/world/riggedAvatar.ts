@@ -112,6 +112,10 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
             const selected = Color3.FromHexString(colorFor(part, look[part])).toLinearSpace();
             material.albedoColor = selected;
             if (part === 'skin') baseSkin = selected.clone();
+          } else if (material.name === 'Student lips') {
+            // Match the chosen skin tone while retaining a muted lip tint.
+            const skin = Color3.FromHexString(colorFor('skin', look.skin)).toLinearSpace();
+            material.albedoColor = Color3.Lerp(skin, new Color3(0.19, 0.055, 0.065), 0.35);
           }
         }
       },
