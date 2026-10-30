@@ -11,6 +11,8 @@ on:
       - 'scripts/facial_cheeks.py'
       - 'scripts/facial_nose.py'
       - 'scripts/facial_eyelids.py'
+      - 'scripts/facial_cornea.py'
+      - 'scripts/test_facial_cornea.py'
       - 'scripts/test_facial_eyelids.py'
       - 'scripts/test_facial_nose.py'
       - 'scripts/test_facial_cheeks.py'
@@ -36,6 +38,7 @@ jobs:
           python scripts/test_facial_cheeks.py
           python scripts/test_facial_nose.py
           python scripts/test_facial_eyelids.py
+          python scripts/test_facial_cornea.py
           python scripts/test_facial_droplets.py
       - name: Generate character from pinned licensed sources
         run: python scripts/build-character.py
@@ -80,6 +83,18 @@ jobs:
           assert eyelid_prim['material'] == 4, 'Lashes must inherit hair color'
           assert d['accessors'][eyelid_prim['attributes']['POSITION']]['count'] >= 100
           assert any(n.get('mesh') == d['meshes'].index(eyelids) and n.get('skin') == 0 for n in d['nodes'])
+          cornea = next(mesh for mesh in d['meshes'] if mesh['name'] == 'Student corneal shells')
+          cornea_prim = cornea['primitives'][0]
+          assert cornea['extras']['targetNames'] == [
+              'eyeBlinkLeft', 'eyeBlinkRight', 'eyeLookDownLeft', 'eyeLookDownRight',
+              'eyeLookUpLeft', 'eyeLookUpRight']
+          assert len(cornea_prim['targets']) == 6
+          assert d['accessors'][cornea_prim['attributes']['POSITION']]['count'] >= 200
+          assert {'POSITION', 'NORMAL', 'JOINTS_0', 'WEIGHTS_0'} <= set(cornea_prim['attributes'])
+          assert any(n.get('mesh') == d['meshes'].index(cornea) and n.get('skin') == 0 for n in d['nodes'])
+          film = d['materials'][cornea_prim['material']]
+          assert film['name'] == 'Student corneal film' and film['alphaMode'] == 'BLEND'
+          assert 0 < film['pbrMetallicRoughness']['baseColorFactor'][3] <= 0.2
           nose = next(mesh for mesh in d['meshes'] if mesh['name'] == 'Student sculpted nose')
           nose_prim = nose['primitives'][0]
           assert nose_prim['material'] == 0, 'Nose must inherit customizable skin material'
