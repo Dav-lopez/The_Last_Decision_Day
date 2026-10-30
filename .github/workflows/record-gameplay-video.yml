@@ -1,12 +1,16 @@
 name: Record gameplay video
 # Runs when this media branch is pushed. Builds the game, films a scripted
-# guest tour in headless Chrome and commits the result back to the branch.
+# guest tour in headless Chrome and commits the result back to the branch
+# (and the log, so a failed run can be read without downloading CI logs).
 on:
   push:
     branches: [media/gameplay-video]
     paths: [tools/video/**, .github/workflows/record-gameplay-video.yml]
 permissions:
   contents: write
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
 jobs:
   record:
     runs-on: ubuntu-latest
@@ -18,31 +22,36 @@ jobs:
           node-version: '22'
       - name: Install the game and the recorder
         run: |
-          npm --prefix apps/web install
-          npm --prefix tools/video install --no-save playwright@1.56.1
-          npx --prefix tools/video playwright install --with-deps chromium
-          sudo apt-get install -y ffmpeg fonts-dejavu-core
+          mkdir -p media
+          {
+            npm --prefix apps/web install
+            npm --prefix tools/video install playwright
+            npx --prefix tools/video playwright install --with-deps chromium
+            sudo apt-get update -q
+            sudo apt-get install -y -q ffmpeg fonts-dejavu-core
+          } 2>&1 | tee media/log.txt
       - name: Build the game
-        run: npm --prefix apps/web run build
+        run: npm --prefix apps/web run build 2>&1 | tee -a media/log.txt
       - name: Film the tour
         run: |
           MODE=$(cat tools/video/MODE)
-          npx --prefix apps/web vite preview --host 127.0.0.1 --port 4173 --strictPort &
-          npx --yes wait-on@8 http://127.0.0.1:4173/ --timeout 60000
-          node tools/video/record.mjs http://127.0.0.1:4173/ video-out "$MODE"
+          (npx --prefix apps/web vite preview --host 127.0.0.1 --port 4173 --strictPort > media/preview-server.log 2>&1 &)
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:4173/ > /dev/null && break; sleep 1; done
+          node tools/video/record.mjs http://127.0.0.1:4173/ video-out "$MODE" 2>&1 | tee -a media/log.txt
       - name: Encode the video
-        if: hashFiles('tools/video/MODE') != ''
         run: |
-          mkdir -p media
           if [ "$(cat tools/video/MODE)" = "full" ]; then
-            python3 tools/video/encode.py video-out media/the-last-decision-gameplay.mp4
+            python3 tools/video/encode.py video-out media/the-last-decision-gameplay.mp4 2>&1 | tee -a media/log.txt
           else
             cp video-out/preview-*.jpg media/
           fi
-      - name: Commit the result to this branch
+      - name: Commit the result (or the log) to this branch
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          tail -c 200000 media/log.txt > media/log.tail.txt 2>/dev/null || true
+          rm -f media/log.txt
           git add media
-          git commit -m "media: $(cat tools/video/MODE) render [skip ci]" || echo "nothing new"
+          git commit -m "media: $(cat tools/video/MODE) render (${{ job.status }}) [skip ci]" || echo "nothing new"
           git push
