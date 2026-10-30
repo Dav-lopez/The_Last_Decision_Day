@@ -9,6 +9,8 @@ on:
       - 'scripts/test_facial_gaze.py'
       - 'scripts/test_facial_mouth.py'
       - 'scripts/facial_cheeks.py'
+      - 'scripts/facial_nose.py'
+      - 'scripts/test_facial_nose.py'
       - 'scripts/test_facial_cheeks.py'
       - 'scripts/facial_droplets.py'
       - 'scripts/test_facial_droplets.py'
@@ -30,6 +32,7 @@ jobs:
           python scripts/test_facial_mouth.py
           python scripts/test_facial_gaze.py
           python scripts/test_facial_cheeks.py
+          python scripts/test_facial_nose.py
           python scripts/test_facial_droplets.py
       - name: Generate character from pinned licensed sources
         run: python scripts/build-character.py
@@ -66,6 +69,12 @@ jobs:
                   material = d['materials'][droplet['primitives'][0]['material']]
                   assert material['name'] == label and material['alphaMode'] == 'BLEND'
                   assert material['pbrMetallicRoughness']['baseColorFactor'][3] == 0
+          nose = next(mesh for mesh in d['meshes'] if mesh['name'] == 'Student sculpted nose')
+          nose_prim = nose['primitives'][0]
+          assert nose_prim['material'] == 0, 'Nose must inherit customizable skin material'
+          assert {'POSITION', 'NORMAL', 'JOINTS_0', 'WEIGHTS_0'} <= set(nose_prim['attributes'])
+          assert d['accessors'][nose_prim['attributes']['POSITION']]['count'] >= 100
+          assert any(n.get('mesh') == d['meshes'].index(nose) and n.get('skin') == 0 for n in d['nodes'])
           assert len(d.get('skins', [])) > 0
           assert {'Idle','Walk','Run'} <= {a['name'] for a in d.get('animations', [])}
           print('Facial geometry, skin and locomotion clips verified')
