@@ -384,9 +384,7 @@ export default function WorldScene({
   const [propCredit, setPropCredit] = useState(false);
   const interactRef = useRef<() => void>(() => {});
   const [inHome, setInHome] = useState(false);
-  const [doorPrompt, setDoorPrompt] = useState<'enter' | 'locked' | 'exit' | 'bed' | 'school' | 'school-closed' | 'leave-school' | 'desk' | 'bus-downtown' | 'bus-home' | null>(null);
-  const [inCity, setInCity] = useState<string | null>(null);
-  const [riding, setRiding] = useState<string | null>(null);
+  const [doorPrompt, setDoorPrompt] = useState<'enter' | 'locked' | 'exit' | 'bed' | 'school' | 'school-closed' | 'leave-school' | 'desk' | null>(null);
   const [atSchool, setAtSchool] = useState(false);
   const [inClass, setInClass] = useState<string | null>(null);
   const [lifeView, setLifeView] = useState<Life>(() => readLife(characterId));
@@ -398,6 +396,10 @@ export default function WorldScene({
   // Latest props for the scene's long-lived callbacks (attendance is recorded with the server activity).
   const classActionRef = useRef({ demoMode, canExecuteActivity, onExecuteActivity });
   classActionRef.current = { demoMode, canExecuteActivity, onExecuteActivity };
+  const [busPrompt, setBusPrompt] = useState<'downtown' | 'home' | null>(null);
+  const [inCity, setInCity] = useState<string | null>(null);
+  const [riding, setRiding] = useState<string | null>(null);
+  const busAction = busPrompt === 'downtown' ? 'Take the bus downtown (E)' : busPrompt === 'home' ? 'Take the bus home (E)' : null;
   const toggleCamera = () => {
     // Indoors the camera stays in its cutaway view; the street mode returns on leaving.
     if (locationRef.current === 'home' || locationRef.current === 'school') return;
@@ -630,6 +632,42 @@ export default function WorldScene({
         avatar.rotation.y = to.rotation;
         inputRef.current.clear();
       };
+      // The bus: a short fade, BUS_RIDE_MINUTES of game time, then you step off at the other stop.
+      let rideTimer = 0;
+      let pendingRide: 'downtown' | 'home' | null = null;
+      const boardBus = (to: 'downtown' | 'home') => {
+        if (!downtown) { notify('The bus is running late. Try again in a moment.'); return; }
+        pendingRide = to;
+        rideTimer = 0;
+        inputRef.current.clear();
+        avatar.setEnabled(false);
+        setBusPrompt(null);
+        setRiding(to === 'downtown' ? `Riding the bus to ${downtown.city.name}…` : 'Riding the bus home to Maple Street…');
+      };
+      const arrive = () => {
+        const to = pendingRide;
+        pendingRide = null;
+        for (let minute = 0; minute < BUS_RIDE_MINUTES; minute++) life = advanceLife(life, 1, 'idle');
+        writeLife(characterId, life);
+        syncLighting();
+        setLifeView({ ...life });
+        avatar.setEnabled(true);
+        setRiding(null);
+        if (to === 'downtown' && downtown) {
+          locationRef.current = 'city';
+          placePlayer(downtown.stop);
+          snapCamera(position, downtown.stop.rotation + Math.PI / 2);
+          setInCity(downtown.city.name);
+          notify(`${downtown.city.name} · ${formatClock(life.minute)}. Walk around; the bus home leaves from this stop.`);
+        } else {
+          locationRef.current = 'street';
+          placePlayer({ x: MAPLE_BUS_STOP.x + 0.4, z: MAPLE_BUS_STOP.z - 0.8, rotation: Math.PI });
+          snapCamera(position, -Math.PI / 2);
+          setInCity(null);
+          notify(`Back on Maple Street · ${formatClock(life.minute)}`);
+        }
+        saveToAccount();
+      };
       const enterHome = () => {
         locationRef.current = 'home';
         placePlayer(HOME_SPAWN);
@@ -667,42 +705,6 @@ export default function WorldScene({
         cameraControls.setMode(cameraModeRef.current, true);
         snapCamera(position, -Math.PI / 2);
         setAtSchool(false);
-        saveToAccount();
-      };
-      // The bus: a short fade, BUS_RIDE_MINUTES of game time, then you step off at the other stop.
-      let rideTimer = 0;
-      let pendingRide: 'downtown' | 'home' | null = null;
-      const boardBus = (to: 'downtown' | 'home') => {
-        if (!downtown) { notify('The bus is running late. Try again in a moment.'); return; }
-        pendingRide = to;
-        rideTimer = 0;
-        inputRef.current.clear();
-        avatar.setEnabled(false);
-        setDoorPrompt(null);
-        setRiding(to === 'downtown' ? `Riding the bus to ${downtown.city.name}…` : 'Riding the bus home to Maple Street…');
-      };
-      const arrive = () => {
-        const to = pendingRide;
-        pendingRide = null;
-        for (let minute = 0; minute < BUS_RIDE_MINUTES; minute++) life = advanceLife(life, 1, 'idle');
-        writeLife(characterId, life);
-        syncLighting();
-        setLifeView({ ...life });
-        avatar.setEnabled(true);
-        setRiding(null);
-        if (to === 'downtown' && downtown) {
-          locationRef.current = 'city';
-          placePlayer(downtown.stop);
-          snapCamera(position, downtown.stop.rotation + Math.PI / 2);
-          setInCity(downtown.city.name);
-          notify(`${downtown.city.name} · ${formatClock(life.minute)}. Walk around; the bus home leaves from this stop.`);
-        } else {
-          locationRef.current = 'street';
-          placePlayer({ x: MAPLE_BUS_STOP.x + 0.4, z: MAPLE_BUS_STOP.z - 0.8, rotation: Math.PI });
-          snapCamera(position, -Math.PI / 2);
-          setInCity(null);
-          notify(`Back on Maple Street · ${formatClock(life.minute)}`);
-        }
         saveToAccount();
       };
       let classTimer = 0;
@@ -864,6 +866,12 @@ export default function WorldScene({
         clock += delta;
         schoolMarker.position.y = 4.6 + Math.sin(markerTime * 2.5) * 0.12;
         const cameraForward = { x: cameraDirection.x, z: cameraDirection.z };
+        if (pendingRide) {
+          rideTimer += delta;
+          if (rideTimer >= 2.2) arrive();
+          scene.render();
+          return;
+        }
         if (interaction.mode === 'sleeping') {
           // A short fade stands in for the night; the clock jumps to 7:00 when it ends.
           sleepTimer += delta;
@@ -881,12 +889,6 @@ export default function WorldScene({
             notify(`Good morning! Day ${life.day} · ${formatClock(life.minute)} · slept ${Math.round(rest.hoursSlept)} h · energy ${Math.round(life.energy)}%`);
           }
           home.setFadedWalls(wallsToFade(camera.position), delta);
-          scene.render();
-          return;
-        }
-        if (pendingRide) {
-          rideTimer += delta;
-          if (rideTimer >= 2.2) arrive();
           scene.render();
           return;
         }
@@ -969,8 +971,8 @@ export default function WorldScene({
             const prompt = atHomeExit(position) ? 'exit' : nearBed(position, BED_SIDE) ? 'bed' : null;
             setDoorPrompt(previous => previous === prompt ? previous : prompt);
           } else if (city) {
-            const prompt = atBusStop(position, city.stop) ? 'bus-home' : null;
-            setDoorPrompt(previous => previous === prompt ? previous : prompt);
+            const bus = atBusStop(position, city.stop) ? 'home' : null;
+            setBusPrompt(previous => previous === bus ? previous : bus);
             const metres = Math.ceil(Math.hypot(position.x - city.stop.x, position.z - city.stop.z));
             const label = `Downtown ${city.city.name} · bus stop ${metres} m`;
             setWayfinding(previous => previous === label ? previous : label);
@@ -990,9 +992,10 @@ export default function WorldScene({
             setNearCar(previous => previous === carInReach ? previous : carInReach);
             const door = streetDoorAt(position);
             const prompt = door ? (door.own ? 'enter' : 'locked')
-              : atBusStop(position, MAPLE_BUS_STOP) ? 'bus-downtown'
               : isNearSchool(position) ? (isSchoolOpen(life.minute) ? 'school' : 'school-closed') : null;
             setDoorPrompt(previous => previous === prompt ? previous : prompt);
+            const bus = atBusStop(position, MAPLE_BUS_STOP) ? 'downtown' : null;
+            setBusPrompt(previous => previous === bus ? previous : bus);
           }
           const entry = currentEntry(life.minute);
           const joinable = joinableLesson(life.minute);
@@ -1121,8 +1124,6 @@ export default function WorldScene({
       onBlur={() => { inputRef.current.release(`pad:${key}: `); inputRef.current.release(`pad:${key}:Enter`); }}>{symbol}</button>;
 
   const actionLabel = driving ? 'Get out of car (E)'
-    : doorPrompt === 'bus-downtown' ? 'Take the bus downtown (E)'
-    : doorPrompt === 'bus-home' ? 'Take the bus home (E)'
     : doorPrompt === 'exit' ? 'Go outside (E)'
       : doorPrompt === 'bed' ? 'Sleep (E)'
       : doorPrompt === 'leave-school' ? 'Leave school (E)'
@@ -1144,18 +1145,18 @@ export default function WorldScene({
           </span>
         </div>
         {sleeping && <div className="world-sleep" role="status" aria-live="polite"><span>Sleeping…</span></div>}
-        {riding && <div className="world-sleep world-bus" role="status" aria-live="polite"><span>{riding}</span></div>}
         {inClass && <div className="world-sleep world-class" role="status" aria-live="polite"><span>{inClass} class…</span></div>}
         <div className="world-caption"><strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : inCity ? `Downtown ${inCity}` : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
+        {riding && <div className="world-sleep world-bus" role="status" aria-live="polite"><span>{riding}</span></div>}
         {driving && <div className="world-drive-hud" role="status" aria-live="polite">
           <strong>{driveSpeed}</strong>km/h · W/S gas, brake, reverse · A/D steer · E to get out when stopped
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
         </div>}
         {!driving && driveNotice && <div className="world-notice" role="status" aria-live="polite">{driveNotice}</div>}
-        {actionLabel && <button type="button" className="world-car-action"
+        {(busAction ?? actionLabel) && <button type="button" className="world-car-action"
           onClick={event => { interactRef.current(); focusWorld(event); }}>
-          {actionLabel}
+          {busAction ?? actionLabel}
         </button>}
         {nearSchool && <button type="button" className="world-enter"
           aria-expanded={schoolOpen} aria-controls="school-game-panel"
