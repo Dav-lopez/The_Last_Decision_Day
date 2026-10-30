@@ -484,6 +484,8 @@ export default function WorldScene({
       // The bus stop at the north end of Maple Street; the bus runs to a real downtown (OpenStreetMap).
       const disposeMapleStop = buildBusStop(scene, MAPLE_BUS_STOP.x - 1.05, MAPLE_BUS_STOP.z, Math.PI / 2);
       let cityLights: ReturnType<typeof buildCityLights> | null = null;
+      // Downtown views run hundreds of metres down real streets: thinner haze there than on Maple Street.
+      const applyFog = () => { scene.fogDensity = locationRef.current === 'city' ? 0.0032 : 0.009; };
       let eveningNow = false;
       let downtown: { city: City; collider: ReturnType<typeof createCityCollider>; stop: PlanarPosition & { rotation: number; street: string; dx: number; dz: number }; dispose: () => void } | null = null;
       const loadDowntown = async () => {
@@ -551,6 +553,7 @@ export default function WorldScene({
           streetLighting.setEvening(evening);
           atmosphere.setEvening(evening);
           cityLights?.setEvening(evening);
+          applyFog();
         },
       };
       lighting.setEvening(false);
@@ -778,6 +781,7 @@ export default function WorldScene({
         setRiding(null);
         if (to === 'downtown' && downtown) {
           locationRef.current = 'city';
+          applyFog();
           placePlayer(downtown.stop);
           // Camera behind you, looking down the street.
           snapCamera(position, Math.atan2(-downtown.stop.dz, -downtown.stop.dx));
@@ -786,6 +790,7 @@ export default function WorldScene({
           notify(`${downtown.city.name} · ${formatClock(life.minute)}. Walk around; the bus home leaves from this stop.`);
         } else {
           locationRef.current = 'street';
+          applyFog();
           placePlayer({ x: MAPLE_BUS_STOP.x + 0.4, z: MAPLE_BUS_STOP.z - 0.8, rotation: Math.PI });
           snapCamera(position, -Math.PI / 2);
           setInCity(null);
