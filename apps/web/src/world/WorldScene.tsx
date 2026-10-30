@@ -504,6 +504,9 @@ export default function WorldScene({
     npcChatRef.current = chat;
     setNpcChat(chat);
     npcSceneRef.current?.setConversation(conversation.resident, 'neutral');
+    // Match the player's visible Talk action to the NPC dialogue overlay.
+    // The rigged avatar supplies timed jaw/lip morphs while the action plays.
+    riggedRef.current?.playAction('Talk');
   };
   const chooseNpc = (choiceId: string) => {
     const current = npcChatRef.current;
@@ -524,6 +527,7 @@ export default function WorldScene({
     npcActiveRef.current = false;
     npcChatRef.current = null;
     npcSceneRef.current?.setConversation(null);
+    if (riggedRef.current?.action === 'Talk') riggedRef.current.stopAction();
     setNpcChat(null);
     if (current.outcome) storyActionsRef.current.reportStory(current.outcome.event);
   };
