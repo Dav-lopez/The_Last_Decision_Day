@@ -20,9 +20,12 @@ def build_mouth_geometry(head_joint):
     xs = (-0.042, -0.021, 0.0, 0.021, 0.042)
     # Eye/brow source bounds are y=1.68..1.73, front-facing +Z.
     # Put a subtle curved lip surface below the eyes in the same rest pose.
+    # Source face surface is ~Z=0.07 at mouth corners and ~Z=0.09
+    # at the center (y=1.60..1.62). Follow that contour rather than
+    # placing the lips several centimetres in front of the cheeks.
     positions = [
-        (x, y, 0.124 + 0.006 * (1 - abs(x) / 0.042))
-        for y in (1.615, 1.604) for x in xs
+        (x, y, 0.074 + 0.016 * (1 - abs(x) / 0.042) + (0.004 if row == 0 else 0))
+        for row, y in enumerate((1.615, 1.604)) for x in xs
     ]
     indices = []
     for col in range(len(xs) - 1):
