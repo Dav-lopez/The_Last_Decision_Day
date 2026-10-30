@@ -22,7 +22,9 @@ import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mj
 import { PARKED_CARS } from './streetLayout.mjs';
 import { addWorldProps } from './polyHavenProps';
 import { buildHomeScene } from './homeScene';
-import { FRONT_DOORS, HOME_SPAWN, atHomeExit, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade } from './homeInterior.mjs';
+import { advanceLife, canSleep, formatClock, isEvening, isExhausted, nearBed, readLife, sleepUntilMorning, TIRED_ENERGY,
+  writeLife, type Life, type LifeActivity } from './lifeClock.mjs';
+import { BED_SIDE, FRONT_DOORS, HOME_SPAWN, atHomeExit, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade } from './homeInterior.mjs';
 import { canExitVehicle, chaseCameraAlpha, driveInput, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
 
@@ -362,7 +364,9 @@ export default function WorldScene({
   const [propCredit, setPropCredit] = useState(false);
   const interactRef = useRef<() => void>(() => {});
   const [inHome, setInHome] = useState(false);
-  const [doorPrompt, setDoorPrompt] = useState<'enter' | 'locked' | 'exit' | null>(null);
+  const [doorPrompt, setDoorPrompt] = useState<'enter' | 'locked' | 'exit' | 'bed' | null>(null);
+  const [lifeView, setLifeView] = useState<Life>(() => readLife(characterId));
+  const [sleeping, setSleeping] = useState(false);
   const locationRef = useRef<'street' | 'home'>('street');
   const toggleCamera = () => {
     // Indoors the camera stays in its cutaway view; the street mode returns on leaving.
@@ -488,6 +492,41 @@ export default function WorldScene({
 
       let interaction: InteractionState = { mode: 'walking', targetId: null };
       let clock = 0;
+      // Day clock and energy: browser-saved per character until the daily-loop save lands on the server.
+      let life = readLife(characterId);
+      let lifeHudTimer = 0;
+      let lifeSaveTimer = 0;
+      let lastEvening: boolean | null = null;
+      let warnedExhausted = false;
+      let sleepTimer = 0;
+      const syncLighting = () => {
+        const nowEvening = isEvening(life.minute);
+        // Follow the clock only when day turns to evening (or back), so the manual switch still works in between.
+        if (nowEvening !== lastEvening) {
+          lastEvening = nowEvening;
+          lighting.setEvening(nowEvening);
+          setEvening(nowEvening);
+        }
+      };
+      syncLighting();
+      const tickLife = (seconds: number, activity: LifeActivity) => {
+        if (schoolOpenRef.current) return;
+        life = advanceLife(life, seconds, activity);
+        syncLighting();
+        lifeHudTimer += seconds;
+        lifeSaveTimer += seconds;
+        if (lifeHudTimer >= 0.25) {
+          lifeHudTimer = 0;
+          const shown = { ...life };
+          setLifeView(previous => Math.floor(previous.minute) === Math.floor(shown.minute) &&
+            Math.round(previous.energy) === Math.round(shown.energy) && previous.day === shown.day ? previous : shown);
+        }
+        if (lifeSaveTimer >= 5) { lifeSaveTimer = 0; writeLife(characterId, life); }
+        if (isExhausted(life) && !warnedExhausted) {
+          warnedExhausted = true;
+          notify("You're exhausted and can't run. Go home and sleep.");
+        }
+      };
       let noticeAt = -Infinity;
       const notify = (message: string) => { noticeAt = clock; setDriveNotice(message); };
       const carTargets = () => cars.map((car, index) => ({ id: `car-${index}`, type: 'vehicle' as const, x: car.x, z: car.z }));
@@ -527,6 +566,16 @@ export default function WorldScene({
         const index = drivenIndex();
         if (index < 0 && locationRef.current === 'home') {
           if (atHomeExit(position)) leaveHome();
+          else if (nearBed(position, BED_SIDE)) {
+            const check = canSleep(life);
+            if (!check.ok) { notify(check.reason); return; }
+            interaction = transitionInteraction(interaction, { id: 'home-bed', type: 'bed', x: BED_SIDE.x, z: BED_SIDE.z });
+            inputRef.current.clear();
+            avatar.setEnabled(false);
+            sleepTimer = 0;
+            setDoorPrompt(null);
+            setSleeping(true);
+          }
           return;
         }
         const door = index < 0 ? streetDoorAt(position) : null;
@@ -621,8 +670,28 @@ export default function WorldScene({
         clock += delta;
         schoolMarker.position.y = 4.6 + Math.sin(markerTime * 2.5) * 0.12;
         const cameraForward = { x: cameraDirection.x, z: cameraDirection.z };
+        if (interaction.mode === 'sleeping') {
+          // A short fade stands in for the night; the clock jumps to 7:00 when it ends.
+          sleepTimer += delta;
+          if (sleepTimer >= 2.2) {
+            const rest = sleepUntilMorning(life);
+            life = rest.life;
+            warnedExhausted = false;
+            writeLife(characterId, life);
+            syncLighting();
+            setLifeView({ ...life });
+            interaction = transitionInteraction(interaction, 'exit');
+            avatar.setEnabled(true);
+            setSleeping(false);
+            notify(`Good morning! Day ${life.day} · ${formatClock(life.minute)} · slept ${Math.round(rest.hoursSlept)} h · energy ${Math.round(life.energy)}%`);
+          }
+          home.setFadedWalls(wallsToFade(camera.position), delta);
+          scene.render();
+          return;
+        }
         const driven = drivenIndex();
         if (driven >= 0) {
+          tickLife(delta, 'drive');
           // Car-relative controls: W/S accelerate, brake and reverse; A/D steer.
           const keys = schoolOpenRef.current ? new Set<string>() : inputRef.current.pressed;
           const others = cars.filter((_, index) => index !== driven);
@@ -650,10 +719,14 @@ export default function WorldScene({
           return;
         }
         const atHome = locationRef.current === 'home';
-        const walkKeys = schoolOpenRef.current ? new Set<string>() : inputRef.current.pressed;
+        const tired = isExhausted(life);
+        const pressed = schoolOpenRef.current ? new Set<string>() : inputRef.current.pressed;
+        // Exhausted players can still walk home, but not run.
+        const walkKeys = tired ? new Set([...pressed].filter(key => key !== 'Shift')) : pressed;
         const locomotion = atHome
-          ? stepHomeLocomotion(position, walkKeys, delta, sprintEnabledRef.current, cameraForward)
-          : stepLocomotion(position, walkKeys, delta, sprintEnabledRef.current, cameraForward, cars);
+          ? stepHomeLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward)
+          : stepLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward, cars);
+        tickLife(delta, locomotion.motion);
         const { position: next, moving, speed: movementSpeed } = locomotion;
         if (moving) avatar.rotation.y = smoothHumanHeading(avatar.rotation.y, movementHeading(next.x - position.x, next.z - position.z), delta);
         position = next;
@@ -662,7 +735,7 @@ export default function WorldScene({
           waypointTimer = 0;
           if (clock - noticeAt > 2.5) setDriveNotice(previous => previous ? '' : previous);
           if (atHome) {
-            const prompt = atHomeExit(position) ? 'exit' : null;
+            const prompt = atHomeExit(position) ? 'exit' : nearBed(position, BED_SIDE) ? 'bed' : null;
             setDoorPrompt(previous => previous === prompt ? previous : prompt);
           } else {
             const waypoint = schoolWaypoint(position, cameraForward);
@@ -720,6 +793,7 @@ export default function WorldScene({
         window.removeEventListener('resize', resize);
         document.removeEventListener('visibilitychange', onVisibilityChange);
         cameraControlsRef.current = null;
+        writeLife(characterId, life);
         lighting.dispose();
         lightingRef.current = null;
         environmentLoad.cancelled = true;
@@ -793,6 +867,7 @@ export default function WorldScene({
 
   const actionLabel = driving ? 'Get out of car (E)'
     : doorPrompt === 'exit' ? 'Go outside (E)'
+      : doorPrompt === 'bed' ? 'Sleep (E)'
       : doorPrompt === 'enter' ? 'Go inside your home (E)'
         : doorPrompt === 'locked' ? "Neighbors' house (E)"
           : nearCar && !inHome ? 'Get in car (E)' : '';
@@ -800,6 +875,13 @@ export default function WorldScene({
     <div className="world-viewport">
       {!error && <canvas ref={canvasRef} tabIndex={0} aria-label={`3D world for ${displayName}; click to focus, use WASD or arrow keys to move`} />}
       {error ? <p className="world-fallback" role="status">{error}</p> : <>
+        <div className="world-life" role="status" aria-label={`Day ${lifeView.day}, ${formatClock(lifeView.minute)}, energy ${Math.round(lifeView.energy)} percent`}>
+          <span>Day {lifeView.day} · {formatClock(lifeView.minute)}</span>
+          <span className="world-energy" data-low={lifeView.energy <= TIRED_ENERGY ? 'true' : undefined}>
+            Energy <span className="world-energy-bar" aria-hidden="true"><span style={{ width: `${Math.round(lifeView.energy)}%` }} /></span> {Math.round(lifeView.energy)}%
+          </span>
+        </div>
+        {sleeping && <div className="world-sleep" role="status" aria-live="polite"><span>Sleeping…</span></div>}
         <div className="world-caption"><strong>{displayName}</strong> · {inHome ? 'At home' : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
         {driving && <div className="world-drive-hud" role="status" aria-live="polite">
@@ -845,7 +927,7 @@ export default function WorldScene({
       </>}
     </div>
     {!error && <div className="world-controls">
-      <p>Click the world, then use WASD, arrow keys or the direction pad to move. Hold Shift or switch Run on to move faster. Release the direction to stop. Drag to orbit; scroll, pinch or use the zoom buttons to zoom. Press E at the school entrance; Escape closes the panel. Press E at your front door (the house on the left) to go inside, and E at the inside door to go back out. Press E next to a car to drive it: W/S for gas, brake and reverse, A/D to steer, and E again to get out once stopped.</p>
+      <p>Click the world, then use WASD, arrow keys or the direction pad to move. Hold Shift or switch Run on to move faster. Release the direction to stop. Drag to orbit; scroll, pinch or use the zoom buttons to zoom. Press E at the school entrance; Escape closes the panel. Press E at your front door (the house on the left) to go inside, and E at the inside door to go back out. Your energy drains as the day goes on; when you're tired or it's evening, press E beside your bed to sleep until 7:00 AM. Press E next to a car to drive it: W/S for gas, brake and reverse, A/D to steer, and E again to get out once stopped.</p>
       <div className="world-control-buttons">
         <div className="world-pad" aria-label="Touch movement controls">
           <div className="world-pad-top">{directionButton('▲', 'ArrowUp', 'Move forward')}</div>
