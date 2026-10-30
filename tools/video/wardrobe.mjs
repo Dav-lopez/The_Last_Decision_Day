@@ -111,6 +111,13 @@ async function capture(path) {
   writeFileSync(path, Buffer.from(data, 'base64'));
 }
 
+// Chapter 1 opens with a story scene: read through it first.
+for (let i = 0; i < 40; i++) {
+  const open = await page.evaluate(() => { const scene = document.querySelector('.story-scene'); if (scene) scene.click(); return Boolean(scene); });
+  if (!open) break;
+  for (let f = 0; f < 3; f++) await page.evaluate(ms => window.__videoClock.step(ms), 1000 / 30);
+  await page.waitForTimeout(60);
+}
 const canvas = page.locator('canvas').first();
 await canvas.click({ position: { x: WIDTH / 2, y: HEIGHT / 2 } });
 const box = await canvas.boundingBox();
