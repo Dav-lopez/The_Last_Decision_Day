@@ -42,6 +42,13 @@ jobs:
           assert {'Idle','Walk','Run'} <= {a['name'] for a in d.get('animations', [])}
           print('Facial geometry, skin and locomotion clips verified')
           PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Babylon test dependencies
+        run: npm --prefix apps/web install
+      - name: Validate generated morphs in Babylon NullEngine
+        run: node --test apps/web/tests/generated-face.test.mjs
       - name: Upload generated model for visual review
         uses: actions/upload-artifact@v4
         with:
