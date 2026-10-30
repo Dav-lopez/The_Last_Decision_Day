@@ -1,2 +1,3 @@
-import type { Scene } from '@babylonjs/core';
-export declare function addParkedCarFallbacks(scene: Scene): void;
+import type { Scene, TransformNode } from '@babylonjs/core';
+/** One root per PARKED_CARS entry, in the same order. */
+export declare function addParkedCarFallbacks(scene: Scene): TransformNode[];

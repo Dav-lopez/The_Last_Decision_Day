@@ -19,6 +19,9 @@ import { createMovementInput } from './inputState.mjs';
 import { addPlayableNeighborhoodDetails } from './neighborhoodEnvironment';
 import { upgradeNeighborhoodAssets } from './realEnvironmentAssets';
 import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mjs';
+import { PARKED_CARS } from './streetLayout.mjs';
+import { canExitVehicle, chaseCameraAlpha, driveInput, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
+import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
 
 type SchoolActivityView = { id: string; title: string; description: string; timeCost: number };
 type SchoolPreview = { activityId: string; before: Record<string, number>; after: Record<string, number> };
@@ -349,6 +352,11 @@ export default function WorldScene({
   const cameraControlsRef = useRef<ReturnType<typeof createCameraControls> | null>(null);
   const lightingRef = useRef<ReturnType<typeof createStreetLighting> | null>(null);
   const [evening, setEvening] = useState(false);
+  const [driving, setDriving] = useState(false);
+  const [driveSpeed, setDriveSpeed] = useState(0);
+  const [driveNotice, setDriveNotice] = useState('');
+  const [nearCar, setNearCar] = useState(false);
+  const interactRef = useRef<() => void>(() => {});
   const toggleCamera = () => {
     const next = cameraModeRef.current === 'follow' ? 'overhead' : 'follow';
     cameraModeRef.current = next;
@@ -379,7 +387,16 @@ export default function WorldScene({
       let schoolAsset: Awaited<ReturnType<typeof loadSchoolEnvironment>> = null;
       let schoolAssetCancelled = false;
       addPlayableNeighborhoodDetails(scene);
-      addParkedCarFallbacks(scene);
+      // Live car state: the driven car moves, and walking collides with it wherever it is parked.
+      const cars: CarState[] = PARKED_CARS.map(car => ({ x: car.x, z: car.z, rotation: car.rotation, speed: 0 }));
+      const carRoots: TransformNode[][] = addParkedCarFallbacks(scene).map(root => [root]);
+      const placeCar = (index: number) => {
+        for (const node of carRoots[index] ?? []) {
+          node.position.x = cars[index].x;
+          node.position.z = cars[index].z;
+          node.rotation.y = cars[index].rotation;
+        }
+      };
       const lighting = createStreetLighting(scene, directional, sun);
       lightingRef.current = lighting;
       const environmentLoad = { cancelled: false };
@@ -389,7 +406,9 @@ export default function WorldScene({
       shadows.bias = 0.0005;
       shadows.normalBias = 0.02;
       shadows.setDarkness(0.3);
-      void upgradeNeighborhoodAssets(scene, environmentLoad, shadows);
+      void upgradeNeighborhoodAssets(scene, environmentLoad, shadows, roots => {
+        roots.forEach((root, index) => { carRoots[index]?.push(root); placeCar(index); });
+      });
       // Limit shadow-map draw calls to the large world silhouettes.
       // Ground and paving receive shadows but do not cast; small facade details
       // are omitted from the shadow pass while remaining visible in the scene.
@@ -454,6 +473,43 @@ export default function WorldScene({
       camera.collisionRadius = new Vector3(0.25, 0.25, 0.25);
       camera.attachControl(canvas, false);
 
+      let interaction: InteractionState = { mode: 'walking', targetId: null };
+      let clock = 0;
+      let noticeAt = -Infinity;
+      const notify = (message: string) => { noticeAt = clock; setDriveNotice(message); };
+      const carTargets = () => cars.map((car, index) => ({ id: `car-${index}`, type: 'vehicle' as const, x: car.x, z: car.z }));
+      const drivenIndex = () => interaction.mode === 'driving' && interaction.targetId ? Number(interaction.targetId.slice(4)) : -1;
+      // E (or the on-screen button) gets into the nearest car, or out of the driven one once stopped.
+      const interact = () => {
+        if (schoolOpenRef.current) return;
+        const index = drivenIndex();
+        if (index < 0) {
+          const target = closestInteraction(position, carTargets());
+          if (!target) return;
+          interaction = transitionInteraction(interaction, target);
+          inputRef.current.clear();
+          avatar.setEnabled(false);
+          setNearCar(false);
+          setDriveNotice('');
+          setDriveSpeed(0);
+          setDriving(true);
+          return;
+        }
+        const car = cars[index];
+        if (!canExitVehicle(car)) { notify('Stop the car before getting out.'); return; }
+        const exit = vehicleExitPosition(car, cars);
+        if (!exit) { notify('No room to open a door here. Move the car a little.'); return; }
+        car.speed = 0;
+        position = exit;
+        avatar.position.set(exit.x, 0, exit.z);
+        avatar.rotation.y = car.rotation;
+        interaction = transitionInteraction(interaction, 'exit');
+        inputRef.current.clear();
+        avatar.setEnabled(true);
+        setDriveNotice('');
+        setDriving(false);
+      };
+      interactRef.current = interact;
       const normalizeKey = (key: string) => key.length === 1 ? key.toLowerCase() : key;
       const onKeyDown = (event: KeyboardEvent) => {
         // Escape must also work when a button inside the school overlay has focus.
@@ -470,9 +526,10 @@ export default function WorldScene({
         } else if (key === 'c' && !event.repeat) {
           event.preventDefault();
           toggleCamera();
-        } else if (key === 'e' && nearSchoolRef.current && !event.repeat) {
+        } else if (key === 'e' && !event.repeat) {
           event.preventDefault();
-          setSchoolOpen(open => !open);
+          if (nearSchoolRef.current && interaction.mode === 'walking') setSchoolOpen(open => !open);
+          else interact();
         }
       };
       const onKeyUp = (event: KeyboardEvent) => {
@@ -503,15 +560,45 @@ export default function WorldScene({
       let elapsed = 0;
       let waypointTimer = 0;
       let markerTime = 0;
+      let hudTimer = 0;
       engine.runRenderLoop(() => {
         const delta = Math.min(engine!.getDeltaTime() / 1000, 0.05);
         // Controls follow the orbit camera: W always walks away from the viewer.
         const cameraDirection = camera.getForwardRay().direction;
         markerTime += delta;
+        clock += delta;
         schoolMarker.position.y = 4.6 + Math.sin(markerTime * 2.5) * 0.12;
         const cameraForward = { x: cameraDirection.x, z: cameraDirection.z };
+        const driven = drivenIndex();
+        if (driven >= 0) {
+          // Car-relative controls: W/S accelerate, brake and reverse; A/D steer.
+          const keys = schoolOpenRef.current ? new Set<string>() : inputRef.current.pressed;
+          const others = cars.filter((_, index) => index !== driven);
+          const next = stepVehicle(cars[driven], driveInput(keys), delta, others);
+          cars[driven] = { x: next.x, z: next.z, rotation: next.rotation, speed: next.speed };
+          placeCar(driven);
+          // Swing the camera behind the car while moving; parked, the player may orbit freely.
+          if (Math.abs(next.speed) > 1) camera.alpha = smoothHumanHeading(camera.alpha, chaseCameraAlpha(next.rotation), delta, 2.5);
+          hudTimer += delta;
+          if (hudTimer >= 0.15) {
+            hudTimer = 0;
+            const kmh = speedKmh(next.speed);
+            setDriveSpeed(previous => previous === kmh ? previous : kmh);
+            if (next.collided) notify('Bump! Reverse with S to back away.');
+            else if (clock - noticeAt > 2.5) setDriveNotice(previous => previous ? '' : previous);
+            const waypoint = schoolWaypoint(next, cameraForward);
+            const label = waypoint.distance === null ? '' : 'School · ' + Math.ceil(waypoint.distance) + ' units · ' + waypoint.direction;
+            setWayfinding(previous => previous === label ? previous : label);
+          }
+          if (previousNear) { previousNear = false; nearSchoolRef.current = false; setNearSchool(false); }
+          riggedRef.current?.update(0, delta);
+          cameraControls.update(delta);
+          cameraControls.follow(next, delta);
+          scene.render();
+          return;
+        }
         const locomotion = stepLocomotion(position, schoolOpenRef.current ? new Set<string>() : inputRef.current.pressed,
-          delta, sprintEnabledRef.current, cameraForward);
+          delta, sprintEnabledRef.current, cameraForward, cars);
         const { position: next, moving, speed: movementSpeed } = locomotion;
         if (moving) avatar.rotation.y = smoothHumanHeading(avatar.rotation.y, movementHeading(next.x - position.x, next.z - position.z), delta);
         position = next;
@@ -523,6 +610,8 @@ export default function WorldScene({
             : waypoint.direction === 'at entrance' ? 'School entrance reached'
               : 'School entrance · ' + Math.ceil(waypoint.distance) + ' units · ' + waypoint.direction;
           setWayfinding(previous => previous === label ? previous : label);
+          const carInReach = closestInteraction(position, carTargets()) !== null;
+          setNearCar(previous => previous === carInReach ? previous : carInReach);
         }
         avatar.position.x = position.x;
         avatar.position.z = position.z;
@@ -643,6 +732,14 @@ export default function WorldScene({
       {error ? <p className="world-fallback" role="status">{error}</p> : <>
         <div className="world-caption"><strong>{displayName}</strong> · {demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
+        {driving && <div className="world-drive-hud" role="status" aria-live="polite">
+          <strong>{driveSpeed}</strong>km/h · W/S gas, brake, reverse · A/D steer · E to get out when stopped
+          {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
+        </div>}
+        {(driving || nearCar) && <button type="button" className="world-car-action"
+          onClick={event => { interactRef.current(); focusWorld(event); }}>
+          {driving ? 'Get out of car (E)' : 'Get in car (E)'}
+        </button>}
         {nearSchool && <button type="button" className="world-enter"
           aria-expanded={schoolOpen} aria-controls="school-game-panel"
           onClick={() => setSchoolOpen(current => !current)}>
@@ -677,7 +774,7 @@ export default function WorldScene({
       </>}
     </div>
     {!error && <div className="world-controls">
-      <p>Click the world, then use WASD, arrow keys or the direction pad to move. Hold Shift or switch Run on to move faster. Release the direction to stop. Drag to orbit; scroll, pinch or use the zoom buttons to zoom. Press E at the school entrance; Escape closes the panel.</p>
+      <p>Click the world, then use WASD, arrow keys or the direction pad to move. Hold Shift or switch Run on to move faster. Release the direction to stop. Drag to orbit; scroll, pinch or use the zoom buttons to zoom. Press E at the school entrance; Escape closes the panel. Press E next to a car to drive it: W/S for gas, brake and reverse, A/D to steer, and E again to get out once stopped.</p>
       <div className="world-control-buttons">
         <div className="world-pad" aria-label="Touch movement controls">
           <div className="world-pad-top">{directionButton('▲', 'ArrowUp', 'Move forward')}</div>
