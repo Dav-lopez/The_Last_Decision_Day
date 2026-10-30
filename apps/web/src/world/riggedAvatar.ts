@@ -3,6 +3,7 @@ import '@babylonjs/loaders/glTF';
 import { colorFor, type Look } from './appearance.mjs';
 import { faceTarget, approachFace, type Emotion } from './facialEmotions';
 import { EMPTY_EFFECTS, smoothFacialEffects, targetFacialEffects } from './facialEffects';
+import { dropletCycle } from './facialDroplets.mjs';
 import { blendHumanWeights, classifyHumanMotion, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 
@@ -69,6 +70,11 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
         material.roughness = 0.92;
         material.transparencyMode = PBRMaterial.PBRMATERIAL_ALPHABLEND;
         material.alpha = 0;
+      } else if (material.name.startsWith('Student tear ') || material.name.startsWith('Student sweat ')) {
+        material.metallic = 0;
+        material.roughness = material.name.startsWith('Student tear ') ? 0.09 : 0.18;
+        material.transparencyMode = PBRMaterial.PBRMATERIAL_ALPHABLEND;
+        material.alpha = 0;
       }
     }
     for (const mesh of container.meshes) mesh.receiveShadows = true;
@@ -98,6 +104,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
       console.warn('[character] Facial morph geometry missing from human.glb:', missingMorphs.join(', '),
         'Regenerate the model with scripts/build-character.py and review the generated asset PR.');
     }
+    let effectTime = 0;
     let blinkTime = 0;
     let blinkCount = 0;
     let disposed = false;
@@ -127,6 +134,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
       update(speed, deltaSeconds) {
         if (disposed) return;
         effects = smoothFacialEffects(effects, targetFacialEffects(emotion, speed), deltaSeconds);
+        effectTime += Math.max(0, Math.min(0.1, Number.isFinite(deltaSeconds) ? deltaSeconds : 0));
         for (const material of container.materials) {
           if (!(material instanceof PBRMaterial)) continue;
           if (material.name === 'Student skin') {
@@ -139,6 +147,11 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
             material.alpha = Math.min(0.65, Math.max(0, effects.blush * 0.65));
           } else if (material.name === 'Student eyes') {
             material.clearCoat.intensity = 0.55 + effects.wateryEyes * 0.35;
+          } else if (material.name.startsWith('Student tear ') || material.name.startsWith('Student sweat ')) {
+            const kind = material.name.startsWith('Student tear ') ? 'tear' : 'sweat';
+            const side = material.name.endsWith('Left') ? 'Left' : 'Right';
+            const { opacity } = dropletCycle(effectTime, kind, side);
+            material.alpha = Math.min(0.82, (kind === 'tear' ? effects.tears : effects.sweat) * opacity * 0.82);
           }
         }
         blinkTime += Math.max(0, Math.min(0.1, deltaSeconds));
@@ -146,6 +159,13 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
         const blink = blinkTime > interval ? Math.max(0, 1 - Math.abs((blinkTime - interval) / 0.12 - 1)) : 0;
         if (blinkTime > interval + 0.24) { blinkTime = 0; blinkCount++; }
         for (const morph of facialTargets) {
+          const dropletKind = morph.name.startsWith('tearTrack') ? 'tear'
+            : morph.name.startsWith('sweatTrack') ? 'sweat' : null;
+          if (dropletKind) {
+            const side = morph.name.endsWith('Left') ? 'Left' : 'Right';
+            morph.influence = dropletCycle(effectTime, dropletKind, side).phase;
+            continue;
+          }
           const eyelid = morph.name === 'eyeBlinkLeft' || morph.name === 'eyeBlinkRight';
           morph.influence = approachFace(morph.influence, Math.max(faceTarget(emotion, morph.name), eyelid ? blink : 0), deltaSeconds);
         }
