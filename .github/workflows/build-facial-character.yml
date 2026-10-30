@@ -5,6 +5,8 @@ on:
     paths:
       - 'scripts/build-character.py'
       - 'scripts/facial_mouth.py'
+      - 'scripts/facial_gaze.py'
+      - 'scripts/test_facial_gaze.py'
       - 'scripts/test_facial_mouth.py'
       - 'scripts/facial_cheeks.py'
       - 'scripts/test_facial_cheeks.py'
@@ -26,6 +28,7 @@ jobs:
       - name: Unit-test mouth, cheek and droplet morph geometry
         run: |
           python scripts/test_facial_mouth.py
+          python scripts/test_facial_gaze.py
           python scripts/test_facial_cheeks.py
           python scripts/test_facial_droplets.py
       - name: Generate character from pinned licensed sources
@@ -42,6 +45,7 @@ jobs:
           expected = {'eyeBlinkLeft','eyeBlinkRight','eyeWideLeft','eyeWideRight','browInnerUp','browDownLeft','browDownRight',
                       'mouthSmileLeft','mouthSmileRight','mouthFrownLeft','mouthFrownRight','mouthPressLeft','mouthPressRight','jawOpen','mouthOpen',
                       'cheekSquintLeft','cheekSquintRight',
+                      'eyeLookDownLeft','eyeLookDownRight','eyeLookUpLeft','eyeLookUpRight',
                       'tearTrackLeft','tearTrackRight','sweatTrackLeft','sweatTrackRight'}
           found = set()
           for mesh in d.get('meshes', []):
