@@ -238,3 +238,40 @@ export function atBusStop(position, stop) {
   return Boolean(stop) && Number.isFinite(position?.x) && Number.isFinite(position?.z) &&
     Math.hypot(position.x - stop.x, position.z - stop.z) <= STOP_RANGE;
 }
+
+/**
+ * Street lamp spots along the real streets: every `spacing` metres, at the
+ * kerb (alternating sides), clear of buildings and of other lamps. Local
+ * coordinates; capped so the night stays cheap.
+ */
+export function streetLampSpots(city, collider, spacing = 26, max = 140) {
+  const kinds = new Set(['primary', 'secondary', 'tertiary', 'residential', 'unclassified', 'pedestrian']);
+  const spots = [];
+  const near = (x, z, r) => spots.some(s => Math.hypot(s.x - x, s.z - z) < r);
+  for (const road of city.roads) {
+    if (!kinds.has(road.kind)) continue;
+    let carried = spacing / 2;
+    let side = 1;
+    for (let i = 0; i + 1 < road.points.length; i++) {
+      const [ax, az] = road.points[i];
+      const [bx, bz] = road.points[i + 1];
+      const length = Math.hypot(bx - ax, bz - az);
+      if (length < 0.01) continue;
+      const ux = (bx - ax) / length; const uz = (bz - az) / length;
+      for (let t = carried; t < length; t += spacing) {
+        const offset = road.width / 2 + 0.9;
+        const x = ax + ux * t - uz * offset * side;
+        const z = az + uz * t + ux * offset * side;
+        // The lamp arm reaches out over the road.
+        const facing = Math.atan2(uz * side, -ux * side);
+        side = -side;
+        if (collider.blockedLocal(x, z) || near(x, z, spacing * 0.6)) continue;
+        spots.push({ x, z, facing });
+        if (spots.length >= max) return spots;
+      }
+      carried = (carried - length) % spacing;
+      if (carried < 0) carried += spacing;
+    }
+  }
+  return spots;
+}

@@ -126,3 +126,15 @@ test('lane dashes, kerbside bus stop and a camera that never ends up inside a bu
   }
   assert.equal(cameraClearance(collider, target, target), 0);
 });
+
+test('street lamps line the real streets at the kerb, clear of buildings and spaced out', async () => {
+  const { streetLampSpots } = await import('../src/world/cityLayout.mjs');
+  const collider = createCityCollider(city);
+  const spots = streetLampSpots(city, collider);
+  assert.ok(spots.length >= 40 && spots.length <= 140, `${spots.length} lamps`);
+  for (const s of spots) assert.equal(collider.blockedLocal(s.x, s.z), false);
+  for (let i = 0; i < spots.length; i++) for (let j = i + 1; j < spots.length; j++) {
+    assert.ok(Math.hypot(spots[i].x - spots[j].x, spots[i].z - spots[j].z) >= 26 * 0.6 - 1e-9);
+  }
+  assert.ok(streetLampSpots(city, collider, 26, 10).length === 10, 'capped');
+});

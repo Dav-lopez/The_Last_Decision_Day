@@ -21,3 +21,4 @@ export declare const BUS_RIDE_MINUTES: number;
 export declare function atBusStop(position: PlanarPosition, stop: PlanarPosition | null | undefined): boolean;
 export declare function laneDashes(points: ReadonlyArray<readonly number[]>, dash?: number, gap?: number): number[][][];
 export declare function cameraClearance(collider: CityCollider, target: PlanarPosition, camera: PlanarPosition): number;
+export declare function streetLampSpots(city: City, collider: CityCollider, spacing?: number, max?: number): Array<{ x: number; z: number; facing: number }>;

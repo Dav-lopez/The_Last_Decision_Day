@@ -39,6 +39,7 @@ import { loadNeighbors, type Neighbors, type Person } from './npcPeople';
 import { buildSchoolScene } from './schoolScene';
 import { BUS_RIDE_MINUTES, MAPLE_BUS_STOP, atBusStop, cameraClearance, createCityCollider, findBusStop, readCity, stepCityLocomotion, toWorld, type City } from './cityLayout.mjs';
 import { buildBusStop, buildCityScene } from './cityScene';
+import { buildCityLights } from './cityLights';
 import { CLASSROOM, CLASSROOM_SPAWN, SCHOOL_ORIGIN, atClassroomExit, deskInReach, nearTeacher, stepClassroomLocomotion } from './schoolInterior.mjs';
 import { attendLesson, currentEntry, isSchoolOpen, joinableLesson, schoolStatus } from './schoolSchedule.mjs';
 import { advanceLife, canSleep, eat, FOOD, chooseStartingLife, formatClock, isEvening, isExhausted, nearBed, normalizeLife, readLife,
@@ -482,6 +483,8 @@ export default function WorldScene({
       const schoolMarker = createNeighborhood(scene);
       // The bus stop at the north end of Maple Street; the bus runs to a real downtown (OpenStreetMap).
       const disposeMapleStop = buildBusStop(scene, MAPLE_BUS_STOP.x - 1.05, MAPLE_BUS_STOP.z, Math.PI / 2);
+      let cityLights: ReturnType<typeof buildCityLights> | null = null;
+      let eveningNow = false;
       let downtown: { city: City; collider: ReturnType<typeof createCityCollider>; stop: PlanarPosition & { rotation: number; street: string; dx: number; dz: number }; dispose: () => void } | null = null;
       const loadDowntown = async () => {
         const index = await fetch('/city/index.json').then(response => response.ok ? response.json() : null);
@@ -494,8 +497,12 @@ export default function WorldScene({
         if (!local) return;
         const world = toWorld([local.x, local.z]);
         const disposeCity = buildCityScene(scene, city);
+        // Street lamps on every downtown street (clustered lights at night).
+        const lights = buildCityLights(scene, city, collider);
+        lights.setEvening(eveningNow);
+        cityLights = lights;
         const disposeStop = buildBusStop(scene, world.x + local.awayX * 0.9, world.z + local.awayZ * 0.9, local.heading);
-        downtown = { city, collider, stop: { ...world, rotation: movementHeading(local.dx, local.dz), dx: local.dx, dz: local.dz, street: local.street }, dispose: () => { disposeCity(); disposeStop(); } };
+        downtown = { city, collider, stop: { ...world, rotation: movementHeading(local.dx, local.dz), dx: local.dx, dz: local.dz, street: local.street }, dispose: () => { disposeCity(); disposeStop(); lights.dispose(); } };
       };
       loadDowntown().catch(() => { /* Downtown is optional; Maple Street plays without it. */ });
       // The town around the street, so the world reaches the horizon instead of ending at a cliff edge.
@@ -539,7 +546,12 @@ export default function WorldScene({
       const atmosphere = createAtmosphere(scene, directional.direction);
       const lighting = {
         ...streetLighting,
-        setEvening(evening: boolean) { streetLighting.setEvening(evening); atmosphere.setEvening(evening); },
+        setEvening(evening: boolean) {
+          eveningNow = evening;
+          streetLighting.setEvening(evening);
+          atmosphere.setEvening(evening);
+          cityLights?.setEvening(evening);
+        },
       };
       lighting.setEvening(false);
       lightingRef.current = lighting;
