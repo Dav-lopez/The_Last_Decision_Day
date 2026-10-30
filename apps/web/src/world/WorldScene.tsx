@@ -549,7 +549,8 @@ export default function WorldScene({
         if (!sync || !lifeLoaded || saveInFlight || disposed) return;
         saveInFlight = true;
         setSyncStatus('saving');
-        sync.save(toServerLife(life, locationRef.current)).then(result => {
+        // The account stores home or street; the classroom saves as street (you leave school by its door).
+        sync.save(toServerLife(life, locationRef.current === 'home' ? 'home' : 'street')).then(result => {
           if (disposed) return;
           if (result.status === 'rejected') {
             adoptAccountLife(result.life);

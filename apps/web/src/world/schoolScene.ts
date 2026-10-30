@@ -66,12 +66,9 @@ export function buildSchoolScene(scene: Scene): SchoolScene {
     // Faint chalk dust so the slate doesn't look like a flat colour.
     context.fillStyle = '#ffffff0d';
     for (let i = 0; i < 90; i++) context.fillRect((i * 173) % 1024, (i * 97) % 370, 60 + (i * 7) % 90, 2);
-    context.fillStyle = '#f2f0e6';
-    context.textAlign = 'center';
-    context.font = 'bold 92px "Comic Sans MS", "Segoe Print", cursive';
-    context.fillText(title, 512, 150);
-    context.font = '46px "Comic Sans MS", "Segoe Print", cursive';
-    context.fillText(detail, 512, 260);
+    // A null x centres the text; nothing is cleared so the slate above stays.
+    boardTexture.drawText(title, null, 150, 'bold 92px "Comic Sans MS", "Segoe Print", cursive', '#f2f0e6', null, true, false);
+    boardTexture.drawText(detail, null, 260, '46px "Comic Sans MS", "Segoe Print", cursive', '#f2f0e6', null, true, false);
     boardTexture.update();
   };
   setBoard('Welcome!', 'Lessons start at 8:00 AM');
