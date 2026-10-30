@@ -92,3 +92,16 @@
 @media(max-width:640px){.world-drive-hud{bottom:60px;font-size:.78rem}.world-car-action{bottom:110px}}
 .world-notice{position:absolute;bottom:110px;left:50%;transform:translateX(-50%);padding:8px 14px;border-radius:8px;background:#11243ae6;color:#ffd38a;font-size:.88rem;pointer-events:none;white-space:nowrap;box-shadow:0 2px 10px #0005}
 @media(max-width:640px){.world-notice{bottom:158px;white-space:normal;max-width:calc(100% - 24px);text-align:center}}
+
+/* Day clock, energy and sleep fade. */
+.world-life{position:absolute;top:56px;left:12px;display:flex;flex-direction:column;gap:4px;padding:8px 12px;border-radius:8px;background:#11243ae6;color:#fff;font-size:.82rem;pointer-events:none;box-shadow:0 2px 10px #0005}
+.world-energy{display:flex;align-items:center;gap:6px}
+.world-energy-bar{display:inline-block;width:72px;height:7px;border-radius:4px;background:#ffffff2e;overflow:hidden}
+.world-energy-bar span{display:block;height:100%;background:#7bd389;transition:width .4s}
+.world-energy[data-low] .world-energy-bar span{background:#f2a65a}
+.world-sleep{position:absolute;inset:0;display:grid;place-items:center;background:#060b16;animation:world-sleep-fade 2.2s ease-in-out both;pointer-events:none}
+.world-sleep span{color:#cfd9ef;font-size:1.3rem;letter-spacing:.06em}
+@keyframes world-sleep-fade{0%{opacity:0}25%,75%{opacity:1}100%{opacity:.95}}
+@media(max-width:640px){.world-life{top:96px;left:8px;font-size:.76rem}}
+@media (prefers-reduced-motion:reduce){.world-sleep{animation:none}}
+.world-sync{opacity:.75;font-size:.72rem}

@@ -44,7 +44,7 @@ test('props block walking but leave the school entrance reachable from the stree
 });
 
 test('model scale matches target height without exceeding the footprint', () => {
-  assert.ok(Math.abs(propScale('plant', [0.5, 0.88, 0.5]) - 1.25) < 1e-9);
+  assert.ok(Math.abs(propScale('plant', [0.5, 0.9, 0.5]) - 1) < 1e-9, 'a 0.9 m pot keeps its real size');
   const wideBench = propScale('bench', [2.4, 0.9, 0.7]);
   assert.ok(Math.abs(wideBench * 2.4 - PROP_TYPES.bench.maxFootprint) < 1e-9);
   for (const bad of [undefined, [0, 1, 1], [1, Number.NaN, 1], [1, -1, 1]]) assert.equal(propScale('plant', bad), null);
@@ -57,7 +57,8 @@ test('shipped Poly Haven models, when present, are CC0, self-contained and liste
   const credits = readFileSync(new URL('ATTRIBUTION.md', MODELS), 'utf8');
   const slots = manifest.assets.map(asset => asset.slot);
   for (const required of ['bench', 'plant']) assert.ok(slots.includes(required), `missing required ${required}`);
-  for (const slot of slots) assert.ok(slot in PROP_TYPES, `no placement rules for ${slot}`);
+  // `car` replaces the parked sedans (see realEnvironmentAssets); every other slot is a placed prop.
+  for (const slot of slots) assert.ok(slot === 'car' || slot in PROP_TYPES, `no placement rules for ${slot}`);
   for (const asset of manifest.assets) {
     assert.match(asset.file, /^[a-z_]+\.glb$/);
     assert.match(asset.page, /^https:\/\/polyhaven\.com\/a\//);
@@ -67,6 +68,19 @@ test('shipped Poly Haven models, when present, are CC0, self-contained and liste
     assert.equal(statSync(new URL(asset.file, MODELS)).size, asset.bytes);
     assert.ok(asset.bytes <= 6_000_000, `${asset.file} is too large for mobile`);
     assert.ok(asset.sizeMeters.every(value => value > 0.05 && value < 6), `${asset.id} has implausible size ${asset.sizeMeters}`);
-    assert.ok(propScale(asset.slot, asset.sizeMeters) > 0);
+    if (asset.slot !== 'car') assert.ok(propScale(asset.slot, asset.sizeMeters) > 0);
   }
+});
+
+test('a scanned car is turned along the street and fitted to the parking footprint', async () => {
+  const { carFit } = await import('../src/world/propLayout.mjs');
+  const { CAR_HALF_LENGTH, CAR_HALF_WIDTH } = await import('../src/world/streetLayout.mjs');
+  const alongX = carFit([4.6, 1.45, 1.8]);
+  assert.equal(alongX.rotation, Math.PI / 2, 'a model authored along X is turned onto Z');
+  assert.ok(4.6 * alongX.scale <= 2 * CAR_HALF_LENGTH + 1e-9 && 1.8 * alongX.scale <= 2 * CAR_HALF_WIDTH + 1e-9);
+  assert.equal(carFit([1.8, 1.45, 4.6]).rotation, 0);
+  assert.equal(carFit([1.8, 1.45, 4.6], Math.PI).rotation, Math.PI, 'manual flip for a backward model');
+  assert.equal(carFit([1, 1, 1]), null, 'a cube is not a car');
+  assert.equal(carFit([4.6, 4, 1.8]), null, 'implausibly tall');
+  assert.equal(carFit(undefined), null);
 });

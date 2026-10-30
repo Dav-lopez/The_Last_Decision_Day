@@ -2,6 +2,7 @@ import { Scene, SceneLoader, ShadowGenerator, TransformNode } from '@babylonjs/c
 import '@babylonjs/loaders/glTF';
 import { cloneEnvironmentAtSites } from './environmentInstances.mjs';
 import { PARKED_CARS } from './streetLayout.mjs';
+import { loadPolyHavenCar } from './polyHavenProps';
 
 /**
  * Original, checked-in GLBs. Keep procedural fallback geometry until every
@@ -23,16 +24,26 @@ export async function upgradeNeighborhoodAssets(scene: Scene, signal: { cancelle
     if (signal.cancelled || scene.isDisposed) return;
     let root: TransformNode | undefined;
     try {
-      const loaded = await SceneLoader.ImportMeshAsync('', '/models/environment/', entry.file, scene);
-      if (signal.cancelled || scene.isDisposed) {
-        loaded.meshes.forEach(mesh => mesh.dispose());
-        continue;
+      // A photoscanned CC0 car from Poly Haven replaces the generated sedan when one shipped.
+      const scanned = entry.match === 'car' ? await loadPolyHavenCar(scene).catch(error => {
+        console.warn('Poly Haven car failed; using the generated sedan', error);
+        return null;
+      }) : null;
+      if (scanned) {
+        if (signal.cancelled || scene.isDisposed) { scanned.dispose(); continue; }
+        root = scanned;
+      } else {
+        const loaded = await SceneLoader.ImportMeshAsync('', '/models/environment/', entry.file, scene);
+        if (signal.cancelled || scene.isDisposed) {
+          loaded.meshes.forEach(mesh => mesh.dispose());
+          continue;
+        }
+        root = new TransformNode(`authored ${entry.match} template`, scene);
+        for (const mesh of loaded.meshes) {
+          if (!mesh.parent) mesh.parent = root;
+        }
+        root.setEnabled(false);
       }
-      root = new TransformNode(`authored ${entry.match} template`, scene);
-      for (const mesh of loaded.meshes) {
-        if (!mesh.parent) mesh.parent = root;
-      }
-      root.setEnabled(false);
       const instances = cloneEnvironmentAtSites(root, entry.sites);
       for (const instance of instances) {
         for (const mesh of instance.getChildMeshes()) {

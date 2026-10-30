@@ -6,3 +6,4 @@ export declare const PROP_BLOCKERS: ReadonlyArray<Readonly<{ id: string; minX: n
 export type PropBlocker = Readonly<{ id: string; minX: number; maxX: number; minZ: number; maxZ: number }>;
 export declare function propBlocker(site: PropSite): PropBlocker;
 export declare function propScale(type: string, size: ReadonlyArray<number> | undefined): number | null;
+export declare function carFit(size: ReadonlyArray<number> | undefined, manualRotation?: number): { scale: number; rotation: number } | null;
