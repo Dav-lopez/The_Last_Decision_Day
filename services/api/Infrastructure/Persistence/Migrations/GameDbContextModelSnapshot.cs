@@ -126,6 +126,49 @@ namespace TheLastDecision.Api.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TheLastDecision.Api.CharacterLife", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CharacterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Day")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Energy")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Location")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("Minute")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CharacterId")
+                        .IsUnique();
+
+                    b.ToTable("CharacterLives", t =>
+                        {
+                            t.HasCheckConstraint("CK_CharacterLife_Day", "\"Day\" >= 1");
+
+                            t.HasCheckConstraint("CK_CharacterLife_Energy", "\"Energy\" BETWEEN 0 AND 100");
+
+                            t.HasCheckConstraint("CK_CharacterLife_Location", "\"Location\" IN ('street','home')");
+
+                            t.HasCheckConstraint("CK_CharacterLife_Minute", "\"Minute\" BETWEEN 0 AND 1439");
+                        });
+                });
+
             modelBuilder.Entity("TheLastDecision.Api.IdempotencyRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -374,6 +417,15 @@ namespace TheLastDecision.Api.Infrastructure.Persistence.Migrations
                     b.HasOne("TheLastDecision.Api.Character", null)
                         .WithMany()
                         .HasForeignKey("CharacterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TheLastDecision.Api.CharacterLife", b =>
+                {
+                    b.HasOne("TheLastDecision.Api.Character", null)
+                        .WithOne()
+                        .HasForeignKey("TheLastDecision.Api.CharacterLife", "CharacterId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

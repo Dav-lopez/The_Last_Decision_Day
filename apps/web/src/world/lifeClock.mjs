@@ -106,3 +106,31 @@ export function writeLife(characterId, life, storage = globalThis.localStorage) 
     return false;
   }
 }
+
+/** Shape a life for the server: whole minutes and energy, plus where the player is. */
+export function toServerLife(life, location) {
+  const state = normalizeLife(life);
+  return {
+    day: state.day,
+    minute: Math.min(MINUTES_PER_DAY - 1, Math.floor(state.minute)),
+    energy: Math.round(state.energy),
+    location: location === 'home' ? 'home' : 'street',
+  };
+}
+
+function totalMinutes(life) {
+  return (life.day - 1) * MINUTES_PER_DAY + life.minute;
+}
+
+/**
+ * On load, continue from whichever day is further along: the account's saved
+ * day (another device) or this browser's (played offline or not yet saved).
+ */
+export function chooseStartingLife(local, server) {
+  const browser = normalizeLife(local);
+  if (!server || typeof server !== 'object') return { life: browser, location: 'street', source: 'browser' };
+  const saved = normalizeLife(server);
+  const location = server.location === 'home' ? 'home' : 'street';
+  if (!server.saved || totalMinutes(browser) > totalMinutes(saved)) return { life: browser, location, source: 'browser' };
+  return { life: saved, location, source: 'account' };
+}

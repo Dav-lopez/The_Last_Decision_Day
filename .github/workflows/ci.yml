@@ -16,6 +16,7 @@ jobs:
       - run: dotnet ef --version
       - run: dotnet run --project tests/IdentityRules.Tests/IdentityRules.Tests.csproj
       - run: dotnet run --project tests/SchoolRules.Tests/SchoolRules.Tests.csproj
+      - run: dotnet run --project tests/LifeRules.Tests/LifeRules.Tests.csproj
       - run: dotnet run --project tests/AuditFoundation.Tests/AuditFoundation.Tests.csproj
       - run: dotnet run --project tests/Observability.Tests/Observability.Tests.csproj
   web:

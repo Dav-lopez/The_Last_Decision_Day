@@ -22,8 +22,14 @@ import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mj
 import { PARKED_CARS } from './streetLayout.mjs';
 import { addWorldProps } from './polyHavenProps';
 import { buildHomeScene } from './homeScene';
-import { advanceLife, canSleep, formatClock, isEvening, isExhausted, nearBed, readLife, sleepUntilMorning, TIRED_ENERGY,
-  writeLife, type Life, type LifeActivity } from './lifeClock.mjs';
+import { advanceLife, canSleep, chooseStartingLife, formatClock, isEvening, isExhausted, nearBed, normalizeLife, readLife,
+  sleepUntilMorning, TIRED_ENERGY, toServerLife, writeLife, type Life, type LifeActivity, type ServerLife } from './lifeClock.mjs';
+
+/** Account save for the player's day; absent in the guest preview, which keeps the browser copy only. */
+export type LifeSync = {
+  load: () => Promise<ServerLife>;
+  save: (life: ServerLife) => Promise<{ status: 'saved' | 'rejected'; life: ServerLife }>;
+};
 import { BED_SIDE, FRONT_DOORS, HOME_SPAWN, atHomeExit, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade } from './homeInterior.mjs';
 import { canExitVehicle, chaseCameraAlpha, driveInput, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
@@ -42,6 +48,7 @@ type WorldProps = {
   onPreviewActivity: (activityId: string) => void;
   onExecuteActivity: (activityId: string) => void;
   preview: SchoolPreview | null;
+  lifeSync?: LifeSync;
 };
 const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift']);
 
@@ -333,7 +340,7 @@ function createAvatar(scene: Scene) {
 /** The WebGL view is optional: login and school actions remain usable if 3D fails. */
 export default function WorldScene({
   characterId, displayName, demoMode = false, onSchoolEnter, activities, timeRemaining, busy,
-  canExecuteActivity, onPreviewActivity, onExecuteActivity, preview,
+  canExecuteActivity, onPreviewActivity, onExecuteActivity, preview, lifeSync,
 }: WorldProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const inputRef = useRef(createMovementInput());
@@ -367,6 +374,9 @@ export default function WorldScene({
   const [doorPrompt, setDoorPrompt] = useState<'enter' | 'locked' | 'exit' | 'bed' | null>(null);
   const [lifeView, setLifeView] = useState<Life>(() => readLife(characterId));
   const [sleeping, setSleeping] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'saving' | 'saved' | 'offline'>('idle');
+  const lifeSyncRef = useRef(lifeSync);
+  lifeSyncRef.current = lifeSync;
   const locationRef = useRef<'street' | 'home'>('street');
   const toggleCamera = () => {
     // Indoors the camera stays in its cutaway view; the street mode returns on leaving.
@@ -499,6 +509,33 @@ export default function WorldScene({
       let lastEvening: boolean | null = null;
       let warnedExhausted = false;
       let sleepTimer = 0;
+      let accountSaveTimer = 0;
+      let saveInFlight = false;
+      let lifeLoaded = !lifeSyncRef.current;
+      let disposed = false;
+      // The account copy wins when the server says this save isn't possible (another device is ahead, or
+      // the browser copy drifted); adopting it keeps every device on the same day.
+      const adoptAccountLife = (server: ServerLife) => {
+        life = normalizeLife(server);
+        writeLife(characterId, life);
+        syncLighting();
+        setLifeView({ ...life });
+      };
+      const saveToAccount = () => {
+        const sync = lifeSyncRef.current;
+        if (!sync || !lifeLoaded || saveInFlight || disposed) return;
+        saveInFlight = true;
+        setSyncStatus('saving');
+        sync.save(toServerLife(life, locationRef.current)).then(result => {
+          if (disposed) return;
+          if (result.status === 'rejected') {
+            adoptAccountLife(result.life);
+            notify('Your day was synced from your account.');
+          }
+          setSyncStatus('saved');
+        }).catch(() => { if (!disposed) setSyncStatus('offline'); })
+          .finally(() => { saveInFlight = false; });
+      };
       const syncLighting = () => {
         const nowEvening = isEvening(life.minute);
         // Follow the clock only when day turns to evening (or back), so the manual switch still works in between.
@@ -522,6 +559,8 @@ export default function WorldScene({
             Math.round(previous.energy) === Math.round(shown.energy) && previous.day === shown.day ? previous : shown);
         }
         if (lifeSaveTimer >= 5) { lifeSaveTimer = 0; writeLife(characterId, life); }
+        accountSaveTimer += seconds;
+        if (accountSaveTimer >= 20) { accountSaveTimer = 0; saveToAccount(); }
         if (isExhausted(life) && !warnedExhausted) {
           warnedExhausted = true;
           notify("You're exhausted and can't run. Go home and sleep.");
@@ -551,6 +590,7 @@ export default function WorldScene({
         setNearCar(false);
         setDriveNotice('');
         setInHome(true);
+        saveToAccount();
       };
       const leaveHome = () => {
         const door = FRONT_DOORS.find(candidate => candidate.own)!;
@@ -559,7 +599,27 @@ export default function WorldScene({
         cameraControls.setMode(cameraModeRef.current, true);
         snapCamera(position, -Math.PI / 2);
         setInHome(false);
+        saveToAccount();
       };
+      // Continue the account's saved day (and wake up at home if that's where it ended).
+      if (lifeSyncRef.current) {
+        lifeSyncRef.current.load().then(server => {
+          if (disposed) return;
+          const start = chooseStartingLife(life, server);
+          life = start.life;
+          lifeLoaded = true;
+          writeLife(characterId, life);
+          syncLighting();
+          setLifeView({ ...life });
+          if (start.location === 'home' && locationRef.current === 'street' && interaction.mode === 'walking') enterHome();
+          else if (start.source === 'browser') saveToAccount();
+          setSyncStatus('saved');
+        }).catch(() => {
+          // Keep playing on the browser copy; saves resume once the account answers.
+          lifeLoaded = true;
+          if (!disposed) setSyncStatus('offline');
+        });
+      }
       // E (or the on-screen button): car in/out, the home's doors, then the nearest car.
       const interact = () => {
         if (schoolOpenRef.current) return;
@@ -680,6 +740,7 @@ export default function WorldScene({
             writeLife(characterId, life);
             syncLighting();
             setLifeView({ ...life });
+            saveToAccount();
             interaction = transitionInteraction(interaction, 'exit');
             avatar.setEnabled(true);
             setSleeping(false);
@@ -794,6 +855,8 @@ export default function WorldScene({
         document.removeEventListener('visibilitychange', onVisibilityChange);
         cameraControlsRef.current = null;
         writeLife(characterId, life);
+        saveToAccount();
+        disposed = true;
         lighting.dispose();
         lightingRef.current = null;
         environmentLoad.cancelled = true;
@@ -876,7 +939,8 @@ export default function WorldScene({
       {!error && <canvas ref={canvasRef} tabIndex={0} aria-label={`3D world for ${displayName}; click to focus, use WASD or arrow keys to move`} />}
       {error ? <p className="world-fallback" role="status">{error}</p> : <>
         <div className="world-life" role="status" aria-label={`Day ${lifeView.day}, ${formatClock(lifeView.minute)}, energy ${Math.round(lifeView.energy)} percent`}>
-          <span>Day {lifeView.day} · {formatClock(lifeView.minute)}</span>
+          <span>Day {lifeView.day} · {formatClock(lifeView.minute)}{lifeSync && syncStatus !== 'idle' &&
+            <small className="world-sync"> · {syncStatus === 'offline' ? 'Saved in this browser' : syncStatus === 'saving' ? 'Saving…' : 'Saved to your account'}</small>}</span>
           <span className="world-energy" data-low={lifeView.energy <= TIRED_ENERGY ? 'true' : undefined}>
             Energy <span className="world-energy-bar" aria-hidden="true"><span style={{ width: `${Math.round(lifeView.energy)}%` }} /></span> {Math.round(lifeView.energy)}%
           </span>

@@ -22,3 +22,9 @@ export declare function nearBed(position: PlanarPosition, bedSide: PlanarPositio
 export declare function formatClock(minute: number): string;
 export declare function readLife(characterId: string, storage?: Storage): Life;
 export declare function writeLife(characterId: string, life: Life, storage?: Storage): boolean;
+export type LifeLocation = 'street' | 'home';
+export type ServerLife = { day: number; minute: number; energy: number; location: LifeLocation; saved?: boolean };
+export declare function toServerLife(life: Life, location: LifeLocation): ServerLife;
+export declare function chooseStartingLife(local: Life, server: ServerLife | null | undefined): {
+  life: Life; location: LifeLocation; source: 'browser' | 'account';
+};
