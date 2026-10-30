@@ -108,11 +108,16 @@ export const HOME_WALLS = Object.freeze([
   Object.freeze({ id: 'left', normal: Object.freeze({ x: -1, z: 0 }) }),
   Object.freeze({ id: 'right', normal: Object.freeze({ x: 1, z: 0 }) }),
 ]);
-export function wallsToFade(cameraPosition) {
-  const dx = cameraPosition.x - HOME_ORIGIN.x;
-  const dz = cameraPosition.z - HOME_ORIGIN.z;
+/** Walls of any room (origin + half sizes) that stand between the camera and the room. */
+export function wallsToFadeFor(origin, room, cameraPosition) {
+  const dx = cameraPosition.x - origin.x;
+  const dz = cameraPosition.z - origin.z;
   return HOME_WALLS.filter(wall => {
-    const limit = wall.normal.x !== 0 ? ROOM.halfWidth : ROOM.halfDepth;
+    const limit = wall.normal.x !== 0 ? room.halfWidth : room.halfDepth;
     return dx * wall.normal.x + dz * wall.normal.z > limit - 0.5;
   }).map(wall => wall.id);
+}
+
+export function wallsToFade(cameraPosition) {
+  return wallsToFadeFor(HOME_ORIGIN, ROOM, cameraPosition);
 }

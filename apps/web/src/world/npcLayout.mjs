@@ -6,6 +6,7 @@
  */
 import { carContains } from './movement.mjs';
 import { STREET_LIGHTS } from './streetLayout.mjs';
+import { SCHOOL_ORIGIN, TEACHER_STANDS } from './schoolInterior.mjs';
 
 export const PERSON_RADIUS = 0.3;
 /** Walkers keep right so two people meeting on a sidewalk pass instead of both stopping. */
@@ -51,6 +52,10 @@ export const NEIGHBORS = Object.freeze([
   // Two classmates chat on the school lawn during school hours, facing each other.
   person('student-a', { skin: 'light', hair: 'brown', outfit: 'green' }, stand(-2.3, -5.05, Math.atan2(-0.5, -0.45)), 0, 0, H(7.5), H(16)),
   person('student-b', { skin: 'warm', hair: 'blonde', outfit: 'gold' }, stand(-1.8, -4.6, Math.atan2(0.5, 0.45)), 0, 0, H(7.5), H(16)),
+  // Inside the classroom (see schoolInterior): the teacher at the board and two classmates by the windows.
+  person('teacher', { skin: 'olive', hair: 'dark', outfit: 'blue' }, stand(TEACHER_STANDS.x, TEACHER_STANDS.z, Math.PI), 0, 0, H(7.5), H(16)),
+  person('classmate-a', { skin: 'deep', hair: 'dark', outfit: 'red' }, stand(SCHOOL_ORIGIN.x + 4.1, SCHOOL_ORIGIN.z - 2.5, Math.atan2(0.6, 0.5)), 0, 0, H(7.75), H(15.5)),
+  person('classmate-b', { skin: 'light', hair: 'blonde', outfit: 'green' }, stand(SCHOOL_ORIGIN.x + 3.5, SCHOOL_ORIGIN.z - 3.0, Math.atan2(-0.6, -0.5)), 0, 0, H(7.75), H(15.5)),
 ]);
 
 export function isOut(npc, minute) {
