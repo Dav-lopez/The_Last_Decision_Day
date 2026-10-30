@@ -15,7 +15,8 @@ from facial_asset_contract import parse_glb, validate, vectors
 VARIANTS = {"male": ("human.glb", "human.source.json"),
             "female": ("human-female.glb", "human-female.source.json")}
 FACE_MESHES = {
-    "Student expressive lips", "Student expressive cheeks", "Student sculpted nose",
+    "Student expressive lips", "Student oral cavity", "Student upper teeth",
+    "Student tongue", "Student expressive cheeks", "Student sculpted nose",
     "Student sculpted ears",
     "Student eyelid rims", "Student corneal shells",
     "Student tear Left", "Student tear Right", "Student sweat Left", "Student sweat Right",

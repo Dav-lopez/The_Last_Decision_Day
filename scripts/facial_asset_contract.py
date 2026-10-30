@@ -23,7 +23,8 @@ REQUIRED_MORPHS = {
     "sweatTrackLeft", "sweatTrackRight",
 }
 HEAD_MESHES = {
-    "Student expressive lips", "Student expressive cheeks",
+    "Student expressive lips", "Student oral cavity", "Student upper teeth",
+    "Student tongue", "Student expressive cheeks",
     "Student tear Left", "Student tear Right",
     "Student sweat Left", "Student sweat Right",
 }

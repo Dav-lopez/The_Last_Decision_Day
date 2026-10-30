@@ -16,6 +16,7 @@ import urllib.parse
 import urllib.request
 
 from facial_mouth import build_mouth_geometry
+from facial_oral import build_oral_geometry
 from facial_gaze import GAZE_TARGETS, gaze_delta
 from facial_cheeks import build_cheek_geometry
 from facial_nose import build_nose_geometry
@@ -452,6 +453,42 @@ def build(files, variant):
     b.doc["nodes"].append({"name": "Student lip surface", "mesh": lip_mesh, "skin": 0})
     b.doc["nodes"][body["scenes"][0]["nodes"][0]]["children"].append(len(b.doc["nodes"]) - 1)
 
+    # Three shallow, head-skinned surfaces behind the parted lip ribbons.
+    # The dark cavity expands with jawOpen/mouthOpen, while the upper teeth
+    # remain anchored and the tongue follows the lower jaw. No per-frame mesh
+    # allocations or extra skeleton bones are required.
+    oral_materials = {
+        "cavity": ("Student oral cavity", [.065, .018, .024], .91),
+        "teeth": ("Student upper teeth", [.93, .88, .78], .43),
+        "tongue": ("Student tongue", [.54, .20, .25], .68),
+    }
+    for part, geometry in build_oral_geometry(body_joint["Head"]).items():
+        geometry = on_this_face(geometry)
+        label, color, roughness = oral_materials[part]
+        material_index = len(b.doc["materials"])
+        b.doc["materials"].append(matte(label, color, roughness))
+        attrs = {
+            "POSITION": b.accessor(geometry["positions"], "VEC3", bounds=True),
+            "NORMAL": b.accessor(geometry["normals"], "VEC3"),
+            "JOINTS_0": b.accessor(geometry["joints"], "VEC4", 5121),
+            "WEIGHTS_0": b.accessor(geometry["weights"], "VEC4"),
+        }
+        mesh_index = len(b.doc["meshes"])
+        primitive = {
+            "attributes": attrs,
+            "indices": b.accessor(geometry["indices"], "SCALAR", 5123),
+            "material": material_index,
+        }
+        if geometry["names"]:
+            primitive["targets"] = [{"POSITION": b.accessor(deltas, "VEC3")} for deltas in geometry["targets"]]
+        b.doc["meshes"].append({
+            "name": label,
+            "primitives": [primitive],
+            "extras": {"targetNames": list(geometry["names"])},
+        })
+        b.doc["nodes"].append({"name": label + " surface", "mesh": mesh_index, "skin": 0})
+        b.doc["nodes"][scene_root]["children"].append(len(b.doc["nodes"]) - 1)
+
     # Skinned, normally transparent cheek patches supply true bilateral cheek
     # deformation and a localized blush surface. The runtime fades the patch
     # alpha in when embarrassed, instead of recoloring the whole body.
@@ -666,7 +703,7 @@ def build(files, variant):
                 "body": variant,
                 "output": {"file": config["output"], "bytes": len(glb), "sha256": hashlib.sha256(glb).hexdigest(),
                            "morphTargets": sorted({name for mesh in b.doc["meshes"] for name in mesh.get("extras", {}).get("targetNames", [])})},
-                "modifications": ["Keep only Idle_Loop, Walk_Loop and Sprint_Loop, exported as Idle/Walk/Run.", "Rebase local rotations onto the character bind pose; retain target limb lengths.", "Preserve pelvis bob and remove horizontal root travel; gameplay controls world movement.", "Add parted hair, remap hair joints, split clothing/skin materials for browser customization.", "Add bounded head-skinned hair-fibre relief to each licensed hairstyle, sharing its hair material and visibility.", "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes.", "Add a skinned expressive lip surface with smile, frown, press and open morphs.", "Add head-skinned cheek squint targets and transparent blush surfaces.", "Add head-skinned animated translucent tear and sweat droplets.", "Add a head-skinned sculpted nose bridge and tip sharing the skin material.", "Add bilateral sculpted ear relief with helix and concha skinned to Head.", "Add skinned upper/lower eyelid rims and tapered lashes driven by bilateral blink morphs.", "Add shallow transparent head-skinned corneal films with bilateral blink and gaze morphs.", "Split the outfit into zones painted in the browser (sleeves, midriff, waist, thighs, knees, shins, socks, shoes, soles).", "Ship every hairstyle (parted, buzzed, pixie, long, buns, beard) moved onto this head by the eye-centre difference; the browser shows one.", "Add a skinned flared skirt (pelvis and thighs), hidden unless worn."]}
+                "modifications": ["Keep only Idle_Loop, Walk_Loop and Sprint_Loop, exported as Idle/Walk/Run.", "Rebase local rotations onto the character bind pose; retain target limb lengths.", "Preserve pelvis bob and remove horizontal root travel; gameplay controls world movement.", "Add parted hair, remap hair joints, split clothing/skin materials for browser customization.", "Add bounded head-skinned hair-fibre relief to each licensed hairstyle, sharing its hair material and visibility.", "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes.", "Add two separate head-skinned lip ribbons with smile, frown, press and open morphs.", "Add recessed oral cavity, upper teeth and tongue geometry synchronized to jaw opening.", "Add head-skinned cheek squint targets and transparent blush surfaces.", "Add head-skinned animated translucent tear and sweat droplets.", "Add a head-skinned sculpted nose bridge and tip sharing the skin material.", "Add bilateral sculpted ear relief with helix and concha skinned to Head.", "Add skinned upper/lower eyelid rims and tapered lashes driven by bilateral blink morphs.", "Add shallow transparent head-skinned corneal films with bilateral blink and gaze morphs.", "Split the outfit into zones painted in the browser (sleeves, midriff, waist, thighs, knees, shins, socks, shoes, soles).", "Ship every hairstyle (parted, buzzed, pixie, long, buns, beard) moved onto this head by the eye-centre difference; the browser shows one.", "Add a skinned flared skirt (pelvis and thighs), hidden unless worn."]}
     (OUTPUT / config["manifest"]).write_text(json.dumps(manifest, indent=2)+"\n")
     print(f"Built {config['output']}: {len(glb):,} bytes with {len(b.doc['animations'])} animation clips.")
 
