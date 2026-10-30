@@ -22,13 +22,16 @@ export function actionFacialWeight(name, action, weight) {
   const inflection = 0.5 + 0.5 * Math.sin(t * Math.PI * 2 * 0.75 + 0.8);
   const opening = phrase * (0.14 + 0.65 * syllable) * (0.8 + 0.2 * inflection);
   const closure = phrase * (1 - syllable);
-  const values = {
-    jawOpen: opening * 0.48,
-    mouthOpen: opening * 0.69,
-    mouthPressLeft: closure * 0.13,
-    mouthPressRight: closure * 0.10,
-    mouthSmileLeft: phrase * (0.04 + inflection * 0.07),
-    mouthSmileRight: phrase * (0.03 + inflection * 0.06),
-  };
-  return clamp01((values[name] ?? 0) * clamp01(weight));
+  // Avoid allocating an object for each of the ~27 morph targets per frame.
+  let influence;
+  switch (name) {
+    case 'jawOpen': influence = opening * 0.48; break;
+    case 'mouthOpen': influence = opening * 0.69; break;
+    case 'mouthPressLeft': influence = closure * 0.13; break;
+    case 'mouthPressRight': influence = closure * 0.10; break;
+    case 'mouthSmileLeft': influence = phrase * (0.04 + inflection * 0.07); break;
+    case 'mouthSmileRight': influence = phrase * (0.03 + inflection * 0.06); break;
+    default: return 0;
+  }
+  return clamp01(influence * clamp01(weight));
 }
