@@ -131,7 +131,10 @@ export function createCityCollider(city) {
     }
     return false;
   };
-  return { blockedLocal };
+  /** Strictly inside a building (for the camera, which has no body). */
+  const insideLocal = (x, z) => (grid.get(key(Math.floor(x / CELL), Math.floor(z / CELL))) ?? [])
+    .some(index => pointInRing(x, z, city.buildings[index].ring));
+  return { blockedLocal, insideLocal };
 }
 
 export const toWorld = ([x, z]) => ({ x: CITY_ORIGIN.x + x, z: CITY_ORIGIN.z + z });
@@ -154,11 +157,58 @@ export function findBusStop(city, collider) {
         const x = ax + (bx - ax) * t; const z = az + (bz - az) * t;
         if (collider.blockedLocal(x, z)) continue;
         const score = Math.hypot(x, z) + rank * 25;
-        if (!best || score < best.score) best = { x, z, score, dx: bx - ax, dz: bz - az, road: road.name || road.kind };
+        // Stand at the kerb, not in the traffic lane: step off to whichever side is free.
+        const length = Math.hypot(bx - ax, bz - az) || 1;
+        const side = road.width / 2 + 1.2;
+        const nx = -(bz - az) / length; const nz = (bx - ax) / length;
+        const kerb = [[x + nx * side, z + nz * side, nx, nz], [x - nx * side, z - nz * side, -nx, -nz]].find(([kx, kz]) => !collider.blockedLocal(kx, kz));
+        if (!kerb) continue;
+        if (!best || score < best.score) best = { x: kerb[0], z: kerb[1], ox: kerb[2], oz: kerb[3], score, dx: (bx - ax) / length, dz: (bz - az) / length, road: road.name || road.kind };
       }
     }
   }
-  return best && { x: best.x, z: best.z, heading: Math.atan2(-best.dx, -best.dz), street: best.road };
+  // heading: the street's direction (unit dx, dz), so the player arrives looking along it;
+  // away: unit vector from the road to the kerb, where the sign stands.
+  return best && { x: best.x, z: best.z, heading: Math.atan2(best.dx, best.dz), dx: best.dx, dz: best.dz, awayX: best.ox, awayZ: best.oz, street: best.road };
+}
+
+/** Dash segments (dash, gap in metres) along a polyline, for painted lane lines. */
+export function laneDashes(points, dash = 3, gap = 6) {
+  const dashes = [];
+  let phase = 0; // metres into the current dash+gap cycle
+  for (let i = 0; i + 1 < points.length; i++) {
+    const [ax, az] = points[i];
+    const [bx, bz] = points[i + 1];
+    const length = Math.hypot(bx - ax, bz - az);
+    let t = 0;
+    while (t < length) {
+      const inDash = phase < dash;
+      const step = Math.min(length - t, inDash ? dash - phase : dash + gap - phase);
+      if (inDash && step > 0.05) {
+        const s = t / length; const e = (t + step) / length;
+        dashes.push([[ax + (bx - ax) * s, az + (bz - az) * s], [ax + (bx - ax) * e, az + (bz - az) * e]]);
+      }
+      t += step;
+      phase = (phase + step) % (dash + gap);
+    }
+  }
+  return dashes;
+}
+
+/**
+ * How far the follow camera can sit from the player before a building is in
+ * the way (world coordinates; 2D, since downtown buildings are taller than the
+ * camera). Returns the clear distance, capped at the wanted one.
+ */
+export function cameraClearance(collider, target, camera) {
+  const dx = camera.x - target.x; const dz = camera.z - target.z;
+  const wanted = Math.hypot(dx, dz);
+  if (!(wanted > 0)) return 0;
+  const [tx, tz] = toLocal(target);
+  for (let d = 0.5; d < wanted; d += 0.4) {
+    if (collider.insideLocal(tx + dx / wanted * d, tz + dz / wanted * d)) return Math.max(0, d - 0.6);
+  }
+  return wanted;
 }
 
 /** Same controls, speeds and clips as on Maple Street. Positions are world coordinates. */

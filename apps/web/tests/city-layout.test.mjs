@@ -89,3 +89,40 @@ test('the Maple Street bus stop sits on the sidewalk, clear of the parked car an
   assert.equal(atBusStop({ x: Number.NaN, z: 0 }, MAPLE_BUS_STOP), false);
   assert.equal(atBusStop(MAPLE_BUS_STOP, null), false);
 });
+
+test('lane dashes, kerbside bus stop and a camera that never ends up inside a building', async () => {
+  const { laneDashes, cameraClearance } = await import('../src/world/cityLayout.mjs');
+  const dashes = laneDashes([[0, 0], [20, 0], [20, 7]], 3, 6);
+  assert.ok(dashes.length >= 3);
+  for (const [[ax, az], [bx, bz]] of dashes) assert.ok(Math.hypot(bx - ax, bz - az) <= 3 + 1e-9);
+  assert.deepEqual(dashes[0], [[0, 0], [3, 0]]);
+  assert.deepEqual(laneDashes([[0, 0]]), []);
+
+  const collider = createCityCollider(city);
+  const stop = findBusStop(city, collider);
+  assert.ok(Math.abs(Math.hypot(stop.dx, stop.dz) - 1) < 1e-9, 'street direction is a unit vector');
+  const road = city.roads.find(r => r.name === stop.street || r.kind === stop.street);
+  assert.ok(road);
+  // Kerbside: not on any traffic lane's centreline.
+  const onCentre = city.roads.filter(r => !['footway', 'path', 'cycleway', 'steps', 'pedestrian'].includes(r.kind)).some(r =>
+    r.points.slice(1).some((b, i) => {
+      const a = r.points[i]; const dx = b[0] - a[0]; const dz = b[1] - a[1]; const len2 = dx * dx + dz * dz || 1;
+      const t = Math.max(0, Math.min(1, ((stop.x - a[0]) * dx + (stop.z - a[1]) * dz) / len2));
+      return Math.hypot(stop.x - (a[0] + t * dx), stop.z - (a[1] + t * dz)) < 1;
+    }));
+  assert.equal(onCentre, false);
+
+  // Camera: from the stop, looking back towards a building, it stops short of the wall.
+  const target = toWorld([stop.x, stop.z]);
+  const building = city.buildings[0];
+  const [bx, bz] = building.ring[0];
+  const far = toWorld([bx + (bx - stop.x) * 0.5, bz + (bz - stop.z) * 0.5]);
+  const clear = cameraClearance(collider, target, far);
+  assert.ok(clear <= Math.hypot(far.x - target.x, far.z - target.z));
+  for (let d = 0.5; d < clear; d += 0.5) {
+    const ux = (far.x - target.x) / Math.hypot(far.x - target.x, far.z - target.z);
+    const uz = (far.z - target.z) / Math.hypot(far.x - target.x, far.z - target.z);
+    assert.equal(collider.insideLocal(...toLocal({ x: target.x + ux * d, z: target.z + uz * d })), false);
+  }
+  assert.equal(cameraClearance(collider, target, target), 0);
+});
