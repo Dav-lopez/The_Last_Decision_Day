@@ -148,14 +148,12 @@ for (let t = 0; t < 60 && !(await carPrompt()); t++) { if (await dismiss()) { aw
 await hold([]);
 console.log('car in reach:', await carPrompt());
 await page.keyboard.press('e'); await settle(1);
-// The parked sedan faces south: reverse out, turn round and head north.
-await hold(['s']); await frames(1.2); await hold(['s', 'a']); await frames(1.4); await hold([]); await settle(0.4);
-await frames(0.1, 'turning');
-for (let t = 0; t < 80; t++) {
-  const label = await page.evaluate(() => document.querySelector('.world-sleep span, .world-bus span')?.textContent ?? '');
+// The parked sedan faces south (toward the school): back straight up the street to the open road.
+for (let t = 0; t < 90; t++) {
+  const label = await page.evaluate(() => document.querySelector('.world-bus span')?.textContent ?? '');
   if (/Driving to/.test(label)) { console.log('leaving town at step', t); break; }
-  const keys = t < 20 ? ['w', 'a'] : ['w'];
-  await hold(keys); await frames(0.1); if (t === 25) await frames(0.01, 'gate-open');
+  await hold(['s']); await frames(0.1);
+  if (t === 30) await frames(0.01, 'gate-open');
 }
 await hold([]);
 await frames(0.3, 'driving-out');
