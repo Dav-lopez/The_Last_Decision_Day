@@ -1,4 +1,4 @@
-import { Color3, PBRMaterial, Scene, SceneLoader, TransformNode, type AbstractMesh, type Material } from '@babylonjs/core';
+import { Color3, PBRMaterial, Scene, SceneLoader, TransformNode, type AbstractMesh, type AnimationGroup, type Material } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
 import { ZONE_MATERIALS, dressZones, type Look, type Zone } from './appearance.mjs';
 import { faceTarget, type Emotion } from './facialEmotions';
@@ -10,11 +10,23 @@ import { advanceFacialMorph } from './faceDynamics.mjs';
 import { idleGazeTarget } from './gazeDynamics.mjs';
 import { blendHumanWeights, classifyHumanMotion, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
+import { startAction, stepAction, stopAction, type ActionState } from './actionMixer.mjs';
+import type { BoundAction } from './characterActions';
 
 export type RiggedAvatar = {
   root: TransformNode;
   applyLook: (look: Look) => void;
   setEmotion: (emotion: Emotion) => void;
+  /** Clips from characterActions, bound to this character's bones. */
+  setActions: (actions: Map<string, BoundAction>) => void;
+  /** Play an action over locomotion (one at a time); false if it isn't available. */
+  playAction: (name: string, loop?: boolean) => boolean;
+  stopAction: () => void;
+  readonly action: string | null;
+  /** Lean the whole body (radians): roll about the facing axis, pitch forward. Smoothed. */
+  setLean: (roll: number, pitch: number) => void;
+  /** Bones (transform nodes) of this character copy. */
+  readonly bones: ReadonlyArray<TransformNode>;
   update: (speed: number, deltaSeconds: number) => void;
   dispose: () => void;
 };
@@ -85,7 +97,14 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
     // Source units are metres. Normalize by the rest-pose bounds, including hair,
     // and place the soles on the same ground used by collisions and the camera.
     normalizeRiggedVisual(root);
-    root.parent = parent;
+    // A lean node between the player and the model banks the body into turns.
+    const leanNode = new TransformNode('rigged player lean', scene);
+    leanNode.parent = parent;
+    root.parent = leanNode;
+    let lean = { roll: 0, pitch: 0, wantRoll: 0, wantPitch: 0 };
+    let actions = new Map<string, BoundAction>();
+    let action: ActionState | null = null;
+    let actionGroup: AnimationGroup | null = null;
     // Facial shading: preserve the authored eye texture and avoid the flat,
     // plastic-looking response of the source's uniform roughness settings.
     // These are conservative PBR adjustments, not a substitute for a scanned
@@ -157,6 +176,26 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
     return {
       root,
       setEmotion(next) { emotion = next; },
+      setActions(next) {
+        for (const { group } of actions.values()) group.dispose();
+        actions = next;
+        action = null;
+        actionGroup = null;
+      },
+      playAction(name, loop) {
+        const clip = actions.get(name);
+        if (!clip || disposed) return false;
+        if (actionGroup && actionGroup !== clip.group) actionGroup.stop();
+        actionGroup = clip.group;
+        action = startAction(name, clip.duration, loop);
+        clip.group.start(action.loop, 1, clip.group.from, clip.group.to);
+        clip.group.setWeightForAllAnimatables(0);
+        return true;
+      },
+      stopAction() { action = stopAction(action); },
+      get action() { return action && action.stopAt === null ? action.name : null; },
+      setLean(roll, pitch) { lean.wantRoll = Number.isFinite(roll) ? roll : 0; lean.wantPitch = Number.isFinite(pitch) ? pitch : 0; },
+      get bones() { return root!.getChildTransformNodes(false); },
       applyLook(look) {
         baseSkin = dressCharacter(container.materials, container.meshes, look);
       },
@@ -219,13 +258,27 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
         weights = blendHumanWeights(transition.from, transition.target, transition.elapsed);
         groups.walk!.speedRatio = Math.max(0.65, Math.min(1.6, movementSpeed / HUMAN_WALK_SPEED));
         groups.run!.speedRatio = Math.max(0.65, Math.min(1.6, movementSpeed / HUMAN_RUN_SPEED));
-        for (const state of ['idle', 'walk', 'run'] as const) groups[state]!.setWeightForAllAnimatables(weights[state]);
+        // An action (talk, sit, drive, jump, dance…) takes over the body by its weight.
+        const step = stepAction(action, frameSeconds);
+        action = step.state;
+        if (actionGroup) {
+          actionGroup.setWeightForAllAnimatables(step.weight);
+          if (!action) { actionGroup.stop(); actionGroup = null; }
+        }
+        for (const state of ['idle', 'walk', 'run'] as const) groups[state]!.setWeightForAllAnimatables(weights[state] * (1 - step.weight));
+        const ease = 1 - Math.exp(-frameSeconds * 8);
+        lean.roll += (lean.wantRoll - lean.roll) * ease;
+        lean.pitch += (lean.wantPitch - lean.pitch) * ease;
+        leanNode.rotation.z = lean.roll;
+        leanNode.rotation.x = lean.pitch;
       },
       dispose() {
         if (disposed) return;
         disposed = true;
+        for (const { group } of actions.values()) group.dispose();
         container.dispose();
         root?.dispose();
+        leanNode.dispose();
       },
     };
   } catch (error) {
