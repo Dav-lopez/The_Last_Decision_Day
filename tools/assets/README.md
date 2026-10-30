@@ -1,5 +1,19 @@
 # Free automated 3D environment assets
 
+The checked-in playable street assets are rebuilt without Blender using:
+
+```bash
+python tools/assets/build_street_assets.py
+```
+
+Requires Python 3 and Pillow. This produces embedded-texture `oak.glb`, `house.glb`
+and `sedan.glb` in `apps/web/public/models/environment`. It uses no external asset
+downloads. Provenance is documented beside the models in `ATTRIBUTION.md`.
+Run `npm --prefix apps/web run test:environment` after rebuilding.
+
+The earlier Blender experiment below is an alternative authoring path; it is not
+the generator for the three checked-in street assets.
+
 This generator uses **Blender (free, open source)** and Python, without Tripo or any paid API. Run from the repository root:
 
 ```bash

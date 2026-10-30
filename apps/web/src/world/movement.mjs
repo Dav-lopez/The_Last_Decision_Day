@@ -1,4 +1,5 @@
 /** Pure movement and interaction rules shared by desktop and touch inputs. */
+import { PARKED_CARS, CAR_HALF_WIDTH, CAR_HALF_LENGTH, STREET_LIGHTS } from './streetLayout.mjs';
 export const WORLD_RADIUS = 11.5;
 export const SCHOOL_DOOR = Object.freeze({ x: 0, z: -5.5 });
 export const TREE_TRUNKS = Object.freeze([
@@ -10,6 +11,8 @@ export const SOLID_AREAS = Object.freeze([
   { minX: -3.9, maxX: 3.9, minZ: -11.5, maxZ: -6.75 }, // school
   { minX: -10.5, maxX: -6.3, minZ: -7.5, maxZ: -2.6 }, // homes
   { minX: 6.3, maxX: 10.5, minZ: -7.5, maxZ: -2.6 },
+  ...PARKED_CARS.map(car => ({ minX: car.x - CAR_HALF_WIDTH, maxX: car.x + CAR_HALF_WIDTH,
+    minZ: car.z - CAR_HALF_LENGTH, maxZ: car.z + CAR_HALF_LENGTH })),
 ]);
 
 /**
@@ -43,7 +46,8 @@ function blocked(x, z) {
   // Tree trunks are cylinders (diameter 0.42) rather than rectangular walls.
   // A small extra margin prevents the player capsule clipping through bark.
   return insideBuilding || TREE_TRUNKS.some(tree =>
-    Math.hypot(x - tree.x, z - tree.z) < radius + 0.21 + 0.04);
+    Math.hypot(x - tree.x, z - tree.z) < radius + 0.21 + 0.04) ||
+    STREET_LIGHTS.some(light => Math.hypot(x - light.x, z - light.z) < radius + 0.1);
 }
 
 export function stepPosition(position, keys, elapsedSeconds, speed = 4, cameraForward = { x: 0, z: -1 }) {
