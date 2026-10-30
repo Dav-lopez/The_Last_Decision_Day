@@ -20,7 +20,9 @@ import { addPlayableNeighborhoodDetails } from './neighborhoodEnvironment';
 import { upgradeNeighborhoodAssets } from './realEnvironmentAssets';
 import { LOOKS, colorFor, readLook, writeLook, type Look } from './appearance.mjs';
 import { PARKED_CARS } from './streetLayout.mjs';
-import { addNeighborhoodProps } from './polyHavenProps';
+import { addWorldProps } from './polyHavenProps';
+import { buildHomeScene } from './homeScene';
+import { FRONT_DOORS, HOME_SPAWN, atHomeExit, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade } from './homeInterior.mjs';
 import { canExitVehicle, chaseCameraAlpha, driveInput, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
 
@@ -359,7 +361,12 @@ export default function WorldScene({
   const [nearCar, setNearCar] = useState(false);
   const [propCredit, setPropCredit] = useState(false);
   const interactRef = useRef<() => void>(() => {});
+  const [inHome, setInHome] = useState(false);
+  const [doorPrompt, setDoorPrompt] = useState<'enter' | 'locked' | 'exit' | null>(null);
+  const locationRef = useRef<'street' | 'home'>('street');
   const toggleCamera = () => {
+    // Indoors the camera stays in its cutaway view; the street mode returns on leaving.
+    if (locationRef.current === 'home') return;
     const next = cameraModeRef.current === 'follow' ? 'overhead' : 'follow';
     cameraModeRef.current = next;
     cameraControlsRef.current?.setMode(next);
@@ -386,6 +393,7 @@ export default function WorldScene({
       directional.intensity = 1.35;
       directional.position.set(12, 22, 10);
       const schoolMarker = createNeighborhood(scene);
+      const home = buildHomeScene(scene);
       let schoolAsset: Awaited<ReturnType<typeof loadSchoolEnvironment>> = null;
       let schoolAssetCancelled = false;
       addPlayableNeighborhoodDetails(scene);
@@ -408,7 +416,7 @@ export default function WorldScene({
       shadows.bias = 0.0005;
       shadows.normalBias = 0.02;
       shadows.setDarkness(0.3);
-      void addNeighborhoodProps(scene, environmentLoad, shadows)
+      void addWorldProps(scene, environmentLoad, shadows)
         .then(manifest => { if (manifest && !environmentLoad.cancelled) setPropCredit(true); })
         .catch(error => console.warn('Street props unavailable', error));
       void upgradeNeighborhoodAssets(scene, environmentLoad, shadows, roots => {
@@ -484,10 +492,49 @@ export default function WorldScene({
       const notify = (message: string) => { noticeAt = clock; setDriveNotice(message); };
       const carTargets = () => cars.map((car, index) => ({ id: `car-${index}`, type: 'vehicle' as const, x: car.x, z: car.z }));
       const drivenIndex = () => interaction.mode === 'driving' && interaction.targetId ? Number(interaction.targetId.slice(4)) : -1;
-      // E (or the on-screen button) gets into the nearest car, or out of the driven one once stopped.
+      const snapCamera = (to: PlanarPosition, alpha: number) => {
+        camera.alpha = alpha;
+        camera.inertialAlphaOffset = 0;
+        camera.setTarget(new Vector3(to.x, 1.25, to.z), false, false, true);
+      };
+      const placePlayer = (to: PlanarPosition & { rotation: number }) => {
+        position = { x: to.x, z: to.z };
+        avatar.position.set(to.x, 0, to.z);
+        avatar.rotation.y = to.rotation;
+        inputRef.current.clear();
+      };
+      const enterHome = () => {
+        locationRef.current = 'home';
+        placePlayer(HOME_SPAWN);
+        cameraControls.setMode('indoor', true);
+        snapCamera(position, Math.PI / 2);
+        setWayfinding('');
+        setNearCar(false);
+        setDriveNotice('');
+        setInHome(true);
+      };
+      const leaveHome = () => {
+        const door = FRONT_DOORS.find(candidate => candidate.own)!;
+        locationRef.current = 'street';
+        placePlayer(streetSpawnFor(door));
+        cameraControls.setMode(cameraModeRef.current, true);
+        snapCamera(position, -Math.PI / 2);
+        setInHome(false);
+      };
+      // E (or the on-screen button): car in/out, the home's doors, then the nearest car.
       const interact = () => {
         if (schoolOpenRef.current) return;
         const index = drivenIndex();
+        if (index < 0 && locationRef.current === 'home') {
+          if (atHomeExit(position)) leaveHome();
+          return;
+        }
+        const door = index < 0 ? streetDoorAt(position) : null;
+        if (door) {
+          if (door.own) enterHome();
+          else notify("The neighbors' door is locked.");
+          return;
+        }
         if (index < 0) {
           const target = closestInteraction(position, carTargets());
           if (!target) return;
@@ -602,21 +649,33 @@ export default function WorldScene({
           scene.render();
           return;
         }
-        const locomotion = stepLocomotion(position, schoolOpenRef.current ? new Set<string>() : inputRef.current.pressed,
-          delta, sprintEnabledRef.current, cameraForward, cars);
+        const atHome = locationRef.current === 'home';
+        const walkKeys = schoolOpenRef.current ? new Set<string>() : inputRef.current.pressed;
+        const locomotion = atHome
+          ? stepHomeLocomotion(position, walkKeys, delta, sprintEnabledRef.current, cameraForward)
+          : stepLocomotion(position, walkKeys, delta, sprintEnabledRef.current, cameraForward, cars);
         const { position: next, moving, speed: movementSpeed } = locomotion;
         if (moving) avatar.rotation.y = smoothHumanHeading(avatar.rotation.y, movementHeading(next.x - position.x, next.z - position.z), delta);
         position = next;
         waypointTimer += delta;
         if (waypointTimer >= 0.25) {
           waypointTimer = 0;
-          const waypoint = schoolWaypoint(position, cameraForward);
-          const label = waypoint.distance === null ? ''
-            : waypoint.direction === 'at entrance' ? 'School entrance reached'
-              : 'School entrance · ' + Math.ceil(waypoint.distance) + ' units · ' + waypoint.direction;
-          setWayfinding(previous => previous === label ? previous : label);
-          const carInReach = closestInteraction(position, carTargets()) !== null;
-          setNearCar(previous => previous === carInReach ? previous : carInReach);
+          if (clock - noticeAt > 2.5) setDriveNotice(previous => previous ? '' : previous);
+          if (atHome) {
+            const prompt = atHomeExit(position) ? 'exit' : null;
+            setDoorPrompt(previous => previous === prompt ? previous : prompt);
+          } else {
+            const waypoint = schoolWaypoint(position, cameraForward);
+            const label = waypoint.distance === null ? ''
+              : waypoint.direction === 'at entrance' ? 'School entrance reached'
+                : 'School entrance · ' + Math.ceil(waypoint.distance) + ' units · ' + waypoint.direction;
+            setWayfinding(previous => previous === label ? previous : label);
+            const carInReach = closestInteraction(position, carTargets()) !== null;
+            setNearCar(previous => previous === carInReach ? previous : carInReach);
+            const door = streetDoorAt(position);
+            const prompt = door ? (door.own ? 'enter' : 'locked') : null;
+            setDoorPrompt(previous => previous === prompt ? previous : prompt);
+          }
         }
         avatar.position.x = position.x;
         avatar.position.z = position.z;
@@ -638,7 +697,7 @@ export default function WorldScene({
           avatar.position.y = 0;
           for (const limb of [...avatarParts.legs, ...avatarParts.arms]) limb.rotation.x = 0;
         }
-        const nextNear = isNearSchool(position);
+        const nextNear = !atHome && isNearSchool(position);
         nearSchoolRef.current = nextNear;
         if (nextNear !== previousNear) {
           previousNear = nextNear;
@@ -646,6 +705,7 @@ export default function WorldScene({
         }
         cameraControls.update(delta);
         cameraControls.follow(position, delta);
+        home.setFadedWalls(atHome ? wallsToFade(camera.position) : [], delta);
         scene.render();
       });
       engine.resize();
@@ -731,19 +791,25 @@ export default function WorldScene({
       onKeyUp={event => keyboardTouch(key, false, event)}
       onBlur={() => { inputRef.current.release(`pad:${key}: `); inputRef.current.release(`pad:${key}:Enter`); }}>{symbol}</button>;
 
+  const actionLabel = driving ? 'Get out of car (E)'
+    : doorPrompt === 'exit' ? 'Go outside (E)'
+      : doorPrompt === 'enter' ? 'Go inside your home (E)'
+        : doorPrompt === 'locked' ? "Neighbors' house (E)"
+          : nearCar && !inHome ? 'Get in car (E)' : '';
   return <div className="world-root" aria-label="Playable 3D neighborhood">
     <div className="world-viewport">
       {!error && <canvas ref={canvasRef} tabIndex={0} aria-label={`3D world for ${displayName}; click to focus, use WASD or arrow keys to move`} />}
       {error ? <p className="world-fallback" role="status">{error}</p> : <>
-        <div className="world-caption"><strong>{displayName}</strong> · {demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
+        <div className="world-caption"><strong>{displayName}</strong> · {inHome ? 'At home' : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
         {driving && <div className="world-drive-hud" role="status" aria-live="polite">
           <strong>{driveSpeed}</strong>km/h · W/S gas, brake, reverse · A/D steer · E to get out when stopped
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
         </div>}
-        {(driving || nearCar) && <button type="button" className="world-car-action"
+        {!driving && driveNotice && <div className="world-notice" role="status" aria-live="polite">{driveNotice}</div>}
+        {actionLabel && <button type="button" className="world-car-action"
           onClick={event => { interactRef.current(); focusWorld(event); }}>
-          {driving ? 'Get out of car (E)' : 'Get in car (E)'}
+          {actionLabel}
         </button>}
         {nearSchool && <button type="button" className="world-enter"
           aria-expanded={schoolOpen} aria-controls="school-game-panel"
@@ -779,7 +845,7 @@ export default function WorldScene({
       </>}
     </div>
     {!error && <div className="world-controls">
-      <p>Click the world, then use WASD, arrow keys or the direction pad to move. Hold Shift or switch Run on to move faster. Release the direction to stop. Drag to orbit; scroll, pinch or use the zoom buttons to zoom. Press E at the school entrance; Escape closes the panel. Press E next to a car to drive it: W/S for gas, brake and reverse, A/D to steer, and E again to get out once stopped.</p>
+      <p>Click the world, then use WASD, arrow keys or the direction pad to move. Hold Shift or switch Run on to move faster. Release the direction to stop. Drag to orbit; scroll, pinch or use the zoom buttons to zoom. Press E at the school entrance; Escape closes the panel. Press E at your front door (the house on the left) to go inside, and E at the inside door to go back out. Press E next to a car to drive it: W/S for gas, brake and reverse, A/D to steer, and E again to get out once stopped.</p>
       <div className="world-control-buttons">
         <div className="world-pad" aria-label="Touch movement controls">
           <div className="world-pad-top">{directionButton('▲', 'ArrowUp', 'Move forward')}</div>

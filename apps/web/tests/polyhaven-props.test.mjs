@@ -55,8 +55,9 @@ test('shipped Poly Haven models, when present, are CC0, self-contained and liste
   const manifest = JSON.parse(readFileSync(new URL('manifest.json', MODELS), 'utf8'));
   assert.equal(manifest.license, 'CC0-1.0');
   const credits = readFileSync(new URL('ATTRIBUTION.md', MODELS), 'utf8');
-  const placed = manifest.assets.filter(asset => asset.placed).map(asset => asset.slot).sort();
-  assert.deepEqual(placed, ['bench', 'plant']);
+  const slots = manifest.assets.map(asset => asset.slot);
+  for (const required of ['bench', 'plant']) assert.ok(slots.includes(required), `missing required ${required}`);
+  for (const slot of slots) assert.ok(slot in PROP_TYPES, `no placement rules for ${slot}`);
   for (const asset of manifest.assets) {
     assert.match(asset.file, /^[a-z_]+\.glb$/);
     assert.match(asset.page, /^https:\/\/polyhaven\.com\/a\//);
@@ -66,6 +67,6 @@ test('shipped Poly Haven models, when present, are CC0, self-contained and liste
     assert.equal(statSync(new URL(asset.file, MODELS)).size, asset.bytes);
     assert.ok(asset.bytes <= 6_000_000, `${asset.file} is too large for mobile`);
     assert.ok(asset.sizeMeters.every(value => value > 0.05 && value < 6), `${asset.id} has implausible size ${asset.sizeMeters}`);
-    if (asset.placed) assert.ok(propScale(asset.slot, asset.sizeMeters) > 0);
+    assert.ok(propScale(asset.slot, asset.sizeMeters) > 0);
   }
 });

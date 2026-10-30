@@ -1,5 +1,5 @@
 import type { ArcRotateCamera } from '@babylonjs/core';
-export type CameraMode = 'follow' | 'overhead';
+export type CameraMode = 'follow' | 'overhead' | 'indoor';
 export declare const CAMERA_PRESETS: Readonly<Record<CameraMode, Readonly<{
   radius: number; beta: number; minRadius: number; maxRadius: number; minBeta: number; maxBeta: number;
 }>>>;

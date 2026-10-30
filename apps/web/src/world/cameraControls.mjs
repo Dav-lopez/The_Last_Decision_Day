@@ -3,6 +3,8 @@ import { cameraFollowAlpha } from './cameraFollow.mjs';
 export const CAMERA_PRESETS = Object.freeze({
   follow: Object.freeze({ radius: 7.5, beta: 1.15, minRadius: 2.8, maxRadius: 18, minBeta: 0.4, maxBeta: 1.48 }),
   overhead: Object.freeze({ radius: 22, beta: 0.35, minRadius: 9, maxRadius: 30, minBeta: 0.15, maxBeta: 0.8 }),
+  // Indoors: a high cutaway view over the walls, like a dollhouse.
+  indoor: Object.freeze({ radius: 8.5, beta: 0.72, minRadius: 4.5, maxRadius: 12, minBeta: 0.35, maxBeta: 1.05 }),
 });
 
 export function createCameraControls(camera) {

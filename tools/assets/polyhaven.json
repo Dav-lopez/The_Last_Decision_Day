@@ -5,12 +5,12 @@
   "slots": [
     { "slot": "plant", "keywords": ["potted", "plant"], "required": true, "placed": true },
     { "slot": "bench", "keywords": ["bench"], "exclude": ["work", "workbench"], "required": true, "placed": true },
-    { "slot": "sofa", "keywords": ["sofa", "couch"], "required": false, "placed": false },
-    { "slot": "armchair", "keywords": ["armchair"], "required": false, "placed": false },
-    { "slot": "coffee_table", "keywords": ["coffee"], "required": false, "placed": false },
-    { "slot": "dining_chair", "keywords": ["chair"], "exclude": ["office", "outdoor"], "required": false, "placed": false },
-    { "slot": "bed", "keywords": ["bed"], "required": false, "placed": false },
-    { "slot": "floor_lamp", "keywords": ["lamp"], "exclude": ["street", "outdoor", "wall"], "required": false, "placed": false },
-    { "slot": "shelf", "keywords": ["shelf", "bookcase", "cabinet"], "required": false, "placed": false }
+    { "slot": "sofa", "keywords": ["sofa", "couch"], "required": false, "placed": true },
+    { "slot": "armchair", "keywords": ["armchair"], "required": false, "placed": true },
+    { "slot": "coffee_table", "keywords": ["coffee"], "required": false, "placed": true },
+    { "slot": "dining_chair", "keywords": ["chair"], "exclude": ["office", "outdoor"], "required": false, "placed": true },
+    { "slot": "bed", "keywords": ["bed"], "required": false, "placed": true },
+    { "slot": "floor_lamp", "keywords": ["lamp"], "exclude": ["street", "outdoor", "wall"], "required": false, "placed": true },
+    { "slot": "shelf", "keywords": ["shelf", "bookcase", "cabinet"], "required": false, "placed": true }
   ]
 }
