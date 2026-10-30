@@ -40,6 +40,19 @@ test('each neighbour is an independent copy of the human with its own clips and 
   const [first, second] = copies.map(skinOf);
   assert.ok(first && second, 'skin material found on each copy');
   assert.notEqual(first, second, 'recolouring one neighbour does not recolour the others');
+  // Babylon must clone the morph targets as well as the mesh and material.
+  // Otherwise one resident blinking would animate every other resident.
+  const blinkOf = ({ visual }) => visual.getChildMeshes().flatMap(mesh => {
+    const manager = mesh.morphTargetManager;
+    return manager ? Array.from({ length: manager.numTargets }, (_, i) => manager.getTarget(i)) : [];
+  }).find(target => target.name === 'eyeBlinkLeft');
+  const [firstBlink, secondBlink] = copies.map(blinkOf);
+  assert.ok(firstBlink && secondBlink, 'shipped GLB provides a left eyelid morph on both residents');
+  assert.notEqual(firstBlink, secondBlink, 'residents must not share a facial morph target');
+  const originalSecond = secondBlink.influence;
+  firstBlink.influence = 0.75;
+  assert.equal(secondBlink.influence, originalSecond, 'one resident blinking must not affect another');
+  firstBlink.influence = 0;
   assert.notEqual(copies[0].entries.animationGroups[walkIndex], copies[1].entries.animationGroups[walkIndex]);
   for (const { entries } of copies) entries.dispose();
   container.dispose();
