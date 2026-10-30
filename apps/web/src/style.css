@@ -105,3 +105,5 @@
 @media(max-width:640px){.world-life{top:96px;left:8px;font-size:.76rem}}
 @media (prefers-reduced-motion:reduce){.world-sleep{animation:none}}
 .world-sync{opacity:.75;font-size:.72rem}
+.world-class{background:#13261c}
+.world-class span{color:#e6efe0}

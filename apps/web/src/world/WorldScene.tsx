@@ -9,7 +9,7 @@ import { resolveCharacterEmotion } from './characterEmotion.mjs';
 import { loadSchoolEnvironment } from './schoolEnvironment';
 import { smoothHumanHeading } from './humanMotion.mjs';
 import { HUMAN_HEIGHT, movementHeading } from './riggedPresentation.mjs';
-import { isNearSchool, type PlanarPosition } from './movement.mjs';
+import { SCHOOL_DOOR, isNearSchool, type PlanarPosition } from './movement.mjs';
 import { stepLocomotion } from './locomotion.mjs';
 import { createCameraControls } from './cameraControls.mjs';
 import { createStreetLighting } from './streetLighting.mjs';
@@ -23,6 +23,9 @@ import { PARKED_CARS } from './streetLayout.mjs';
 import { addWorldProps } from './polyHavenProps';
 import { buildHomeScene } from './homeScene';
 import { loadNeighbors, type Neighbors, type Person } from './npcPeople';
+import { buildSchoolScene } from './schoolScene';
+import { CLASSROOM, CLASSROOM_SPAWN, SCHOOL_ORIGIN, atClassroomExit, deskInReach, nearTeacher, stepClassroomLocomotion } from './schoolInterior.mjs';
+import { attendLesson, currentEntry, isSchoolOpen, joinableLesson, schoolStatus } from './schoolSchedule.mjs';
 import { advanceLife, canSleep, chooseStartingLife, formatClock, isEvening, isExhausted, nearBed, normalizeLife, readLife,
   sleepUntilMorning, TIRED_ENERGY, toServerLife, writeLife, type Life, type LifeActivity, type ServerLife } from './lifeClock.mjs';
 
@@ -31,7 +34,7 @@ export type LifeSync = {
   load: () => Promise<ServerLife>;
   save: (life: ServerLife) => Promise<{ status: 'saved' | 'rejected'; life: ServerLife }>;
 };
-import { BED_SIDE, FRONT_DOORS, HOME_SPAWN, atHomeExit, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade } from './homeInterior.mjs';
+import { BED_SIDE, FRONT_DOORS, HOME_SPAWN, atHomeExit, wallsToFadeFor, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade } from './homeInterior.mjs';
 import { canExitVehicle, chaseCameraAlpha, driveInput, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
 
@@ -378,16 +381,21 @@ export default function WorldScene({
   const [propCredit, setPropCredit] = useState(false);
   const interactRef = useRef<() => void>(() => {});
   const [inHome, setInHome] = useState(false);
-  const [doorPrompt, setDoorPrompt] = useState<'enter' | 'locked' | 'exit' | 'bed' | null>(null);
+  const [doorPrompt, setDoorPrompt] = useState<'enter' | 'locked' | 'exit' | 'bed' | 'school' | 'school-closed' | 'leave-school' | 'desk' | null>(null);
+  const [atSchool, setAtSchool] = useState(false);
+  const [inClass, setInClass] = useState<string | null>(null);
   const [lifeView, setLifeView] = useState<Life>(() => readLife(characterId));
   const [sleeping, setSleeping] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'saving' | 'saved' | 'offline'>('idle');
   const lifeSyncRef = useRef(lifeSync);
   lifeSyncRef.current = lifeSync;
-  const locationRef = useRef<'street' | 'home'>('street');
+  const locationRef = useRef<'street' | 'home' | 'school'>('street');
+  // Latest props for the scene's long-lived callbacks (attendance is recorded with the server activity).
+  const classActionRef = useRef({ demoMode, canExecuteActivity, onExecuteActivity });
+  classActionRef.current = { demoMode, canExecuteActivity, onExecuteActivity };
   const toggleCamera = () => {
     // Indoors the camera stays in its cutaway view; the street mode returns on leaving.
-    if (locationRef.current === 'home') return;
+    if (locationRef.current !== 'street') return;
     const next = cameraModeRef.current === 'follow' ? 'overhead' : 'follow';
     cameraModeRef.current = next;
     cameraControlsRef.current?.setMode(next);
@@ -415,6 +423,7 @@ export default function WorldScene({
       directional.position.set(12, 22, 10);
       const schoolMarker = createNeighborhood(scene);
       const home = buildHomeScene(scene);
+      const school = buildSchoolScene(scene);
       let schoolAsset: Awaited<ReturnType<typeof loadSchoolEnvironment>> = null;
       let schoolAssetCancelled = false;
       addPlayableNeighborhoodDetails(scene);
@@ -615,6 +624,27 @@ export default function WorldScene({
         setInHome(false);
         saveToAccount();
       };
+      const enterSchool = () => {
+        locationRef.current = 'school';
+        placePlayer(CLASSROOM_SPAWN);
+        cameraControls.setMode('indoor', true);
+        snapCamera(position, Math.PI / 2);
+        setWayfinding('');
+        setNearCar(false);
+        setDriveNotice('');
+        setAtSchool(true);
+      };
+      const leaveSchool = () => {
+        locationRef.current = 'street';
+        setSchoolOpen(false);
+        placePlayer({ x: SCHOOL_DOOR.x, z: SCHOOL_DOOR.z + 0.9, rotation: Math.PI });
+        cameraControls.setMode(cameraModeRef.current, true);
+        snapCamera(position, -Math.PI / 2);
+        setAtSchool(false);
+        saveToAccount();
+      };
+      let classTimer = 0;
+      let pendingLesson: ReturnType<typeof attendLesson> = null;
       // Continue the account's saved day (and wake up at home if that's where it ended).
       if (lifeSyncRef.current) {
         lifeSyncRef.current.load().then(server => {
@@ -636,7 +666,8 @@ export default function WorldScene({
       }
       // E (or the on-screen button): car in/out, the home's doors, then the nearest car.
       const interact = () => {
-        if (schoolOpenRef.current) return;
+        // Nothing to do mid-lesson or asleep; the fade finishes on its own.
+        if (schoolOpenRef.current || interaction.mode === 'sitting' || interaction.mode === 'sleeping') return;
         const index = drivenIndex();
         if (index < 0 && locationRef.current === 'home') {
           if (atHomeExit(position)) leaveHome();
@@ -650,6 +681,27 @@ export default function WorldScene({
             setDoorPrompt(null);
             setSleeping(true);
           }
+          return;
+        }
+        if (index < 0 && locationRef.current === 'school') {
+          if (atClassroomExit(position)) { leaveSchool(); return; }
+          const desk = deskInReach(position);
+          if (!desk) return;
+          const lesson = attendLesson(life);
+          if (!lesson) { notify(schoolStatus(life.minute)); return; }
+          // Sit down for the lesson: a short fade, then the clock jumps to the end of class.
+          interaction = transitionInteraction(interaction, { id: desk.id, type: 'seat', x: desk.chair.x, z: desk.chair.z });
+          inputRef.current.clear();
+          avatar.setEnabled(false);
+          pendingLesson = lesson;
+          classTimer = 0;
+          setDoorPrompt(null);
+          setInClass(lesson.lesson.title);
+          return;
+        }
+        if (index < 0 && isNearSchool(position)) {
+          if (isSchoolOpen(life.minute)) enterSchool();
+          else notify(schoolStatus(life.minute));
           return;
         }
         const door = index < 0 ? streetDoorAt(position) : null;
@@ -703,6 +755,7 @@ export default function WorldScene({
           toggleCamera();
         } else if (key === 'e' && !event.repeat) {
           event.preventDefault();
+          // Inside the classroom the teacher opens the school activities; everywhere else E is the action button.
           if (nearSchoolRef.current && interaction.mode === 'walking') setSchoolOpen(open => !open);
           else interact();
         }
@@ -764,10 +817,32 @@ export default function WorldScene({
           scene.render();
           return;
         }
+        if (interaction.mode === 'sitting' && pendingLesson) {
+          classTimer += delta;
+          if (classTimer >= 2.4) {
+            const { lesson, life: after } = pendingLesson;
+            pendingLesson = null;
+            life = after;
+            writeLife(characterId, life);
+            syncLighting();
+            setLifeView({ ...life });
+            interaction = transitionInteraction(interaction, 'exit');
+            avatar.setEnabled(true);
+            setInClass(null);
+            const action = classActionRef.current;
+            if (action.demoMode) notify(`${lesson.title} done! Sign in to have lessons count toward your grades.`);
+            else if (!action.canExecuteActivity(1)) notify(`${lesson.title} done, but you have no school time left today, so it wasn't counted.`);
+            else { action.onExecuteActivity('attend-class'); notify(`${lesson.title} done! Attendance recorded.`); }
+            saveToAccount();
+          }
+          school.setFadedWalls(wallsToFadeFor(SCHOOL_ORIGIN, CLASSROOM, camera.position), delta);
+          scene.render();
+          return;
+        }
         const driven = drivenIndex();
         // People give way to the player on foot; cars (including a driven one) block their next step.
         peopleOut = neighbors
-          ? neighbors.update(delta, life.minute, driven < 0 && locationRef.current === 'street' ? position : null, cars)
+          ? neighbors.update(delta, life.minute, driven < 0 && locationRef.current !== 'home' ? position : null, cars)
           : [];
         if (driven >= 0) {
           tickLife(delta, 'drive');
@@ -798,12 +873,14 @@ export default function WorldScene({
           return;
         }
         const atHome = locationRef.current === 'home';
+        const inSchool = locationRef.current === 'school';
         const tired = isExhausted(life);
         const pressed = schoolOpenRef.current ? new Set<string>() : inputRef.current.pressed;
         // Exhausted players can still walk home, but not run.
         const walkKeys = tired ? new Set([...pressed].filter(key => key !== 'Shift')) : pressed;
         const locomotion = atHome
           ? stepHomeLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward)
+          : inSchool ? stepClassroomLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward, peopleOut)
           : stepLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward, cars, peopleOut);
         tickLife(delta, locomotion.motion);
         const { position: next, moving, speed: movementSpeed } = locomotion;
@@ -816,6 +893,11 @@ export default function WorldScene({
           if (atHome) {
             const prompt = atHomeExit(position) ? 'exit' : nearBed(position, BED_SIDE) ? 'bed' : null;
             setDoorPrompt(previous => previous === prompt ? previous : prompt);
+          } else if (inSchool) {
+            const prompt = atClassroomExit(position) ? 'leave-school' : deskInReach(position) ? 'desk' : null;
+            setDoorPrompt(previous => previous === prompt ? previous : prompt);
+            const status = schoolStatus(life.minute);
+            setWayfinding(previous => previous === status ? previous : status);
           } else {
             const waypoint = schoolWaypoint(position, cameraForward);
             const label = waypoint.distance === null ? ''
@@ -825,9 +907,13 @@ export default function WorldScene({
             const carInReach = closestInteraction(position, carTargets()) !== null;
             setNearCar(previous => previous === carInReach ? previous : carInReach);
             const door = streetDoorAt(position);
-            const prompt = door ? (door.own ? 'enter' : 'locked') : null;
+            const prompt = door ? (door.own ? 'enter' : 'locked')
+              : isNearSchool(position) ? (isSchoolOpen(life.minute) ? 'school' : 'school-closed') : null;
             setDoorPrompt(previous => previous === prompt ? previous : prompt);
           }
+          const entry = currentEntry(life.minute);
+          const joinable = joinableLesson(life.minute);
+          school.setBoard(joinable?.title ?? entry?.title ?? (isSchoolOpen(life.minute) ? 'Welcome!' : 'Closed'), schoolStatus(life.minute));
         }
         avatar.position.x = position.x;
         avatar.position.z = position.z;
@@ -849,7 +935,8 @@ export default function WorldScene({
           avatar.position.y = 0;
           for (const limb of [...avatarParts.legs, ...avatarParts.arms]) limb.rotation.x = 0;
         }
-        const nextNear = !atHome && isNearSchool(position);
+        // The school activity panel now opens from the teacher inside the classroom.
+        const nextNear = inSchool && nearTeacher(position);
         nearSchoolRef.current = nextNear;
         if (nextNear !== previousNear) {
           previousNear = nextNear;
@@ -858,6 +945,7 @@ export default function WorldScene({
         cameraControls.update(delta);
         cameraControls.follow(position, delta);
         home.setFadedWalls(atHome ? wallsToFade(camera.position) : [], delta);
+        school.setFadedWalls(inSchool ? wallsToFadeFor(SCHOOL_ORIGIN, CLASSROOM, camera.position) : [], delta);
         scene.render();
       });
       engine.resize();
@@ -950,9 +1038,13 @@ export default function WorldScene({
   const actionLabel = driving ? 'Get out of car (E)'
     : doorPrompt === 'exit' ? 'Go outside (E)'
       : doorPrompt === 'bed' ? 'Sleep (E)'
+      : doorPrompt === 'leave-school' ? 'Leave school (E)'
+      : doorPrompt === 'desk' ? 'Sit down for class (E)'
+      : doorPrompt === 'school' ? 'Go into school (E)'
+      : doorPrompt === 'school-closed' ? 'School (closed)'
       : doorPrompt === 'enter' ? 'Go inside your home (E)'
         : doorPrompt === 'locked' ? "Neighbors' house (E)"
-          : nearCar && !inHome ? 'Get in car (E)' : '';
+          : nearCar && !inHome && !atSchool ? 'Get in car (E)' : '';
   return <div className="world-root" aria-label="Playable 3D neighborhood">
     <div className="world-viewport">
       {!error && <canvas ref={canvasRef} tabIndex={0} aria-label={`3D world for ${displayName}; click to focus, use WASD or arrow keys to move`} />}
@@ -965,7 +1057,8 @@ export default function WorldScene({
           </span>
         </div>
         {sleeping && <div className="world-sleep" role="status" aria-live="polite"><span>Sleeping…</span></div>}
-        <div className="world-caption"><strong>{displayName}</strong> · {inHome ? 'At home' : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
+        {inClass && <div className="world-sleep world-class" role="status" aria-live="polite"><span>{inClass} class…</span></div>}
+        <div className="world-caption"><strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
         {driving && <div className="world-drive-hud" role="status" aria-live="polite">
           <strong>{driveSpeed}</strong>km/h · W/S gas, brake, reverse · A/D steer · E to get out when stopped
@@ -979,7 +1072,7 @@ export default function WorldScene({
         {nearSchool && <button type="button" className="world-enter"
           aria-expanded={schoolOpen} aria-controls="school-game-panel"
           onClick={() => setSchoolOpen(current => !current)}>
-          {schoolOpen ? 'Close school' : 'Enter school'}
+          {schoolOpen ? 'Close' : 'Talk to the teacher (E)'}
         </button>}
         {nearSchool && schoolOpen && <section className="world-school-panel" id="school-game-panel" aria-label="School activities in game">
           <h3>School</h3>
@@ -1010,7 +1103,7 @@ export default function WorldScene({
       </>}
     </div>
     {!error && <div className="world-controls">
-      <p>Click the world, then use WASD, arrow keys or the direction pad to move. Hold Shift or switch Run on to move faster. Release the direction to stop. Drag to orbit; scroll, pinch or use the zoom buttons to zoom. Press E at the school entrance; Escape closes the panel. Press E at your front door (the house on the left) to go inside, and E at the inside door to go back out. Your energy drains as the day goes on; when you're tired or it's evening, press E beside your bed to sleep until 7:00 AM. Press E next to a car to drive it: W/S for gas, brake and reverse, A/D to steer, and E again to get out once stopped.</p>
+      <p>Click the world, then use WASD, arrow keys or the direction pad to move. Hold Shift or switch Run on to move faster. Release the direction to stop. Drag to orbit; scroll, pinch or use the zoom buttons to zoom. Press E at the school entrance to go in (7:30 AM–4 PM), E at a desk to take the current class, and E by the teacher for other school activities; Escape closes the panel. Press E at your front door (the house on the left) to go inside, and E at the inside door to go back out. Your energy drains as the day goes on; when you're tired or it's evening, press E beside your bed to sleep until 7:00 AM. Press E next to a car to drive it: W/S for gas, brake and reverse, A/D to steer, and E again to get out once stopped.</p>
       <div className="world-control-buttons">
         <div className="world-pad" aria-label="Touch movement controls">
           <div className="world-pad-top">{directionButton('▲', 'ArrowUp', 'Move forward')}</div>
