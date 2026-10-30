@@ -276,7 +276,8 @@ def build(source_dir):
                 "officialSources": ["https://quaternius.com/packs/universalbasecharacters.html", "https://quaternius.com/packs/universalanimationlibrary.html"],
                 "sourceMirrorCommit": SOURCE_COMMIT,
                 "sources": [{"file": n, "url": MIRROR+urllib.parse.quote(p), "sha256": h} for n, (p, h) in SOURCES.items()],
-                "output": {"file": "human.glb", "bytes": len(glb), "sha256": hashlib.sha256(glb).hexdigest()},
+                "output": {"file": "human.glb", "bytes": len(glb), "sha256": hashlib.sha256(glb).hexdigest(),
+                           "morphTargets": sorted({name for mesh in b.doc["meshes"] for name in mesh.get("extras", {}).get("targetNames", [])})},
                 "modifications": ["Keep only Idle_Loop, Walk_Loop and Sprint_Loop, exported as Idle/Walk/Run.", "Rebase local rotations onto the character bind pose; retain target limb lengths.", "Preserve pelvis bob and remove horizontal root travel; gameplay controls world movement.", "Add parted hair, remap hair joints, split clothing/skin materials for browser customization.", "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes.", "Add a skinned expressive lip surface with smile, frown, press and open morphs."]}
     (OUTPUT / "human.source.json").write_text(json.dumps(manifest, indent=2)+"\n")
     print(f"Built {len(glb):,} bytes with {len(b.doc['animations'])} animation clips.")
