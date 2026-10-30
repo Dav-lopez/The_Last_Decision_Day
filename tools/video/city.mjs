@@ -133,19 +133,14 @@ const clickText = text => page.evaluate(t => { const b = [...document.querySelec
 
 await clickText('Reset view'); await canvas.focus();
 await frames(1, 'maple-start');
-// To the sidewalk on the left, then north to the bus stop.
-for (const side of ['d', 'a']) {
-  await hold([side]); await frames(1.45); await hold([]);
-  await status('after ' + side);
-  let found = false;
-  for (let t = 0; t < 30 && !found; t++) { await hold(['s']); await frames(0.2); found = /downtown/.test(await prompt()); }
-  await hold([]);
-  await status('after walking north');
-  if (found) break;
-  // Wrong side: walk back and try the other one.
-  for (let t = 0; t < 30; t++) { await hold(['w']); await frames(0.2); }
-  await hold([]);
-}
+// Down the middle of the road past the parked sedan (camera behind you, so S walks north),
+// then sidestep left (D, from this camera) onto the sidewalk by the stop.
+await hold(['s']); await frames(3.8); await hold([]);
+await status('past the car');
+let found = false;
+for (let t = 0; t < 30 && !found; t++) { await hold(['d']); await frames(0.1); found = /downtown/.test(await prompt()); }
+await hold([]);
+await status('at the stop? ' + found);
 await frames(0.5, 'at-maple-stop');
 await page.keyboard.press('e');
 await frames(1, 'riding');
