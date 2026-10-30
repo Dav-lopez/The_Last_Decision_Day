@@ -44,7 +44,8 @@ import { PARKED_CARS } from './streetLayout.mjs';
 import { addWorldProps } from './polyHavenProps';
 import { buildHomeScene } from './homeScene';
 import './story.css';
-import { CAST, advanceStory, currentStep, markSceneSeen, pendingScene, readStory, writeStory,
+import { buildDecisionDecor } from './storyDecor';
+import { CAST, advanceStory, currentStep, markSceneSeen, pendingScene, readStory, storyComplete, writeStory,
   type StoryEvent, type StoryLine, type StoryState } from './storyChapters.mjs';
 import { buildSurroundings } from './worldSurroundings';
 import { createAtmosphere } from './sceneAtmosphere';
@@ -468,7 +469,9 @@ export default function WorldScene({
   const [dialogue, setDialogue] = useState<{ lines: ReadonlyArray<StoryLine>; index: number } | null>(null);
   const dialogueRef = useRef(false);
   const [storyBanner, setStoryBanner] = useState('');
-  const saveStory = (next: StoryState) => { storyRef.current = next; writeStory(characterId, next); setStory(next); };
+  const saveStory = (next: StoryState) => { storyRef.current = next; writeStory(characterId, next); setStory(next); decorRef.current(); };
+  // Once the story ends, Maple Street shows the change you chose.
+  const decorRef = useRef<() => void>(() => {});
   const openPendingScene = () => {
     const scene = pendingScene(storyRef.current);
     if (!scene || dialogueRef.current) return;
@@ -577,6 +580,17 @@ export default function WorldScene({
       const schoolMarker = createNeighborhood(scene);
       // The bus stop at the north end of Maple Street; the bus runs to a real downtown (OpenStreetMap).
       const disposeMapleStop = buildBusStop(scene, MAPLE_BUS_STOP.x - 1.05, MAPLE_BUS_STOP.z, Math.PI / 2);
+      let decor: ReturnType<typeof buildDecisionDecor> | null = null;
+      let decorFor: string | null = null;
+      decorRef.current = () => {
+        const current = storyRef.current;
+        const want = storyComplete(current) && current.decision ? current.decision : null;
+        if (want === decorFor || scene.isDisposed) return;
+        decor?.dispose();
+        decor = want ? buildDecisionDecor(scene, want) : null;
+        decorFor = want;
+      };
+      decorRef.current();
       let cityLights: ReturnType<typeof buildCityLights> | null = null;
       // Downtown views run hundreds of metres down real streets: thinner haze there than on Maple Street.
       const applyFog = () => { scene.fogDensity = locationRef.current === 'city' ? 0.0032 : 0.009; };
@@ -592,6 +606,7 @@ export default function WorldScene({
           saveCareer(next);
           const job = CAREERS[id];
           notify(`Welcome aboard: you're a ${rankOf(next)!.title} (${job.title}). Shifts here, E at this sign. Your uniform is in the Career panel.`);
+          storyActionsRef.current.reportStory('joined-career');
           return;
         }
         const result = workShift(current, { minute: life.minute, totalMinutes: lifeTotalMinutes(life), energy: life.energy });
@@ -1005,6 +1020,7 @@ export default function WorldScene({
       const finishDrive = () => {
         const drive = pendingDrive!;
         pendingDrive = null;
+        storyActionsRef.current.reportStory('drove');
         for (let minute = 0; minute < 10; minute++) life = advanceLife(life, 1, 'drive');
         writeLife(characterId, life);
         syncLighting();
@@ -1415,6 +1431,7 @@ export default function WorldScene({
       let markerTime = 0;
       let hudTimer = 0;
       let lastAudioPosition = { ...position };
+      let storyLocation = locationRef.current;
       engine.runRenderLoop(() => {
         const frameSeconds = engine!.getDeltaTime() / 1000;
         const delta = Math.min(frameSeconds, 0.05);
@@ -1435,6 +1452,10 @@ export default function WorldScene({
           reading: schoolOpenRef.current || dialogueRef.current || npcActiveRef.current || Boolean(rangeOpenRef.current),
           paused: Boolean(pendingRide || pendingFood || pendingShift || pendingTaxi || pendingDrive || interaction.mode==='sleeping' || interaction.mode==='sitting'),
           evening: isEvening(life.minute) });
+        if (locationRef.current !== storyLocation) {
+          if (locationRef.current === 'city') storyActionsRef.current.reportStory('went-downtown');
+          storyLocation = locationRef.current;
+        }
         // The training range covers the screen: freeze the world (and its clock) underneath.
         if (rangeOpenRef.current) return;
         // Controls follow the orbit camera: W always walks away from the viewer.
@@ -1475,6 +1496,7 @@ export default function WorldScene({
             avatar.setEnabled(true);
             setBusyLabel(null);
             notify(result.promoted ? `Promoted to ${result.promoted}! Shift done: +$${result.pay}.` : `Shift done: ${result.duty}. +$${result.pay}.`);
+            storyActionsRef.current.reportStory('worked-shift');
             audioRef.current?.cue(result.promoted ? 'promotion' : 'shift');
             saveToAccount();
           }
@@ -1535,6 +1557,7 @@ export default function WorldScene({
             setBusyLabel(null);
             audioRef.current?.cue('food');
             notify(kind === 'meal' ? `That hit the spot. +${FOOD.meal.energy} energy` : `A quick bite. +${FOOD.snack.energy} energy`);
+            storyActionsRef.current.reportStory('ate');
             saveToAccount();
           }
           home.setFadedWalls(wallsToFade(camera.position), delta);
@@ -1665,6 +1688,7 @@ export default function WorldScene({
               const { home, away } = match.score;
               notify(`Full time: Blue ${home}–${away} Red. ${home > away ? 'You win!' : home < away ? 'Red win this one.' : "It's a draw."}`);
               matchEndsIn = 5;
+              storyActionsRef.current.reportStory('played-match');
             }
           }
           // At each kick-off you're put back on your spot.

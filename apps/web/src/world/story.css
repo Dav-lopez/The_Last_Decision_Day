@@ -17,6 +17,7 @@
 .story-friend{border-top-color:#ffb46b}.story-friend .story-speaker{color:#ffb46b}
 .story-teacher{border-top-color:#c79cff}.story-teacher .story-speaker{color:#c79cff}
 .story-mystery{border-top-color:#ff6b6b}.story-mystery .story-speaker{color:#ff8b8b}.story-mystery p{font-family:Georgia,serif}
+.story-neighbour{border-top-color:#7fd88f}.story-neighbour .story-speaker{color:#8fe39e}
 @media(max-width:640px){.story-objective{top:150px;right:8px;max-width:calc(100% - 16px)}.story-box p{font-size:.95rem}}
 @media (prefers-reduced-motion:reduce){.story-banner,.story-letterbox{animation:none}}
 

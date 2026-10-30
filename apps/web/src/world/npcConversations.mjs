@@ -196,6 +196,6 @@ export function chooseNpcReply(relations, id, choiceId) {
   };
   return {
     state: next, reply: choice.reply, mood: choice.mood, trustDelta: next.people[id].trust - prior.trust,
-    event: id === 'maya' ? 'talked-maya' : id === 'jordan' ? 'talked-jordan' : id === 'rivera' ? 'talked-teacher' : 'talked-neighbour',
+    event: id === 'maya' ? 'talked-maya' : id === 'jordan' ? 'talked-jordan' : id === 'rivera' ? 'talked-teacher' : `talked-${id}`,
   };
 }

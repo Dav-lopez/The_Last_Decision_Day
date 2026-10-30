@@ -68,7 +68,7 @@ test('neighbours out walking can be stopped for a chat where they actually are',
     assert.equal(nearbyNpc({ x: 2.45, z: 4.5 }, 'street', minute, { [resident.id]: at }), id);
     assert.equal(nearbyNpc({ x: 2.45, z: 6 }, 'street', minute, { [resident.id]: at }), null, 'out of reach');
     assert.equal(nearbyNpc({ x: 2.45, z: 4.5 }, 'street', 23 * 60, { [resident.id]: at }), null, 'gone home');
-    assert.equal(chooseNpcReply(newNpcRelations(), id, NPC_DIALOGUES[id].choices[0].id).event, 'talked-neighbour');
+    assert.equal(chooseNpcReply(newNpcRelations(), id, NPC_DIALOGUES[id].choices[0].id).event, `talked-${id}`);
   }
   // The nearest of two is chosen; a standing classmate still wins when closer.
   const live = { 'jogger-west': { x: -2.4, z: -3 }, crosser: { x: -2.4, z: -2 } };
