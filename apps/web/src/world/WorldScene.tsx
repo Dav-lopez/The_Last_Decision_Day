@@ -23,6 +23,8 @@ import { HousePhotoPaint } from './HousePhotoPaint';
 import { readHouseStyle } from './photoPalette.mjs';
 import { colorFor, modelFor, readLook, writeLook, type Look } from './appearance.mjs';
 import { Wardrobe } from './Wardrobe';
+import { AudioPanel } from './audio/AudioPanel';
+import type { GameAudio } from './audio/director.mjs';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
 import { buildFootballPitch } from './footballScene';
 import { CAREERS, SHIFT_HOURS, joinCareer, quitCareer, rankOf, readCareer, workShift, writeCareer, type CareerId, type CareerState } from './careers.mjs';
@@ -374,6 +376,7 @@ export default function WorldScene({
 }: WorldProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const inputRef = useRef(createMovementInput());
+  const audioRef = useRef<GameAudio | null>(null);
   const [sprintEnabled, setSprintEnabled] = useState(false);
   const sprintEnabledRef = useRef(false);
   const nearSchoolRef = useRef(false);
@@ -770,7 +773,7 @@ export default function WorldScene({
         }
       };
       let noticeAt = -Infinity;
-      const notify = (message: string) => { noticeAt = clock; setDriveNotice(message); };
+      const notify = (message: string) => { noticeAt = clock; setDriveNotice(message); audioRef.current?.cue('notice'); };
       const carTargets = () => cars.map((car, index) => ({ id: `car-${index}`, type: 'vehicle' as const, x: car.x, z: car.z }));
       const drivenIndex = () => interaction.mode === 'driving' && interaction.targetId ? Number(interaction.targetId.slice(4)) : -1;
       const snapCamera = (to: PlanarPosition, alpha: number) => {
@@ -792,6 +795,7 @@ export default function WorldScene({
       let cityClampedRadius = -1;
       const boardBus = (to: 'downtown' | 'home') => {
         if (!downtown) { notify('The bus is running late. Try again in a moment.'); return; }
+        audioRef.current?.cue('bus');
         pendingRide = to;
         rideTimer = 0;
         inputRef.current.clear();
@@ -826,6 +830,7 @@ export default function WorldScene({
         saveToAccount();
       };
       const enterHome = () => {
+        audioRef.current?.cue('door');
         locationRef.current = 'home';
         storyActionsRef.current.reportStory('entered-home');
         placePlayer(HOME_SPAWN);
@@ -838,6 +843,7 @@ export default function WorldScene({
         saveToAccount();
       };
       const leaveHome = () => {
+        audioRef.current?.cue('door');
         const door = FRONT_DOORS.find(candidate => candidate.own)!;
         locationRef.current = 'street';
         placePlayer(streetSpawnFor(door));
@@ -848,6 +854,7 @@ export default function WorldScene({
         saveToAccount();
       };
       const enterSchool = () => {
+        audioRef.current?.cue('door');
         locationRef.current = 'school';
         storyActionsRef.current.reportStory('entered-school');
         placePlayer(CLASSROOM_SPAWN);
@@ -859,6 +866,7 @@ export default function WorldScene({
         setAtSchool(true);
       };
       const leaveSchool = () => {
+        audioRef.current?.cue('door');
         locationRef.current = 'street';
         setSchoolOpen(false);
         placePlayer({ x: SCHOOL_DOOR.x, z: SCHOOL_DOOR.z + 0.9, rotation: Math.PI });
@@ -962,6 +970,7 @@ export default function WorldScene({
           const target = closestInteraction(position, carTargets());
           if (!target) return;
           interaction = transitionInteraction(interaction, target);
+          audioRef.current?.cue('car');
           inputRef.current.clear();
           // With the action clips loaded, you sit visibly behind the wheel; otherwise the car hides you.
           if (!riggedRef.current?.playAction('Drive')) avatar.setEnabled(false);
@@ -980,6 +989,7 @@ export default function WorldScene({
         position = exit;
         avatar.position.set(exit.x, 0, exit.z);
         avatar.rotation.y = car.rotation;
+        audioRef.current?.cue('car');
         interaction = transitionInteraction(interaction, 'exit');
         inputRef.current.clear();
         riggedRef.current?.stopAction();
@@ -1079,6 +1089,7 @@ export default function WorldScene({
       let waypointTimer = 0;
       let markerTime = 0;
       let hudTimer = 0;
+      let lastAudioPosition = { ...position };
       engine.runRenderLoop(() => {
         const frameSeconds = engine!.getDeltaTime() / 1000;
         const delta = Math.min(frameSeconds, 0.05);
@@ -1088,6 +1099,15 @@ export default function WorldScene({
           engine!.setHardwareScalingLevel(quality.scale);
           renderPipeline.setAmbientOcclusion(quality.ambientOcclusion);
         }
+        const audioDistance = Math.hypot(position.x-lastAudioPosition.x, position.z-lastAudioPosition.z);
+        lastAudioPosition = { ...position };
+        const audioCar = drivenIndex();
+        audioRef.current?.update({ location: locationRef.current,
+          speed: delta>0 && audioDistance<1 ? audioDistance/delta : 0,
+          drivingSpeed: audioCar>=0 ? cars[audioCar].speed : null,
+          reading: schoolOpenRef.current || dialogueRef.current,
+          paused: Boolean(pendingRide || pendingFood || pendingShift || interaction.mode==='sleeping' || interaction.mode==='sitting'),
+          evening: isEvening(life.minute) });
         // Controls follow the orbit camera: W always walks away from the viewer.
         const cameraDirection = camera.getForwardRay().direction;
         markerTime += delta;
@@ -1133,6 +1153,7 @@ export default function WorldScene({
             interaction = transitionInteraction(interaction, 'exit');
             avatar.setEnabled(true);
             setSleeping(false);
+            audioRef.current?.cue('wake');
             storyActionsRef.current.reportStory('slept');
             notify(`Good morning! Day ${life.day} · ${formatClock(life.minute)} · slept ${Math.round(rest.hoursSlept)} h · energy ${Math.round(life.energy)}%`);
           }
@@ -1152,6 +1173,7 @@ export default function WorldScene({
             syncLighting();
             setLifeView({ ...life });
             setBusyLabel(null);
+            audioRef.current?.cue('food');
             notify(kind === 'meal' ? `That hit the spot. +${FOOD.meal.energy} energy` : `A quick bite. +${FOOD.snack.energy} energy`);
             saveToAccount();
           }
@@ -1171,6 +1193,7 @@ export default function WorldScene({
             interaction = transitionInteraction(interaction, 'exit');
             avatar.setEnabled(true);
             setInClass(null);
+            audioRef.current?.cue('bell');
             const action = classActionRef.current;
             if (action.demoMode) notify(`${lesson.title} done! Sign in to have lessons count toward your grades.`);
             else if (!action.canExecuteActivity(1)) notify(`${lesson.title} done, but you have no school time left today, so it wasn't counted.`);
@@ -1443,9 +1466,16 @@ export default function WorldScene({
   }, []);
   useEffect(() => {
     if (!storyBanner) return;
+    audioRef.current?.cue('achievement');
     const timer = window.setTimeout(() => setStoryBanner(''), 5000);
     return () => window.clearTimeout(timer);
   }, [storyBanner]);
+
+  useEffect(() => {
+    if (!dialogue) return;
+    const line = dialogue.lines[dialogue.index];
+    audioRef.current?.cue(line.speaker==='mom' ? 'message' : 'talk');
+  }, [dialogue]);
 
   const touch = (key: string, down: boolean, event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -1619,6 +1649,7 @@ export default function WorldScene({
       </div>
       <p role="status" aria-live="polite">{previewEmotion === 'sad' ? 'Crying preview selected · tears pending detailed face integration' : previewEmotion === 'embarrassed' ? 'Blushing preview selected · cheek shading pending' : previewEmotion === 'exerted' ? 'Exertion preview selected · sweat rendering pending' : `Current expression: ${previewEmotion}`}. When Neutral is selected, sprinting automatically triggers exertion. Facial animation requires a model with compatible blendshapes.</p>
     </section>}
+    <AudioPanel director={audioRef} />
     {!error && <CareersPanel career={career}
       onWearUniform={() => { if (career.career) setLook(current => ({ ...current, ...CAREERS[career.career!].uniform })); }}
       onQuit={() => saveCareer(quitCareer(career))} />}
