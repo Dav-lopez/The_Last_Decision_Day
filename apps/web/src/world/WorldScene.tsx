@@ -34,6 +34,7 @@ import { CAST, advanceStory, currentStep, markSceneSeen, pendingScene, readStory
 import { buildSurroundings } from './worldSurroundings';
 import { createAtmosphere } from './sceneAtmosphere';
 import { createCameraOcclusionGuard, createRenderPipeline, pickRenderQuality } from './renderQuality';
+import { createQuality, stepQuality } from './adaptiveQuality.mjs';
 import { loadNeighbors, type Neighbors, type Person } from './npcPeople';
 import { buildSchoolScene } from './schoolScene';
 import { BUS_RIDE_MINUTES, MAPLE_BUS_STOP, atBusStop, cameraClearance, createCityCollider, findBusStop, readCity, stepCityLocomotion, toWorld, type City } from './cityLayout.mjs';
@@ -469,6 +470,8 @@ export default function WorldScene({
       engine = new Engine(canvas, true, { preserveDrawingBuffer: false, stencil: true });
       engine.setHardwareScalingLevel(1 / Math.min(1.5, Math.max(1, window.devicePixelRatio || 1)));
       const scene = new Scene(engine);
+      // Nothing in the world is clicked: skip ray-picking on every pointer move.
+      scene.skipPointerMovePicking = true;
       scene.clearColor = new Color4(0.67, 0.83, 0.96, 1);
       const sun = new HemisphericLight('daylight', new Vector3(0, 1, 0), scene);
       sun.intensity = 0.65;
@@ -648,6 +651,8 @@ export default function WorldScene({
       camera.attachControl(canvas, false);
       // Filmic tone mapping, bloom, anti-aliasing and (on capable devices) ambient occlusion.
       const renderPipeline = createRenderPipeline(scene, camera, pickRenderQuality(scene));
+      // Dynamic resolution keeps the frame rate up on slower devices.
+      let quality = createQuality(1 / Math.min(1.5, Math.max(1, window.devicePixelRatio || 1)));
       // Never let walls, roofs or trees come between the camera and the player (or their car).
       const occlusion = createCameraOcclusionGuard(camera, scene, mesh =>
         mesh.isDescendantOf(avatar) || carRoots.some(roots => roots.some(root => mesh.isDescendantOf(root))));
@@ -996,7 +1001,8 @@ export default function WorldScene({
       const focus = () => { cameraControls.cancel(); canvas.focus({ preventScroll: true }); };
       const cancelCameraTransition = () => cameraControls.cancel();
       const resize = () => {
-        engine?.setHardwareScalingLevel(1 / Math.min(1.5, Math.max(1, window.devicePixelRatio || 1)));
+        quality = createQuality(1 / Math.min(1.5, Math.max(1, window.devicePixelRatio || 1)));
+        engine?.setHardwareScalingLevel(quality.scale);
         engine?.resize();
       };
       canvas.addEventListener('pointerdown', focus);
@@ -1013,7 +1019,14 @@ export default function WorldScene({
       let markerTime = 0;
       let hudTimer = 0;
       engine.runRenderLoop(() => {
-        const delta = Math.min(engine!.getDeltaTime() / 1000, 0.05);
+        const frameSeconds = engine!.getDeltaTime() / 1000;
+        const delta = Math.min(frameSeconds, 0.05);
+        const tuned = stepQuality(quality, frameSeconds);
+        quality = tuned.state;
+        if (tuned.changed) {
+          engine!.setHardwareScalingLevel(quality.scale);
+          renderPipeline.setAmbientOcclusion(quality.ambientOcclusion);
+        }
         // Controls follow the orbit camera: W always walks away from the viewer.
         const cameraDirection = camera.getForwardRay().direction;
         markerTime += delta;

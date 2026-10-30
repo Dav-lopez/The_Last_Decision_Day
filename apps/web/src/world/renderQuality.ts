@@ -62,7 +62,16 @@ export function createRenderPipeline(scene: Scene, camera: ArcRotateCamera, qual
     ssao.maxZ = 60;
     ssao.expensiveBlur = true;
   }
+  let aoOn = Boolean(ssao);
   return {
+    /** Turn screen-space ambient occlusion off when the frame rate struggles (and back on). */
+    setAmbientOcclusion(on: boolean) {
+      if (!ssao || on === aoOn) return;
+      aoOn = on;
+      const manager = scene.postProcessRenderPipelineManager;
+      if (on) manager.attachCamerasToRenderPipeline('contact-shadows', camera);
+      else manager.detachCamerasFromRenderPipeline('contact-shadows', camera);
+    },
     dispose() {
       ssao?.dispose();
       pipeline.dispose();
