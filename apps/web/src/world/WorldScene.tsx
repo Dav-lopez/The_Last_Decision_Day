@@ -382,6 +382,10 @@ export default function WorldScene({
   const [driveNotice, setDriveNotice] = useState('');
   const [nearCar, setNearCar] = useState(false);
   const [propCredit, setPropCredit] = useState(false);
+  const [busPrompt, setBusPrompt] = useState<'downtown' | 'home' | null>(null);
+  const [inCity, setInCity] = useState<string | null>(null);
+  const [riding, setRiding] = useState<string | null>(null);
+  const busAction = busPrompt === 'downtown' ? 'Take the bus downtown (E)' : busPrompt === 'home' ? 'Take the bus home (E)' : null;
   const interactRef = useRef<() => void>(() => {});
   const [inHome, setInHome] = useState(false);
   const [doorPrompt, setDoorPrompt] = useState<'enter' | 'locked' | 'exit' | 'bed' | 'school' | 'school-closed' | 'leave-school' | 'desk' | null>(null);
@@ -396,10 +400,6 @@ export default function WorldScene({
   // Latest props for the scene's long-lived callbacks (attendance is recorded with the server activity).
   const classActionRef = useRef({ demoMode, canExecuteActivity, onExecuteActivity });
   classActionRef.current = { demoMode, canExecuteActivity, onExecuteActivity };
-  const [busPrompt, setBusPrompt] = useState<'downtown' | 'home' | null>(null);
-  const [inCity, setInCity] = useState<string | null>(null);
-  const [riding, setRiding] = useState<string | null>(null);
-  const busAction = busPrompt === 'downtown' ? 'Take the bus downtown (E)' : busPrompt === 'home' ? 'Take the bus home (E)' : null;
   const toggleCamera = () => {
     // Indoors the camera stays in its cutaway view; the street mode returns on leaving.
     if (locationRef.current === 'home' || locationRef.current === 'school') return;
@@ -1148,7 +1148,6 @@ export default function WorldScene({
         {inClass && <div className="world-sleep world-class" role="status" aria-live="polite"><span>{inClass} class…</span></div>}
         <div className="world-caption"><strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : inCity ? `Downtown ${inCity}` : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
-        {riding && <div className="world-sleep world-bus" role="status" aria-live="polite"><span>{riding}</span></div>}
         {driving && <div className="world-drive-hud" role="status" aria-live="polite">
           <strong>{driveSpeed}</strong>km/h · W/S gas, brake, reverse · A/D steer · E to get out when stopped
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
@@ -1158,6 +1157,7 @@ export default function WorldScene({
           onClick={event => { interactRef.current(); focusWorld(event); }}>
           {busAction ?? actionLabel}
         </button>}
+        {riding && <div className="world-sleep world-bus" role="status" aria-live="polite"><span>{riding}</span></div>}
         {nearSchool && <button type="button" className="world-enter"
           aria-expanded={schoolOpen} aria-controls="school-game-panel"
           onClick={() => setSchoolOpen(current => !current)}>
