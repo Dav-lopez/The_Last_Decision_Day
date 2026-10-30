@@ -5,6 +5,7 @@ export declare const SOLID_AREAS: ReadonlyArray<Readonly<{ minX: number; maxX: n
 export declare function movementVector(keys: ReadonlySet<string>, cameraForward?: PlanarPosition): PlanarPosition;
 export type CarFootprint = { x: number; z: number; rotation: number };
 export declare const BUILDING_AREAS: ReadonlyArray<Readonly<{ minX: number; maxX: number; minZ: number; maxZ: number }>>;
+export declare const STATIC_SOLIDS: ReadonlyArray<Readonly<{ minX: number; maxX: number; minZ: number; maxZ: number }>>;
 export declare const TREE_TRUNKS: ReadonlyArray<Readonly<PlanarPosition>>;
 export declare function carContains(car: CarFootprint, x: number, z: number, margin?: number): boolean;
 export declare function isBlocked(x: number, z: number, cars?: ReadonlyArray<CarFootprint>): boolean;

@@ -12,7 +12,7 @@
     "test:human": "node --test tests/human-motion.test.mjs tests/human-asset-bounds.test.mjs tests/avatar-facing.test.mjs",
     "test:emotion": "node --test tests/character-emotion.test.mjs",
     "test:character": "node --test tests/rigged-character.test.mjs tests/generated-face.test.mjs",
-    "test:environment": "node --test tests/suburb-layout.test.mjs tests/street-assets.test.mjs"
+    "test:environment": "node --test tests/suburb-layout.test.mjs tests/street-assets.test.mjs tests/polyhaven-props.test.mjs tests/polyhaven-import.test.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",

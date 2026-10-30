@@ -6,3 +6,4 @@
 **/bin/
 **/obj/
 **/*.tsbuildinfo
+__pycache__/
