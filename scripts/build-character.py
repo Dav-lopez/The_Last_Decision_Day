@@ -19,6 +19,7 @@ from facial_mouth import build_mouth_geometry
 from facial_gaze import GAZE_TARGETS, gaze_delta
 from facial_cheeks import build_cheek_geometry
 from facial_nose import build_nose_geometry
+from facial_ears import build_ear_geometry
 from facial_eyelids import build_eyelid_geometry
 from facial_cornea import build_cornea_geometry
 from facial_droplets import DROPLET_KINDS, DROPLET_SIDES, build_droplet_geometry
@@ -469,6 +470,26 @@ def build(files, variant):
     b.doc["nodes"].append({"name": "Student nose surface", "mesh": nose_mesh, "skin": 0})
     b.doc["nodes"][body["scenes"][0]["nodes"][0]]["children"].append(len(b.doc["nodes"]) - 1)
 
+    # Anatomically suggestive bilateral outer ears: concha, helix and lobe
+    # share the same skin material and Head joint as the sculpted nose.
+    ears = on_this_face(build_ear_geometry(body_joint["Head"]))
+    ear_mesh = len(b.doc["meshes"])
+    b.doc["meshes"].append({
+        "name": "Student sculpted ears",
+        "primitives": [{
+            "attributes": {
+                "POSITION": b.accessor(ears["positions"], "VEC3", bounds=True),
+                "NORMAL": b.accessor(ears["normals"], "VEC3"),
+                "JOINTS_0": b.accessor(ears["joints"], "VEC4", 5121),
+                "WEIGHTS_0": b.accessor(ears["weights"], "VEC4"),
+            },
+            "indices": b.accessor(ears["indices"], "SCALAR", 5123),
+            "material": 0,
+        }],
+    })
+    b.doc["nodes"].append({"name": "Student ear surfaces", "mesh": ear_mesh, "skin": 0})
+    b.doc["nodes"][scene_root]["children"].append(len(b.doc["nodes"]) - 1)
+
     # Short, head-skinned eyelid rims follow the same left/right blink morphs
     # as the source eye mesh. Reuse the hair material for customizable lash
     # color, without coupling visibility to any selectable hairstyle.
@@ -613,7 +634,7 @@ def build(files, variant):
                 "body": variant,
                 "output": {"file": config["output"], "bytes": len(glb), "sha256": hashlib.sha256(glb).hexdigest(),
                            "morphTargets": sorted({name for mesh in b.doc["meshes"] for name in mesh.get("extras", {}).get("targetNames", [])})},
-                "modifications": ["Keep only Idle_Loop, Walk_Loop and Sprint_Loop, exported as Idle/Walk/Run.", "Rebase local rotations onto the character bind pose; retain target limb lengths.", "Preserve pelvis bob and remove horizontal root travel; gameplay controls world movement.", "Add parted hair, remap hair joints, split clothing/skin materials for browser customization.", "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes.", "Add a skinned expressive lip surface with smile, frown, press and open morphs.", "Add head-skinned cheek squint targets and transparent blush surfaces.", "Add head-skinned animated translucent tear and sweat droplets.", "Add a head-skinned sculpted nose bridge and tip sharing the skin material.", "Add skinned upper/lower eyelid rims and tapered lashes driven by bilateral blink morphs.", "Add shallow transparent head-skinned corneal films with bilateral blink and gaze morphs.", "Split the outfit into zones painted in the browser (sleeves, midriff, waist, thighs, knees, shins, socks, shoes, soles).", "Ship every hairstyle (parted, buzzed, pixie, long, buns, beard) moved onto this head by the eye-centre difference; the browser shows one.", "Add a skinned flared skirt (pelvis and thighs), hidden unless worn."]}
+                "modifications": ["Keep only Idle_Loop, Walk_Loop and Sprint_Loop, exported as Idle/Walk/Run.", "Rebase local rotations onto the character bind pose; retain target limb lengths.", "Preserve pelvis bob and remove horizontal root travel; gameplay controls world movement.", "Add parted hair, remap hair joints, split clothing/skin materials for browser customization.", "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes.", "Add a skinned expressive lip surface with smile, frown, press and open morphs.", "Add head-skinned cheek squint targets and transparent blush surfaces.", "Add head-skinned animated translucent tear and sweat droplets.", "Add a head-skinned sculpted nose bridge and tip sharing the skin material.", "Add bilateral sculpted ear relief with helix and concha skinned to Head.", "Add skinned upper/lower eyelid rims and tapered lashes driven by bilateral blink morphs.", "Add shallow transparent head-skinned corneal films with bilateral blink and gaze morphs.", "Split the outfit into zones painted in the browser (sleeves, midriff, waist, thighs, knees, shins, socks, shoes, soles).", "Ship every hairstyle (parted, buzzed, pixie, long, buns, beard) moved onto this head by the eye-centre difference; the browser shows one.", "Add a skinned flared skirt (pelvis and thighs), hidden unless worn."]}
     (OUTPUT / config["manifest"]).write_text(json.dumps(manifest, indent=2)+"\n")
     print(f"Built {config['output']}: {len(glb):,} bytes with {len(b.doc['animations'])} animation clips.")
 
