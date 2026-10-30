@@ -4,6 +4,7 @@ import { colorFor, type Look } from './appearance.mjs';
 import { faceTarget, approachFace, type Emotion } from './facialEmotions';
 import { EMPTY_EFFECTS, smoothFacialEffects, targetFacialEffects } from './facialEffects';
 import { blendHumanWeights, classifyHumanMotion, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
+import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 
 export type RiggedAvatar = {
   root: TransformNode;
@@ -30,20 +31,15 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode): Pro
       throw new Error('Character asset is missing its mesh, skeleton or locomotion clips.');
     }
     for (const group of container.animationGroups) group.stop();
+    // Register the intact import hierarchy before parenting it to a scene-only
+    // visual node. Reparenting first makes AssetContainer validation warn.
+    container.addAllToScene();
     root = new TransformNode('rigged player visual', scene);
     for (const node of container.rootNodes) if (!node.parent) node.parent = root;
-    container.addAllToScene();
 
     // Source units are metres. Normalize by the rest-pose bounds, including hair,
     // and place the soles on the same ground used by collisions and the camera.
-    const { min, max } = root.getHierarchyBoundingVectors(true);
-    const height = max.y - min.y;
-    if (![min.x, min.y, min.z, max.x, max.y, max.z].every(Number.isFinite) || height < 0.1 || height > 100) {
-      throw new Error('Character asset has invalid bounds.');
-    }
-    const scale = 2.2 / height;
-    root.scaling.setAll(scale);
-    root.position.set(-(min.x + max.x) / 2 * scale, -min.y * scale, -(min.z + max.z) / 2 * scale);
+    normalizeRiggedVisual(root);
     root.parent = parent;
     // Facial shading: preserve the authored eye texture and avoid the flat,
     // plastic-looking response of the source's uniform roughness settings.
