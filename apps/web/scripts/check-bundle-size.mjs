@@ -44,5 +44,11 @@ console.log(`Start page loads: ${result.firstPage.join(', ') || '(nothing)'}`);
 if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `### Bundle size\n\n${lines.join('\n')}\n`);
 // Annotations make the sizes readable on the PR's checks page.
 console.log(`::notice title=Bundle size::${result.rows.map(row => `${row.name} ${formatKB(row.gzip)}`).join(' · ')} · total JS ${formatKB(result.totalJs)} · CSS ${formatKB(result.totalCss)} · start page loads: ${result.firstPage.join(', ') || 'nothing'}`);
+// When the start page pulls in a chunk it shouldn't, show what the entry imports from it.
+const entry = js.find(chunk => /^assets\/index-/.test(chunk.file));
+if (entry && result.failures.some(failure => failure.includes('start page'))) {
+  const code = await readFile(join(dist, entry.file), 'utf8');
+  for (const match of code.matchAll(/import\s*\{[^}]{0,400}\}\s*from\s*"[^"]+"|import\s*"[^"]+"/g)) console.log(`::notice title=Start page imports::${match[0].slice(0, 500)}`);
+}
 for (const failure of result.failures) console.log(`::error title=Bundle size::${failure}`);
 process.exit(result.ok ? 0 : 1);

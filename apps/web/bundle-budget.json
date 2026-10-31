@@ -12,5 +12,5 @@
   "totalJsKB": 4500,
   "cssKB": 80,
   "largestAssetKB": 2500,
-  "firstPageMustNotLoad": []
+  "firstPageMustNotLoad": ["babylon", "babylon-loaders"]
 }
