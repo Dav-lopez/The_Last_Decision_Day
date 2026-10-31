@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { NullEngine, Scene, LoadAssetContainerAsync, PBRMaterial, TransformNode } from '@babylonjs/core';
+import { NullEngine, Scene, LoadAssetContainerAsync, PBRMaterial, TransformNode, Quaternion } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF/index.js';
 import { NEIGHBORS } from '../src/world/npcLayout.mjs';
+import { npcHeadAttentionTarget, stepNpcHeadAttention } from '../src/world/npcHeadAttention.mjs';
+import { createNpcHeadRig } from '../src/world/npcHeadRig.mjs';
 import { HUMAN_HEIGHT, normalizeRiggedVisual } from '../src/world/riggedPresentation.mjs';
 import { findNpcLocomotionIndices, selectNpcAnimationModel } from '../src/world/npcAnimationSelection.mjs';
 
@@ -93,7 +95,93 @@ test('actual male and female GLBs clone their own named locomotion clips', async
     assert.ok(entries.animationGroups[indices.idleIndex].targetedAnimations.length > 0, `${model}: Idle bound`);
     assert.ok(entries.animationGroups[indices.walkIndex].targetedAnimations.length > 0, `${model}: Walk bound`);
     assert.notEqual(entries.animationGroups[indices.idleIndex], entries.animationGroups[indices.walkIndex]);
+    const head = entries.rootNodes.flatMap(root => root.getChildTransformNodes(false))
+      .find(node => /(?:^| )Head$/.test(node.name));
+    assert.ok(head?.rotationQuaternion, `${model}: animated Head transform is available for attention`);
     entries.dispose();
     container.dispose();
   }
+});
+
+test('NPC head attention follows nearby players without chasing behind or moving targets', () => {
+  const npc = { x: 0, z: 0 };
+  const right = npcHeadAttentionTarget(npc, { x: 0.8, z: -1.2 }, 0);
+  const left = npcHeadAttentionTarget(npc, { x: -0.8, z: -1.2 }, 0);
+  assert.ok(right < 0 && left > 0, 'local head yaw compensates for imported +Z face');
+  assert.ok(Math.abs(right + left) < 1e-12, 'bilateral attention is mirrored');
+  assert.ok(Math.abs(right) <= 0.22);
+  assert.equal(npcHeadAttentionTarget(npc, { x: 0, z: 2 }, 0), 0);
+  assert.equal(npcHeadAttentionTarget(npc, { x: 0.8, z: -1.2 }, 0, { moving: true }), 0);
+  assert.equal(npcHeadAttentionTarget(npc, { x: 0.8, z: -1.2 }, 0, { flinch: 1 }), 0);
+  assert.ok(Math.abs(npcHeadAttentionTarget(npc, { x: 0.8, z: -1.2 }, 0, { talking: true })) < Math.abs(right));
+  for (const player of [null, {}, { x: NaN, z: 1 }, { x: Infinity, z: 0 }, { x: 1e308, z: 1e308 }]) {
+    assert.equal(npcHeadAttentionTarget(npc, player, 0), 0);
+  }
+});
+
+test('NPC head tracking acquires and releases smoothly, including invalid frames', () => {
+  const target = -0.22;
+  let yaw = 0;
+  for (let i = 0; i < 60; i++) {
+    const next = stepNpcHeadAttention(yaw, target, 1 / 60);
+    assert.ok(next <= yaw && Math.abs(next - yaw) <= 0.9 / 60 + 1e-12);
+    yaw = next;
+  }
+  assert.ok(yaw < -0.2);
+  const held = stepNpcHeadAttention(yaw, 0, NaN);
+  assert.equal(held, yaw);
+  for (let i = 0; i < 60; i++) yaw = stepNpcHeadAttention(yaw, 0, 1 / 60);
+  assert.ok(Math.abs(yaw) < 0.01, 'head returns to the authored neutral animation');
+  assert.equal(stepNpcHeadAttention(Infinity, NaN, 0.1), 0);
+});
+
+test('Head bone overlay restores animation pose every frame and on disposal', t => {
+  const engine = new NullEngine();
+  const scene = new Scene(engine);
+  t.after(() => { scene.dispose(); engine.dispose(); });
+  const holder = new TransformNode('npc test', scene);
+  const head = new TransformNode('npc test Head', scene);
+  head.parent = holder;
+  head.rotationQuaternion = Quaternion.FromEulerAngles(0.12, 0.06, -0.04);
+  const original = head.rotationQuaternion.clone();
+  const rig = createNpcHeadRig(scene, holder);
+  const same = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y) +
+    Math.abs(a.z - b.z) + Math.abs(a.w - b.w) < 1e-8;
+  rig.setYaw(-0.18);
+  scene.onBeforeAnimationsObservable.notifyObservers(scene);
+  scene.onAfterAnimationsObservable.notifyObservers(scene);
+  const first = head.rotationQuaternion.clone();
+  assert.equal(same(first, original), false, 'head receives additive yaw');
+  scene.onBeforeAnimationsObservable.notifyObservers(scene);
+  assert.ok(same(head.rotationQuaternion, original), 'prior additive yaw is removed before the next clip');
+  scene.onAfterAnimationsObservable.notifyObservers(scene);
+  assert.ok(same(head.rotationQuaternion, first), 'unchanged clip does not accumulate yaw');
+  rig.setYaw(0);
+  scene.onBeforeAnimationsObservable.notifyObservers(scene);
+  scene.onAfterAnimationsObservable.notifyObservers(scene);
+  assert.ok(same(head.rotationQuaternion, original), 'neutral attention preserves authored pose');
+  rig.setYaw(-0.18);
+  scene.onAfterAnimationsObservable.notifyObservers(scene);
+  rig.dispose();
+  assert.ok(same(head.rotationQuaternion, original), 'dispose restores the underlying animation');
+});
+
+test('hidden or headless NPCs never receive an attention transform', t => {
+  const engine = new NullEngine();
+  const scene = new Scene(engine);
+  t.after(() => { scene.dispose(); engine.dispose(); });
+  const holder = new TransformNode('npc hidden', scene);
+  const head = new TransformNode('npc hidden Head', scene);
+  head.parent = holder;
+  head.rotationQuaternion = Quaternion.Identity();
+  const rig = createNpcHeadRig(scene, holder);
+  holder.setEnabled(false);
+  rig.setYaw(0.2);
+  scene.onBeforeAnimationsObservable.notifyObservers(scene);
+  scene.onAfterAnimationsObservable.notifyObservers(scene);
+  assert.equal(head.rotationQuaternion.y, 0);
+  rig.dispose();
+  const noHead = createNpcHeadRig(scene, new TransformNode('headless', scene));
+  noHead.setYaw(0.2);
+  noHead.dispose();
 });
