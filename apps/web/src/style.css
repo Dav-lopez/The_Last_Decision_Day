@@ -109,6 +109,30 @@
 .world-class span{color:#e6efe0}
 .world-kitchen{background:#2a1c12;animation-duration:2s}
 .world-kitchen span{color:#ffe2bf}
+/* Loading screen over the world while Maple Street downloads (see world/LoadingScreen.tsx). */
+.world-loading{position:absolute;inset:0;z-index:40;display:grid;place-items:center;padding:12px;background:radial-gradient(ellipse at 50% 35%,#24476ef2 0%,#0d1b2cf7 70%);color:#fff;transition:opacity .45s ease}
+.world-loading[data-leaving]{opacity:0;pointer-events:none}
+.world-loading-card{width:min(420px,100%);display:flex;flex-direction:column;gap:8px;text-align:center}
+.world-loading-card h2{margin:0;font-size:1.2rem;letter-spacing:.04em;color:#fff}
+.world-loading-step{margin:0;font-size:.9rem;color:#d7e6fa;min-height:1.2em}
+.world-loading-bar{height:10px;border-radius:5px;background:#ffffff26;overflow:hidden;box-shadow:inset 0 1px 2px #0006}
+.world-loading-bar span{display:block;height:100%;width:100%;transform-origin:left center;background:linear-gradient(90deg,#7bd389,#c9f27b);transition:transform .12s linear}
+.world-loading-tasks{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 10px;margin:0;padding:0;list-style:none;font-size:.72rem;color:#9fb6d3}
+.world-loading-tasks li::before{content:'○ ';color:#6f86a6}
+.world-loading-tasks li[data-state=loading]{color:#e7f0fc}
+.world-loading-tasks li[data-state=loading]::before{content:'◌ ';color:#c9f27b}
+.world-loading-tasks li[data-state=done]::before{content:'✓ ';color:#7bd389}
+.world-loading-tasks li[data-state=failed]::before{content:'– ';color:#f2a65a}
+.world-loading-tip{margin:4px 0 0;font-size:.8rem;color:#ffe2a8;min-height:2.4em}
+.world-loading-card button{align-self:center;padding:6px 14px;border-radius:6px;border:1px solid #ffffff55;background:#ffffff1a;color:#fff;font:inherit;font-size:.8rem;cursor:pointer}
+.world-loading-card button:hover,.world-loading-card button:focus-visible{background:#ffffff33}
+.world-loading-chip{position:absolute;left:12px;bottom:12px;z-index:5;padding:4px 10px;border-radius:12px;background:#11243ad9;color:#d7e6fa;font-size:.72rem;pointer-events:none}
+.hero-loading{display:grid;place-items:center;gap:10px;color:#d7e6fa}
+.hero-loading-bar{width:min(320px,70%);height:8px;border-radius:4px;background:#ffffff26;overflow:hidden}
+.hero-loading-bar span{display:block;width:35%;height:100%;border-radius:4px;background:linear-gradient(90deg,#7bd389,#c9f27b);animation:hero-loading-slide 1.3s ease-in-out infinite}
+@keyframes hero-loading-slide{0%{transform:translateX(-100%)}100%{transform:translateX(290%)}}
+@media(max-width:640px){.world-loading-tasks{display:none}.world-loading-card h2{font-size:1rem}.world-loading-chip{bottom:auto;top:12px;left:auto;right:8px}}
+@media(prefers-reduced-motion:reduce){.world-loading,.world-loading-bar span{transition:none}.hero-loading-bar span{animation:none;width:100%;opacity:.6}}
 
 /* Football on touch: the chip button sits above the kick button. */
 .world-car-action.world-chip-action{bottom:112px;background:#cfe6b8}

@@ -8,6 +8,10 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          // Tiny helpers shared by every chunk (lazy-import preloading, CommonJS interop) get their own
+          // chunk; otherwise Rollup may place them inside the Babylon chunk and the start page would have
+          // to download the whole 3D engine before it can show anything.
+          if (id.includes('vite/preload-helper') || id.includes('commonjsHelpers') || id.includes('vite/modulepreload-polyfill')) return 'runtime';
           if (id.includes('node_modules/@babylonjs/loaders')) return 'babylon-loaders';
           if (id.includes('node_modules/@babylonjs/core')) return 'babylon';
           if (id.includes('node_modules/react')) return 'react';

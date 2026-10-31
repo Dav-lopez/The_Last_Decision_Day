@@ -49,6 +49,14 @@ await step('loads the start page', async () => {
   await page.goto(`${base}/?playtest`, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.getByRole('button', { name: /try the 3d demo/i }).click({ timeout: 20000 });
 });
+await step('loading screen shows progress and gets out of the way', async () => {
+  const started = Date.now();
+  await page.waitForSelector('.world-loading [role=progressbar]', { timeout: 90000 });
+  await shot('00-loading');
+  await page.waitForFunction(() => Boolean(window.__tld) && !window.__tld.read().loading, null, { timeout: 120000 });
+  await page.waitForSelector('.world-loading', { state: 'detached', timeout: 10000 });
+  notes.push(`world ready ${((Date.now() - started) / 1000).toFixed(1)}s after the game code loaded`);
+});
 await step('world loads', async () => {
   await page.waitForSelector('.world-life', { timeout: 90000 });
   await page.waitForFunction(() => Boolean(window.__tld), null, { timeout: 30000 });
@@ -117,10 +125,18 @@ await step('frame rate', async () => {
 });
 await step('quick travel downtown', async () => {
   await page.evaluate(() => window.__tld.travel('downtown'));
-  await page.waitForFunction(() => window.__tld.read().location === 'city', null, { timeout: 180000 });
+  await page.waitForFunction(() => { const s = window.__tld.read(); return s.location === 'city' && !s.taxi; }, null, { timeout: 180000 });
   await page.waitForTimeout(3000);
   await dismissDialogue();
   await shot('05-downtown');
+});
+await step('downtown traffic drives', async () => {
+  await page.waitForFunction(() => window.__tld.read().traffic.length > 0, null, { timeout: 120000 });
+  const before = (await read()).traffic;
+  // Give the (slow, software-rendered) world some frames to move the cars.
+  await page.waitForFunction(first => window.__tld.read().traffic.some((car, i) => first[i] && Math.hypot(car.x - first[i].x, car.z - first[i].z) > 1), before, { timeout: 120000 });
+  notes.push(`${before.length} traffic cars downtown`);
+  await shot('05b-traffic');
 });
 await step('quick travel to the pitch and back home', async () => {
   await page.evaluate(() => window.__tld.travel('pitch'));

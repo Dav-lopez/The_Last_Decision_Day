@@ -112,6 +112,9 @@ await step('loads the start page on a phone', async () => {
 await step('world loads', async () => {
   await page.waitForSelector('.world-life', { timeout: 120000 });
   await page.waitForFunction(() => Boolean(window.__tld), null, { timeout: 30000 });
+  // The loading screen covers the view until Maple Street is ready; taps would land on it.
+  await page.waitForFunction(() => !window.__tld.read().loading, null, { timeout: 120000 });
+  await page.waitForSelector('.world-loading', { state: 'detached', timeout: 10000 });
   await page.waitForTimeout(4000);
   await page.locator('.world-viewport').scrollIntoViewIfNeeded();
   await shot('01-world');
