@@ -1,15 +1,18 @@
-"""Head-skinned upper/lower eyelid rims and short outer lashes.
+"""Head-skinned eyelid rims and outer lashes with bilateral expression morphs.
 
 Coordinates match the pinned Quaternius +Z-facing rest pose, in metres.
-Both blink targets are present on a single mesh, so the existing Babylon
-blink controller also closes the eyelid rims without a new runtime path.
-This is subtle stylized geometry; visual placement still requires review.
+Blink, eye-wide and squint targets share the source eye mesh names, so Babylon
+can animate the lids and eye surfaces together without a new runtime path.
+Visual placement and combined-expression clipping still require WebGL review.
 """
 import math
 
 SAMPLES = 13
 SIDES = ("Left", "Right")
 BLINK_TARGETS = ("eyeBlinkLeft", "eyeBlinkRight")
+EYELID_TARGETS = BLINK_TARGETS + (
+    "eyeWideLeft", "eyeWideRight", "eyeSquintLeft", "eyeSquintRight"
+)
 
 
 def build_eyelid_geometry(head_joint):
@@ -17,11 +20,11 @@ def build_eyelid_geometry(head_joint):
         raise ValueError("Head joint must fit UNSIGNED_BYTE JOINTS_0")
     positions, normals, indices, side_by_vertex, motion = [], [], [], [], []
 
-    def vertex(x, y, z, side, blink_shift):
+    def vertex(x, y, z, side, blink_shift, wide_shift, squint_shift):
         positions.append((x, y, z))
         normals.append((0.0, 0.0, 1.0))
         side_by_vertex.append(side)
-        motion.append(blink_shift)
+        motion.append((blink_shift, wide_shift, squint_shift))
         return len(positions) - 1
 
     for side in (-1, 1):
@@ -33,17 +36,22 @@ def build_eyelid_geometry(head_joint):
                 u = -1.0 + 2.0 * i / (SAMPLES - 1)
                 x = side * 0.052 + 0.024 * u
                 arch = max(0.0, 1.0 - u * u)
+                influence = 0.55 + 0.45 * arch
                 if upper:
                     y = 1.692 + 0.003 * arch
-                    dy = -0.0115 * (0.55 + 0.45 * arch)
+                    blink = -0.0115 * influence
+                    wide = 0.0045 * influence
+                    squint = -0.0050 * influence
                     thickness = 0.0015
                 else:
                     y = 1.679 - 0.001 * arch
-                    dy = 0.003 * (0.55 + 0.45 * arch)
+                    blink = 0.003 * influence
+                    wide = -0.0025 * influence
+                    squint = 0.0026 * influence
                     thickness = 0.0012
-                inner.append(vertex(x, y, 0.092, side, dy))
+                inner.append(vertex(x, y, 0.092, side, blink, wide, squint))
                 outer.append(vertex(x, y + (thickness if upper else -thickness),
-                                    0.0925, side, dy))
+                                    0.0925, side, blink, wide, squint))
             for i in range(SAMPLES - 1):
                 a, b = inner[i], inner[i + 1]
                 c, d = outer[i], outer[i + 1]
@@ -59,11 +67,14 @@ def build_eyelid_geometry(head_joint):
             x = side * 0.052 + 0.024 * u
             arch = 1.0 - u * u
             y = 1.692 + 0.003 * arch + 0.001
-            dy = -0.0115 * (0.55 + 0.45 * arch)
+            influence = 0.55 + 0.45 * arch
+            blink, wide, squint = (-0.0115 * influence, 0.0045 * influence,
+                                   -0.0050 * influence)
             direction = side
-            a = vertex(x - 0.0011, y, 0.093, side, dy)
-            b = vertex(x + 0.0011, y, 0.093, side, dy)
-            tip = vertex(x + direction * 0.003, y + 0.0035, 0.094, side, dy)
+            a = vertex(x - 0.0011, y, 0.093, side, blink, wide, squint)
+            b = vertex(x + 0.0011, y, 0.093, side, blink, wide, squint)
+            tip = vertex(x + direction * 0.003, y + 0.0035, 0.094, side,
+                         blink, wide, squint)
             # Choose winding based on triangle orientation in the XY plane.
             cross = (positions[b][0] - positions[a][0]) * (positions[tip][1] - positions[a][1])
             if cross > 0:
@@ -72,15 +83,19 @@ def build_eyelid_geometry(head_joint):
                 indices.extend(((b,), (a,), (tip,)))
 
     targets = []
-    for side in (-1, 1):
-        targets.append([(0.0, shift, 0.0) if owner == side else (0.0, 0.0, 0.0)
-                        for owner, shift in zip(side_by_vertex, motion)])
+    for name in EYELID_TARGETS:
+        active_side = -1 if name.endswith("Left") else 1
+        component = (0 if name.startswith("eyeBlink") else
+                     1 if name.startswith("eyeWide") else 2)
+        targets.append([(0.0, shifts[component], 0.0)
+                        if owner == active_side else (0.0, 0.0, 0.0)
+                        for owner, shifts in zip(side_by_vertex, motion)])
     return {
         "positions": positions,
         "normals": normals,
         "indices": indices,
         "joints": [(head_joint, 0, 0, 0)] * len(positions),
         "weights": [(1.0, 0.0, 0.0, 0.0)] * len(positions),
-        "names": BLINK_TARGETS,
+        "names": EYELID_TARGETS,
         "targets": targets,
     }
