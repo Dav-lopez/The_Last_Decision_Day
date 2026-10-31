@@ -158,3 +158,43 @@ test('horizontal gaze is smoothed, blink-masked and synchronized across meshes',
   assert.equal(left.influence, 0);
   assert.equal(right.influence, 0);
 });
+
+test('NPC eye attention eases in at personal-space and far-distance boundaries', () => {
+  const npc = { x: 0, z: 0 };
+  const target = distance => ({ x: distance * Math.sin(Math.PI / 9), z: -distance * Math.cos(Math.PI / 9) });
+  const gaze = distance => npcAttentionGaze(npc, target(distance), 0);
+  assert.equal(gaze(0.35), 0);
+  assert.ok(0 < gaze(0.36) && gaze(0.36) < gaze(0.5));
+  assert.ok(gaze(0.5) < gaze(0.7));
+  assert.ok(gaze(1.2) > gaze(2.1) && gaze(2.1) > gaze(2.4));
+  assert.ok(gaze(2.4) > gaze(2.49) && gaze(2.49) > 0);
+  assert.equal(gaze(2.5), 0);
+  assert.ok(gaze(0.351) < 0.001, 'eyes do not pop open at the near threshold');
+  assert.ok(gaze(2.499) < 0.001, 'eyes do not snap at the far threshold');
+});
+
+test('NPC horizontal eye contact fades continuously at the peripheral cone', () => {
+  const npc = { x: 0, z: 0 };
+  const gaze = degrees => {
+    const angle = degrees * Math.PI / 180;
+    return npcAttentionGaze(npc, { x: 1.2 * Math.sin(angle), z: -1.2 * Math.cos(angle) }, 0);
+  };
+  assert.ok(gaze(35) > gaze(45) && gaze(45) > gaze(50));
+  assert.ok(gaze(50) > gaze(59) && gaze(59) > 0);
+  assert.ok(gaze(59.9) < 0.001, 'eyes settle before leaving the attention cone');
+  assert.equal(gaze(60), 0);
+  assert.equal(gaze(70), 0);
+  for (const degrees of [10, 35, 45, 55, 59.9]) {
+    assert.ok(Math.abs(gaze(degrees) + gaze(-degrees)) < 1e-12, 'left/right attention stays mirrored');
+  }
+});
+
+test('NPC eye attention remains finite for malformed and extreme target positions', () => {
+  const npc = { x: 0, z: 0 };
+  for (const target of [null, {}, { x: NaN, z: 1 }, { x: Infinity, z: 0 },
+    { x: 1e308, z: -1e308 }, { x: 0, z: 0 }]) {
+    const gaze = npcAttentionGaze(npc, target, 0);
+    assert.ok(Number.isFinite(gaze) && Math.abs(gaze) <= 0.55);
+  }
+  assert.equal(npcAttentionGaze(npc, { x: 1, z: -1 }, Infinity), 0);
+});
