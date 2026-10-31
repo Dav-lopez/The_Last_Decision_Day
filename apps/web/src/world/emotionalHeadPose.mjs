@@ -19,7 +19,8 @@ export function emotionHeadTarget(emotion, speed = 0, action = null) {
   const motion = Number.isFinite(speed) ? Math.max(0, speed) : 0;
   const scale = (1 - smoothstep(motion / 1.4)) *
     (action === 'Drive' || action === 'JumpAir' || action === 'Dance' ? 0 : action === 'Talk' ? 0.7 : 1);
-  return { pitch: pose.pitch * scale, roll: pose.roll * scale };
+  // `+ 0` folds -0 (a negative cue faded to nothing) into a plain 0.
+  return { pitch: pose.pitch * scale + 0, roll: pose.roll * scale + 0 };
 }
 
 /** Frame-bounded, velocity-limited settling; interrupted moods reverse smoothly. */
