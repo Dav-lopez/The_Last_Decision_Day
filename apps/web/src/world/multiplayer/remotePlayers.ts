@@ -1,12 +1,13 @@
 import { Color3, DynamicTexture, Mesh, MeshBuilder, Scene, ShadowGenerator, StandardMaterial, TransformNode } from '@babylonjs/core';
 import { loadRiggedAvatar, type RiggedAvatar } from '../riggedAvatar';
 import { visibleRemotePose, stepRemotePose } from './remotePosePresentation.mjs';
+import { remoteAvatarPresentation } from './remoteAvatarPresentation.mjs';
 import { initialRemoteFacialReaction, remoteMessageReaction, remoteEmoteReaction, remoteFacialPose, type RemoteFacialReaction } from './remoteFacialReactions.mjs';
 import { EMOTE_LABELS, type RoomState } from './roomClient.mjs';
 
 /** Remote bodies are presentation only: never obstacles or sources of rewards. */
 export function createRemotePlayers(scene: Scene, shadows: ShadowGenerator) {
-  let active: { id: string; root: TransformNode; body: Mesh; label: Mesh; texture: DynamicTexture; labelMaterial: StandardMaterial; bodyMaterial: StandardMaterial; rig: RiggedAvatar | null; caption: string; placed: boolean; bubble: Mesh; bubbleTexture: DynamicTexture; bubbleMaterial: StandardMaterial; bubbleText: string; bubbleUntil: number; lastMessage: string; lastEmoteAt: number; reaction: RemoteFacialReaction } | null = null;
+  let active: { id: string; model: string; root: TransformNode; body: Mesh; label: Mesh; texture: DynamicTexture; labelMaterial: StandardMaterial; bodyMaterial: StandardMaterial; rig: RiggedAvatar | null; caption: string; placed: boolean; bubble: Mesh; bubbleTexture: DynamicTexture; bubbleMaterial: StandardMaterial; bubbleText: string; bubbleUntil: number; lastMessage: string; lastEmoteAt: number; reaction: RemoteFacialReaction } | null = null;
   let clock = 0;
   let disposed = false;
   function clear() {
@@ -18,7 +19,10 @@ export function createRemotePlayers(scene: Scene, shadows: ShadowGenerator) {
     update(room: RoomState | undefined, location: string, delta: number) {
       const peer = room?.status === 'connected' ? room.players.find(player => player.characterId !== room.selfId) : undefined;
       if (!peer) { clear(); return; }
-      if (active?.id !== peer.characterId) {
+      // A wardrobe body change replaces the remote rig without leaving a stale
+      // male/female model on screen. The previous async load is invalidated by clear().
+      const presentation = remoteAvatarPresentation(peer.pose);
+      if (active?.id !== peer.characterId || active.model !== presentation.model) {
         clear();
         const root = new TransformNode('online friend', scene);
         const body = MeshBuilder.CreateCapsule('online friend fallback', { height: 1.7, radius: .25 }, scene); body.parent = root; body.position.y = .85; body.isPickable = false;
@@ -31,13 +35,13 @@ export function createRemotePlayers(scene: Scene, shadows: ShadowGenerator) {
         const bubbleMaterial = new StandardMaterial('friend speech material', scene); bubbleMaterial.diffuseTexture = bubbleTexture; bubbleMaterial.emissiveColor = Color3.White(); bubbleMaterial.disableLighting = true; bubbleMaterial.backFaceCulling = false; bubbleMaterial.useAlphaFromDiffuseTexture = true;
         const bubble = MeshBuilder.CreatePlane('friend speech bubble', { width: 3.6, height: .75 }, scene); bubble.parent = root; bubble.position.y = 2.95; bubble.billboardMode = Mesh.BILLBOARDMODE_ALL; bubble.material = bubbleMaterial; bubble.isPickable = false; bubble.setEnabled(false);
         const lastMessage = room!.messages.filter(m => m.senderId === peer.characterId).at(-1)?.id ?? '';
-        const entry = { id: peer.characterId, root, body, label, texture, labelMaterial, bodyMaterial, rig: null as RiggedAvatar | null, caption: '', placed: false,
+        const entry = { id: peer.characterId, model: presentation.model, root, body, label, texture, labelMaterial, bodyMaterial, rig: null as RiggedAvatar | null, caption: '', placed: false,
           bubble, bubbleTexture, bubbleMaterial, bubbleText: '', bubbleUntil: 0, lastMessage, lastEmoteAt: -Infinity, reaction: initialRemoteFacialReaction() };
         active = entry;
-        void loadRiggedAvatar(scene, root).then(rig => {
+        void loadRiggedAvatar(scene, root, presentation.model).then(rig => {
           if (disposed || active !== entry || scene.isDisposed) { rig?.dispose(); return; }
           entry.rig = rig;
-          if (rig) { body.setEnabled(false); for (const mesh of rig.root.getChildMeshes()) { mesh.isPickable = false; shadows.addShadowCaster(mesh); } }
+          if (rig) { rig.applyLook(presentation.look); body.setEnabled(false); for (const mesh of rig.root.getChildMeshes()) { mesh.isPickable = false; shadows.addShadowCaster(mesh); } }
         }).catch(() => { /* Visible fallback remains if the GLB cannot load. */ });
       }
       const entry = active!; const pose = peer.pose;
