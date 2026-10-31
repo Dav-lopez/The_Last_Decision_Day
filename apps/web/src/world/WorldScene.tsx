@@ -950,6 +950,16 @@ export default function WorldScene({
       };
       // Quick travel from the map: a taxi, ten game minutes, on foot only.
       let pendingTaxi: { to: TravelTarget; timer: number } | null = null;
+      // Automated playtests (?playtest in the URL) read the live game state; players never see this.
+      if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('playtest')) {
+        (window as unknown as { __tld?: unknown }).__tld = {
+          read: () => ({
+            x: position.x, z: position.z, location: locationRef.current, minute: life.minute, energy: life.energy,
+            story: storyRef.current, driving: drivenIndex() >= 0, dialogue: dialogueRef.current, npcChat: npcActiveRef.current,
+          }),
+          travel: (to: TravelTarget) => travelRef.current(to),
+        };
+      }
       travelRef.current = (to) => {
         if (pendingTaxi || pendingDrive || pendingRide || interaction.mode !== 'walking') { notify('Quick travel works on foot.'); return; }
         if (locationRef.current !== 'street' && locationRef.current !== 'city') { notify('Head outside first.'); return; }
