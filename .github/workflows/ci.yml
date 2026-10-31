@@ -50,7 +50,10 @@ jobs:
       - run: npm run test:online
       - run: npm run test:progress
       - run: npm run test:environment
+      - run: npm run test:loading
       - run: npm run build
+      - name: Check bundle size against bundle-budget.json
+        run: npm run check:bundle
       - name: Test Cloudflare Pages API proxy
         run: node --test tests/pages-proxy.test.mjs
       - name: Test school time rollover rules
