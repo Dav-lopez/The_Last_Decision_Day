@@ -104,3 +104,69 @@ test('selected standing NPC does not fall back to ambient mouth loops after a re
   assert.equal(npcShouldArticulate(speech, 'jordan', true), true);
   assert.equal(npcShouldArticulate(speech, 'jordan', false), false);
 });
+
+
+import { buildNpcSpeechCues, npcSpeechCueWeight } from '../src/world/npcSpeechCues.mjs';
+
+const middle = cue => (cue.start + cue.end) / 2;
+
+test('displayed dialogue produces text-specific vowel, labial and punctuation cues', () => {
+  const cues = buildNpcSpeechCues('Papa, no!', 1.8);
+  assert.ok(cues.length >= 7);
+  const closure = cues.find(cue => cue.press > 0);
+  const vowel = cues.find(cue => cue.open > 0);
+  const pause = cues.find(cue => cue.open === 0 && cue.press === 0 && cue.end - cue.start > 0.15);
+  assert.ok(closure && vowel && pause, 'labial, vowel and punctuation rest are all present');
+  assert.ok(npcSpeechCueWeight('mouthPressLeft', middle(closure), cues) > 0.1);
+  assert.equal(npcSpeechCueWeight('jawOpen', middle(closure), cues), 0);
+  assert.ok(npcSpeechCueWeight('jawOpen', middle(vowel), cues) > 0.2);
+  assert.ok(npcSpeechCueWeight('mouthOpen', middle(vowel), cues) > 0.15);
+  assert.equal(npcSpeechCueWeight('mouthOpen', middle(pause), cues), 0);
+  assert.equal(npcSpeechCueWeight('jawOpen', 1.8, cues), 0);
+  assert.deepEqual(cues, buildNpcSpeechCues('Papa, no!', 1.8));
+  assert.notDeepEqual(cues, buildNpcSpeechCues('Hello, no!', 1.8));
+});
+
+test('text cues are cached once per reply and do not replace ambient Talk animation', () => {
+  const state = beginNpcSpeech('maya', 'sad', 'Papa, no!');
+  assert.ok(state.cues.length > 0);
+  assert.equal(state.cues.at(-1).end, state.duration);
+  const next = advanceNpcSpeech(state, 0.08);
+  assert.equal(next.cues, state.cues, 'no phonetic parsing or allocations per morph/frame');
+  const vowel = state.cues.find(cue => cue.open > 0);
+  const t = middle(vowel);
+  assert.ok(npcSpeechWeight('jawOpen', t, state.cues) > 0);
+  assert.equal(npcSpeechWeight('jawOpen', t, []), 0);
+  assert.ok(npcSpeechWeight('jawOpen', 0.23) > 0, 'ambient Talk retains existing rhythm');
+  assert.ok(npcFaceTarget('mouthOpen', t, { talking: true, speechElapsed: t, speechCues: state.cues }) > 0);
+  assert.ok(npcFaceTarget('mouthFrownLeft', t, { emotion: 'sad', talking: true, speechCues: state.cues }) > 0);
+  const restarted = beginNpcSpeech('maya', 'happy', 'Hello!');
+  assert.notDeepEqual(restarted.cues, state.cues);
+  assert.equal(restarted.elapsed, 0);
+  assert.deepEqual(beginNpcSpeech(null, 'neutral', 'Hello').cues, []);
+});
+
+test('text cue builder bounds long/unicode lines and rejects malformed inputs', () => {
+  for (const invalid of [null, undefined, 23, '', '!!!']) {
+    assert.deepEqual(buildNpcSpeechCues(invalid, 1), []);
+  }
+  for (const duration of [NaN, Infinity, -1, 0]) {
+    assert.deepEqual(buildNpcSpeechCues('hello', duration), []);
+  }
+  const long = buildNpcSpeechCues('Papa, '.repeat(1000), 8);
+  assert.ok(long.length > 0 && long.length <= 96);
+  assert.equal(long.at(-1).end, 8);
+  assert.ok(long.every((cue, i) => cue.start >= 0 && cue.end > cue.start &&
+    (i === 0 || cue.start >= long[i - 1].end) &&
+    Number.isFinite(cue.open) && Number.isFinite(cue.press)));
+  const unicode = buildNpcSpeechCues('你好, hola!', 2);
+  assert.ok(unicode.some(cue => cue.open > 0));
+  for (const name of ['jawOpen', 'mouthOpen', 'mouthPressLeft', 'mouthPressRight']) {
+    for (let i = 0; i < 500; i++) {
+      const value = npcSpeechCueWeight(name, i / 60, long);
+      assert.ok(Number.isFinite(value) && value >= 0 && value <= 1);
+    }
+    for (const invalid of [NaN, Infinity, -1]) assert.equal(npcSpeechCueWeight(name, invalid, long), 0);
+  }
+  assert.equal(npcSpeechCueWeight('eyeBlinkLeft', 0.2, long), 0);
+});
