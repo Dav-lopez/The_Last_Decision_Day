@@ -57,8 +57,13 @@ jobs:
       - name: Validate model structure and animation
         run: |
           python - <<'PY'
-          import json, struct
+          import json, struct, sys
           from pathlib import Path
+          # Read the corneal target contract from the generator itself; do not
+          # freeze an older six-target list after adding horizontal eye gaze.
+          sys.path.insert(0, 'scripts')
+          from facial_cornea import TARGET_NAMES as CORNEA_TARGETS
+          from facial_gaze import GAZE_TARGETS
           p = Path('apps/web/public/models/human.glb')
           raw = p.read_bytes()
           assert raw[:4] == b'glTF' and struct.unpack_from('<I', raw, 8)[0] == len(raw)
@@ -69,7 +74,7 @@ jobs:
           expected = {'eyeBlinkLeft','eyeBlinkRight','eyeWideLeft','eyeWideRight','browInnerUp','browDownLeft','browDownRight',
                       'mouthSmileLeft','mouthSmileRight','mouthFrownLeft','mouthFrownRight','mouthPressLeft','mouthPressRight','jawOpen','mouthOpen',
                       'tearTrackLeft','tearTrackRight','sweatTrackLeft','sweatTrackRight',
-                      'eyeLookDownLeft','eyeLookDownRight','eyeLookUpLeft','eyeLookUpRight'}
+                      *GAZE_TARGETS}
           found = set()
           for mesh in d['meshes']:
               names = mesh.get('extras', {}).get('targetNames', [])
@@ -86,10 +91,8 @@ jobs:
           assert any(node.get('mesh') == d['meshes'].index(brows) and node.get('skin') == 0 for node in d['nodes'])
           cornea = next(mesh for mesh in d['meshes'] if mesh['name'] == 'Student corneal shells')
           cp = cornea['primitives'][0]
-          assert cornea['extras']['targetNames'] == [
-              'eyeBlinkLeft','eyeBlinkRight','eyeLookDownLeft','eyeLookDownRight',
-              'eyeLookUpLeft','eyeLookUpRight']
-          assert len(cp['targets']) == 6
+          assert cornea['extras']['targetNames'] == list(CORNEA_TARGETS), 'Corneal morphs differ from generator'
+          assert len(cp['targets']) == len(CORNEA_TARGETS), 'Corneal geometry lacks required gaze morphs'
           assert any(node.get('mesh') == d['meshes'].index(cornea) and node.get('skin') == 0 for node in d['nodes'])
           film = d['materials'][cp['material']]
           assert film['name'] == 'Student corneal film' and film['alphaMode'] == 'BLEND'
