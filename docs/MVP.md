@@ -46,17 +46,20 @@ A new player can:
       and Reset progress. A first-run hint showing the basic controls.
 - [x] **3. Progress saved to the account**: story, career and training record, and neighbour relationships
       synced through the API for signed-in players (guests keep local saves); newest-wins merge; tests on both sides.
-- [ ] **4. Football extras**: better goalkeeping, smarter opponents (support runs, marking), a season league
+- [x] **4. Football extras**: better goalkeeping, smarter opponents (support runs, marking), a season league
       table that records your match results.
   - [x] 4a. Season league table: six local clubs, one round per match you play, other games simulated, saved per character.
-  - [ ] 4b. Better goalkeeping and smarter opponents (support runs, marking).
-- [ ] **5. Phone and touch pass**: every action reachable by touch (talk, map, range, match, car), layouts that
+  - [x] 4b. Better goalkeeping and smarter opponents: keepers narrow the angle, dive (with a dive animation),
+        catch or parry wide, and rush out to smother; forwards make support runs, defenders mark goal-side and cover,
+        passers avoid blocked lanes, shooters pick the far post. Save commentary for both keepers.
+- [x] **5. Phone and touch pass**: every action reachable by touch (talk, map, range, match, car), layouts that
       fit 360-pixel-wide screens, and a phone-viewport run in the playtest.
   - [x] 5a. Phone playtest (360×640 touch screen, tap-only: story, touch-pad walking, map, downtown, pitch, match)
         that fails on sideways scrolling, overlapping overlays or core buttons under 40 px; phone HUD layout;
         Shoot and Chip buttons for football.
-  - [ ] 5b. Touch flow through talking to a neighbour, the training range and driving a car in the phone playtest;
-        on-screen controls visible without scrolling on a phone (pad next to the view).
+  - [x] 5b. Touch flow through talking to a neighbour, the training range and driving a car in the phone playtest;
+        on-screen controls visible without scrolling on a phone (pad right under the view, help text below it,
+        and the game scrolls the view to the top of the screen on phones).
 - [ ] **6. Loading speed**: compressed models, downtown and range loaded on demand, a loading screen with
       progress, and a bundle-size check in CI.
   - [x] 6a. Loading screen with real progress (Maple Street, character, school, neighbours, props, cars; tips;
@@ -137,3 +140,12 @@ above is done or blocked; any item may be split into slices.
   GLBs (Babylon's `onProgress`) would make the bar smoother on slow connections.
 - The football league save (`tld-league-v1:`) is local only; add it to the account progress document now that #192 has landed.
 - The opponents in a league match still wear the red kit; club colours per opponent would make rounds feel distinct.
+- The match AI favoured whichever team was listed first when two players could reach the ball (home won every tie);
+  the nearer player now plays it, and a mirrored match plays out identically for both ends.
+- A keeper rolling the ball out was logged as a "save", so every goal kick showed "Saved by …" and played the save
+  sound; it is a pass now. AI-vs-AI matches used to finish around 6–5; with the new keeping and marking they average ~6 goals.
+- Keepers dive by tipping the whole body at the feet; a proper dive clip (Quaternius has none) would look better.
+- Playtests can stand the player next to a neighbour, a parked car or a workplace sign (`__tld.place`, only
+  with `?playtest`), so touch flows don't depend on walking there in 2 fps software rendering.
+- On phones in landscape (640×360) the view and pad still don't fit together; a true overlay pad on the view
+  would cover that case (worth doing with item 7's layout work).

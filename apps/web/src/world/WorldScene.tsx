@@ -43,7 +43,7 @@ import { graphicsMode, readSettings, reducedMotion, resetProgress, writeSettings
 import type { GameAudio } from './audio/director.mjs';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
 import { buildFootballPitch } from './footballScene';
-import { createMatch, formatClock as formatMatchClock, stepMatch, type MatchState } from './footballMatch.mjs';
+import { createMatch, formatClock as formatMatchClock, saveMessage, stepMatch, type MatchState } from './footballMatch.mjs';
 import { ROUNDS as LEAGUE_ROUNDS, YOU as LEAGUE_YOU, clubName, clubShort, readLeague, recordResult, standings, upcomingFixture, writeLeague, yourPosition, type ClubId, type League } from './footballLeague.mjs';
 import { loadFootballPlayers } from './footballPlayers';
 import { CAREERS, SHIFT_HOURS, joinCareer, workplaceDoors, quitCareer, rankOf, readCareer, workShift, writeCareer, type CareerId, type CareerState } from './careers.mjs';
@@ -63,7 +63,7 @@ import { createAtmosphere } from './sceneAtmosphere';
 import { createCameraOcclusionGuard, createRenderPipeline, pickRenderQuality } from './renderQuality';
 import { createQuality, stepQuality } from './adaptiveQuality.mjs';
 import { loadNeighbors, type Neighbors, type Person } from './npcPeople';
-import { NPC_DIALOGUES, nearbyNpc, beginNpcConversation, chooseNpcReply, readNpcRelations, writeNpcRelations,
+import { NPC_DIALOGUES, nearbyNpc, talkSpot, beginNpcConversation, chooseNpcReply, readNpcRelations, writeNpcRelations,
   type NpcId, type NpcConversation, type NpcReply, type NpcRelations } from './npcConversations.mjs';
 import { buildSchoolScene } from './schoolScene';
 import { BUS_RIDE_MINUTES, MAPLE_BUS_STOP, atBusStop, cameraClearance, createCityCollider, findBusStop, readCity, stepCityLocomotion, toLocal, toWorld, type City } from './cityLayout.mjs';
@@ -407,6 +407,14 @@ export default function WorldScene({
   canExecuteActivity, onPreviewActivity, onExecuteActivity, preview, lifeSync, progressSync, online,
 }: WorldProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  // On a phone, bring the 3D view to the top of the screen once, so the view and the touch pad under it
+  // are both on screen without scrolling between them.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia?.('(max-width: 640px)').matches) return;
+    const timer = window.setTimeout(() => viewportRef.current?.scrollIntoView({ block: 'start', behavior: 'auto' }), 150);
+    return () => window.clearTimeout(timer);
+  }, []);
   const inputRef = useRef(createMovementInput());
   const audioRef = useRef<GameAudio | null>(null);
   const [sprintEnabled, setSprintEnabled] = useState(false);
@@ -1165,12 +1173,26 @@ export default function WorldScene({
             traffic: cityTraffic?.cars().slice(0, 30).map(car => ({ x: car.x, z: car.z, speed: car.speed })) ?? [],
             taxi: Boolean(pendingTaxi) || Boolean(pendingDrive),
             travelling: pendingTaxi !== null,
+            match: match ? { phase: match.phase, clock: match.clock, score: match.score, keepers: match.players.filter(p => p.role === 'keeper').map(p => ({ team: p.team, x: p.x - PITCH.x, z: p.z - PITCH.z })) } : null,
+            car: drivenIndex() >= 0 ? { x: cars[drivenIndex()].x, z: cars[drivenIndex()].z, speed: cars[drivenIndex()].speed } : null,
             loading: !worldReadyRef.current,
             downtownBuilt: downtown !== null, downtownBuildMs,
           }),
           travel: (to: TravelTarget) => travelRef.current(to),
           route: () => mapReadRef.current().routeLength ?? 0,
           waypoint: () => mapReadRef.current().waypoint,
+          // Stand the player beside something to try by touch: a neighbour, a parked car, or a workplace sign.
+          place: (spot: 'neighbour' | 'car' | CareerId) => {
+            if (interaction.mode !== 'walking' || pendingTaxi || pendingDrive || pendingRide) return false;
+            const where = locationRef.current;
+            let to: PlanarPosition | null = null;
+            if (spot === 'neighbour') to = talkSpot(where, life.minute, neighbors?.positions(), position);
+            else if (spot === 'car') to = where === 'street' ? vehicleExitPosition(cars[0], cars) : null;
+            else if (where === 'city') to = workDoors.get(spot) ?? null;
+            if (!to) return false;
+            placePlayer({ x: to.x, z: to.z, rotation: avatar.rotation.y });
+            return true;
+          },
         };
       }
       travelRef.current = (to) => {
@@ -2006,7 +2028,7 @@ export default function WorldScene({
             if (event.type === 'goal') {
               notify(event.team === 'home' ? `GOAL for Blue! ${match.score.home}–${match.score.away}` : `${clubShort(opponent)} score. ${match.score.home}–${match.score.away}`);
               if (event.team === 'home') riggedRef.current?.playAction('Dance');
-            } else if (event.type === 'save' && event.team === 'away') notify(`Saved by the ${clubShort(opponent)} keeper!`);
+            } else if (event.type === 'save') notify(saveMessage(event, clubShort(opponent)));
             else if (event.type === 'fulltime') {
               const { home, away } = match.score;
               const table = recordResult(leagueRef.current, home, away);
@@ -2296,7 +2318,7 @@ export default function WorldScene({
         : doorPrompt === 'locked' ? "Neighbors' house (E)"
           : nearCar && !inHome && !atSchool ? 'Get in car (E)' : '';
   return <div className="world-root" aria-label="Playable 3D neighborhood">
-    <div className="world-viewport">
+    <div className="world-viewport" ref={viewportRef}>
       {!error && <canvas ref={canvasRef} tabIndex={0} aria-label={`3D world for ${displayName}; click to focus, use WASD or arrow keys to move`} />}
       {error ? <p className="world-fallback" role="status">{error}</p> : <>
         <LoadingScreen tracker={loadTracker} onReady={() => { worldReadyRef.current = true; }} />

@@ -5,7 +5,7 @@ import { modelFor, normalizeLook, type Look } from './appearance.mjs';
 import { dressCharacter } from './riggedAvatar';
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 import { HUMAN_RUN_SPEED, HUMAN_WALK_SPEED, smoothHumanHeading } from './humanMotion.mjs';
-import type { MatchPlayer } from './footballMatch.mjs';
+import { keeperDivePose, type MatchPlayer } from './footballMatch.mjs';
 
 /** Team kits: blue (yours) and red; keepers in green and gold long sleeves. */
 const KITS = {
@@ -32,6 +32,9 @@ export function kitFor(player: Pick<MatchPlayer, 'team' | 'role'>, index: number
   const kit = player.role === 'keeper' ? (player.team === 'home' ? KITS.homeKeeper : KITS.awayKeeper) : KITS[player.team];
   return normalizeLook({ ...PEOPLE[index % PEOPLE.length], ...kit });
 }
+
+/** Radians a keeper tips over at full stretch (a little short of flat, so he reads as diving, not falling). */
+const DIVE_LEAN = 1.3;
 
 type Body = { holder: TransformNode; idle: AnimationGroup; walk: AnimationGroup; run: AnimationGroup; heading: number; entries: { dispose(): void } };
 
@@ -68,10 +71,13 @@ export async function loadFootballPlayers(scene: Scene, players: ReadonlyArray<M
       for (const p of state) {
         const body = bodies.get(p.id);
         if (!body) continue;
-        body.holder.position.set(p.x, 0, p.z);
-        const speed = Math.hypot(p.vx, p.vz);
-        body.heading = smoothHumanHeading(body.heading, p.heading, seconds, 10);
+        // Keepers dive: the body tips over sideways (pivoting at the feet) toward the ball and lifts off.
+        const pose = keeperDivePose(p.dive);
+        body.holder.position.set(p.x, pose.lift, p.z);
+        const speed = p.dive ? 0 : Math.hypot(p.vx, p.vz);
+        body.heading = smoothHumanHeading(body.heading, p.heading, seconds, p.dive ? 30 : 10);
         body.holder.rotation.y = body.heading;
+        body.holder.rotation.z = p.dive ? p.dive.dir * Math.sin(body.heading) * pose.lean * DIVE_LEAN : 0;
         // Blend idle → walk → run by speed, and match the stride.
         const run = Math.max(0, Math.min(1, (speed - HUMAN_WALK_SPEED) / (HUMAN_RUN_SPEED - HUMAN_WALK_SPEED)));
         const walk = Math.max(0, Math.min(1, speed / HUMAN_WALK_SPEED)) * (1 - run);
