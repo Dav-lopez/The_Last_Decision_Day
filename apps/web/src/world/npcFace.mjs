@@ -1,6 +1,7 @@
 import { advanceSharedFacialMorph } from './facialMorphSync.mjs';
 import { idleGazeTarget } from './gazeDynamics.mjs';
 import { npcSpeechWeight } from './npcSpeechDynamics.mjs';
+import { npcIdleMicroExpression } from './npcMicroExpression.mjs';
 
 const FACIAL_MORPH = /^(?:eye(?:Look(?:Up|Down|Left|Right)|Wide|Squint)(?:Left|Right)|brow(?:InnerUp|DownLeft|DownRight)|cheekSquint(?:Left|Right)|jawOpen|mouth(?:Open|SmileLeft|SmileRight|FrownLeft|FrownRight|PressLeft|PressRight))$/;
 
@@ -36,6 +37,9 @@ export function npcFaceTarget(name, elapsed, { talking = false, nearby = false, 
   // Invalid timestamps must not propagate NaN to morphs or disrupt a resident.
   const time = Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : 0;
   const articulationTime = Number.isFinite(speechElapsed) && speechElapsed >= 0 ? speechElapsed : time;
+  // Idle micro-expressions are suppressed during player attention, speech,
+  // movement, and emotional reactions; existing morph springs smooth the pose.
+  const micro = npcIdleMicroExpression(name, time, { talking, nearby, moving, flinch, emotion });
   // Speech syllables, lip closure and phrase pauses are evaluated only for
   // the oral morphs; blinks, gaze and emotional expressions remain independent.
   let pose = 0;
@@ -45,12 +49,12 @@ export function npcFaceTarget(name, elapsed, { talking = false, nearby = false, 
     // A hurt resident must not grin simply because they are speaking or the
     // player is nearby. Positive conversation still lifts the mouth corners.
     const warmth = sad ? 0 : speaking * 0.16 + greeting * 0.08 + happy * 0.28;
-    pose = warmth * (name.endsWith('Left') ? 0.94 : 1);
+    pose = warmth * (name.endsWith('Left') ? 0.94 : 1) + micro;
   } else if (name.startsWith('mouthFrown')) {
     pose = sad * (name.endsWith('Left') ? 0.46 : 0.40);
   } else if (name.startsWith('mouthPress')) pose = sad * 0.14 + speaking * npcSpeechWeight(name, articulationTime, speechCues);
-  else if (name.startsWith('cheekSquint')) pose = speaking * 0.06 + greeting * 0.03 + happy * 0.16;
-  else if (name === 'browInnerUp') pose = speaking * 0.06 + greeting * 0.09 + startled * 0.38 + sad * 0.30;
+  else if (name.startsWith('cheekSquint')) pose = speaking * 0.06 + greeting * 0.03 + happy * 0.16 + micro;
+  else if (name === 'browInnerUp') pose = speaking * 0.06 + greeting * 0.09 + startled * 0.38 + sad * 0.30 + micro;
   else if (name.startsWith('eyeWide')) pose = startled * (name.endsWith('Left') ? 0.44 : 0.46);
   else if (name.startsWith('eyeSquint')) pose = sad * (name.endsWith('Left') ? 0.19 : 0.15);
   else if (name.startsWith('eyeLook')) {
