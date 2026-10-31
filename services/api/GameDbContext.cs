@@ -15,6 +15,7 @@ public sealed class GameDbContext(DbContextOptions<GameDbContext> options) : DbC
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
     public DbSet<SchoolActivityExecution> SchoolActivityExecutions => Set<SchoolActivityExecution>();
     public DbSet<CharacterLife> CharacterLives => Set<CharacterLife>();
+    public DbSet<CharacterProgress> CharacterProgress => Set<CharacterProgress>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -77,6 +78,9 @@ public sealed class GameDbContext(DbContextOptions<GameDbContext> options) : DbC
         b.Entity<CharacterLife>().ToTable(t => t.HasCheckConstraint("CK_CharacterLife_Minute", "\"Minute\" BETWEEN 0 AND 1439"));
         b.Entity<CharacterLife>().ToTable(t => t.HasCheckConstraint("CK_CharacterLife_Energy", "\"Energy\" BETWEEN 0 AND 100"));
         b.Entity<CharacterLife>().ToTable(t => t.HasCheckConstraint("CK_CharacterLife_Location", "\"Location\" IN ('street','home')"));
+        b.Entity<CharacterProgress>().HasIndex(x => x.CharacterId).IsUnique();
+        b.Entity<CharacterProgress>().HasOne<Character>().WithOne().HasForeignKey<CharacterProgress>(x => x.CharacterId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<CharacterProgress>().Property(x => x.DataJson).HasColumnType("jsonb").IsRequired();
     }
 }
 public sealed class Character
@@ -154,5 +158,16 @@ public sealed class CharacterLife
     public int Minute { get; set; } = 420;
     public int Energy { get; set; } = 100;
     public string Location { get; set; } = "street";
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>Story, career (with training record) and neighbour relationships as one JSON document. One row per character.</summary>
+public sealed class CharacterProgress
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CharacterId { get; set; }
+    /// <summary>When the browser last changed this progress, in milliseconds since 1970; newest wins.</summary>
+    public long SavedAt { get; set; }
+    public string DataJson { get; set; } = "{}";
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

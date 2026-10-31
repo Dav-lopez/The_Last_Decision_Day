@@ -44,7 +44,7 @@ A new player can:
 - [ ] **2. Game shell**: an in-game menu (Esc / ☰) with Resume, Controls (every key and touch control),
       Settings (audio volumes, graphics quality), Story so far (chapter, objective, decision), Credits & licences,
       and Reset progress. A first-run hint showing the basic controls.
-- [ ] **3. Progress saved to the account**: story, career and training record, and neighbour relationships
+- [x] **3. Progress saved to the account**: story, career and training record, and neighbour relationships
       synced through the API for signed-in players (guests keep local saves); newest-wins merge; tests on both sides.
 - [ ] **4. Football extras**: better goalkeeping, smarter opponents (support runs, marking), a season league
       table that records your match results.
@@ -62,3 +62,6 @@ A new player can:
 ## Found along the way
 
 - (add bugs and small follow-ups here)
+- "Reset progress" in the game menu (#190) clears the browser saves only; for signed-in players it should also
+  reset the account copy (PUT a fresh progress document with a new `savedAt`), or the account copy comes back.
+- The day/clock (`/me/life`) and progress (`/me/progress`) are synced separately; a later pass could merge them.
