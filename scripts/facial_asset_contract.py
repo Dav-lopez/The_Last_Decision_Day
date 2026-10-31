@@ -19,12 +19,15 @@ REQUIRED_MORPHS = {
     "mouthPressRight", "jawOpen", "mouthOpen",
     "cheekSquintLeft", "cheekSquintRight",
     "eyeLookDownLeft", "eyeLookDownRight", "eyeLookUpLeft",
-    "eyeLookUpRight", "tearTrackLeft", "tearTrackRight",
+    "eyeLookUpRight", "eyeLookLeftLeft", "eyeLookLeftRight",
+    "eyeLookRightLeft", "eyeLookRightRight",
+    "tearTrackLeft", "tearTrackRight",
     "sweatTrackLeft", "sweatTrackRight",
 }
 HEAD_MESHES = {
     "Student expressive lips", "Student oral cavity", "Student upper teeth",
-    "Student tongue", "Student expressive cheeks",
+    "Student tongue", "Student lower teeth", "Student expressive cheeks", "Student eyebrow fibres",
+    "Student nasolabial folds",
     "Student tear Left", "Student tear Right",
     "Student sweat Left", "Student sweat Right",
 }

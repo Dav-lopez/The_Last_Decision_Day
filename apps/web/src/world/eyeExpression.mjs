@@ -10,7 +10,7 @@ function unit(value) {
  */
 export function composeEyeExpression(name, expression, blink) {
   const value = unit(expression);
-  if (!/^eye(?:Wide|Squint|LookDown|LookUp)(?:Left|Right)$/.test(name)) return value;
+  if (!/^eye(?:Wide|Squint|LookDown|LookUp|LookLeft|LookRight)(?:Left|Right)$/.test(name)) return value;
   const lid = name.endsWith('Left') ? blink?.left : blink?.right;
   return value * (1 - unit(lid));
 }

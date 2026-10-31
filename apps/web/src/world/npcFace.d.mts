@@ -5,6 +5,10 @@ export type NpcFaceContext = {
   moving?: boolean;
   flinch?: number;
   blink?: { left: number; right: number };
+  /** Signed lateral eye focus in [-0.55, 0.55], relative to body heading. */
+  gaze?: number;
+  /** Seconds since the currently displayed dialogue line began. */
+  speechElapsed?: number;
 };
 export type NpcMorph = { name: string; influence: number };
 export type NpcFaceState = { elapsed: number; motions: Map<string, { value: number; velocity: number }>; frame: Map<string, number> };

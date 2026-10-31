@@ -94,3 +94,32 @@ test('eye surfaces share blink-masked gaze without losing the underlying express
   assert.equal(advanceSharedFacialMorph('eyeWideLeft', 0, 0.9, 0.04,
     { left: 0, right: 0 }, motions, frame), open);
 });
+
+import { stepSpeechOverlay } from '../src/world/speechOverlay.mjs';
+
+test('remote facial-only speech eases in and out without changing body clips', () => {
+  let overlay = { elapsed: 0, weight: 0 };
+  for (let i = 0; i < 30; i++) overlay = stepSpeechOverlay(overlay, true, 1 / 60);
+  assert.ok(overlay.weight > 0.99);
+  assert.ok(overlay.elapsed > 0.4);
+  assert.ok(actionFacialWeight('jawOpen', { name: 'Talk', elapsed: 0.2 }, overlay.weight) > 0);
+  assert.equal(actionFacialWeight('eyeBlinkLeft', { name: 'Talk', elapsed: 0.2 }, overlay.weight), 0);
+  const before = overlay.weight;
+  overlay = stepSpeechOverlay(overlay, false, 1 / 60);
+  assert.ok(overlay.weight < before && overlay.weight > 0);
+  for (let i = 0; i < 100; i++) overlay = stepSpeechOverlay(overlay, false, 1 / 60);
+  assert.deepEqual(overlay, { elapsed: 0, weight: 0 });
+});
+
+test('speech overlay clamps bad frame deltas and malformed state', () => {
+  for (const dt of [NaN, Infinity, -Infinity, -1, 0]) {
+    assert.deepEqual(stepSpeechOverlay({ elapsed: 0, weight: 0 }, true, dt),
+      { elapsed: 0, weight: 0 });
+  }
+  const safe = stepSpeechOverlay({ elapsed: Infinity, weight: NaN }, true, 1);
+  assert.ok(Number.isFinite(safe.elapsed) && Number.isFinite(safe.weight));
+  assert.ok(safe.weight > 0 && safe.weight < 1);
+});
+
+// Keep the emotional speech-layer regression suite in the existing CI character test entrypoint.
+import './facial-layer-blend.test.mjs';

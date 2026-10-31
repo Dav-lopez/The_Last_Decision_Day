@@ -1,11 +1,25 @@
 name: Propose generated facial model PR
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/build-character.py'
+      - 'scripts/facial_*.py'
+      - 'scripts/hair_detail.py'
+      - 'scripts/test_hair_detail.py'
+      - 'scripts/validate_hair_detail_glb.py'
+      - '.github/workflows/propose-facial-model.yml'
+concurrency:
+  group: facial-model-release-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: write
   pull-requests: write
 jobs:
   propose-model:
+    # A manual dispatch must target main; never publish assets generated from an unmerged feature branch.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -19,6 +33,8 @@ jobs:
         run: python scripts/test_facial_oral.py
       - name: Verify bilateral eye-gaze geometry
         run: python scripts/test_facial_gaze.py
+      - name: Verify head-skinned eyebrow fibre morphs
+        run: python scripts/test_facial_brows.py
       - name: Verify bilateral corneal film geometry
         run: python scripts/test_facial_cornea.py
       - name: Verify procedural droplet geometry
@@ -41,8 +57,13 @@ jobs:
       - name: Validate model structure and animation
         run: |
           python - <<'PY'
-          import json, struct
+          import json, struct, sys
           from pathlib import Path
+          # Read the corneal target contract from the generator itself; do not
+          # freeze an older six-target list after adding horizontal eye gaze.
+          sys.path.insert(0, 'scripts')
+          from facial_cornea import TARGET_NAMES as CORNEA_TARGETS
+          from facial_gaze import GAZE_TARGETS
           p = Path('apps/web/public/models/human.glb')
           raw = p.read_bytes()
           assert raw[:4] == b'glTF' and struct.unpack_from('<I', raw, 8)[0] == len(raw)
@@ -53,7 +74,7 @@ jobs:
           expected = {'eyeBlinkLeft','eyeBlinkRight','eyeWideLeft','eyeWideRight','browInnerUp','browDownLeft','browDownRight',
                       'mouthSmileLeft','mouthSmileRight','mouthFrownLeft','mouthFrownRight','mouthPressLeft','mouthPressRight','jawOpen','mouthOpen',
                       'tearTrackLeft','tearTrackRight','sweatTrackLeft','sweatTrackRight',
-                      'eyeLookDownLeft','eyeLookDownRight','eyeLookUpLeft','eyeLookUpRight'}
+                      *GAZE_TARGETS}
           found = set()
           for mesh in d['meshes']:
               names = mesh.get('extras', {}).get('targetNames', [])
@@ -62,12 +83,16 @@ jobs:
                       assert len(primitive.get('targets', [])) == len(names), mesh['name']
               found.update(names)
           assert expected <= found, f'Missing facial morphs: {expected - found}'
+          brows = next(mesh for mesh in d['meshes'] if mesh['name'] == 'Student eyebrow fibres')
+          bp = brows['primitives'][0]
+          assert brows['extras']['targetNames'] == ['browInnerUp','browDownLeft','browDownRight']
+          assert len(bp['targets']) == 3 and bp['material'] == 4
+          assert d['accessors'][bp['attributes']['POSITION']]['count'] == 168
+          assert any(node.get('mesh') == d['meshes'].index(brows) and node.get('skin') == 0 for node in d['nodes'])
           cornea = next(mesh for mesh in d['meshes'] if mesh['name'] == 'Student corneal shells')
           cp = cornea['primitives'][0]
-          assert cornea['extras']['targetNames'] == [
-              'eyeBlinkLeft','eyeBlinkRight','eyeLookDownLeft','eyeLookDownRight',
-              'eyeLookUpLeft','eyeLookUpRight']
-          assert len(cp['targets']) == 6
+          assert cornea['extras']['targetNames'] == list(CORNEA_TARGETS), 'Corneal morphs differ from generator'
+          assert len(cp['targets']) == len(CORNEA_TARGETS), 'Corneal geometry lacks required gaze morphs'
           assert any(node.get('mesh') == d['meshes'].index(cornea) and node.get('skin') == 0 for node in d['nodes'])
           film = d['materials'][cp['material']]
           assert film['name'] == 'Student corneal film' and film['alphaMode'] == 'BLEND'
@@ -99,6 +124,17 @@ jobs:
         run: npm --prefix apps/web install
       - name: Verify generated GLB imports in Babylon
         run: node --test apps/web/tests/generated-face.test.mjs
+      - name: Upload validated male and female model candidates for visual review
+        uses: actions/upload-artifact@v4
+        with:
+          name: facial-model-candidate
+          path: |
+            apps/web/public/models/human.glb
+            apps/web/public/models/human.source.json
+            apps/web/public/models/human-female.glb
+            apps/web/public/models/human-female.source.json
+          if-no-files-found: error
+          retention-days: 14
       - name: Open draft PR containing the actual GLB
         uses: peter-evans/create-pull-request@v7
         with:
@@ -110,8 +146,8 @@ jobs:
           commit-message: 'assets: regenerate human.glb with facial morph targets'
           title: 'assets: ship male and female generated facial GLBs'
           body: |
-            Generated by a manually dispatched workflow from pinned, SHA-verified CC0 sources.
-            Includes both male and female GLBs plus matching SHA-256 manifests. Each contains separated lip ribbons, a head-skinned oral cavity/teeth/tongue, cheek, eyelid, corneal film, head-skinned tear/sweat morph targets and capped skinned hair-fibre relief on all six hairstyles, existing skeleton and Idle/Walk/Run clips.
+            Generated automatically after a reviewed character-generator change reached main, or by a manual dispatch on main, from pinned SHA-verified CC0 sources.
+            Includes both male and female GLBs plus matching SHA-256 manifests. Each contains separated lip ribbons, a head-skinned oral cavity/teeth/tongue, cheek, eyebrow-fibre, eyelid, corneal film, head-skinned tear/sweat morph targets and capped skinned hair-fibre relief on all six hairstyles, existing skeleton and Idle/Walk/Run clips.
             Please review the GLB visually and run web tests before manually merging.
             This is stylized geometry, not a photorealistic head.
           add-paths: |

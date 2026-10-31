@@ -1,4 +1,4 @@
-import { SceneLoader, TransformNode, type AnimationGroup, type AssetContainer, type Material, type Scene, type ShadowGenerator } from '@babylonjs/core';
+import { SceneLoader, TransformNode, type Material, type Scene, type ShadowGenerator } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
 import { modelFor, normalizeLook } from './appearance.mjs';
 import { dressCharacter } from './riggedAvatar';
@@ -9,8 +9,10 @@ import { NEIGHBORS, PERSON_RADIUS, carAhead, carComing, crossingPace, dodgeFrom,
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 import { initialNpcBlink, collectNpcEyelids, advanceNpcBlink } from './npcBlink.mjs';
 import { collectNpcFaceTargets, initialNpcFace, advanceNpcFace, resetNpcFace } from './npcFace.mjs';
+import { npcAttentionGaze } from './npcAttentionGaze.mjs';
+import { beginNpcSpeech, advanceNpcSpeech, isNpcSpeaking, npcShouldArticulate } from './npcSpeechTimeline.mjs';
 import { createNpcFacialMaterials } from './npcFacialMaterials.mjs';
-import { findNpcLocomotionIndices, selectNpcAnimationModel } from './npcAnimationSelection.mjs';
+import { resolveNpcBody, resolveNpcClips } from './npcAnimationClips.mjs';
 
 type CarFootprint = { x: number; z: number; rotation: number; speed?: number };
 const DODGE_SPEED = 3.2;
@@ -23,7 +25,7 @@ export type Neighbors = {
   /** Where each resident who is out stands right now (resident id → position). */
   positions: () => Record<string, { x: number; z: number }>;
   /** Highlight the speaking resident and apply the latest reply emotion; they stop and face the player. */
-  setConversation: (residentId: string | null, mood?: 'neutral' | 'happy' | 'sad') => void;
+  setConversation: (residentId: string | null, mood?: 'neutral' | 'happy' | 'sad', line?: string) => void;
   dispose: () => void;
 };
 
@@ -39,34 +41,32 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
   const models = [...new Set(NEIGHBORS.map(npc => modelFor(npc.look)))];
   const loaded = await Promise.all(models.map(model => SceneLoader.LoadAssetContainerAsync('/models/', model, scene).catch(() => null)));
   const containers = new Map(models.map((model, i) => [model, loaded[i]]));
-  if (scene.isDisposed || !containers.get('human.glb')) { for (const c of loaded) c?.dispose(); return null; }
-  // AnimationGroup order is not a cross-body contract. A regenerated female
-  // GLB may place Walk/Idle at different indices from the male GLB. Resolve
-  // indices per source container and fall back to the known-good male rig if
-  // the preferred body is missing either required locomotion clip.
-  const usable = new Map<string, { container: AssetContainer; idleIndex: number; walkIndex: number }>();
-  for (const [model, container] of containers) {
-    if (!container) continue;
-    const indices = findNpcLocomotionIndices(container.animationGroups);
-    if (indices) usable.set(model, { container, ...indices });
+  if (scene.isDisposed || !resolveNpcBody('human.glb', containers)) {
+    for (const c of loaded) c?.dispose();
+    return null;
   }
-  if (!usable.has('human.glb')) { for (const c of loaded) c?.dispose(); return null; }
 
-  const people = NEIGHBORS.map((npc, index) => {
-    // A missing or incomplete body falls back as a pair: geometry AND its
-    // matching action clips. Never bind female action clips onto a male fallback.
-    const model = selectNpcAnimationModel(modelFor(npc.look), usable)!;
-    const { container, idleIndex, walkIndex } = usable.get(model)!;
+  const people = NEIGHBORS.flatMap((npc, index) => {
+    // Select clips from the body we actually instantiated, not the male model's
+    // animation indices. Fall back to male when a requested body is unusable.
+    const chosen = resolveNpcBody(modelFor(npc.look), containers);
+    if (!chosen) { console.warn(`[npc] No usable character model for ${npc.id}`); return []; }
+    const { model, container } = chosen;
     const entries = container.instantiateModelsToScene(name => `npc ${npc.id} ${name}`, true);
+    const clips = resolveNpcClips(container.animationGroups, entries.animationGroups);
+    if (!clips) {
+      console.warn(`[npc] ${model} cloned without bound Idle/Walk clips for ${npc.id}`);
+      entries.dispose();
+      return [];
+    }
+    const { idle, walk } = clips;
     const holder = new TransformNode(`npc ${npc.id}`, scene);
     const visual = new TransformNode(`npc ${npc.id} visual`, scene);
     for (const node of entries.rootNodes) node.parent = visual;
     normalizeRiggedVisual(visual);
     visual.parent = holder;
-    // Clips are cloned in the container's order.
-    const idle: AnimationGroup = entries.animationGroups[idleIndex];
-    const walk: AnimationGroup = entries.animationGroups[walkIndex];
-    entries.animationGroups.forEach((group, index) => { if (index !== idleIndex && index !== walkIndex) group.stop(); });
+    // Other animation groups remain stopped until explicitly bound as actions.
+    entries.animationGroups.forEach(group => { if (group !== idle && group !== walk) group.stop(); });
     for (const group of [idle, walk]) { group.start(true); group.setWeightForAllAnimatables(group === idle ? 1 : 0); }
     walk.speedRatio = npc.speed / HUMAN_WALK_SPEED;
     const materials = [...new Set(holder.getChildMeshes().map(mesh => mesh.material).filter((m): m is Material => Boolean(m)))];
@@ -83,14 +83,15 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     const start = routePose(npc, 0);
     const reaction: { state: ActionState | null; clip: BoundAction | null } = { state: null, clip: null };
     const actions = new Map<string, BoundAction>();
-    return { npc, model, entries, holder, idle, walk, reaction, actions, eyelids, blink: initialNpcBlink(index), faceTargets, face: initialNpcFace(index), facialMaterials, walked: 0, walkWeight: 0, heading: personHeading(start.dx, start.dz), visible: false, dodge: { x: 0, z: 0 }, dodgeTarget: { x: 0, z: 0 }, dodgeHold: 0 };
+    return [{ npc, model, entries, holder, idle, walk, reaction, actions, eyelids, blink: initialNpcBlink(index), faceTargets, face: initialNpcFace(index), facialMaterials, walked: 0, walkWeight: 0, heading: personHeading(start.dx, start.dz), visible: false, dodge: { x: 0, z: 0 }, dodgeTarget: { x: 0, z: 0 }, dodgeHold: 0 }];
   });
 
   // Action clips (a separate download): people standing together talk with their hands; anyone can flinch.
-  void Promise.all(models.map(model => loadActionClips(scene, model))).then(clipSets => {
+  const clipModels = [...new Set(people.map(person => person.model))];
+  void Promise.all(clipModels.map(model => loadActionClips(scene, model))).then(clipSets => {
     if (scene.isDisposed) return;
     for (const person of people) {
-      const clips = clipSets[models.indexOf(person.model)];
+      const clips = clipSets[clipModels.indexOf(person.model)];
       if (!clips) continue;
       const prefix = `npc ${person.npc.id} `;
       const bound = bindActions(clips, person.holder.getChildTransformNodes(false), `npc ${person.npc.id}`,
@@ -115,11 +116,11 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     hit.group.start(false, 1, hit.group.from, hit.group.to);
     hit.group.setWeightForAllAnimatables(0);
   };
-  let speaker: { id: string | null; mood: 'neutral' | 'happy' | 'sad' } = { id: null, mood: 'neutral' };
+  let speaker = beginNpcSpeech(null, 'neutral', '');
   const live: Record<string, { x: number; z: number }> = {};
   return {
     positions: () => live,
-    setConversation(id, mood = 'neutral') { speaker = { id, mood }; },
+    setConversation(id, mood = 'neutral', line = '') { speaker = beginNpcSpeech(id, mood, line); },
     react(x, z) {
       let nearest: (typeof people)[number] | null = null;
       let best = 2.6;
@@ -132,6 +133,8 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     },
     update(seconds, minute, player, cars) {
       const dt = Number.isFinite(seconds) ? Math.max(0, Math.min(seconds, 0.1)) : 0;
+      // One shared clock for the selected resident, not one tick per NPC.
+      speaker = advanceNpcSpeech(speaker, dt);
       const outside: Person[] = [];
       for (const person of people) {
         const out = isOut(person.npc, minute);
@@ -151,6 +154,7 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
         const obstacles = player ? [{ x: player.x, z: player.z, radius: 0.38 }] : [];
         // Give way to traffic at the kerb; once out on the road, hurry across.
         const talking = speaker.id === person.npc.id;
+        const speaking = talking && isNpcSpeaking(speaker);
         const blocked = talking || !pose.moving || shouldYield(pose, obstacles) || carAhead(person.npc, person.walked, cars) || carComing(person.npc, person.walked, cars);
         const pace = blocked ? 1 : crossingPace(pose, cars);
         if (!blocked) {
@@ -191,12 +195,16 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
         // Conversations move jaw/lips, nearby stationary residents acknowledge
         // the player, and Hit actions briefly override those poses with surprise.
         person.face = advanceNpcFace(person.face, dt, person.faceTargets, {
-          talking: speaker.id === person.npc.id || (person.npc.route.kind === 'stand' && person.actions.has('Talk')),
+          talking: npcShouldArticulate(speaker, person.npc.id, person.npc.route.kind === 'stand' && person.actions.has('Talk')),
+          // A new displayed reply restarts lip motion; an open dialog does not
+          // make the NPC mouth loop forever. Ambient Talk clips are unchanged.
+          speechElapsed: speaking ? speaker.elapsed : undefined,
           emotion: speaker.id === person.npc.id ? speaker.mood : 'neutral',
           nearby: Boolean(player && Math.hypot(player.x - pose.x, player.z - pose.z) < 2.5),
           moving: person.walkWeight > 0.15,
           flinch: flinch.weight,
           blink: person.blink,
+          gaze: npcAttentionGaze(pose, player, person.heading),
         });
         // Surface reactions use the same conversation mood and Hit response
         // as the facial morphs; hidden residents never run these updates.

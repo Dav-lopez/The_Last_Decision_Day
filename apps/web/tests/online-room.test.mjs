@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRoomClient, normalizeCode, mergeMessage } from '../src/world/multiplayer/roomClient.mjs';
+import { remoteAvatarPresentation } from '../src/world/multiplayer/remoteAvatarPresentation.mjs';
 const code = '0123456789ABCDEF';
 const snapshot = { code, selfId: 'alice', players: [{ characterId: 'alice', name: 'Alice', pose: null }, { characterId: 'bob', name: 'Bob', pose: null }], messages: [] };
 function transport() {
@@ -66,4 +67,78 @@ test('a failed join cannot pretend to connect or discard an existing room', asyn
 test('message history is ordered and bounded to the latest 64', () => {
   let history = []; for (let i = 100; i > 0; i--) history = mergeMessage(history, { id: `${i}`, text: `${i}`, sequence: i });
   assert.equal(history.length, 64); assert.equal(history[0].sequence, 37); assert.equal(history.at(-1).sequence, 100);
+});
+
+test('remote peers use their advertised body rig, with safe legacy and invalid-data fallback', () => {
+  const female = remoteAvatarPresentation({ body: 'female' });
+  assert.equal(female.model, 'human-female.glb');
+  assert.equal(female.look.body, 'female');
+  assert.equal(female.look.hairStyle, 'long');
+  const male = remoteAvatarPresentation({ body: 'male' });
+  assert.equal(male.model, 'human.glb');
+  for (const pose of [null, {}, { body: '../evil.glb' }, { body: null }, { body: 123 }]) {
+    assert.equal(remoteAvatarPresentation(pose).model, 'human.glb');
+  }
+});
+
+test('pose publication includes current body and rejects arbitrary model names', async () => {
+  let clock = 0, selected = 'female';
+  const hub = transport();
+  const client = createRoomClient({ connect: async () => hub, now: () => clock, bodyFor: () => selected });
+  await client.create();
+  const pose = { x: 2, z: 1, rotation: 0, location: 'street', speed: 1, mode: 'walking' };
+  for (const [body, expected] of [['female', 'female'], ['male', 'male'], ['../custom.glb', 'male']]) {
+    selected = body;
+    client.publish(pose);
+    await new Promise(resolve => setImmediate(resolve));
+    const published = hub.calls.filter(call => call[0] === 'PublishPose').at(-1)[1];
+    assert.equal(published.body, expected);
+    assert.equal(published.x, 2);
+    clock += 250;
+  }
+  client.dispose();
+});
+
+import { initialRemoteFacialReaction, remoteMessageReaction, remoteEmoteReaction, remoteFacialPose } from '../src/world/multiplayer/remoteFacialReactions.mjs';
+
+test('remote chat animates the peer mouth temporarily without needing voice audio', () => {
+  const reaction = remoteMessageReaction(initialRemoteFacialReaction(), 'Hello, meet me at school', 10);
+  assert.deepEqual(remoteFacialPose(reaction, 10.5, true), { emotion: 'neutral', speaking: true });
+  assert.deepEqual(remoteFacialPose(reaction, 20, true), { emotion: 'neutral', speaking: false });
+  assert.ok(reaction.speakingUntil > 11 && reaction.speakingUntil <= 15);
+});
+
+test('remote speech duration is bounded and empty chat does not replace an expression', () => {
+  const initial = initialRemoteFacialReaction();
+  assert.equal(remoteMessageReaction(initial, '', 0), initial);
+  assert.equal(remoteMessageReaction(initial, 'x'.repeat(280), 5).speakingUntil, 10);
+});
+
+test('positive peer emotes animate smiles, not mouth articulation, then reset', () => {
+  for (const emote of ['wave', 'cheer', 'dance', 'thumbs-up', 'laugh', 'nice']) {
+    const reaction = remoteEmoteReaction(initialRemoteFacialReaction(), emote, 3);
+    assert.deepEqual(remoteFacialPose(reaction, 4, true), { emotion: 'happy', speaking: false });
+    assert.deepEqual(remoteFacialPose(reaction, 6, true), { emotion: 'neutral', speaking: false });
+  }
+});
+
+test('unknown peer emotes do not erase an ongoing chat reaction', () => {
+  const previous = remoteMessageReaction(initialRemoteFacialReaction(), 'Hello', 1);
+  assert.equal(remoteEmoteReaction(previous, 'invalid', 2), previous);
+  assert.deepEqual(remoteFacialPose(remoteEmoteReaction(previous, 'follow-me', 2), 3, true),
+    { emotion: 'neutral', speaking: false });
+});
+
+test('out-of-scene remote avatars never display stale expressions', () => {
+  const speaking = remoteMessageReaction(initialRemoteFacialReaction(), 'Hello', 0);
+  assert.deepEqual(remoteFacialPose(speaking, 0.5, false), { emotion: 'neutral', speaking: false });
+});
+
+test('invalid clock values cannot create permanent peer facial reactions', () => {
+  const initial = initialRemoteFacialReaction();
+  for (const now of [NaN, Infinity, -Infinity]) {
+    assert.equal(remoteMessageReaction(initial, 'hi', now), initial);
+    assert.equal(remoteEmoteReaction(initial, 'laugh', now), initial);
+    assert.deepEqual(remoteFacialPose(initial, now, true), { emotion: 'neutral', speaking: false });
+  }
 });

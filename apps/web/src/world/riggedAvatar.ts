@@ -1,14 +1,17 @@
-import { Color3, PBRMaterial, Scene, SceneLoader, TransformNode, type AbstractMesh, type AnimationGroup, type Material } from '@babylonjs/core';
+import { Color3, Mesh, MultiMaterial, PBRMaterial, RawTexture, Scene, SceneLoader, Texture, TransformNode, VertexBuffer, type AbstractMesh, type AnimationGroup, type Material } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
 import { ZONE_MATERIALS, dressZones, type Look, type Zone } from './appearance.mjs';
 import { faceTarget, type Emotion } from './facialEmotions';
 import { EMPTY_EFFECTS, smoothFacialEffects, targetFacialEffects } from './facialEffects';
 import { dropletCycle } from './facialDroplets.mjs';
 import { skinSurface, hairSurface, skinRoughness } from './surfaceShading.mjs';
+import { planarSkinUV, skinMicroNormalMap } from './skinMicroNormalMap.mjs';
 import { stepBlink } from './blinkCycle.mjs';
 import { advanceSharedFacialMorph } from './facialMorphSync.mjs';
 import { idleGazeTarget } from './gazeDynamics.mjs';
 import { actionFacialWeight } from './actionFacial.mjs';
+import { composeFacialLayer } from './facialLayerBlend.mjs';
+import { stepSpeechOverlay } from './speechOverlay.mjs';
 import { blendHumanWeights, classifyHumanMotion, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 import { startAction, stepAction, stopAction, type ActionState } from './actionMixer.mjs';
@@ -18,6 +21,8 @@ export type RiggedAvatar = {
   root: TransformNode;
   applyLook: (look: Look) => void;
   setEmotion: (emotion: Emotion) => void;
+  /** Drive remote chat mouth morphs without requiring a body animation clip. */
+  setSpeaking: (speaking: boolean) => void;
   /** Clips from characterActions, bound to this character's bones. */
   setActions: (actions: Map<string, BoundAction>) => void;
   /** Play an action over locomotion (one at a time); false if it isn't available. */
@@ -36,6 +41,42 @@ const ZONE_BY_MATERIAL = new Map(Object.entries(ZONE_MATERIALS).map(([zone, name
 const unprefixed = (name: string) => name.replace(/^.* (?=Student )/, '');
 
 /**
+ * One tiny GPU normal tile per Babylon scene, shared by the playable character
+ * and every independently dressed NPC. Keep any artist-authored normal map.
+ * Scene disposal releases the texture; no per-frame texture work is performed.
+ */
+const skinTiles = new WeakMap<Scene, RawTexture>();
+function attachSkinPores(material: PBRMaterial) {
+  if (material.bumpTexture) return;
+  const scene = material.getScene();
+  let tile = skinTiles.get(scene);
+  if (!tile) {
+    tile = RawTexture.CreateRGBATexture(skinMicroNormalMap(), 64, 64, scene,
+      true, false, Texture.TRILINEAR_SAMPLINGMODE);
+    tile.name = 'shared skin pore normals';
+    tile.wrapU = Texture.WRAP_ADDRESSMODE;
+    tile.wrapV = Texture.WRAP_ADDRESSMODE;
+    tile.uScale = 5;
+    tile.vScale = 5;
+    tile.level = 0.24; // Pore shading, not large visible bumps.
+    skinTiles.set(scene, tile);
+  }
+  material.bumpTexture = tile;
+}
+
+/** Populate only absent UVs on imported skin meshes; preserve authored UV maps. */
+function ensureSkinUVs(meshes: ReadonlyArray<AbstractMesh>) {
+  for (const mesh of meshes) {
+    if (!(mesh instanceof Mesh) || mesh.isVerticesDataPresent(VertexBuffer.UVKind)) continue;
+    const materials = mesh.material instanceof MultiMaterial ? mesh.material.subMaterials : [mesh.material];
+    if (!materials.some(item => item instanceof PBRMaterial && unprefixed(item.name) === 'Student skin')) continue;
+    const positions = mesh.getVerticesData(VertexBuffer.PositionKind);
+    const uvs = planarSkinUV(positions);
+    if (uvs) mesh.setVerticesData(VertexBuffer.UVKind, uvs, false, 2);
+  }
+}
+
+/**
  * Paints a character copy for a look: skin, hair colour and style, and each
  * outfit zone (sleeves, legs, socks, shoes, soles) as clothing or skin, plus
  * the skirt. Names may carry a clone prefix (NPC copies). Returns the skin
@@ -43,6 +84,7 @@ const unprefixed = (name: string) => name.replace(/^.* (?=Student )/, '');
  */
 export function dressCharacter(materials: ReadonlyArray<Material>, meshes: ReadonlyArray<AbstractMesh>, look: Look) {
   const dress = dressZones(look);
+  ensureSkinUVs(meshes);
   const linear = (hex: string) => Color3.FromHexString(hex).toLinearSpace();
   const skin = linear(dress.skin);
   const hair = linear(dress.hairColour);
@@ -53,6 +95,7 @@ export function dressCharacter(materials: ReadonlyArray<Material>, meshes: Reado
     const name = unprefixed(material.name);
     const zone = ZONE_BY_MATERIAL.get(name);
     if (name === 'Student skin') {
+      attachSkinPores(material);
       material.albedoColor = skin.clone();
       material.subSurface.tintColor = Color3.FromArray(skinDetail.subsurfaceTint);
       material.subSurface.translucencyIntensity = skinDetail.translucencyIntensity;
@@ -107,6 +150,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
     // Source units are metres. Normalize by the rest-pose bounds, including hair,
     // and place the soles on the same ground used by collisions and the camera.
     normalizeRiggedVisual(root);
+    ensureSkinUVs(container.meshes);
     // A lean node between the player and the model banks the body into turns.
     const leanNode = new TransformNode('rigged player lean', scene);
     leanNode.parent = parent;
@@ -122,6 +166,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
     for (const material of container.materials) {
       if (!(material instanceof PBRMaterial)) continue;
       if (material.name === 'Student skin') {
+        attachSkinPores(material);
         material.metallic = 0;
         material.roughness = 0.82;
         material.subSurface.isTranslucencyEnabled = true;
@@ -171,6 +216,8 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
       group.setWeightForAllAnimatables(weights[state]);
     }
     let emotion: Emotion = 'neutral';
+    let speaking = false;
+    let speechOverlay = { elapsed: 0, weight: 0 };
     const facialTargets = container.meshes.flatMap(mesh => {
       const manager = mesh.morphTargetManager;
       return manager ? Array.from({ length: manager.numTargets }, (_, i) => manager.getTarget(i)) : [];
@@ -199,6 +246,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
     return {
       root,
       setEmotion(next) { emotion = next; },
+      setSpeaking(next) { speaking = next === true; },
       setActions(next) {
         for (const { group } of actions.values()) group.dispose();
         actions = next;
@@ -255,6 +303,10 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
         // the body clip and its speech articulation, including stop transitions.
         const step = stepAction(action, frameSeconds);
         action = step.state;
+        speechOverlay = stepSpeechOverlay(speechOverlay, speaking, frameSeconds);
+        // Remote chat uses only facial articulation; body clips remain free to walk.
+        const speechAction: ActionState | null = speechOverlay.weight > 0.001
+          ? { name: 'Talk', elapsed: speechOverlay.elapsed, loop: true, duration: 1, stopAt: null } : null;
         frameExpressionWeights.clear();
         for (const morph of facialTargets) {
           const dropletKind = morph.name.startsWith('tearTrack') ? 'tear'
@@ -274,8 +326,10 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
             // Blink and droplet morphs retain their dedicated timing paths.
             morph.influence = advanceSharedFacialMorph(
               morph.name, morph.influence,
-              Math.min(1, Math.max(faceTarget(emotion, morph.name),
-                actionFacialWeight(morph.name, step.state, step.weight)) +
+              composeFacialLayer(morph.name, emotion,
+                faceTarget(emotion, morph.name),
+                actionFacialWeight(morph.name, step.state, step.weight),
+                actionFacialWeight(morph.name, speechAction, speechOverlay.weight),
                 idleGazeTarget(morph.name, effectTime, emotion, movementSpeed)),
               frameSeconds, blinkState, expressionInfluences, frameExpressionWeights,
             );

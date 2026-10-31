@@ -60,6 +60,38 @@ class OralGeometryTests(unittest.TestCase):
             self.assertTrue(all(delta[1] < 0 for delta in tongue['targets'][i]))
             self.assertEqual(len(cavity['targets'][i]), len(cavity['positions']))
 
+
+    def test_lower_crowns_are_separate_head_skinned_front_facing_geometry(self):
+        lower = self.oral['lower_teeth']
+        self.assertEqual(len(lower['positions']), 32)
+        self.assertEqual(len(lower['indices']), 48)
+        self.assertTrue(all(j == (42, 0, 0, 0) for j in lower['joints']))
+        self.assertTrue(all(w == (1.0, 0.0, 0.0, 0.0) for w in lower['weights']))
+        for tooth in range(8):
+            verts = lower['positions'][tooth * 4:tooth * 4 + 4]
+            self.assertLess(verts[0][0], verts[1][0])
+            if tooth:
+                self.assertGreater(verts[0][0], lower['positions'][(tooth - 1) * 4 + 1][0])
+            self.assertTrue(all(1.60 < y < 1.62 and 0.077 < z < 0.094
+                                for x, y, z in verts))
+        for i in range(0, len(lower['indices']), 3):
+            a, b, c = (lower['positions'][lower['indices'][k][0]]
+                       for k in range(i, i + 3))
+            self.assertGreater((b[0]-a[0])*(c[1]-a[1]) -
+                               (b[1]-a[1])*(c[0]-a[0]), 0)
+
+    def test_lower_teeth_move_rigidly_with_lower_lip_not_upper_teeth(self):
+        lower = self.oral['lower_teeth']
+        self.assertEqual(lower['names'], ORAL_TARGETS)
+        self.assertEqual(len(lower['targets']), 2)
+        self.assertEqual(self.oral['teeth']['targets'], [])
+        for name, expected in (('jawOpen', -0.026), ('mouthOpen', -0.018)):
+            delta = lower['targets'][ORAL_TARGETS.index(name)]
+            self.assertEqual(delta, [(0.0, expected, 0.0)] * 32)
+            # Open-mouth crowns remain above the displaced lower lip rim.
+            self.assertGreater(min(p[1] + d[1] for p, d in zip(lower['positions'], delta)),
+                               1.603 + expected)
+
     def test_invalid_joint_rejected(self):
         for bad in (-1, 256, 1.5, True):
             with self.assertRaises(ValueError):
