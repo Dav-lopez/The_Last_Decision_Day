@@ -48,6 +48,8 @@ A new player can:
       synced through the API for signed-in players (guests keep local saves); newest-wins merge; tests on both sides.
 - [ ] **4. Football extras**: better goalkeeping, smarter opponents (support runs, marking), a season league
       table that records your match results.
+  - [x] 4a. Season league table: six local clubs, one round per match you play, other games simulated, saved per character.
+  - [ ] 4b. Better goalkeeping and smarter opponents (support runs, marking).
 - [ ] **5. Phone and touch pass**: every action reachable by touch (talk, map, range, match, car), layouts that
       fit 360-pixel-wide screens, and a phone-viewport run in the playtest.
 - [ ] **6. Loading speed**: compressed models, downtown and range loaded on demand, a loading screen with
@@ -62,3 +64,5 @@ A new player can:
 ## Found along the way
 
 - (add bugs and small follow-ups here)
+- The football league save (`tld-league-v1:`) is local only; add it to the account progress document once #192 lands.
+- The opponents in a league match still wear the red kit; club colours per opponent would make rounds feel distinct.
