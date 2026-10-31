@@ -67,3 +67,47 @@ test('message history is ordered and bounded to the latest 64', () => {
   let history = []; for (let i = 100; i > 0; i--) history = mergeMessage(history, { id: `${i}`, text: `${i}`, sequence: i });
   assert.equal(history.length, 64); assert.equal(history[0].sequence, 37); assert.equal(history.at(-1).sequence, 100);
 });
+
+import { initialRemoteFacialReaction, remoteMessageReaction, remoteEmoteReaction, remoteFacialPose } from '../src/world/multiplayer/remoteFacialReactions.mjs';
+
+test('remote chat animates the peer mouth temporarily without needing voice audio', () => {
+  const reaction = remoteMessageReaction(initialRemoteFacialReaction(), 'Hello, meet me at school', 10);
+  assert.deepEqual(remoteFacialPose(reaction, 10.5, true), { emotion: 'neutral', speaking: true });
+  assert.deepEqual(remoteFacialPose(reaction, 20, true), { emotion: 'neutral', speaking: false });
+  assert.ok(reaction.speakingUntil > 11 && reaction.speakingUntil <= 15);
+});
+
+test('remote speech duration is bounded and empty chat does not replace an expression', () => {
+  const initial = initialRemoteFacialReaction();
+  assert.equal(remoteMessageReaction(initial, '', 0), initial);
+  assert.equal(remoteMessageReaction(initial, 'x'.repeat(280), 5).speakingUntil, 10);
+});
+
+test('positive peer emotes animate smiles, not mouth articulation, then reset', () => {
+  for (const emote of ['wave', 'cheer', 'dance', 'thumbs-up', 'laugh', 'nice']) {
+    const reaction = remoteEmoteReaction(initialRemoteFacialReaction(), emote, 3);
+    assert.deepEqual(remoteFacialPose(reaction, 4, true), { emotion: 'happy', speaking: false });
+    assert.deepEqual(remoteFacialPose(reaction, 6, true), { emotion: 'neutral', speaking: false });
+  }
+});
+
+test('unknown peer emotes do not erase an ongoing chat reaction', () => {
+  const previous = remoteMessageReaction(initialRemoteFacialReaction(), 'Hello', 1);
+  assert.equal(remoteEmoteReaction(previous, 'invalid', 2), previous);
+  assert.deepEqual(remoteFacialPose(remoteEmoteReaction(previous, 'follow-me', 2), 3, true),
+    { emotion: 'neutral', speaking: false });
+});
+
+test('out-of-scene remote avatars never display stale expressions', () => {
+  const speaking = remoteMessageReaction(initialRemoteFacialReaction(), 'Hello', 0);
+  assert.deepEqual(remoteFacialPose(speaking, 0.5, false), { emotion: 'neutral', speaking: false });
+});
+
+test('invalid clock values cannot create permanent peer facial reactions', () => {
+  const initial = initialRemoteFacialReaction();
+  for (const now of [NaN, Infinity, -Infinity]) {
+    assert.equal(remoteMessageReaction(initial, 'hi', now), initial);
+    assert.equal(remoteEmoteReaction(initial, 'laugh', now), initial);
+    assert.deepEqual(remoteFacialPose(initial, now, true), { emotion: 'neutral', speaking: false });
+  }
+});
