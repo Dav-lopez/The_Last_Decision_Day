@@ -69,4 +69,5 @@ A new player can:
 - (add bugs and small follow-ups here)
 - On a phone the direction pad and camera buttons sit below the 3D view, so the player scrolls between them;
   5b should overlay a compact pad on the view itself.
-- The school wayfinding hint and the notice line share the same slot on phones; rare, but they can overlap at school.
+- Wardrobe and character-creator buttons (tabs, skin tones) are under 40 px tall on phones; the phone playtest
+  lists them as notices. Worth enlarging in 5b or item 7.

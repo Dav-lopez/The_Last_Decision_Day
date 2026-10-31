@@ -122,7 +122,7 @@
   .world-root .world-life{top:44px;left:8px;max-width:calc(48% - 8px);padding:6px 8px;font-size:.72rem}
   .world-root .world-energy-bar{width:48px}
   .world-root .story-objective{top:44px;right:8px;max-width:calc(52% - 12px);padding:6px 8px;font-size:.74rem}
-  .world-root .world-wayfinding{top:auto;bottom:254px;left:8px;right:auto;max-width:calc(100% - 16px)}
+  .world-root .world-wayfinding{top:100px;bottom:auto;left:8px;right:auto;max-width:calc(48% - 8px);font-size:.74rem}
   .world-root .world-car-action{left:8px;right:8px;transform:none;max-width:none;white-space:normal;text-align:center;min-height:44px;padding:8px 10px;font-size:.88rem}
   .world-root .world-car-action{top:auto;bottom:104px}
   .world-root .world-car-action.world-chip-action,.world-root .world-car-action.world-range-start{top:auto;bottom:154px}
