@@ -63,7 +63,8 @@ const smoothstep = x => {
 
 /** Sample the text-driven cue track without allocations or modifying the rig. */
 export function npcSpeechCueWeight(name, elapsed, cues) {
-  if (!['jawOpen', 'mouthOpen', 'mouthPressLeft', 'mouthPressRight'].includes(name) ||
+  if ((name !== 'jawOpen' && name !== 'mouthOpen' &&
+       name !== 'mouthPressLeft' && name !== 'mouthPressRight') ||
       !Array.isArray(cues) || !Number.isFinite(elapsed) || elapsed < 0 || !cues.length) return 0;
   let low = 0, high = cues.length - 1;
   while (low <= high) {
