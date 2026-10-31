@@ -1,5 +1,6 @@
 import { advanceSharedFacialMorph } from './facialMorphSync.mjs';
 import { idleGazeTarget } from './gazeDynamics.mjs';
+import { npcSpeechWeight } from './npcSpeechDynamics.mjs';
 
 const FACIAL_MORPH = /^(?:eye(?:Look(?:Up|Down)|Wide|Squint)(?:Left|Right)|brow(?:InnerUp|DownLeft|DownRight)|cheekSquint(?:Left|Right)|jawOpen|mouth(?:Open|SmileLeft|SmileRight|FrownLeft|FrownRight|PressLeft|PressRight))$/;
 
@@ -34,11 +35,11 @@ export function npcFaceTarget(name, elapsed, { talking = false, nearby = false, 
   const greeting = nearby && !moving ? composure : 0;
   // Invalid timestamps must not propagate NaN to morphs or disrupt a resident.
   const time = Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : 0;
-  // Two non-commensurate rhythms suggest syllables without claiming lip-sync.
-  const syllables = Math.pow(Math.max(0, Math.sin(time * 10.7) * 0.7 + Math.sin(time * 17.3) * 0.3), 2);
+  // Speech syllables, lip closure and phrase pauses are evaluated only for
+  // the oral morphs; blinks, gaze and emotional expressions remain independent.
   let pose = 0;
-  if (name === 'jawOpen') pose = speaking * (0.06 + syllables * 0.24) + sad * 0.035;
-  else if (name === 'mouthOpen') pose = speaking * (0.04 + syllables * 0.19) + startled * 0.28;
+  if (name === 'jawOpen') pose = speaking * npcSpeechWeight(name, time) + sad * 0.035;
+  else if (name === 'mouthOpen') pose = speaking * npcSpeechWeight(name, time) + startled * 0.28;
   else if (name.startsWith('mouthSmile')) {
     // A hurt resident must not grin simply because they are speaking or the
     // player is nearby. Positive conversation still lifts the mouth corners.
@@ -46,7 +47,7 @@ export function npcFaceTarget(name, elapsed, { talking = false, nearby = false, 
     pose = warmth * (name.endsWith('Left') ? 0.94 : 1);
   } else if (name.startsWith('mouthFrown')) {
     pose = sad * (name.endsWith('Left') ? 0.46 : 0.40);
-  } else if (name.startsWith('mouthPress')) pose = sad * 0.14;
+  } else if (name.startsWith('mouthPress')) pose = sad * 0.14 + speaking * npcSpeechWeight(name, time);
   else if (name.startsWith('cheekSquint')) pose = speaking * 0.06 + greeting * 0.03 + happy * 0.16;
   else if (name === 'browInnerUp') pose = speaking * 0.06 + greeting * 0.09 + startled * 0.38 + sad * 0.30;
   else if (name.startsWith('eyeWide')) pose = startled * (name.endsWith('Left') ? 0.44 : 0.46);
