@@ -121,6 +121,14 @@ await step('story scene closes by tapping', async () => {
   if (state?.dialogue) throw new Error('dialogue still open');
   await shot('02-after-story');
 });
+await step('first-run hint can be dismissed by tapping', async () => {
+  const gotIt = page.getByRole('button', { name: 'Got it' });
+  if (await gotIt.count()) {
+    await checkLayout('first-run hint');
+    await gotIt.tap();
+  }
+  await page.waitForSelector('.world-first-hint', { state: 'detached', timeout: 5000 });
+});
 await step('street layout fits the phone', () => checkLayout('Maple Street'));
 await step('player walks with the touch pad', async () => {
   const before = await read();
@@ -143,6 +151,15 @@ await step('map opens and closes by tapping', async () => {
   await shot('04-map');
   await page.getByRole('button', { name: 'Close map' }).tap();
   await page.waitForSelector('.world-map', { state: 'detached', timeout: 5000 });
+});
+await step('game menu opens and resumes by tapping', async () => {
+  await page.getByRole('button', { name: /open the game menu/i }).tap();
+  await page.waitForSelector('.game-menu-backdrop:not([hidden])', { timeout: 10000 });
+  const { documentWidth } = await measure();
+  if (documentWidth > 361) throw new Error(`menu makes the page ${documentWidth}px wide`);
+  await shot('04b-menu');
+  await page.getByRole('button', { name: /resume/i }).tap();
+  await page.waitForSelector('.game-menu-backdrop[hidden]', { state: 'attached', timeout: 10000 });
 });
 await step('downtown layout fits the phone', async () => {
   await page.evaluate(() => window.__tld.travel('downtown'));

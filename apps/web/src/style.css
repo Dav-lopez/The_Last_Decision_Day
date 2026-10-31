@@ -119,11 +119,11 @@
    and the phone playtest checks none of these overlap. */
 @media(max-width:420px){
   .world-root .world-viewport{height:min(72vh,470px)}
-  .world-root .world-caption{top:8px;left:8px;max-width:calc(100% - 16px);padding:6px 10px;font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .world-root .world-life{top:44px;left:8px;max-width:calc(48% - 8px);padding:6px 8px;font-size:.72rem}
+  .world-root .world-caption{top:8px;left:8px;max-width:calc(100% - 16px);padding:2px 10px 2px 2px;line-height:40px;font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .world-root .world-life{top:58px;left:8px;max-width:calc(48% - 8px);padding:6px 8px;font-size:.72rem}
   .world-root .world-energy-bar{width:48px}
-  .world-root .story-objective{top:44px;right:8px;max-width:calc(52% - 12px);padding:6px 8px;font-size:.74rem}
-  .world-root .world-wayfinding{top:100px;bottom:auto;left:8px;right:auto;max-width:calc(48% - 8px);font-size:.74rem}
+  .world-root .story-objective{top:58px;right:8px;max-width:calc(52% - 12px);padding:6px 8px;font-size:.74rem}
+  .world-root .world-wayfinding{top:114px;bottom:auto;left:8px;right:auto;max-width:calc(48% - 8px);font-size:.74rem}
   .world-root .world-car-action{left:8px;right:8px;transform:none;max-width:none;white-space:normal;text-align:center;min-height:44px;padding:8px 10px;font-size:.88rem}
   .world-root .world-car-action{top:auto;bottom:100px}
   .world-root .world-car-action.world-chip-action,.world-root .world-car-action.world-range-start{top:auto;bottom:150px}
@@ -137,6 +137,8 @@
   .world-root .world-camera-toggle button{padding:8px 10px;font-size:.85rem}
   .world-root .world-controls{padding:10px 8px}
   .world-root .world-map{inset:6px}
+  .world-root .world-menu-button{min-height:40px;line-height:1.2;vertical-align:middle}
+  .world-root .world-first-hint{bottom:auto;top:50%;transform:translate(-50%,-50%);width:calc(100% - 16px);max-width:none}
 }
 @media(pointer:coarse),(max-width:420px){
   .world-root .world-viewport button,.world-root .world-control-buttons button,.world-root .world-camera-toggle button,
