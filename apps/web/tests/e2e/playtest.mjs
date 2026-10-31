@@ -19,7 +19,8 @@ const annotate = (level, title, message) => console.log(`::${level} title=${titl
 const expected = text => /\/api\/|Failed to load resource|ERR_CONNECTION_REFUSED|negotiat|WebSocket|signalr/i.test(text);
 
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+// CI has no GPU: a small viewport keeps software rendering fast enough to play.
+const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
 page.on('pageerror', error => problems.push(`page error: ${error.message}`));
 page.on('console', message => {
   if (message.type() === 'error' && !expected(message.text())) problems.push(`console error: ${message.text()}`);
@@ -39,7 +40,6 @@ const dismissDialogue = async () => {
     await page.waitForTimeout(150);
   }
 };
-const hold = async (key, ms) => { await page.keyboard.down(key); await page.waitForTimeout(ms); await page.keyboard.up(key); };
 
 await step('loads the start page', async () => {
   await page.goto(`${base}/?playtest`, { waitUntil: 'domcontentloaded', timeout: 60000 });
@@ -57,15 +57,21 @@ await step('opening story scene plays and closes', async () => {
   const state = await read();
   if (state?.dialogue) throw new Error('dialogue still open');
 });
+// The game clamps each frame to 0.05 s of game time, so in a slow software renderer
+// everything takes more wall-clock time: hold keys until something happens instead.
 await step('player walks', async () => {
-  await page.locator('canvas').first().click({ position: { x: 640, y: 360 } });
+  await page.locator('canvas').first().click({ position: { x: 320, y: 180 } });
   const before = await read();
-  await hold('w', 1800);
-  await hold('a', 600);
-  const after = await read();
-  const moved = Math.hypot(after.x - before.x, after.z - before.z);
+  await page.keyboard.down('w');
+  let moved = 0;
+  for (let waited = 0; waited < 90000 && moved < 1; waited += 500) {
+    await page.waitForTimeout(500);
+    const now = await read();
+    moved = Math.hypot(now.x - before.x, now.z - before.z);
+  }
+  await page.keyboard.up('w');
   notes.push(`walked ${moved.toFixed(2)} m`);
-  if (!(moved > 0.5)) throw new Error(`player did not move (moved ${moved.toFixed(2)} m)`);
+  if (!(moved >= 1)) throw new Error(`player did not move (moved ${moved.toFixed(2)} m)`);
   await shot('03-walked');
 });
 await step('map opens and closes (N)', async () => {
@@ -85,17 +91,18 @@ await step('frame rate', async () => {
 });
 await step('quick travel downtown', async () => {
   await page.evaluate(() => window.__tld.travel('downtown'));
-  await page.waitForFunction(() => window.__tld.read().location === 'city', null, { timeout: 30000 });
+  await page.waitForFunction(() => window.__tld.read().location === 'city', null, { timeout: 180000 });
   await page.waitForTimeout(3000);
   await dismissDialogue();
   await shot('05-downtown');
 });
 await step('quick travel to the pitch and back home', async () => {
   await page.evaluate(() => window.__tld.travel('pitch'));
-  await page.waitForTimeout(3500);
+  await page.waitForFunction(() => { const s = window.__tld.read(); return s.location === 'city' && !s.dialogue; }, null, { timeout: 180000 });
+  await page.waitForTimeout(3000);
   await shot('06-pitch');
   await page.evaluate(() => window.__tld.travel('maple'));
-  await page.waitForFunction(() => window.__tld.read().location === 'street', null, { timeout: 30000 });
+  await page.waitForFunction(() => window.__tld.read().location === 'street', null, { timeout: 180000 });
   await dismissDialogue();
   await shot('07-home');
 });
