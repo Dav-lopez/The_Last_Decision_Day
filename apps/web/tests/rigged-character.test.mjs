@@ -148,7 +148,8 @@ test('Babylon NullEngine accepts the generated normal tile as a PBR bump texture
     const skin = new PBRMaterial('Student skin', scene);
     skin.bumpTexture = texture;
     assert.equal(skin.bumpTexture, texture);
-    assert.deepEqual(texture.getSize(), { width: 64, height: 64 });
+    assert.equal(texture.getSize().width, 64);
+    assert.equal(texture.getSize().height, 64);
     assert.equal(texture.wrapU, Texture.WRAP_ADDRESSMODE);
     assert.equal(texture.wrapV, Texture.WRAP_ADDRESSMODE);
   } finally {
