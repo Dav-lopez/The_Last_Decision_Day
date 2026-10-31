@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { collectNpcFaceTargets, initialNpcFace, npcFaceTarget, advanceNpcFace, resetNpcFace } from '../src/world/npcFace.mjs';
+import { npcAttentionGaze } from '../src/world/npcAttentionGaze.mjs';
 
 const weight = (name, emotion, extra = {}) => npcFaceTarget(name, 0.23, { emotion, talking: true, nearby: true, ...extra });
 const morph = name => ({ name, influence: 0 });
@@ -107,4 +108,53 @@ test('invalid timestamps, flinch and frame durations never create nonfinite morp
     state = advanceNpcFace(state, seconds, targets, { emotion: 'sad' });
     assert.ok(targets.every(t => Number.isFinite(t.influence) && t.influence >= 0 && t.influence <= 1));
   }
+});
+
+test('horizontal eye focus follows a nearby player relative to body heading', () => {
+  const npc = { x: 0, z: 0 };
+  const right = npcAttentionGaze(npc, { x: 0.7, z: -1 }, 0);
+  const left = npcAttentionGaze(npc, { x: -0.7, z: -1 }, 0);
+  assert.ok(right > 0 && left < 0 && Math.abs(right + left) < 1e-12);
+  assert.ok(npcFaceTarget('eyeLookRightLeft', 0, { nearby: true, gaze: right }) > 0);
+  assert.ok(npcFaceTarget('eyeLookRightRight', 0, { nearby: true, gaze: right }) > 0);
+  assert.equal(npcFaceTarget('eyeLookLeftLeft', 0, { nearby: true, gaze: right }), 0);
+  assert.ok(npcFaceTarget('eyeLookLeftRight', 0, { nearby: true, gaze: left }) > 0);
+  assert.ok(npcAttentionGaze(npc, { x: -1, z: -0.7 }, Math.PI / 2) > 0);
+});
+
+test('eye focus ignores behind, distance, movement, distress and malformed inputs', () => {
+  const npc = { x: 0, z: 0 };
+  for (const player of [null, { x: 0, z: 1 }, { x: 0, z: -5 },
+    { x: 0, z: 0 }, { x: Infinity, z: 0 }, { x: 2, z: -0.1 }]) {
+    assert.equal(npcAttentionGaze(npc, player, 0), 0);
+  }
+  assert.equal(npcAttentionGaze(npc, { x: 1, z: -1 }, NaN), 0);
+  for (const context of [{ moving: true }, { nearby: false }, { emotion: 'sad' }, { flinch: 1 }]) {
+    assert.equal(npcFaceTarget('eyeLookRightLeft', 0, { nearby: true, gaze: 0.4, ...context }), 0);
+  }
+  for (const bad of [NaN, Infinity, -Infinity]) {
+    assert.equal(npcFaceTarget('eyeLookRightLeft', 0, { nearby: true, gaze: bad }), 0);
+  }
+});
+
+test('horizontal gaze is smoothed, blink-masked and synchronized across meshes', () => {
+  const left = morph('eyeLookRightLeft'), duplicate = morph('eyeLookRightLeft');
+  const right = morph('eyeLookRightRight');
+  let state = initialNpcFace(1);
+  for (let i = 0; i < 25; i++) {
+    state = advanceNpcFace(state, 1 / 60, [left, duplicate, right], {
+      nearby: true, gaze: 0.4, blink: { left: 1, right: 0 },
+    });
+  }
+  assert.equal(left.influence, 0);
+  assert.equal(duplicate.influence, 0);
+  assert.ok(right.influence > 0);
+  state = advanceNpcFace(state, 1 / 60, [left, duplicate, right], {
+    nearby: true, gaze: 0.4, blink: { left: 0, right: 0 },
+  });
+  assert.ok(left.influence > 0);
+  assert.equal(left.influence, duplicate.influence);
+  resetNpcFace(state, [left, duplicate, right]);
+  assert.equal(left.influence, 0);
+  assert.equal(right.influence, 0);
 });

@@ -330,7 +330,10 @@ def build(files, variant):
                     deltas = []
                     for x, y, z in source_positions:
                         # Source geometry is kept intact at neutral influence.
-                        side = -1 if "Left" in name else 1
+                        # Direction and eye side are both encoded in gaze
+                        # names (e.g. eyeLookLeftRight). Only the final suffix
+                        # identifies which eye owns the vertex.
+                        side = -1 if name.endswith("Left") else 1
                         eligible = ("Left" not in name and "Right" not in name) or x * side > 0
                         if not eligible:
                             deltas.append((0.0, 0.0, 0.0))

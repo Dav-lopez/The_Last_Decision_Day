@@ -6,7 +6,7 @@ This is a stylized specular layer, not a replacement eyeball or ray-traced eye.
 """
 import math
 
-from facial_gaze import gaze_delta
+from facial_gaze import GAZE_TARGETS, gaze_delta
 
 RINGS = 5
 SEGMENTS = 24
@@ -16,11 +16,7 @@ HALF_WIDTH = 0.021
 HALF_HEIGHT = 0.009
 BASE_Z = 0.0928
 DOME_DEPTH = 0.0038
-TARGET_NAMES = (
-    "eyeBlinkLeft", "eyeBlinkRight",
-    "eyeLookDownLeft", "eyeLookDownRight",
-    "eyeLookUpLeft", "eyeLookUpRight",
-)
+TARGET_NAMES = ("eyeBlinkLeft", "eyeBlinkRight", *GAZE_TARGETS)
 
 
 def build_cornea_geometry(head_joint):

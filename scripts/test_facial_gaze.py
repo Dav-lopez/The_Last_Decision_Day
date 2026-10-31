@@ -15,7 +15,8 @@ class EyeGazeTests(unittest.TestCase):
                     self.assertEqual(delta, (0.0, 0.0, 0.0))
                 else:
                     self.assertTrue(all(math.isfinite(v) for v in delta))
-                    self.assertGreater(abs(delta[1]), 0.001)
+                    axis = 0 if "LookLeft" in name or "LookRight" in name else 1
+                    self.assertGreater(abs(delta[axis]), 0.001)
                     self.assertLess(math.hypot(*delta), 0.005)
 
     def test_up_and_down_are_opposing_and_contour_stays_near_socket(self):
@@ -28,6 +29,18 @@ class EyeGazeTests(unittest.TestCase):
             self.assertLess(down[1], 0)
             edge = gaze_delta("eyeLookDown" + side, x, 1.74, 0.09, 1.70, 0.04)
             self.assertLess(abs(edge[1]), abs(down[1]))
+
+    def test_left_and_right_are_opposing_and_contour_stays_near_socket(self):
+        for side in ("Left", "Right"):
+            x = -0.052 if side == "Left" else 0.052
+            left = gaze_delta("eyeLookLeft" + side, x, 1.686, 0.096, 1.686, 0.009)
+            right = gaze_delta("eyeLookRight" + side, x, 1.686, 0.096, 1.686, 0.009)
+            self.assertAlmostEqual(left[0], -right[0])
+            self.assertLess(left[0], 0)
+            self.assertGreater(right[0], 0)
+            self.assertEqual(left[1], 0)
+            edge = gaze_delta("eyeLookLeft" + side, x + 0.021, 1.686, 0.096, 1.686, 0.009)
+            self.assertLess(abs(edge[0]), abs(left[0]))
 
     def test_reject_invalid_target_and_bad_geometry(self):
         with self.assertRaises(ValueError):

@@ -76,6 +76,7 @@ jobs:
                       'mouthSmileLeft','mouthSmileRight','mouthFrownLeft','mouthFrownRight','mouthPressLeft','mouthPressRight','jawOpen','mouthOpen',
                       'cheekSquintLeft','cheekSquintRight',
                       'eyeLookDownLeft','eyeLookDownRight','eyeLookUpLeft','eyeLookUpRight',
+                      'eyeLookLeftLeft','eyeLookLeftRight','eyeLookRightLeft','eyeLookRightRight',
                       'tearTrackLeft','tearTrackRight','sweatTrackLeft','sweatTrackRight'}
           found = set()
           for mesh in d.get('meshes', []):
@@ -116,8 +117,9 @@ jobs:
           cornea_prim = cornea['primitives'][0]
           assert cornea['extras']['targetNames'] == [
               'eyeBlinkLeft', 'eyeBlinkRight', 'eyeLookDownLeft', 'eyeLookDownRight',
-              'eyeLookUpLeft', 'eyeLookUpRight']
-          assert len(cornea_prim['targets']) == 6
+              'eyeLookUpLeft', 'eyeLookUpRight', 'eyeLookLeftLeft', 'eyeLookLeftRight',
+              'eyeLookRightLeft', 'eyeLookRightRight']
+          assert len(cornea_prim['targets']) == 10
           assert d['accessors'][cornea_prim['attributes']['POSITION']]['count'] >= 200
           assert {'POSITION', 'NORMAL', 'JOINTS_0', 'WEIGHTS_0'} <= set(cornea_prim['attributes'])
           assert any(n.get('mesh') == d['meshes'].index(cornea) and n.get('skin') == 0 for n in d['nodes'])
