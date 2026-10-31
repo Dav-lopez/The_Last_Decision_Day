@@ -10,7 +10,8 @@ test('NPC jaw and mouth articulate with changing syllables and consonant closure
   assert.ok(jaw.every(v => v > 0));
   assert.ok(new Set(jaw.map(v => v.toFixed(4))).size >= 3);
   assert.ok(npcSpeechWeight('mouthOpen', 0.23) > 0);
-  assert.ok(npcSpeechWeight('mouthPressLeft', 0.23) > npcSpeechWeight('mouthPressRight', 0.23) > 0);
+  assert.ok(npcSpeechWeight('mouthPressRight', 0.23) > 0);
+  assert.ok(npcSpeechWeight('mouthPressLeft', 0.23) > npcSpeechWeight('mouthPressRight', 0.23));
 });
 
 test('natural phrase breaks close lips and restart without affecting non-speech morphs', () => {
