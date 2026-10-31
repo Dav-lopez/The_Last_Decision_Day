@@ -68,3 +68,55 @@ test('NPC controllers do not share material state and reject invalid frame durat
   const after = first.controller.update(Infinity, 'neutral', false, Infinity);
   assert.ok(Object.values(after).every(v => v >= 0 && v <= 1));
 });
+
+
+test('NPC tear episodes start at the eye after a long neutral idle, never halfway down the cheek', t => {
+  const f = fixture(DEFAULT_LOOK, 7);
+  t.after(() => f.close());
+  for (let i = 0; i < 90; i++) f.controller.update(0.1, 'neutral');
+  f.controller.update(0.1, 'sad');
+  const left = f.tracks.find(track => track.name === 'tearTrackLeft');
+  const right = f.tracks.find(track => track.name === 'tearTrackRight');
+  assert.ok(left.influence > 0 && left.influence < 0.07, 'first left tear remains near the duct');
+  assert.equal(right.influence, 0, 'right tear waits for its emergence delay');
+  assert.equal(f.by('tear Right').alpha, 0, 'right tear must not appear midway down the cheek');
+  for (let i = 0; i < 5; i++) f.controller.update(0.1, 'sad');
+  assert.ok(right.influence > 0 && f.by('tear Right').alpha > 0, 'right tear eventually emerges');
+});
+
+test('NPC sweat has an independent onset and resets after its release envelope', t => {
+  const f = fixture();
+  t.after(() => f.close());
+  for (let i = 0; i < 12; i++) f.controller.update(0.1, 'sad');
+  const tearBefore = f.tracks.find(track => track.name === 'tearTrackLeft').influence;
+  f.controller.update(0.1, 'neutral', false, 1);
+  const sweatLeft = f.tracks.find(track => track.name === 'sweatTrackLeft');
+  const sweatRight = f.tracks.find(track => track.name === 'sweatTrackRight');
+  assert.ok(tearBefore > 0);
+  assert.ok(sweatLeft.influence > 0 && sweatLeft.influence < 0.06, 'new sweat starts at the temple');
+  assert.equal(sweatRight.influence, 0);
+  assert.equal(f.by('sweat Right').alpha, 0);
+  // The release envelope remains visible briefly, but the next episode
+  // must not inherit its previous progress after it fully disappears.
+  for (let i = 0; i < 100; i++) f.controller.update(0.1, 'neutral');
+  assert.equal(sweatLeft.influence, 0);
+  assert.equal(sweatRight.influence, 0);
+  f.controller.update(0.1, 'neutral', false, 1);
+  assert.ok(sweatLeft.influence > 0 && sweatLeft.influence < 0.06);
+  assert.equal(sweatRight.influence, 0);
+});
+
+test('reset and invalid frame durations cannot resurrect stale NPC droplet tracks', t => {
+  const f = fixture();
+  t.after(() => f.close());
+  for (let i = 0; i < 20; i++) f.controller.update(0.1, 'sad');
+  f.controller.reset();
+  assert.ok(f.tracks.every(track => track.influence === 0));
+  assert.equal(f.by('tear Left').alpha, 0);
+  assert.equal(f.by('tear Right').alpha, 0);
+  f.controller.update(Infinity, 'sad');
+  assert.ok(f.tracks.every(track => track.influence === 0));
+  f.controller.update(0.1, 'sad');
+  assert.ok(f.tracks.find(track => track.name === 'tearTrackLeft').influence < 0.07);
+  assert.equal(f.tracks.find(track => track.name === 'tearTrackRight').influence, 0);
+});
