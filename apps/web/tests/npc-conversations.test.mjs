@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NPC_DIALOGUES, newNpcRelations, normalizeNpcRelations, readNpcRelations, writeNpcRelations,
-  nearbyNpc, beginNpcConversation, chooseNpcReply } from '../src/world/npcConversations.mjs';
+  nearbyNpc, talkSpot, beginNpcConversation, chooseNpcReply } from '../src/world/npcConversations.mjs';
 
 test('curated NPC conversations have safe, unique choices and playable replies', () => {
   for (const [id, npc] of Object.entries(NPC_DIALOGUES)) {
@@ -78,4 +78,20 @@ test('neighbours out walking can be stopped for a chat where they actually are',
   const state = normalizeNpcRelations(chooseNpcReply(newNpcRelations(), 'okafor', 'street').state);
   assert.equal(state.people.okafor.trust, 2);
   assert.equal(state.people.tess.trust, 0);
+});
+
+test('talkSpot stands you beside someone you can talk to right now', () => {
+  // 07:00: Tess is out jogging the west sidewalk; the classmates are not on the lawn yet.
+  const live = { 'jogger-west': { x: -2.45, z: 3 } };
+  const early = talkSpot('street', 7 * 60, live);
+  assert.equal(early.id, 'tess');
+  assert.equal(nearbyNpc(early, 'street', 7 * 60, live), 'tess');
+  // During school hours the nearest of the people out is chosen.
+  const lawn = talkSpot('street', 9 * 60, live, { x: -2, z: -6 });
+  assert.ok(['maya', 'jordan'].includes(lawn.id));
+  assert.ok(nearbyNpc(lawn, 'street', 9 * 60, live));
+  // Nobody to talk to at night, downtown, or without live positions for walkers.
+  assert.equal(talkSpot('street', 23 * 60, live), null);
+  assert.equal(talkSpot('city', 9 * 60, live), null);
+  assert.equal(talkSpot('street', 7 * 60, null), null);
 });

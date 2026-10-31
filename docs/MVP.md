@@ -48,13 +48,14 @@ A new player can:
       synced through the API for signed-in players (guests keep local saves); newest-wins merge; tests on both sides.
 - [ ] **4. Football extras**: better goalkeeping, smarter opponents (support runs, marking), a season league
       table that records your match results.
-- [ ] **5. Phone and touch pass**: every action reachable by touch (talk, map, range, match, car), layouts that
+- [x] **5. Phone and touch pass**: every action reachable by touch (talk, map, range, match, car), layouts that
       fit 360-pixel-wide screens, and a phone-viewport run in the playtest.
   - [x] 5a. Phone playtest (360×640 touch screen, tap-only: story, touch-pad walking, map, downtown, pitch, match)
         that fails on sideways scrolling, overlapping overlays or core buttons under 40 px; phone HUD layout;
         Shoot and Chip buttons for football.
-  - [ ] 5b. Touch flow through talking to a neighbour, the training range and driving a car in the phone playtest;
-        on-screen controls visible without scrolling on a phone (pad next to the view).
+  - [x] 5b. Touch flow through talking to a neighbour, the training range and driving a car in the phone playtest;
+        on-screen controls visible without scrolling on a phone (pad right under the view, help text below it,
+        and the game scrolls the view to the top of the screen on phones).
 - [ ] **6. Loading speed**: compressed models, downtown and range loaded on demand, a loading screen with
       progress, and a bundle-size check in CI.
 - [ ] **7. Accessibility**: full keyboard flow, visible focus, reduced-motion option, readable contrast,
@@ -78,3 +79,7 @@ A new player can:
   5b should overlay a compact pad on the view itself.
 - Wardrobe and character-creator buttons (tabs, skin tones) are under 40 px tall on phones; the phone playtest
   lists them as notices. Worth enlarging in 5b or item 7.
+- Playtests can stand the player next to a neighbour, a parked car or a workplace sign (`__tld.place`, only
+  with `?playtest`), so touch flows don't depend on walking there in 2 fps software rendering.
+- On phones in landscape (640×360) the view and pad still don't fit together; a true overlay pad on the view
+  would cover that case (worth doing with item 7's layout work).
