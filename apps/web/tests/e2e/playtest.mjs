@@ -117,19 +117,20 @@ await step('accessibility: keyboard menu, motion, large text and sound captions'
     await page.keyboard.press('Shift+Tab');
     if (!(await page.evaluate(() => Boolean(document.activeElement?.closest('.game-menu'))))) throw new Error('Shift+Tab left the menu');
     // Arrow keys move between tabs.
-    await page.getByRole('tab', { name: 'Controls' }).click();
+    const menu = page.locator('.game-menu');
+    await menu.getByRole('tab', { name: 'Controls' }).click();
     await page.keyboard.press('ArrowRight');
-    if ((await page.getByRole('tab', { selected: true }).textContent()) !== 'Settings') throw new Error('ArrowRight did not select Settings');
+    if ((await menu.getByRole('tab', { selected: true }).textContent()) !== 'Settings') throw new Error('ArrowRight did not select Settings');
     if (!(await page.evaluate(() => document.activeElement?.getAttribute('role') === 'tab'))) throw new Error('tab focus not moved');
-    await page.getByLabel(/^Motion: Reduced/).check();
-    await page.getByLabel(/^Sound captions/).check();
-    await page.getByLabel(/^Large text/).check();
+    await menu.getByLabel(/^Motion: Reduced/).check();
+    await menu.getByLabel(/^Sound captions/).check();
+    await menu.getByLabel(/^Large text/).check();
     const root = await page.evaluate(() => ({ ...document.documentElement.dataset }));
     if (root.reduceMotion !== 'true' || root.textSize !== 'large') throw new Error(`page not updated: ${JSON.stringify(root)}`);
     await shot('04c-accessibility');
     // Back to normal text so the rest of the run sees the usual layout; captions stay on.
-    await page.getByLabel(/^Large text/).uncheck();
-    await page.getByLabel(/^Motion: Follow my device/).check();
+    await menu.getByLabel(/^Large text/).uncheck();
+    await menu.getByLabel(/^Motion: Follow my device/).check();
   } finally {
     await page.keyboard.press('Escape');
   }
