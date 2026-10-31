@@ -56,6 +56,33 @@ jobs:
         run: node --test tests/school-time.test.mjs tests/school-actions.test.mjs
       - name: Bundle Cloudflare Pages Functions
         run: npx --yes wrangler@4.45.0 pages functions build functions --outfile /tmp/tld-pages-worker.mjs
+  web-playtest:
+    # A headless browser plays the guest demo end to end and fails on runtime errors.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - run: npx vite build
+      - run: npm install --no-save playwright@1.49.1
+      - run: npx playwright install --with-deps chromium
+      - name: Serve the build
+        run: |
+          npx vite preview --port 4173 --strictPort > /tmp/preview.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:4173/ > /dev/null && break; sleep 1; done
+      - name: Play the guest demo
+        run: node tests/e2e/playtest.mjs http://localhost:4173
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playtest-screenshots
+          path: apps/web/playtest-output
+          if-no-files-found: ignore
   docker-smoke:
     runs-on: ubuntu-latest
     steps:
