@@ -48,6 +48,7 @@ jobs:
       - run: node --test tests/facial-droplets.test.mjs
       - run: npm run test:character
       - run: npm run test:online
+      - run: npm run test:progress
       - run: npm run test:environment
       - run: npm run build
       - name: Test Cloudflare Pages API proxy

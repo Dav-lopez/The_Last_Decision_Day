@@ -133,6 +133,7 @@ app.Use((context, next) => WorldTransportSecurity.Validate(context, next, app.Co
 app.MapIdentityEndpoints();
 app.MapCharacterEndpoints();
 app.MapLifeEndpoints();
+app.MapProgressEndpoints();
 app.MapSchoolPreviewEndpoints();
 app.MapSchoolExecutionEndpoints();
 app.MapSchoolHistoryEndpoints();

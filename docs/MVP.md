@@ -44,7 +44,7 @@ A new player can:
 - [x] **2. Game shell**: an in-game menu (Esc / ☰) with Resume, Controls (every key and touch control),
       Settings (audio volumes, graphics quality), Story so far (chapter, objective, decision), Credits & licences,
       and Reset progress. A first-run hint showing the basic controls.
-- [ ] **3. Progress saved to the account**: story, career and training record, and neighbour relationships
+- [x] **3. Progress saved to the account**: story, career and training record, and neighbour relationships
       synced through the API for signed-in players (guests keep local saves); newest-wins merge; tests on both sides.
 - [ ] **4. Football extras**: better goalkeeping, smarter opponents (support runs, marking), a season league
       table that records your match results.
@@ -64,3 +64,8 @@ A new player can:
 - Software rendering in CI runs at about 2 fps; the game clamps frames to 0.05 s of game time, so on very slow
   devices everything moves in slow motion. Worth a "low-end" check in item 6.
 - (add bugs and small follow-ups here)
+- "Reset progress" in the game menu (#190) clears the browser saves only; for signed-in players it should also
+  reset the account copy (PUT a fresh progress document with a new `savedAt`), or the account copy comes back.
+- The playtest's pitch step failed on `main`: it asked for the trip home while the pitch taxi was still driving
+  (quick travel refuses a second trip). The playtest now waits for `travelling` to clear.
+- The day/clock (`/me/life`) and progress (`/me/progress`) are synced separately; a later pass could merge them.

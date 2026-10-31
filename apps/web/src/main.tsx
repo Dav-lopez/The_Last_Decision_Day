@@ -59,6 +59,28 @@ const accountLifeSync = {
   },
 };
 
+const PROGRESS_PATH = '/api/v1/characters/me/progress';
+type SavedProgress = { saved?: boolean; savedAt: number; data: unknown };
+
+/** The signed-in player's story, career and relationships (see ProgressEndpoints on the API). Newest save wins. */
+const accountProgressSync = {
+  load: () => request<SavedProgress>(PROGRESS_PATH),
+  async save(progress: { savedAt: number; data: unknown }): Promise<{ status: 'saved' | 'rejected'; progress: SavedProgress }> {
+    const token = await csrf();
+    const response = await fetch(PROGRESS_PATH, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token },
+      body: JSON.stringify(progress),
+    });
+    const body = await response.json().catch(() => ({})) as { error?: string; current?: SavedProgress } & Partial<SavedProgress>;
+    if (response.ok) return { status: 'saved', progress: body as SavedProgress };
+    // 409: another device saved newer progress; the game adopts it.
+    if (response.status === 409 && body.current) return { status: 'rejected', progress: body.current };
+    throw new Error(body.error ?? `Saving your progress failed (${response.status})`);
+  },
+};
+
 async function post<T>(path: string, payload?: unknown): Promise<T> {
   const token = await csrf();
   return request<T>(path, {
@@ -271,7 +293,8 @@ function App() {
         canExecuteActivity={cost => !busy && canStartSchoolActivity(timeBalance, cost)}
         onPreviewActivity={id => void previewActivity(id)}
         onExecuteActivity={id => void executeActivity(id)}
-        preview={preview} lifeSync={profile ? accountLifeSync : undefined} />
+        preview={preview} lifeSync={profile ? accountLifeSync : undefined}
+        progressSync={profile ? accountProgressSync : undefined} />
     </Suspense> :
       <Suspense fallback={<div className="hero hero-placeholder" role="status">Preparing your neighborhood…</div>}><LandingWorld /></Suspense>}
     {profile && <OnlineRoomPanel key={profile.id} clientRef={onlineRef} />}

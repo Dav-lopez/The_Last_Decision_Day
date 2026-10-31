@@ -70,9 +70,15 @@ export type LifeSync = {
   load: () => Promise<ServerLife>;
   save: (life: ServerLife) => Promise<{ status: 'saved' | 'rejected'; life: ServerLife }>;
 };
+/** Account save for story, career and relationships; absent for guests, who keep the browser copy only. */
+export type ProgressSync = {
+  load: () => Promise<ServerProgressResponse>;
+  save: (progress: ServerProgress) => Promise<{ status: 'saved' | 'rejected'; progress: ServerProgressResponse }>;
+};
 import { BED_SIDE, FRONT_DOORS, HOME_SPAWN, atHomeExit, nearFridge, nearStove, wallsToFadeFor, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade } from './homeInterior.mjs';
 import { TOWN_EXIT, canExitVehicle, chaseCameraAlpha, driveInput, footprintPoints, leavingTown, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
+import { applyProgress, chooseNewestProgress, collectProgress, fromServerProgress, markProgressChanged, toServerProgress, type Progress, type ServerProgress, type ServerProgressResponse } from './progressSync.mjs';
 
 type SchoolActivityView = { id: string; title: string; description: string; timeCost: number };
 type SchoolPreview = { activityId: string; before: Record<string, number>; after: Record<string, number> };
@@ -90,6 +96,7 @@ type WorldProps = {
   onExecuteActivity: (activityId: string) => void;
   preview: SchoolPreview | null;
   lifeSync?: LifeSync;
+  progressSync?: ProgressSync;
 };
 const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift']);
 
@@ -387,7 +394,7 @@ function createAvatar(scene: Scene) {
 /** The WebGL view is optional: login and school actions remain usable if 3D fails. */
 export default function WorldScene({
   characterId, displayName, demoMode = false, onSchoolEnter, activities, timeRemaining, busy,
-  canExecuteActivity, onPreviewActivity, onExecuteActivity, preview, lifeSync, online,
+  canExecuteActivity, onPreviewActivity, onExecuteActivity, preview, lifeSync, progressSync, online,
 }: WorldProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const inputRef = useRef(createMovementInput());
@@ -448,7 +455,7 @@ export default function WorldScene({
   const [career, setCareer] = useState<CareerState>(() => readCareer(characterId));
   const careerRef = useRef(career);
   const [workPrompt, setWorkPrompt] = useState<CareerId | null>(null);
-  const saveCareer = (next: CareerState) => { careerRef.current = next; writeCareer(characterId, next); setCareer(next); };
+  const saveCareer = (next: CareerState) => { careerRef.current = next; writeCareer(characterId, next); setCareer(next); progressChangedRef.current(); };
   const sirenRef = useRef<ReturnType<typeof createSiren> | null>(null);
   const [ballPrompt, setBallPrompt] = useState(false);
   // Five-a-side: the scoreboard while a match is on, and whether you can start one.
@@ -496,7 +503,7 @@ export default function WorldScene({
   const [dialogue, setDialogue] = useState<{ lines: ReadonlyArray<StoryLine>; index: number } | null>(null);
   const dialogueRef = useRef(false);
   const [storyBanner, setStoryBanner] = useState('');
-  const saveStory = (next: StoryState) => { storyRef.current = next; writeStory(characterId, next); setStory(next); decorRef.current(); };
+  const saveStory = (next: StoryState) => { storyRef.current = next; writeStory(characterId, next); setStory(next); decorRef.current(); progressChangedRef.current(); };
   // Once the story ends, Maple Street shows the change you chose.
   const decorRef = useRef<() => void>(() => {});
   const openPendingScene = () => {
@@ -528,6 +535,58 @@ export default function WorldScene({
   type NpcChat = { conversation: NpcConversation; outcome: NpcReply | null };
   const [npcRelations, setNpcRelations] = useState<NpcRelations>(() => readNpcRelations(characterId));
   const npcRelationsRef = useRef(npcRelations);
+  // Signed-in players: story, career and relationships also live on the account (newest copy wins).
+  const progressSyncRef = useRef(progressSync);
+  // The scene's notice (timed and with a sound) once the world is running.
+  const progressNoticeRef = useRef<(message: string) => void>(message => setDriveNotice(message));
+  progressSyncRef.current = progressSync;
+  const progressLoadedRef = useRef(false);
+  const progressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const adoptProgress = (progress: Progress) => {
+    const clean = applyProgress(characterId, progress);
+    storyRef.current = clean.story; setStory(clean.story);
+    careerRef.current = clean.career; setCareer(clean.career);
+    npcRelationsRef.current = clean.relations; setNpcRelations(clean.relations);
+    decorRef.current();
+  };
+  const adoptProgressRef = useRef(adoptProgress);
+  adoptProgressRef.current = adoptProgress;
+  const uploadProgress = useCallback(() => {
+    const sync = progressSyncRef.current;
+    if (!sync || !progressLoadedRef.current) return;
+    sync.save(toServerProgress(collectProgress(characterId))).then(result => {
+      if (result.status !== 'rejected') return;
+      const newer = fromServerProgress(result.progress);
+      if (newer) { adoptProgressRef.current(newer); progressNoticeRef.current('Your progress was synced from your account.'); }
+    }).catch(() => { /* Offline: the browser copy is kept and uploaded after the next change. */ });
+  }, [characterId]);
+  const progressChangedRef = useRef(() => {});
+  progressChangedRef.current = () => {
+    markProgressChanged(characterId);
+    if (!progressSyncRef.current) return;
+    if (progressTimerRef.current) clearTimeout(progressTimerRef.current);
+    progressTimerRef.current = setTimeout(() => { progressTimerRef.current = null; uploadProgress(); }, 2000);
+  };
+  useEffect(() => {
+    const sync = progressSyncRef.current;
+    if (!sync) return;
+    let cancelled = false;
+    progressLoadedRef.current = false;
+    sync.load().then(response => {
+      if (cancelled) return;
+      progressLoadedRef.current = true;
+      const choice = chooseNewestProgress(collectProgress(characterId), fromServerProgress(response));
+      if (choice.source === 'account' && JSON.stringify(choice.progress) !== JSON.stringify(collectProgress(characterId))) {
+        adoptProgressRef.current(choice.progress);
+        progressNoticeRef.current('Your story and career were loaded from your account.');
+      }
+      if (choice.upload) uploadProgress();
+    }).catch(() => { if (!cancelled) progressLoadedRef.current = true; });
+    return () => {
+      cancelled = true;
+      if (progressTimerRef.current) { clearTimeout(progressTimerRef.current); progressTimerRef.current = null; uploadProgress(); }
+    };
+  }, [characterId, uploadProgress]);
   const [npcChat, setNpcChat] = useState<NpcChat | null>(null);
   const npcChatRef = useRef<NpcChat | null>(null);
   const npcActiveRef = useRef(false);
@@ -555,6 +614,7 @@ export default function WorldScene({
     npcRelationsRef.current = outcome.state;
     setNpcRelations(outcome.state);
     writeNpcRelations(characterId, outcome.state);
+    progressChangedRef.current();
     const chat: NpcChat = { ...current, outcome };
     npcChatRef.current = chat;
     npcSceneRef.current?.setConversation(current.conversation.resident, outcome.mood, outcome.reply);
@@ -930,6 +990,7 @@ export default function WorldScene({
       };
       let noticeAt = -Infinity;
       const notify = (message: string) => { noticeAt = clock; setDriveNotice(message); audioRef.current?.cue('notice'); };
+      progressNoticeRef.current = notify;
       const carTargets = () => cars.map((car, index) => ({ id: `car-${index}`, type: 'vehicle' as const, x: car.x, z: car.z }));
       const drivenIndex = () => interaction.mode === 'driving' && interaction.targetId ? Number(interaction.targetId.slice(4)) : -1;
       const snapCamera = (to: PlanarPosition, alpha: number) => {

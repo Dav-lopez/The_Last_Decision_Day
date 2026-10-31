@@ -169,6 +169,33 @@ namespace TheLastDecision.Api.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TheLastDecision.Api.CharacterProgress", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CharacterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DataJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<long>("SavedAt")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CharacterId")
+                        .IsUnique();
+
+                    b.ToTable("CharacterProgress");
+                });
+
             modelBuilder.Entity("TheLastDecision.Api.IdempotencyRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -426,6 +453,15 @@ namespace TheLastDecision.Api.Infrastructure.Persistence.Migrations
                     b.HasOne("TheLastDecision.Api.Character", null)
                         .WithOne()
                         .HasForeignKey("TheLastDecision.Api.CharacterLife", "CharacterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TheLastDecision.Api.CharacterProgress", b =>
+                {
+                    b.HasOne("TheLastDecision.Api.Character", null)
+                        .WithOne()
+                        .HasForeignKey("TheLastDecision.Api.CharacterProgress", "CharacterId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
