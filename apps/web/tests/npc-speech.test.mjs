@@ -56,6 +56,7 @@ test('NPC finishes a line but keeps its selected identity and emotional reaction
   for (let i = 0; i < 1000; i++) speech = advanceNpcSpeech(speech, 1 / 60);
   assert.equal(isNpcSpeaking(speech), false);
   assert.equal(speech.elapsed, speech.duration);
+  assert.equal(advanceNpcSpeech(speech, 1 / 60), speech, 'finished lines do not allocate new states');
   assert.equal(speech.id, 'maya');
   assert.equal(speech.mood, 'sad');
   assert.equal(npcFaceTarget('mouthOpen', 0.5, { talking: false, emotion: speech.mood }), 0);
