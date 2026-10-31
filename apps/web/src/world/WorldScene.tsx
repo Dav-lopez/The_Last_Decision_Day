@@ -32,7 +32,7 @@ import { RANGE_DRILLS, TRAINING_MINUTES, canTrain, finishTraining } from './trai
 import { AudioPanel } from './audio/AudioPanel';
 import { loadCityTraffic, type CityTraffic } from './cityTrafficScene';
 import { buildRoadGraph, type RoadGraph } from './cityTraffic.mjs';
-import { routeBetween } from './gps.mjs';
+import { nearestOnRoads, routeBetween } from './gps.mjs';
 import { Minimap } from './Minimap';
 import type { GameAudio } from './audio/director.mjs';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
@@ -1048,7 +1048,14 @@ export default function WorldScene({
         return null;
       };
       waypointRef.current = {
-        set: (x, z) => { waypoint = { x, z, label: 'Waypoint', manual: true }; routeTimer = Infinity; },
+        // Snap the waypoint onto the nearest street (a click can land in a park, a block or the map's margin).
+        set: (x, z) => {
+          const half = downtown?.city.halfSize ?? [Infinity, Infinity];
+          const cx = Math.max(-half[0], Math.min(half[0], x)), cz = Math.max(-half[1], Math.min(half[1], z));
+          const snapped = roadGraph ? nearestOnRoads(roadGraph, cx, cz) : null;
+          waypoint = { x: snapped?.x ?? cx, z: snapped?.z ?? cz, label: 'Waypoint', manual: true };
+          routeTimer = Infinity;
+        },
         clear: () => { waypoint = null; route = null; },
       };
       mapReadRef.current = () => {
@@ -1576,7 +1583,7 @@ export default function WorldScene({
               if (waypoint.manual) { notify('You have arrived.'); audioRef.current?.cue('notice'); waypoint = null; }
               route = null;
             } else if (waypoint) {
-              const found = routeBetween(roadGraph, { x: lx, z: lz }, waypoint);
+              const found = routeBetween(roadGraph, { x: lx, z: lz }, waypoint, 400);
               route = found ? { points: found.points as [number, number][], length: found.length } : null;
             } else route = null;
           } else if (locationRef.current !== 'city') route = null;
