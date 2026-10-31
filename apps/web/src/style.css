@@ -153,6 +153,9 @@
   .world-root .world-car-action.world-chip-action,.world-root .world-car-action.world-range-start{top:auto;bottom:150px}
   .world-root .world-enter{bottom:150px;max-width:calc(100% - 16px);white-space:normal;min-height:44px}
   .world-root .world-car-action.world-match-start{top:auto;bottom:200px}
+  /* On the pitch the match and league-table buttons share one row. */
+  .world-root .world-car-action.world-match-start{right:calc(50% + 4px)}
+  .world-root .world-car-action.world-league-open{top:auto;bottom:200px;left:calc(50% + 4px);right:8px}
   .world-root .world-notice{bottom:8px;left:8px;right:8px;transform:none;max-width:none;white-space:normal;text-align:center;font-size:.78rem;padding:6px 10px}
   .world-root .world-drive-hud{bottom:8px;left:8px;right:8px;font-size:.74rem}
   .world-root .world-scoreboard{top:auto;bottom:150px;left:8px;right:8px;transform:none;flex-wrap:wrap;justify-content:center;gap:6px;padding:6px 8px}

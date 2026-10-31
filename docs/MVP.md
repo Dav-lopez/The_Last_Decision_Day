@@ -48,6 +48,8 @@ A new player can:
       synced through the API for signed-in players (guests keep local saves); newest-wins merge; tests on both sides.
 - [ ] **4. Football extras**: better goalkeeping, smarter opponents (support runs, marking), a season league
       table that records your match results.
+  - [x] 4a. Season league table: six local clubs, one round per match you play, other games simulated, saved per character.
+  - [ ] 4b. Better goalkeeping and smarter opponents (support runs, marking).
 - [ ] **5. Phone and touch pass**: every action reachable by touch (talk, map, range, match, car), layouts that
       fit 360-pixel-wide screens, and a phone-viewport run in the playtest.
   - [x] 5a. Phone playtest (360×640 touch screen, tap-only: story, touch-pad walking, map, downtown, pitch, match)
@@ -87,3 +89,5 @@ A new player can:
   lazy-import helper inside it; the helpers now get their own tiny `runtime` chunk, and the budget forbids it.
 - Loading progress is per task (with a gentle creep while a file downloads); byte-level progress for the large
   GLBs (Babylon's `onProgress`) would make the bar smoother on slow connections.
+- The football league save (`tld-league-v1:`) is local only; add it to the account progress document now that #192 has landed.
+- The opponents in a league match still wear the red kit; club colours per opponent would make rounds feel distinct.

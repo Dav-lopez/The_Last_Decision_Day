@@ -58,8 +58,16 @@ export function npcFaceTarget(name, elapsed, { talking = false, nearby = false, 
       // Eyes lead the body when acknowledging a player. Distress, walking
       // and a flinch suppress eye contact without affecting mouth movement.
       const focus = Number.isFinite(gaze) ? Math.max(-0.55, Math.min(0.55, gaze)) : 0;
-      pose = greeting > 0 && !sad && startled < 0.1
-        ? Math.max(0, name.startsWith('eyeLookRight') ? focus : -focus) * composure : 0;
+      if (greeting > 0 && !sad && startled < 0.1) {
+        // A visible player takes precedence over idle saccades. Even when the
+        // player is directly ahead (zero yaw), keep eye contact centred.
+        pose = Math.max(0, name.startsWith('eyeLookRight') ? focus : -focus) * composure;
+      } else if (!nearby && !talking && !moving && emotion === 'neutral' && startled < 0.1) {
+        // Unattended residents also use the authored horizontal gaze morphs.
+        // Their existing per-resident clock offsets keep the glances staggered.
+        // The shared facial spring and blink mask still own the transition.
+        pose = idleGazeTarget(name, time, 'neutral', 0);
+      }
     } else {
       const down = name.startsWith('eyeLookDown') ? sad * (name.endsWith('Left') ? 0.24 : 0.21) : 0;
       pose = down + composure * idleGazeTarget(name, time, 'neutral',

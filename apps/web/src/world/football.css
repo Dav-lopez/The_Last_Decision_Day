@@ -5,3 +5,15 @@
 .world-scoreboard button { padding: 4px 10px; font-size: 0.78rem; }
 .world-car-action.world-match-start { bottom: auto; top: 96px; }
 @media (max-width: 640px) { .world-scoreboard small { display: none; } }
+.world-car-action.world-league-open { bottom: auto; top: 140px; }
+.world-league { position: absolute; top: 96px; left: 50%; transform: translateX(-50%); z-index: 5; width: min(420px, calc(100vw - 32px));
+  padding: 10px 12px; border-radius: 12px; background: rgba(10, 20, 36, 0.92); color: #f4f6fb; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); font-size: 0.85rem; }
+.world-league header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+.world-league header button { padding: 2px 8px; }
+.world-league table { width: 100%; border-collapse: collapse; }
+.world-league th, .world-league td { padding: 3px 4px; text-align: right; }
+.world-league th:nth-child(2), .world-league td:nth-child(2) { text-align: left; }
+.world-league thead th { font-weight: 600; opacity: 0.75; border-bottom: 1px solid rgba(255, 255, 255, 0.2); }
+.world-league tr.you td { color: #8fc7ff; font-weight: 600; }
+.world-league small { display: block; margin-top: 6px; opacity: 0.8; line-height: 1.35; }
+@media (max-width: 400px) { .world-league th:nth-child(4), .world-league td:nth-child(4), .world-league th:nth-child(5), .world-league td:nth-child(5), .world-league th:nth-child(6), .world-league td:nth-child(6) { display: none; } }
