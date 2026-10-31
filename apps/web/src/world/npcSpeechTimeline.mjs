@@ -24,8 +24,11 @@ export function beginNpcSpeech(id, mood = 'neutral', line = '') {
 
 export function advanceNpcSpeech(state, seconds) {
   if (!state?.id || !Number.isFinite(state.duration) || state.duration <= 0) return state;
+  const elapsed = Number.isFinite(state.elapsed) ? Math.max(0, state.elapsed) : 0;
+  if (elapsed >= state.duration) return state; // No allocations after a line finishes.
   const dt = Number.isFinite(seconds) ? Math.max(0, Math.min(seconds, 0.1)) : 0;
-  return { ...state, elapsed: Math.min(state.duration, Math.max(0, state.elapsed) + dt) };
+  if (dt === 0 && elapsed === state.elapsed) return state;
+  return { ...state, elapsed: Math.min(state.duration, elapsed + dt) };
 }
 
 export function isNpcSpeaking(state) {
