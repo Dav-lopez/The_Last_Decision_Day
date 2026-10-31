@@ -30,6 +30,8 @@ import { WorldMap, type MapMarker, type MapSnapshot, type TravelTarget } from '.
 import { TrainingRange, type RangeOutcome } from './TrainingRange';
 import { RANGE_DRILLS, TRAINING_MINUTES, canTrain, finishTraining } from './trainingRange.mjs';
 import { AudioPanel } from './audio/AudioPanel';
+import { GameMenu, type MenuTab } from './GameMenu';
+import { graphicsMode, readSettings, resetProgress, writeSettings, type PlayerSettings } from './gameSettings.mjs';
 import type { GameAudio } from './audio/director.mjs';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
 import { buildFootballPitch } from './footballScene';
@@ -69,9 +71,15 @@ export type LifeSync = {
   load: () => Promise<ServerLife>;
   save: (life: ServerLife) => Promise<{ status: 'saved' | 'rejected'; life: ServerLife }>;
 };
+/** Account save for story, career and relationships; absent for guests, who keep the browser copy only. */
+export type ProgressSync = {
+  load: () => Promise<ServerProgressResponse>;
+  save: (progress: ServerProgress) => Promise<{ status: 'saved' | 'rejected'; progress: ServerProgressResponse }>;
+};
 import { BED_SIDE, FRONT_DOORS, HOME_SPAWN, atHomeExit, nearFridge, nearStove, wallsToFadeFor, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade } from './homeInterior.mjs';
 import { TOWN_EXIT, canExitVehicle, chaseCameraAlpha, driveInput, footprintPoints, leavingTown, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
+import { applyProgress, chooseNewestProgress, collectProgress, fromServerProgress, markProgressChanged, toServerProgress, type Progress, type ServerProgress, type ServerProgressResponse } from './progressSync.mjs';
 
 type SchoolActivityView = { id: string; title: string; description: string; timeCost: number };
 type SchoolPreview = { activityId: string; before: Record<string, number>; after: Record<string, number> };
@@ -89,6 +97,7 @@ type WorldProps = {
   onExecuteActivity: (activityId: string) => void;
   preview: SchoolPreview | null;
   lifeSync?: LifeSync;
+  progressSync?: ProgressSync;
 };
 const MOVE_KEYS = new Set(['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift']);
 
@@ -386,7 +395,7 @@ function createAvatar(scene: Scene) {
 /** The WebGL view is optional: login and school actions remain usable if 3D fails. */
 export default function WorldScene({
   characterId, displayName, demoMode = false, onSchoolEnter, activities, timeRemaining, busy,
-  canExecuteActivity, onPreviewActivity, onExecuteActivity, preview, lifeSync, online,
+  canExecuteActivity, onPreviewActivity, onExecuteActivity, preview, lifeSync, progressSync, online,
 }: WorldProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const inputRef = useRef(createMovementInput());
@@ -411,6 +420,30 @@ export default function WorldScene({
   const [mapOpen, setMapOpen] = useState(false);
   const mapReadRef = useRef<() => MapSnapshot>(() => ({ location: 'street', you: null, city: null, street: [], downtown: [], canTravel: false }));
   const travelRef = useRef<(to: TravelTarget) => void>(() => {});
+  // In-game menu (Esc): pauses the world. Settings are browser-local.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuTab, setMenuTab] = useState<MenuTab>('controls');
+  const menuOpenRef = useRef(false);
+  const [playerSettings, setPlayerSettings] = useState<PlayerSettings>(() => readSettings());
+  const graphicsRef = useRef(graphicsMode(playerSettings.graphics));
+  const applyGraphicsRef = useRef<() => void>(() => {});
+  const openMenu = useCallback((tab?: MenuTab) => {
+    if (tab) setMenuTab(tab);
+    menuOpenRef.current = true;
+    inputRef.current.clear();
+    setMenuOpen(true);
+  }, []);
+  const closeMenu = useCallback(() => {
+    menuOpenRef.current = false;
+    setMenuOpen(false);
+    canvasRef.current?.focus({ preventScroll: true });
+  }, []);
+  const updateSettings = (next: PlayerSettings) => {
+    setPlayerSettings(next);
+    writeSettings(next);
+    graphicsRef.current = graphicsMode(next.graphics);
+    applyGraphicsRef.current();
+  };
   // Career training range (an overlay): open while you're at your own workplace.
   const [rangeOpen, setRangeOpen] = useState<CareerId | null>(null);
   const rangeOpenRef = useRef<CareerId | null>(null);
@@ -418,11 +451,12 @@ export default function WorldScene({
     open: () => {}, finish: () => null, canRetry: () => false,
   });
   const closeRange = useCallback(() => { rangeOpenRef.current = null; setRangeOpen(null); }, []);
+  const menuActionsRef = useRef({ open: () => openMenu(), close: () => closeMenu() });
   const kickRef = useRef<(chip: boolean) => void>(() => {});
   const [career, setCareer] = useState<CareerState>(() => readCareer(characterId));
   const careerRef = useRef(career);
   const [workPrompt, setWorkPrompt] = useState<CareerId | null>(null);
-  const saveCareer = (next: CareerState) => { careerRef.current = next; writeCareer(characterId, next); setCareer(next); };
+  const saveCareer = (next: CareerState) => { careerRef.current = next; writeCareer(characterId, next); setCareer(next); progressChangedRef.current(); };
   const sirenRef = useRef<ReturnType<typeof createSiren> | null>(null);
   const [ballPrompt, setBallPrompt] = useState(false);
   // Five-a-side: the scoreboard while a match is on, and whether you can start one.
@@ -476,7 +510,7 @@ export default function WorldScene({
   const [dialogue, setDialogue] = useState<{ lines: ReadonlyArray<StoryLine>; index: number } | null>(null);
   const dialogueRef = useRef(false);
   const [storyBanner, setStoryBanner] = useState('');
-  const saveStory = (next: StoryState) => { storyRef.current = next; writeStory(characterId, next); setStory(next); decorRef.current(); };
+  const saveStory = (next: StoryState) => { storyRef.current = next; writeStory(characterId, next); setStory(next); decorRef.current(); progressChangedRef.current(); };
   // Once the story ends, Maple Street shows the change you chose.
   const decorRef = useRef<() => void>(() => {});
   const openPendingScene = () => {
@@ -508,6 +542,58 @@ export default function WorldScene({
   type NpcChat = { conversation: NpcConversation; outcome: NpcReply | null };
   const [npcRelations, setNpcRelations] = useState<NpcRelations>(() => readNpcRelations(characterId));
   const npcRelationsRef = useRef(npcRelations);
+  // Signed-in players: story, career and relationships also live on the account (newest copy wins).
+  const progressSyncRef = useRef(progressSync);
+  // The scene's notice (timed and with a sound) once the world is running.
+  const progressNoticeRef = useRef<(message: string) => void>(message => setDriveNotice(message));
+  progressSyncRef.current = progressSync;
+  const progressLoadedRef = useRef(false);
+  const progressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const adoptProgress = (progress: Progress) => {
+    const clean = applyProgress(characterId, progress);
+    storyRef.current = clean.story; setStory(clean.story);
+    careerRef.current = clean.career; setCareer(clean.career);
+    npcRelationsRef.current = clean.relations; setNpcRelations(clean.relations);
+    decorRef.current();
+  };
+  const adoptProgressRef = useRef(adoptProgress);
+  adoptProgressRef.current = adoptProgress;
+  const uploadProgress = useCallback(() => {
+    const sync = progressSyncRef.current;
+    if (!sync || !progressLoadedRef.current) return;
+    sync.save(toServerProgress(collectProgress(characterId))).then(result => {
+      if (result.status !== 'rejected') return;
+      const newer = fromServerProgress(result.progress);
+      if (newer) { adoptProgressRef.current(newer); progressNoticeRef.current('Your progress was synced from your account.'); }
+    }).catch(() => { /* Offline: the browser copy is kept and uploaded after the next change. */ });
+  }, [characterId]);
+  const progressChangedRef = useRef(() => {});
+  progressChangedRef.current = () => {
+    markProgressChanged(characterId);
+    if (!progressSyncRef.current) return;
+    if (progressTimerRef.current) clearTimeout(progressTimerRef.current);
+    progressTimerRef.current = setTimeout(() => { progressTimerRef.current = null; uploadProgress(); }, 2000);
+  };
+  useEffect(() => {
+    const sync = progressSyncRef.current;
+    if (!sync) return;
+    let cancelled = false;
+    progressLoadedRef.current = false;
+    sync.load().then(response => {
+      if (cancelled) return;
+      progressLoadedRef.current = true;
+      const choice = chooseNewestProgress(collectProgress(characterId), fromServerProgress(response));
+      if (choice.source === 'account' && JSON.stringify(choice.progress) !== JSON.stringify(collectProgress(characterId))) {
+        adoptProgressRef.current(choice.progress);
+        progressNoticeRef.current('Your story and career were loaded from your account.');
+      }
+      if (choice.upload) uploadProgress();
+    }).catch(() => { if (!cancelled) progressLoadedRef.current = true; });
+    return () => {
+      cancelled = true;
+      if (progressTimerRef.current) { clearTimeout(progressTimerRef.current); progressTimerRef.current = null; uploadProgress(); }
+    };
+  }, [characterId, uploadProgress]);
   const [npcChat, setNpcChat] = useState<NpcChat | null>(null);
   const npcChatRef = useRef<NpcChat | null>(null);
   const npcActiveRef = useRef(false);
@@ -535,6 +621,7 @@ export default function WorldScene({
     npcRelationsRef.current = outcome.state;
     setNpcRelations(outcome.state);
     writeNpcRelations(characterId, outcome.state);
+    progressChangedRef.current();
     const chat: NpcChat = { ...current, outcome };
     npcChatRef.current = chat;
     npcSceneRef.current?.setConversation(current.conversation.resident, outcome.mood, outcome.reply);
@@ -825,7 +912,14 @@ export default function WorldScene({
       // Filmic tone mapping, bloom, anti-aliasing and (on capable devices) ambient occlusion.
       const renderPipeline = createRenderPipeline(scene, camera, pickRenderQuality(scene));
       // Dynamic resolution keeps the frame rate up on slower devices.
-      let quality = createQuality(1 / Math.min(1.5, Math.max(1, window.devicePixelRatio || 1)));
+      const baseScale = () => 1 / Math.min(1.5, Math.max(1, window.devicePixelRatio || 1)) * graphicsRef.current.scale;
+      let quality = createQuality(baseScale());
+      applyGraphicsRef.current = () => {
+        quality = createQuality(baseScale());
+        engine?.setHardwareScalingLevel(quality.scale);
+        renderPipeline.setAmbientOcclusion(graphicsRef.current.ambientOcclusion);
+      };
+      applyGraphicsRef.current();
       // Never let walls, roofs or trees come between the camera and the player (or their car).
       const occlusion = createCameraOcclusionGuard(camera, scene, mesh =>
         mesh.isDescendantOf(avatar) || carRoots.some(roots => roots.some(root => mesh.isDescendantOf(root))));
@@ -903,6 +997,7 @@ export default function WorldScene({
       };
       let noticeAt = -Infinity;
       const notify = (message: string) => { noticeAt = clock; setDriveNotice(message); audioRef.current?.cue('notice'); };
+      progressNoticeRef.current = notify;
       const carTargets = () => cars.map((car, index) => ({ id: `car-${index}`, type: 'vehicle' as const, x: car.x, z: car.z }));
       const drivenIndex = () => interaction.mode === 'driving' && interaction.targetId ? Number(interaction.targetId.slice(4)) : -1;
       const snapCamera = (to: PlanarPosition, alpha: number) => {
@@ -1378,6 +1473,13 @@ export default function WorldScene({
           return;
         }
         if (rangeOpenRef.current) return;
+        if (event.key === 'Escape' && !event.repeat) {
+          event.preventDefault();
+          if (menuOpenRef.current) menuActionsRef.current.close();
+          else if (!dialogueRef.current) menuActionsRef.current.open();
+          return;
+        }
+        if (menuOpenRef.current) return;
         if (document.activeElement !== canvas) return;
         const key = normalizeKey(event.key);
         if (MOVE_KEYS.has(key)) {
@@ -1435,11 +1537,18 @@ export default function WorldScene({
       const focus = () => { cameraControls.cancel(); canvas.focus({ preventScroll: true }); };
       const cancelCameraTransition = () => cameraControls.cancel();
       const resize = () => {
-        quality = createQuality(1 / Math.min(1.5, Math.max(1, window.devicePixelRatio || 1)));
+        quality = createQuality(baseScale());
         engine?.setHardwareScalingLevel(quality.scale);
         engine?.resize();
       };
       canvas.addEventListener('pointerdown', focus);
+      const wakeAudio = () => {
+        window.removeEventListener('pointerdown', wakeAudio, true);
+        window.removeEventListener('keydown', wakeAudio, true);
+        void audioRef.current?.enable();
+      };
+      window.addEventListener('pointerdown', wakeAudio, true);
+      window.addEventListener('keydown', wakeAudio, true);
       canvas.addEventListener('wheel', cancelCameraTransition, { passive: true });
       window.addEventListener('keydown', onKeyDown);
       window.addEventListener('keyup', onKeyUp);
@@ -1457,7 +1566,8 @@ export default function WorldScene({
       engine.runRenderLoop(() => {
         const frameSeconds = engine!.getDeltaTime() / 1000;
         const delta = Math.min(frameSeconds, 0.05);
-        const tuned = stepQuality(quality, frameSeconds);
+        // Automatic graphics trade sharpness for smoothness; the fixed presets don't.
+        const tuned = graphicsRef.current.adaptive ? stepQuality(quality, frameSeconds) : { state: quality, changed: false };
         quality = tuned.state;
         if (tuned.changed) {
           engine!.setHardwareScalingLevel(quality.scale);
@@ -1471,7 +1581,7 @@ export default function WorldScene({
           match: Boolean(match && match.phase !== 'fulltime'),
           speed: delta>0 && audioDistance<1 ? audioDistance/delta : 0,
           drivingSpeed: audioCar>=0 ? cars[audioCar].speed : null,
-          reading: schoolOpenRef.current || dialogueRef.current || npcActiveRef.current || Boolean(rangeOpenRef.current),
+          reading: schoolOpenRef.current || dialogueRef.current || npcActiveRef.current || Boolean(rangeOpenRef.current) || menuOpenRef.current,
           paused: Boolean(pendingRide || pendingFood || pendingShift || pendingTaxi || pendingDrive || interaction.mode==='sleeping' || interaction.mode==='sitting'),
           evening: isEvening(life.minute) });
         if (locationRef.current !== storyLocation) {
@@ -1479,7 +1589,7 @@ export default function WorldScene({
           storyLocation = locationRef.current;
         }
         // The training range covers the screen: freeze the world (and its clock) underneath.
-        if (rangeOpenRef.current) return;
+        if (rangeOpenRef.current || menuOpenRef.current) return;
         // Controls follow the orbit camera: W always walks away from the viewer.
         const cameraDirection = camera.getForwardRay().direction;
         markerTime += delta;
@@ -1862,6 +1972,8 @@ export default function WorldScene({
         canvas.removeEventListener('pointerdown', focus);
         canvas.removeEventListener('wheel', cancelCameraTransition);
         window.removeEventListener('keydown', onKeyDown);
+        window.removeEventListener('pointerdown', wakeAudio, true);
+        window.removeEventListener('keydown', wakeAudio, true);
         window.removeEventListener('keyup', onKeyUp);
         window.removeEventListener('blur', clear);
         window.removeEventListener('resize', resize);
@@ -2006,11 +2118,16 @@ export default function WorldScene({
         {sleeping && <div className="world-sleep" role="status" aria-live="polite"><span>Sleeping…</span></div>}
         {busyLabel && <div className="world-sleep world-kitchen" role="status" aria-live="polite"><span>{busyLabel}</span></div>}
         {inClass && <div className="world-sleep world-class" role="status" aria-live="polite"><span>{inClass} class…</span></div>}
-        <div className="world-caption"><strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : inCity ? inCity : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
+        <div className="world-caption"><button type="button" className="world-menu-button" aria-label="Open the game menu (Escape)" aria-expanded={menuOpen}
+          onClick={() => openMenu()}>☰ Menu</button> <strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : inCity ? inCity : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
         <WorldMap open={mapOpen} onClose={() => setMapOpen(false)} read={readMap} travel={travelTo} />
         {scoreboard && <div className="world-scoreboard" role="status" aria-live="polite"><strong>{scoreboard}</strong><small>F shoot · Shift+F chip · Q pass</small>
-          <button type="button" onClick={event => { matchRef.current.pass(); focusWorld(event); }}>Pass (Q)</button></div>}
+          <span className="world-scoreboard-actions">
+            <button type="button" onClick={event => { kickRef.current(false); focusWorld(event); }}>Shoot (F)</button>
+            <button type="button" onClick={event => { kickRef.current(true); focusWorld(event); }}>Chip</button>
+            <button type="button" onClick={event => { matchRef.current.pass(); focusWorld(event); }}>Pass (Q)</button>
+          </span></div>}
         {(() => {
           const { chapter, step } = currentStep(story);
           return <div className="story-objective" aria-live="polite"><small>{chapter.title}</small><strong>{step.objective}</strong></div>;
@@ -2029,6 +2146,18 @@ export default function WorldScene({
             </div>
           </div>;
         })()}
+        {!playerSettings.hintDismissed && !dialogue && <div className="world-first-hint" role="note">
+          <strong>How to play</strong>
+          <span><kbd>W A S D</kbd> walk · <kbd>Shift</kbd> run · <kbd>E</kbd> interact and talk · <kbd>N</kbd> map · <kbd>Esc</kbd> menu</span>
+          <span className="world-first-hint-actions">
+            <button type="button" onClick={() => openMenu('controls')}>All controls</button>
+            <button type="button" onClick={() => { updateSettings({ ...playerSettings, hintDismissed: true }); canvasRef.current?.focus({ preventScroll: true }); }}>Got it</button>
+          </span>
+        </div>}
+        <GameMenu open={menuOpen} tab={menuTab} setTab={setMenuTab} onClose={closeMenu} story={story}
+          graphics={playerSettings.graphics} setGraphics={mode => updateSettings({ ...playerSettings, graphics: mode })}
+          onReset={() => { resetProgress(characterId); window.location.reload(); }}
+          audio={<AudioPanel director={audioRef} />} />
         {rangeOpen && <TrainingRange drill={RANGE_DRILLS[rangeOpen]} energy={lifeView.energy}
           onFinish={score => rangeRef.current.finish(score)} canRetry={() => rangeRef.current.canRetry()}
           onLeave={() => { closeRange(); canvasRef.current?.focus(); }}
@@ -2079,6 +2208,8 @@ export default function WorldScene({
           onClick={event => { interactRef.current(); focusWorld(event); }}>
           {busAction ?? workAction ?? (ballPrompt && inCity ? 'Kick (E or F) · Shift+F chips' : null) ?? actionLabel}
         </button>}
+        {ballPrompt && inCity && !scoreboard && !busAction && !workAction && <button type="button" className="world-car-action world-chip-action"
+          onClick={event => { kickRef.current(true); focusWorld(event); }}>Chip (Shift+F)</button>}
         {riding && <div className="world-sleep world-bus" role="status" aria-live="polite"><span>{riding}</span></div>}
         {nearSchool && <button type="button" className="world-enter"
           aria-expanded={schoolOpen} aria-controls="school-game-panel"
@@ -2117,7 +2248,7 @@ export default function WorldScene({
       </>}
     </div>
     {!error && <div className="world-controls">
-      <p>Click the world, then use WASD, arrow keys or the direction pad to move. Hold Shift or switch Run on to move faster. Release the direction to stop. Drag to orbit; scroll, pinch or use the zoom buttons to zoom. Press E at the school entrance to go in (7:30 AM–4 PM), E at a desk to take the current class, and E by the teacher for other school activities; Escape closes the panel. Press E at your front door (the house on the left) to go inside, and E at the inside door to go back out. Cook at the stove or grab a snack from the fridge for energy. Your energy drains as the day goes on; when you're tired or it's evening, press E beside your bed to sleep until 7:00 AM. Press E next to a car to drive it: W/S for gas, brake and reverse, A/D to steer, and E again to get out once stopped.</p>
+      <p>Click the world, then move with WASD or the arrow pad; hold Shift or switch RUN on to run. Press <strong>E</strong> to interact and talk, <strong>N</strong> for the map, and <strong>Esc</strong> (or ☰ Menu) for every control, settings, your story so far and credits.</p>
       <div className="world-control-buttons">
         <div className="world-pad" aria-label="Touch movement controls">
           <div className="world-pad-top">{directionButton('▲', 'ArrowUp', 'Move forward')}</div>
@@ -2167,7 +2298,6 @@ export default function WorldScene({
       </div>
       <p role="status" aria-live="polite">{previewEmotion === 'sad' ? 'Crying preview selected · tears pending detailed face integration' : previewEmotion === 'embarrassed' ? 'Blushing preview selected · cheek shading pending' : previewEmotion === 'exerted' ? 'Exertion preview selected · sweat rendering pending' : `Current expression: ${previewEmotion}`}. When Neutral is selected, sprinting automatically triggers exertion. Facial animation requires a model with compatible blendshapes.</p>
     </section>}
-    <AudioPanel director={audioRef} />
     {!error && <CareersPanel career={career}
       onWearUniform={() => { if (career.career) setLook(current => ({ ...current, ...CAREERS[career.career!].uniform })); }}
       onQuit={() => saveCareer(quitCareer(career))} />}

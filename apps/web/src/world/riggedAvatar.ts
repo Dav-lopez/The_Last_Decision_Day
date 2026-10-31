@@ -3,7 +3,7 @@ import '@babylonjs/loaders/glTF';
 import { ZONE_MATERIALS, dressZones, type Look, type Zone } from './appearance.mjs';
 import { faceTarget, type Emotion } from './facialEmotions';
 import { EMPTY_EFFECTS, smoothFacialEffects, targetFacialEffects } from './facialEffects';
-import { dropletCycle } from './facialDroplets.mjs';
+import { dropletCycle, stepDropletClock } from './facialDroplets.mjs';
 import { skinSurface, hairSurface, skinRoughness } from './surfaceShading.mjs';
 import { planarSkinUV, skinMicroNormalMap } from './skinMicroNormalMap.mjs';
 import { stepBlink } from './blinkCycle.mjs';
@@ -236,6 +236,8 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
         'Regenerate the model with scripts/build-character.py and review the generated asset PR.');
     }
     let effectTime = 0;
+    let tearClock = { elapsed: 0, active: false };
+    let sweatClock = { elapsed: 0, active: false };
     // Initialize with the full BlinkFrame type, including left/right eyelid values.
     let blinkState = stepBlink({ elapsed: 0, count: 0 }, 0);
     // Preserve the underlying emotional pose while a blink temporarily masks it.
@@ -279,6 +281,8 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
         const movementSpeed = Number.isFinite(speed) ? Math.max(0, speed) : 0;
         effects = smoothFacialEffects(effects, targetFacialEffects(emotion, movementSpeed), frameSeconds);
         effectTime += frameSeconds;
+        tearClock = stepDropletClock(tearClock, effects.tears, frameSeconds);
+        sweatClock = stepDropletClock(sweatClock, effects.sweat, frameSeconds);
         for (const material of container.materials) {
           if (!(material instanceof PBRMaterial)) continue;
           if (material.name === 'Student skin') {
@@ -294,7 +298,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
           } else if (material.name.startsWith('Student tear ') || material.name.startsWith('Student sweat ')) {
             const kind = material.name.startsWith('Student tear ') ? 'tear' : 'sweat';
             const side = material.name.endsWith('Left') ? 'Left' : 'Right';
-            const { opacity } = dropletCycle(effectTime, kind, side);
+            const { opacity } = dropletCycle(kind === 'tear' ? tearClock.elapsed : sweatClock.elapsed, kind, side);
             material.alpha = Math.min(0.82, (kind === 'tear' ? effects.tears : effects.sweat) * opacity * 0.82);
           }
         }
@@ -313,7 +317,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
             : morph.name.startsWith('sweatTrack') ? 'sweat' : null;
           if (dropletKind) {
             const side = morph.name.endsWith('Left') ? 'Left' : 'Right';
-            morph.influence = dropletCycle(effectTime, dropletKind, side).phase;
+            morph.influence = dropletCycle(dropletKind === 'tear' ? tearClock.elapsed : sweatClock.elapsed, dropletKind, side).phase;
             continue;
           }
           const eyelid = morph.name === 'eyeBlinkLeft' || morph.name === 'eyeBlinkRight';

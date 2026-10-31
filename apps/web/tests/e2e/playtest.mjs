@@ -30,7 +30,11 @@ const read = () => page.evaluate(() => window.__tld?.read() ?? null);
 const step = async (name, fn) => {
   const started = Date.now();
   try { await fn(); notes.push(`${name}: ok (${((Date.now() - started) / 1000).toFixed(1)}s)`); }
-  catch (error) { problems.push(`${name}: ${error.message.split('\n')[0]}`); await shot(`failed-${name.replace(/\W+/g, '-')}`).catch(() => {}); }
+  catch (error) {
+    // Keep Playwright's useful detail lines (e.g. which element intercepted a click).
+    const lines = error.message.split('\n').map(l => l.trim()).filter(Boolean);
+    const detail = lines.filter(l => /intercepts|waiting for|resolved to/i.test(l)).slice(0, 2).join(' | ');
+    problems.push(`${name}: ${lines[0]}${detail ? ` (${detail})` : ''}`); await shot(`failed-${name.replace(/\W+/g, '-')}`).catch(() => {}); }
 };
 const dismissDialogue = async () => {
   for (let i = 0; i < 30; i++) {
@@ -59,6 +63,11 @@ await step('opening story scene plays and closes', async () => {
 });
 // The game clamps each frame to 0.05 s of game time, so in a slow software renderer
 // everything takes more wall-clock time: hold keys until something happens instead.
+await step('first-run hint can be dismissed', async () => {
+  const gotIt = page.getByRole('button', { name: 'Got it' });
+  if (await gotIt.count()) await gotIt.click();
+  await page.waitForSelector('.world-first-hint', { state: 'detached', timeout: 5000 });
+});
 await step('player walks', async () => {
   await page.locator('canvas').first().click({ position: { x: 320, y: 180 } });
   const before = await read();
@@ -80,6 +89,23 @@ await step('map opens and closes (N)', async () => {
   await shot('04-map');
   await page.keyboard.press('n');
   await page.waitForSelector('.world-map', { state: 'detached', timeout: 5000 });
+});
+await step('menu opens with Esc, shows every tab, and closes', async () => {
+  await page.locator('canvas').first().click({ position: { x: 320, y: 120 } });
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.game-menu-backdrop:not([hidden])', { timeout: 10000 });
+  try {
+    for (const tab of ['Settings', 'Story', 'Credits']) {
+      await page.getByRole('tab', { name: tab }).click();
+      await page.waitForTimeout(200);
+    }
+    if (!(await page.locator('.game-menu-credits').getByText('OpenStreetMap contributors').count())) throw new Error('credits missing OpenStreetMap');
+    await shot('04b-menu');
+  } finally {
+    // Never leave the world paused for the steps after this one.
+    await page.keyboard.press('Escape');
+  }
+  await page.waitForSelector('.game-menu-backdrop[hidden]', { state: 'attached', timeout: 10000 });
 });
 await step('frame rate', async () => {
   const fps = await page.evaluate(() => new Promise(resolve => {
