@@ -8,7 +8,7 @@ import { Color3, PBRMaterial } from '@babylonjs/core';
 import { dressZones } from './appearance.mjs';
 import { skinSurface, hairSurface, skinRoughness } from './surfaceShading.mjs';
 import { calculateFacialEffectTargets, stepFacialEffectWeights } from './facialEffectDynamics.mjs';
-import { dropletCycle } from './facialDroplets.mjs';
+import { dropletCycle, stepDropletClock } from './facialDroplets.mjs';
 
 const zero = () => ({ tears: 0, blush: 0, sweat: 0, wateryEyes: 0 });
 const finiteUnit = value => Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
@@ -18,7 +18,7 @@ const originalName = name => name.replace(/^.* (?=Student )/, '');
  * Materials must come from instantiateModelsToScene(..., true), which clones
  * them per resident. This controller never changes the shared source GLB.
  */
-export function createNpcFacialMaterials(materials, meshes, look, index = 0) {
+export function createNpcFacialMaterials(materials, meshes, look) {
   const { skin, hairColour } = dressZones(look);
   const skinRGB = Color3.FromHexString(skin).toLinearSpace();
   const hairRGB = Color3.FromHexString(hairColour).toLinearSpace();
@@ -74,7 +74,13 @@ export function createNpcFacialMaterials(materials, meshes, look, index = 0) {
     }
   }
   let effects = zero();
-  let elapsed = (Number.isSafeInteger(index) && index >= 0 ? index % 11 : 0) * 0.29;
+  // Each resident and effect type owns its own episode clock. A shared world
+  // phase made newly frightened or crying NPCs spawn droplets halfway down
+  // the face; starting both clocks at zero preserves the tear-duct origin.
+  let clocks = {
+    tear: { elapsed: 0, active: false },
+    sweat: { elapsed: 0, active: false },
+  };
 
   function paint() {
     const skinMaterial = surface.get('Student skin');
@@ -86,31 +92,35 @@ export function createNpcFacialMaterials(materials, meshes, look, index = 0) {
     for (const kind of ['tear', 'sweat']) for (const side of ['Left', 'Right']) {
       const material = surface.get(`Student ${kind} ${side}`);
       if (material) {
-        const { opacity } = dropletCycle(elapsed, kind, side);
-        material.alpha = Math.min(0.82, effects[kind === 'tear' ? 'tears' : 'sweat'] * opacity * 0.82);
+        const { opacity } = dropletCycle(clocks[kind].elapsed, kind, side);
+        material.alpha = clocks[kind].active
+          ? Math.min(0.82, effects[kind === 'tear' ? 'tears' : 'sweat'] * opacity * 0.82)
+          : 0;
       }
     }
     for (const { morph, kind, side } of tracks) {
       // Only animate visible droplets; hidden residents reset to neutral.
-      morph.influence = effects[kind === 'tear' ? 'tears' : 'sweat'] > 0.001
-        ? dropletCycle(elapsed, kind, side).phase : 0;
+      morph.influence = clocks[kind].active
+        ? dropletCycle(clocks[kind].elapsed, kind, side).phase : 0;
     }
   }
   paint();
   return {
     update(seconds, mood = 'neutral', moving = false, flinch = 0) {
       const dt = Number.isFinite(seconds) ? Math.max(0, Math.min(0.1, seconds)) : 0;
-      elapsed += dt;
       const startled = finiteUnit(flinch);
       const target = calculateFacialEffectTargets(startled > 0.2 ? 'fear' : mood, moving ? 3.1 : 0);
       // Friendly interactions warm the cheeks slightly; distress wets the eyes.
       if (mood === 'happy' && startled <= 0.2) target.blush = 0.25;
       effects = stepFacialEffectWeights(effects, target, dt);
+      clocks.tear = stepDropletClock(clocks.tear, effects.tears, dt);
+      clocks.sweat = stepDropletClock(clocks.sweat, effects.sweat, dt);
       paint();
       return { ...effects };
     },
     reset() {
       effects = zero();
+      clocks = { tear: { elapsed: 0, active: false }, sweat: { elapsed: 0, active: false } };
       paint();
       for (const { morph } of tracks) morph.influence = 0;
     },
