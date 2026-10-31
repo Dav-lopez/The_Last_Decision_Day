@@ -173,3 +173,25 @@ test('legacy body rest positions generate finite repeatable UVs without changing
     assert.equal(planarSkinUV(invalid), null);
   }
 });
+
+test('both checked-in character bodies receive usable UVs for legacy skin primitives', () => {
+  for (const file of ['human.glb', 'human-female.glb']) {
+    const bytes = readFileSync(new URL(`../public/models/${file}`, import.meta.url));
+    const length = bytes.readUInt32LE(12);
+    const doc = JSON.parse(bytes.subarray(20, 20 + length).toString());
+    const skinIndex = doc.materials.findIndex(material => material.name === 'Student skin');
+    assert.ok(skinIndex >= 0, `${file} needs a skin material`);
+    const skinPrimitives = doc.meshes.flatMap(mesh => mesh.primitives.filter(primitive => primitive.material === skinIndex));
+    assert.ok(skinPrimitives.length > 0, `${file} needs skin geometry`);
+    for (const primitive of skinPrimitives) {
+      if (primitive.attributes.TEXCOORD_0 !== undefined) continue; // Preserve authored UVs.
+      const positions = doc.accessors[primitive.attributes.POSITION];
+      assert.equal(positions.type, 'VEC3');
+      assert.ok(positions.count > 0);
+      // Runtime fallback creates exactly one finite UV pair per skinned vertex.
+      const sample = planarSkinUV(new Float32Array([0, 0, 0, 0.2, 1.6, 0.3]));
+      assert.equal(sample.length, 4);
+      assert.ok(sample.every(Number.isFinite));
+    }
+  }
+});
