@@ -24,7 +24,7 @@ REQUIRED_MORPHS = {
 }
 HEAD_MESHES = {
     "Student expressive lips", "Student oral cavity", "Student upper teeth",
-    "Student tongue", "Student expressive cheeks", "Student eyebrow fibres",
+    "Student tongue", "Student lower teeth", "Student expressive cheeks", "Student eyebrow fibres",
     "Student tear Left", "Student tear Right",
     "Student sweat Left", "Student sweat Right",
 }
