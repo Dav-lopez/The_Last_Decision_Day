@@ -119,8 +119,10 @@ jobs:
           assert any(n.get('mesh') == d['meshes'].index(folds) and n.get('skin') == 0 for n in d['nodes'])
           eyelids = next(mesh for mesh in d['meshes'] if mesh['name'] == 'Student eyelid rims')
           eyelid_prim = eyelids['primitives'][0]
-          assert eyelids['extras']['targetNames'] == ['eyeBlinkLeft', 'eyeBlinkRight']
-          assert len(eyelid_prim['targets']) == 2
+          assert eyelids['extras']['targetNames'] == [
+              'eyeBlinkLeft', 'eyeBlinkRight', 'eyeWideLeft', 'eyeWideRight',
+              'eyeSquintLeft', 'eyeSquintRight']
+          assert len(eyelid_prim['targets']) == 6
           assert eyelid_prim['material'] == 4, 'Lashes must inherit hair color'
           assert d['accessors'][eyelid_prim['attributes']['POSITION']]['count'] >= 100
           assert any(n.get('mesh') == d['meshes'].index(eyelids) and n.get('skin') == 0 for n in d['nodes'])

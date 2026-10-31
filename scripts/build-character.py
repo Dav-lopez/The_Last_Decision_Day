@@ -540,7 +540,15 @@ def build(files, variant):
             },
             "indices": b.accessor(nose["indices"], "SCALAR", 5123),
             "material": 0,
+            # Reuse the existing browDownLeft/Right controllers; the nose
+            # creases therefore follow anger without a new animation channel.
+            "targets": [
+                {"POSITION": b.accessor(positions, "VEC3"),
+                 "NORMAL": b.accessor(normals, "VEC3")}
+                for positions, normals in zip(nose["targets"], nose["normal_targets"])
+            ],
         }],
+        "extras": {"targetNames": list(nose["names"])},
     })
     b.doc["nodes"].append({"name": "Student nose surface", "mesh": nose_mesh, "skin": 0})
     b.doc["nodes"][body["scenes"][0]["nodes"][0]]["children"].append(len(b.doc["nodes"]) - 1)

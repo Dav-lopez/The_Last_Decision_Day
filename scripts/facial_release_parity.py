@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 from facial_asset_contract import parse_glb, validate, vectors
+from facial_eyelids import EYELID_TARGETS
 
 VARIANTS = {"male": ("human.glb", "human.source.json"),
             "female": ("human-female.glb", "human-female.source.json")}
@@ -125,6 +126,24 @@ def inspect_variant(folder, body):
             f"{body}: nasolabial fold morph geometry missing")
     require(len(vectors(doc, binary, fold_primitive["attributes"]["POSITION"])) == 44,
             f"{body}: unexpected smile-fold vertex budget")
+
+    # Eyelid rims and lashes must follow eye-wide/squint as well as blink.
+    # Checking the *specific mesh* prevents an unrelated eye morph from
+    # accidentally satisfying the generated asset release contract.
+    eyelids = meshes["Student eyelid rims"][1]
+    eyelid_primitive = eyelids["primitives"][0]
+    require(eyelids.get("extras", {}).get("targetNames") == list(EYELID_TARGETS),
+            f"{body}: eyelid rims missing synchronized expression morphs")
+    require(len(eyelid_primitive.get("targets", [])) == len(EYELID_TARGETS),
+            f"{body}: eyelid expression morph geometry missing")
+    require(eyelid_primitive["material"] == 4,
+            f"{body}: eyelid lashes must inherit hair colour")
+    require(len(vectors(doc, binary, eyelid_primitive["attributes"]["POSITION"])) >= 100,
+            f"{body}: eyelid/lash geometry unexpectedly sparse")
+    for name, target in zip(EYELID_TARGETS, eyelid_primitive["targets"]):
+        deltas = vectors(doc, binary, target["POSITION"])
+        require(any(abs(row[1]) > 0.001 for row in deltas),
+                f"{body}: eyelid {name} has no usable displacement")
 
     lower_mesh = meshes["Student lower teeth"][1]
     lower = lower_mesh["primitives"][0]
