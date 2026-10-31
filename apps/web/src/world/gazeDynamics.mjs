@@ -1,15 +1,17 @@
 /**
- * Subtle, deterministic eye movements while the character is idle.
- * Uses the existing bilateral up/down gaze morphs; no extra meshes, timers,
- * random state, or per-frame allocations are needed beyond the returned value.
+ * Deterministic idle eye motion for the playable rig. The authored GLBs have
+ * bilateral up/down and left/right gaze morphs; use both to break the fixed
+ * forward stare without moving the character's head or changing gameplay.
  *
- * A short ease-in/ease-out window avoids discontinuities at cycle boundaries.
- * Emotional eye direction and deliberate movement always take precedence.
+ * Horizontal saccades have a brief rapid onset and a short fixation, rather
+ * than keeping the eyes pointed sideways for an entire multi-second cycle.
+ * Eye blink masking is handled by the existing facial morph synchronizer.
  */
 const PERIOD = 4.8;
 const IN = 0.18;
 const OUT = 0.3;
-const MAX_GAZE = 0.16;
+const MAX_VERTICAL = 0.16;
+const MAX_HORIZONTAL = 0.20;
 
 function smoothstep(value) {
   const x = Math.max(0, Math.min(1, value));
@@ -17,27 +19,34 @@ function smoothstep(value) {
 }
 
 /**
- * @param {string} name Bilateral eyeLookUp/eyeLookDown morph name.
+ * @param {string} name Bilateral eyeLookUp/Down/Left/Right morph name.
  * @param {number} elapsedSeconds Monotonic accumulated animation time.
  * @param {string} emotion Current gameplay/preview emotion.
  * @param {number} speed Character speed in world units per second.
- * @returns {number} Additional normalized morph influence in [0, 0.16].
+ * @returns {number} Additional normalized morph influence in [0, 0.20].
  */
 export function idleGazeTarget(name, elapsedSeconds, emotion, speed) {
-  if (!/^eyeLook(?:Up|Down)(?:Left|Right)$/.test(name) || emotion !== 'neutral' ||
+  const match = /^eyeLook(Up|Down|Left|Right)(Left|Right)$/.exec(name);
+  if (!match || emotion !== 'neutral' ||
       !Number.isFinite(elapsedSeconds) || elapsedSeconds < 0 ||
       !Number.isFinite(speed) || speed > 0.3 || speed < 0) return 0;
 
   const cycle = Math.floor(elapsedSeconds / PERIOD);
   const phase = elapsedSeconds - cycle * PERIOD;
-  // Cycle 0 is downward, cycle 1 upward, cycle 2 rests; repeats.
-  const pose = cycle % 3;
-  if (pose === 2) return 0;
-  const lookingUp = pose === 1;
-  if (name.includes('Up') !== lookingUp) return 0;
+  // Down, up, rest, left saccade, rest, right saccade, rest.
+  // The first three phases preserve the established idle gaze rhythm.
+  const pose = cycle % 7;
+  const direction = match[1];
+  let amplitude;
+  if ((pose === 0 && direction === 'Down') || (pose === 1 && direction === 'Up')) {
+    const envelope = smoothstep(phase / IN) * smoothstep((PERIOD - phase) / OUT);
+    amplitude = MAX_VERTICAL * envelope;
+  } else if ((pose === 3 && direction === 'Left') || (pose === 5 && direction === 'Right')) {
+    // A quick glance and short fixation: no prolonged sideways staring.
+    const envelope = smoothstep((phase - 0.5) / 0.13) * smoothstep((2.1 - phase) / 0.22);
+    amplitude = MAX_HORIZONTAL * envelope;
+  } else return 0;
 
-  const envelope = smoothstep(phase / IN) * smoothstep((PERIOD - phase) / OUT);
-  // Tiny left/right asymmetry avoids a perfectly mirrored mannequin stare.
-  const asymmetry = name.endsWith('Left') ? 0.94 : 1;
-  return Math.min(MAX_GAZE, MAX_GAZE * asymmetry * envelope);
+  // Both eyes move together with subtle, stable asymmetry, not strabismus.
+  return Math.min(MAX_HORIZONTAL, amplitude * (match[2] === 'Left' ? 0.94 : 1));
 }
