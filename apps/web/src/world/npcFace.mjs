@@ -26,7 +26,8 @@ export function initialNpcFace(index) {
 }
 
 /** Small, bounded poses layered over each resident's existing locomotion/action clips. */
-export function npcFaceTarget(name, elapsed, { talking = false, nearby = false, moving = false, flinch = 0, emotion = 'neutral', gaze = 0, speechElapsed = undefined, speechCues = undefined } = {}) {
+export function npcFaceTarget(name, elapsed, context = {}) {
+  const { talking = false, nearby = false, moving = false, flinch = 0, emotion = 'neutral', gaze = 0, speechElapsed = undefined, speechCues = undefined } = context;
   if (!FACIAL_MORPH.test(name)) return 0;
   const startled = Number.isFinite(flinch) ? Math.min(1, Math.max(0, flinch)) : 0;
   const composure = 1 - startled;
@@ -39,7 +40,7 @@ export function npcFaceTarget(name, elapsed, { talking = false, nearby = false, 
   const articulationTime = Number.isFinite(speechElapsed) && speechElapsed >= 0 ? speechElapsed : time;
   // Idle micro-expressions are suppressed during player attention, speech,
   // movement, and emotional reactions; existing morph springs smooth the pose.
-  const micro = npcIdleMicroExpression(name, time, { talking, nearby, moving, flinch, emotion });
+  const micro = npcIdleMicroExpression(name, time, context);
   // Speech syllables, lip closure and phrase pauses are evaluated only for
   // the oral morphs; blinks, gaze and emotional expressions remain independent.
   let pose = 0;
