@@ -5,7 +5,8 @@ using Microsoft.EntityFrameworkCore;
 namespace TheLastDecision.Api.Multiplayer;
 
 public sealed record WorldIdentity(Guid CharacterId, string Name);
-public sealed record WorldPose(double X, double Z, double Rotation, string Location, double Speed, string Mode);
+// Optional final parameter preserves clients that do not yet publish body type.
+public sealed record WorldPose(double X, double Z, double Rotation, string Location, double Speed, string Mode, string Body = "male");
 public sealed record WorldPlayer(Guid CharacterId, string Name, WorldPose? Pose);
 public sealed record WorldMessage(Guid Id, Guid SenderId, string SenderName, string Text, long Sequence, DateTimeOffset SentAt, Guid ClientMessageId);
 public sealed record RoomSnapshot(string Code, Guid SelfId, WorldPlayer[] Players, WorldMessage[] Messages);
@@ -175,7 +176,8 @@ public sealed class WorldRooms(TimeProvider clock)
             var (room, member) = MemberOf(connection);
             if (pose is null || !double.IsFinite(pose.X) || !double.IsFinite(pose.Z) || !double.IsFinite(pose.Rotation) || !double.IsFinite(pose.Speed)
                 || Math.Abs(pose.X) > 4096 || Math.Abs(pose.Z) > 4096 || Math.Abs(pose.Rotation) > 1_000_000 || pose.Speed < 0 || pose.Speed > 35
-                || pose.Location is not ("street" or "home" or "school" or "city") || pose.Mode is not ("walking" or "driving" or "busy"))
+                || pose.Location is not ("street" or "home" or "school" or "city") || pose.Mode is not ("walking" or "driving" or "busy")
+                || pose.Body is not ("male" or "female"))
                 throw new HubException("Invalid player position.");
             var now = clock.GetUtcNow();
             if (now - member.LastPose < TimeSpan.FromMilliseconds(90)) return null;
