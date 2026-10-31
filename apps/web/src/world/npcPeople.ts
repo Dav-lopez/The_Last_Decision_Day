@@ -11,7 +11,7 @@ import { initialNpcBlink, collectNpcEyelids, advanceNpcBlink } from './npcBlink.
 import { collectNpcFaceTargets, initialNpcFace, advanceNpcFace, resetNpcFace } from './npcFace.mjs';
 import { npcAttentionGaze } from './npcAttentionGaze.mjs';
 import { npcHeadAttentionTarget, stepNpcHeadAttention } from './npcHeadAttention.mjs';
-import { createNpcHeadRig } from './npcHeadRig';
+import { createNpcHeadRig } from './npcHeadRig.mjs';
 import { beginNpcSpeech, advanceNpcSpeech, isNpcSpeaking, npcShouldArticulate } from './npcSpeechTimeline.mjs';
 import { createNpcFacialMaterials } from './npcFacialMaterials.mjs';
 import { resolveNpcBody, resolveNpcClips } from './npcAnimationClips.mjs';
