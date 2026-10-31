@@ -117,10 +117,18 @@ await step('frame rate', async () => {
 });
 await step('quick travel downtown', async () => {
   await page.evaluate(() => window.__tld.travel('downtown'));
-  await page.waitForFunction(() => window.__tld.read().location === 'city', null, { timeout: 180000 });
+  await page.waitForFunction(() => { const s = window.__tld.read(); return s.location === 'city' && !s.taxi; }, null, { timeout: 180000 });
   await page.waitForTimeout(3000);
   await dismissDialogue();
   await shot('05-downtown');
+});
+await step('downtown traffic drives', async () => {
+  await page.waitForFunction(() => window.__tld.read().traffic.length > 0, null, { timeout: 120000 });
+  const before = (await read()).traffic;
+  // Give the (slow, software-rendered) world some frames to move the cars.
+  await page.waitForFunction(first => window.__tld.read().traffic.some((car, i) => first[i] && Math.hypot(car.x - first[i].x, car.z - first[i].z) > 1), before, { timeout: 120000 });
+  notes.push(`${before.length} traffic cars downtown`);
+  await shot('05b-traffic');
 });
 await step('quick travel to the pitch and back home', async () => {
   await page.evaluate(() => window.__tld.travel('pitch'));

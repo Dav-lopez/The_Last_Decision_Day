@@ -30,6 +30,7 @@ import { WorldMap, type MapMarker, type MapSnapshot, type TravelTarget } from '.
 import { TrainingRange, type RangeOutcome } from './TrainingRange';
 import { RANGE_DRILLS, TRAINING_MINUTES, canTrain, finishTraining } from './trainingRange.mjs';
 import { AudioPanel } from './audio/AudioPanel';
+import { loadCityTraffic, type CityTraffic } from './cityTrafficScene';
 import { GameMenu, type MenuTab } from './GameMenu';
 import { graphicsMode, readSettings, resetProgress, writeSettings, type PlayerSettings } from './gameSettings.mjs';
 import type { GameAudio } from './audio/director.mjs';
@@ -713,6 +714,9 @@ export default function WorldScene({
       };
       let football: { pitch: ReturnType<typeof buildFootballPitch>; ball: Ball; goals: number; resetIn: number } | null = null;
       let downtown: { city: City; collider: ReturnType<typeof createCityCollider>; stop: PlanarPosition & { rotation: number; street: string; dx: number; dz: number; awayX: number; awayZ: number }; dispose: () => void } | null = null;
+      // Downtown traffic loads after the city itself; it's optional.
+      let cityTraffic: CityTraffic | null = null;
+      let trafficShown = false;
       const loadDowntown = async () => {
         const index = await fetch('/city/index.json').then(response => response.ok ? response.json() : null);
         const entry = Array.isArray(index?.cities) ? index.cities[0] : null;
@@ -734,11 +738,15 @@ export default function WorldScene({
         // Police station, army recruiting office and fire station, at real downtown buildings.
         const workplaces = buildWorkplaces(scene, city, collider);
         workDoors = workplaces.doors;
+        void loadCityTraffic(scene, city, 28, shadows).then(traffic => {
+          if (disposed || scene.isDisposed) traffic?.dispose();
+          else cityTraffic = traffic;
+        }).catch(() => { /* No traffic: downtown still works. */ });
         // A link with ?play=football takes the bus straight to the pitch.
         if (playFootball) window.setTimeout(() => { if (!disposed && locationRef.current === 'street') boardBus('downtown'); }, 600);
         pitch.show(football.ball);
         const disposeStop = buildBusStop(scene, world.x + local.awayX * 0.9, world.z + local.awayZ * 0.9, local.heading);
-        downtown = { city, collider, stop: { ...world, rotation: movementHeading(local.dx, local.dz), dx: local.dx, dz: local.dz, awayX: local.awayX, awayZ: local.awayZ, street: local.street }, dispose: () => { disposeCity(); disposeStop(); lights.dispose(); pitch.dispose(); workplaces.dispose(); } };
+        downtown = { city, collider, stop: { ...world, rotation: movementHeading(local.dx, local.dz), dx: local.dx, dz: local.dz, awayX: local.awayX, awayZ: local.awayZ, street: local.street }, dispose: () => { disposeCity(); disposeStop(); lights.dispose(); pitch.dispose(); workplaces.dispose(); cityTraffic?.dispose(); cityTraffic = null; } };
       };
       loadDowntown().catch(() => { /* Downtown is optional; Maple Street plays without it. */ });
       // The town around the street, so the world reaches the horizon instead of ending at a cliff edge.
@@ -1058,6 +1066,8 @@ export default function WorldScene({
           read: () => ({
             x: position.x, z: position.z, location: locationRef.current, minute: life.minute, energy: life.energy,
             story: storyRef.current, driving: drivenIndex() >= 0, dialogue: dialogueRef.current, npcChat: npcActiveRef.current,
+            traffic: cityTraffic?.cars().slice(0, 30).map(car => ({ x: car.x, z: car.z, speed: car.speed })) ?? [],
+            taxi: Boolean(pendingTaxi) || Boolean(pendingDrive),
             travelling: pendingTaxi !== null,
           }),
           travel: (to: TravelTarget) => travelRef.current(to),
@@ -1590,6 +1600,16 @@ export default function WorldScene({
         }
         // The training range covers the screen: freeze the world (and its clock) underneath.
         if (rangeOpenRef.current || menuOpenRef.current) return;
+        // Downtown traffic: drives around you, stops for you and your car.
+        if (cityTraffic) {
+          const inCityNow = locationRef.current === 'city';
+          if (inCityNow !== trafficShown) { trafficShown = inCityNow; cityTraffic.setVisible(inCityNow); }
+          if (inCityNow) {
+            const driving = drivenIndex();
+            const focus = driving >= 0 ? cars[driving] : position;
+            cityTraffic.update(delta, focus, [{ x: focus.x, z: focus.z, radius: driving >= 0 ? 1.1 : 0.9 }]);
+          }
+        }
         // Controls follow the orbit camera: W always walks away from the viewer.
         const cameraDirection = camera.getForwardRay().direction;
         markerTime += delta;
@@ -1735,7 +1755,8 @@ export default function WorldScene({
           const cityBlock = locationRef.current === 'city' && downtown
             ? (candidate: CarState) => footprintPoints(candidate).some(point => downtown!.collider.blockedLocal(...toLocal(point)))
             : undefined;
-          const next = stepVehicle(before, driveInput(keys), delta, locationRef.current === 'city' ? [] : others, locationRef.current === 'city' ? [] : peopleOut, cityBlock);
+          // Downtown, the other cars are the traffic around you.
+          const next = stepVehicle(before, driveInput(keys), delta, locationRef.current === 'city' ? cityTraffic?.cars() ?? [] : others, locationRef.current === 'city' ? [] : peopleOut, cityBlock);
           cars[driven] = { x: next.x, z: next.z, rotation: next.rotation, speed: next.speed };
           if (locationRef.current === 'street') {
             setGate(Math.hypot(next.x, next.z - TOWN_EXIT.beyond) < TOWN_EXIT.gateRange);

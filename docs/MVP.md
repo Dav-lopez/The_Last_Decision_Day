@@ -66,10 +66,38 @@ A new player can:
 - [ ] **9. Release checklist**: page title, icons and share image, an error screen with a reload button,
       a privacy note, a "what's new" list, and a final full playthrough of all three endings in the playtest.
 
+## After MVP: open-world track ("GTA standard")
+
+The aim is GTA's *feel* — a living city, great driving, a phone, missions, polish — within a browser and the
+game's own rules (no crime gameplay; weapons only at the training range). Work these in order once the MVP list
+above is done or blocked; any item may be split into slices.
+
+- [x] **10. Living downtown traffic**: AI cars driving the real street network, keeping right,
+      following each other, yielding to you, and solid to your car.
+- [ ] **11. Minimap and GPS**: a corner minimap that rotates with you, a waypoint you set on the big map, and a
+      route line along the roads to it (story objectives set it automatically).
+- [ ] **12. Traffic lights and pedestrians downtown**: signal-controlled junctions the traffic obeys; people
+      walking downtown sidewalks who cross at lights.
+- [ ] **13. Driving feel**: body roll and pitch, tyre squeal and skid marks, engine sound by speed and gear,
+      cosmetic dents and scratches, a horn; a police cruiser and a fire engine for those careers.
+- [ ] **14. Phone**: an in-game phone (Esc-free, key P) with messages from Mom and friends, contacts you've
+      met, the map, your career, and a camera / photo mode.
+- [ ] **15. Car radio**: three or four original procedural stations with DJ-style station idents.
+- [ ] **16. Career missions**: police patrol calls (traffic stop, lost child, noise complaint), fire calls with
+      the hose, army route march with checkpoints; timed, scored, and paid better than a plain shift.
+- [ ] **17. Seamless road**: drive from Maple Street to downtown and back without a fade (streamed world).
+- [ ] **18. Weather and sky**: rain and wet roads, fog, sunsets, clouds; weather changes by day.
+- [ ] **19. Cinematic story**: camera-directed cutscenes with letterboxing and character animation for each
+      chapter opening and the three endings.
+- [ ] **20. Visual quality pass**: better materials and lighting downtown, higher-detail characters (with the
+      facial work), screen-space reflections on wet roads where the device can afford it.
+
 ## Found along the way
 
 - Software rendering in CI runs at about 2 fps; the game clamps frames to 0.05 s of game time, so on very slow
   devices everything moves in slow motion. Worth a "low-end" check in item 6.
+- Traffic: a road crossing without a shared OSM node (an overpass or a data gap) lets cars pass through each
+  other there; traffic lights (item 12) should add explicit junctions. Cars have no headlights at night yet.
 - (add bugs and small follow-ups here)
 - "Reset progress" in the game menu (#190) clears the browser saves only; for signed-in players it should also
   reset the account copy (PUT a fresh progress document with a new `savedAt`), or the account copy comes back.
