@@ -18,7 +18,7 @@ FACE_MESHES = {
     "Student expressive lips", "Student oral cavity", "Student upper teeth",
     "Student tongue", "Student lower teeth", "Student expressive cheeks", "Student sculpted nose",
     "Student sculpted ears",
-    "Student eyebrow fibres", "Student eyelid rims", "Student corneal shells",
+    "Student eyebrow fibres", "Student nasolabial folds", "Student eyelid rims", "Student corneal shells",
     "Student tear Left", "Student tear Right", "Student sweat Left", "Student sweat Right",
 }
 EXPECTED_HAIR = {"parted", "buzzed", "pixie", "long", "buns", "beard"}
@@ -113,6 +113,18 @@ def inspect_variant(folder, body):
     require(len(vectors(doc, binary, brow["attributes"]["POSITION"])) == 168,
             f"{body}: unexpected eyebrow fibre vertex budget")
 
+
+    folds = meshes["Student nasolabial folds"][1]
+    fold_primitive = folds["primitives"][0]
+    require(fold_primitive["material"] == 0,
+            f"{body}: nasolabial folds must inherit customizable skin")
+    require(folds.get("extras", {}).get("targetNames") ==
+            ["mouthSmileLeft", "mouthSmileRight", "mouthFrownLeft", "mouthFrownRight"],
+            f"{body}: smile folds must follow existing bilateral mouth-corner morphs")
+    require(len(fold_primitive.get("targets", [])) == 4,
+            f"{body}: nasolabial fold morph geometry missing")
+    require(len(vectors(doc, binary, fold_primitive["attributes"]["POSITION"])) == 44,
+            f"{body}: unexpected smile-fold vertex budget")
 
     lower_mesh = meshes["Student lower teeth"][1]
     lower = lower_mesh["primitives"][0]

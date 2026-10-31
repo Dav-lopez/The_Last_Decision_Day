@@ -18,6 +18,8 @@ on:
       - 'scripts/test_hair_detail.py'
       - 'scripts/validate_hair_detail_glb.py'
       - 'scripts/facial_brows.py'
+      - 'scripts/facial_smile_folds.py'
+      - 'scripts/test_facial_smile_folds.py'
       - 'scripts/test_facial_brows.py'
       - 'scripts/facial_eyelids.py'
       - 'scripts/facial_cornea.py'
@@ -52,6 +54,7 @@ jobs:
           python scripts/test_facial_ears.py
           python scripts/test_hair_detail.py
           python scripts/test_facial_brows.py
+          python scripts/test_facial_smile_folds.py
           python scripts/test_facial_eyelids.py
           python scripts/test_facial_cornea.py
           python scripts/test_facial_release_parity.py
@@ -106,6 +109,14 @@ jobs:
           assert len(bp['targets']) == 3 and bp['material'] == 4
           assert d['accessors'][bp['attributes']['POSITION']]['count'] == 168
           assert any(n.get('mesh') == d['meshes'].index(brows) and n.get('skin') == 0 for n in d['nodes'])
+          folds = next(mesh for mesh in d['meshes'] if mesh['name'] == 'Student nasolabial folds')
+          fp = folds['primitives'][0]
+          assert fp['material'] == 0, 'Smile folds must inherit customizable skin'
+          assert folds['extras']['targetNames'] == [
+              'mouthSmileLeft','mouthSmileRight','mouthFrownLeft','mouthFrownRight']
+          assert len(fp['targets']) == 4
+          assert d['accessors'][fp['attributes']['POSITION']]['count'] == 44
+          assert any(n.get('mesh') == d['meshes'].index(folds) and n.get('skin') == 0 for n in d['nodes'])
           eyelids = next(mesh for mesh in d['meshes'] if mesh['name'] == 'Student eyelid rims')
           eyelid_prim = eyelids['primitives'][0]
           assert eyelids['extras']['targetNames'] == ['eyeBlinkLeft', 'eyeBlinkRight']

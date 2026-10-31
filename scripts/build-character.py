@@ -22,6 +22,7 @@ from facial_cheeks import build_cheek_geometry
 from facial_nose import build_nose_geometry
 from facial_ears import build_ear_geometry
 from facial_brows import build_brow_geometry
+from facial_smile_folds import build_smile_fold_geometry
 from facial_eyelids import build_eyelid_geometry
 from facial_cornea import build_cornea_geometry
 from facial_droplets import DROPLET_KINDS, DROPLET_SIDES, build_droplet_geometry
@@ -585,6 +586,28 @@ def build(files, variant):
         "extras": {"targetNames": list(brows["names"])},
     })
     b.doc["nodes"].append({"name": "Student eyebrow fibre surface", "mesh": brow_mesh, "skin": 0})
+    b.doc["nodes"][scene_root]["children"].append(len(b.doc["nodes"]) - 1)
+
+    # Narrow skin-coloured nasolabial folds deform with existing left/right
+    # smile and frown morphs. No additional runtime facial controllers are needed.
+    folds = on_this_face(build_smile_fold_geometry(body_joint["Head"]))
+    fold_mesh = len(b.doc["meshes"])
+    b.doc["meshes"].append({
+        "name": "Student nasolabial folds",
+        "primitives": [{
+            "attributes": {
+                "POSITION": b.accessor(folds["positions"], "VEC3", bounds=True),
+                "NORMAL": b.accessor(folds["normals"], "VEC3"),
+                "JOINTS_0": b.accessor(folds["joints"], "VEC4", 5121),
+                "WEIGHTS_0": b.accessor(folds["weights"], "VEC4"),
+            },
+            "indices": b.accessor(folds["indices"], "SCALAR", 5123),
+            "material": 0,
+            "targets": [{"POSITION": b.accessor(deltas, "VEC3")} for deltas in folds["targets"]],
+        }],
+        "extras": {"targetNames": list(folds["names"])},
+    })
+    b.doc["nodes"].append({"name": "Student nasolabial fold surface", "mesh": fold_mesh, "skin": 0})
     b.doc["nodes"][scene_root]["children"].append(len(b.doc["nodes"]) - 1)
 
     # Short, head-skinned eyelid rims follow the same left/right blink morphs
