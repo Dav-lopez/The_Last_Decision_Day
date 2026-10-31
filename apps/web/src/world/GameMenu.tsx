@@ -53,7 +53,7 @@ export function GameMenu({ open, tab, setTab, onClose, story, graphics, setGraph
   // Keyboard: Tab stays inside the menu while it is open.
   const trapFocus = (event: KeyboardEvent) => {
     if (event.key !== 'Tab' || !dialogRef.current) return;
-    const items = [...dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(el => el.offsetParent !== null);
+    const items = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(el => el.offsetParent !== null);
     if (!items.length) return;
     const first = items[0], last = items[items.length - 1];
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
