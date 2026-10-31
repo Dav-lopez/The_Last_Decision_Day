@@ -37,7 +37,7 @@ export function npcFaceTarget(name, elapsed, { talking = false, nearby = false, 
   // Two non-commensurate rhythms suggest syllables without claiming lip-sync.
   const syllables = Math.pow(Math.max(0, Math.sin(time * 10.7) * 0.7 + Math.sin(time * 17.3) * 0.3), 2);
   let pose = 0;
-  if (name === 'jawOpen') pose = speaking * (0.06 + syllables * 0.24) + startled * 0.13 + sad * 0.035;
+  if (name === 'jawOpen') pose = speaking * (0.06 + syllables * 0.24) + sad * 0.035;
   else if (name === 'mouthOpen') pose = speaking * (0.04 + syllables * 0.19) + startled * 0.28;
   else if (name.startsWith('mouthSmile')) {
     // A hurt resident must not grin simply because they are speaking or the
@@ -46,7 +46,7 @@ export function npcFaceTarget(name, elapsed, { talking = false, nearby = false, 
     pose = warmth * (name.endsWith('Left') ? 0.94 : 1);
   } else if (name.startsWith('mouthFrown')) {
     pose = sad * (name.endsWith('Left') ? 0.46 : 0.40);
-  } else if (name.startsWith('mouthPress')) pose = sad * 0.08;
+  } else if (name.startsWith('mouthPress')) pose = sad * 0.14;
   else if (name.startsWith('cheekSquint')) pose = speaking * 0.06 + greeting * 0.03 + happy * 0.16;
   else if (name === 'browInnerUp') pose = speaking * 0.06 + greeting * 0.09 + startled * 0.38 + sad * 0.30;
   else if (name.startsWith('eyeWide')) pose = startled * (name.endsWith('Left') ? 0.44 : 0.46);
