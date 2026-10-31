@@ -35,7 +35,7 @@ import { graphicsMode, readSettings, resetProgress, writeSettings, type PlayerSe
 import type { GameAudio } from './audio/director.mjs';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
 import { buildFootballPitch } from './footballScene';
-import { createMatch, formatClock as formatMatchClock, stepMatch, type MatchState } from './footballMatch.mjs';
+import { createMatch, formatClock as formatMatchClock, saveMessage, stepMatch, type MatchState } from './footballMatch.mjs';
 import { ROUNDS as LEAGUE_ROUNDS, YOU as LEAGUE_YOU, clubName, clubShort, readLeague, recordResult, standings, upcomingFixture, writeLeague, yourPosition, type ClubId, type League } from './footballLeague.mjs';
 import { loadFootballPlayers } from './footballPlayers';
 import { CAREERS, SHIFT_HOURS, joinCareer, quitCareer, rankOf, readCareer, workShift, writeCareer, type CareerId, type CareerState } from './careers.mjs';
@@ -1059,6 +1059,7 @@ export default function WorldScene({
             x: position.x, z: position.z, location: locationRef.current, minute: life.minute, energy: life.energy,
             story: storyRef.current, driving: drivenIndex() >= 0, dialogue: dialogueRef.current, npcChat: npcActiveRef.current,
             travelling: pendingTaxi !== null,
+            match: match ? { phase: match.phase, clock: match.clock, score: match.score, keepers: match.players.filter(p => p.role === 'keeper').map(p => ({ team: p.team, x: p.x - PITCH.x, z: p.z - PITCH.z })) } : null,
           }),
           travel: (to: TravelTarget) => travelRef.current(to),
         };
@@ -1815,7 +1816,7 @@ export default function WorldScene({
             if (event.type === 'goal') {
               notify(event.team === 'home' ? `GOAL for Blue! ${match.score.home}–${match.score.away}` : `${clubShort(opponent)} score. ${match.score.home}–${match.score.away}`);
               if (event.team === 'home') riggedRef.current?.playAction('Dance');
-            } else if (event.type === 'save' && event.team === 'away') notify(`Saved by the ${clubShort(opponent)} keeper!`);
+            } else if (event.type === 'save') notify(saveMessage(event, clubShort(opponent)));
             else if (event.type === 'fulltime') {
               const { home, away } = match.score;
               const table = recordResult(leagueRef.current, home, away);

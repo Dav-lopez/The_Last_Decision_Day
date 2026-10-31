@@ -46,10 +46,12 @@ A new player can:
       and Reset progress. A first-run hint showing the basic controls.
 - [x] **3. Progress saved to the account**: story, career and training record, and neighbour relationships
       synced through the API for signed-in players (guests keep local saves); newest-wins merge; tests on both sides.
-- [ ] **4. Football extras**: better goalkeeping, smarter opponents (support runs, marking), a season league
+- [x] **4. Football extras**: better goalkeeping, smarter opponents (support runs, marking), a season league
       table that records your match results.
   - [x] 4a. Season league table: six local clubs, one round per match you play, other games simulated, saved per character.
-  - [ ] 4b. Better goalkeeping and smarter opponents (support runs, marking).
+  - [x] 4b. Better goalkeeping and smarter opponents: keepers narrow the angle, dive (with a dive animation),
+        catch or parry wide, and rush out to smother; forwards make support runs, defenders mark goal-side and cover,
+        passers avoid blocked lanes, shooters pick the far post. Save commentary for both keepers.
 - [ ] **5. Phone and touch pass**: every action reachable by touch (talk, map, range, match, car), layouts that
       fit 360-pixel-wide screens, and a phone-viewport run in the playtest.
   - [x] 5a. Phone playtest (360×640 touch screen, tap-only: story, touch-pad walking, map, downtown, pitch, match)
@@ -82,3 +84,8 @@ A new player can:
   lists them as notices. Worth enlarging in 5b or item 7.
 - The football league save (`tld-league-v1:`) is local only; add it to the account progress document now that #192 has landed.
 - The opponents in a league match still wear the red kit; club colours per opponent would make rounds feel distinct.
+- The match AI favoured whichever team was listed first when two players could reach the ball (home won every tie);
+  the nearer player now plays it, and a mirrored match plays out identically for both ends.
+- A keeper rolling the ball out was logged as a "save", so every goal kick showed "Saved by …" and played the save
+  sound; it is a pass now. AI-vs-AI matches used to finish around 6–5; with the new keeping and marking they average ~6 goals.
+- Keepers dive by tipping the whole body at the feet; a proper dive clip (Quaternius has none) would look better.

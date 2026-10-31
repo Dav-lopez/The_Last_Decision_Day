@@ -188,6 +188,17 @@ await step('pitch: start a match and pass by tapping', async () => {
   await shot('07-match');
   await page.locator('.world-scoreboard').getByRole('button', { name: /pass/i }).tap();
   await page.locator('.world-scoreboard').getByRole('button', { name: /shoot/i }).tap();
+  // The match keeps running and both keepers stay in front of their own goals (east is the away goal).
+  const before = (await read())?.match;
+  await page.waitForTimeout(4000);
+  const after = (await read())?.match;
+  if (!before || !after) throw new Error('match state not readable');
+  if (after.phase === 'play' && !(after.clock < before.clock)) throw new Error(`match clock stuck at ${after.clock}`);
+  for (const k of after.keepers) {
+    const line = k.team === 'away' ? 20 : -20;
+    if (Math.abs(k.x - line) > 9 || Math.abs(k.z) > 6) throw new Error(`${k.team} keeper wandered to ${k.x.toFixed(1)}, ${k.z.toFixed(1)}`);
+  }
+  notes.push(`match running: ${after.score.home}-${after.score.away}, clock ${Math.round(after.clock)} s`);
 });
 
 await browser.close();
