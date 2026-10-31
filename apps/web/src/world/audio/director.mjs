@@ -2,7 +2,7 @@ import { CUES, LOCATIONS, beatSeconds, musicStep } from './score.mjs';
 import { normalizeAudioSettings } from './settings.mjs';
 
 /** Web Audio is created only by enable(), called directly from a user gesture. */
-export function createGameAudio({ createContext, onStatus = () => {} } = {}) {
+export function createGameAudio({ createContext, onStatus = () => {}, onCue = () => {} } = {}) {
   let context = null, buses = null, master = null, compressor = null;
   let disposed = false, enabled = false, hidden = false, resumeVersion = 0;
   let settings = normalizeAudioSettings(null);
@@ -167,7 +167,10 @@ export function createGameAudio({ createContext, onStatus = () => {} } = {}) {
       }).catch(()=>{if(!disposed && version===resumeVersion) onStatus('suspended');});
     },
     cue(name) {
-      if (!playable() || !Object.hasOwn(CUES,name)) return;
+      if (!Object.hasOwn(CUES,name)) return;
+      // Reported even when muted or before audio is enabled, so captions still describe the sound.
+      try { onCue(name); } catch {}
+      if (!playable()) return;
       const time=now();
       if(time-(lastCue.get(name) ?? -Infinity)<.3) return;
       lastCue.set(name,time);

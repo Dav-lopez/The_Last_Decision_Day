@@ -1,13 +1,14 @@
-import { useEffect, useState, type MutableRefObject } from 'react';
-import { createGameAudio, type AudioStatus, type GameAudio } from './director.mjs';
+import { useEffect, useRef, useState, type MutableRefObject } from 'react';
+import { createGameAudio, type AudioCue, type AudioStatus, type GameAudio } from './director.mjs';
 import { readAudioSettings, writeAudioSettings } from './settings.mjs';
 import './audio.css';
 
-export function AudioPanel({ director }: { director: MutableRefObject<GameAudio | null> }) {
+export function AudioPanel({ director, onCue }: { director: MutableRefObject<GameAudio | null>; onCue?: (cue: AudioCue) => void }) {
   const [settings,setSettings]=useState(readAudioSettings);
   const [status,setStatus]=useState<AudioStatus>('off');
+  const onCueRef=useRef(onCue);onCueRef.current=onCue;
   useEffect(()=>{
-    const audio=createGameAudio({onStatus:setStatus});director.current=audio;
+    const audio=createGameAudio({onStatus:setStatus,onCue:cue=>onCueRef.current?.(cue)});director.current=audio;
     audio.setSettings(settings);
     const visibility=()=>audio.setHidden(document.hidden);
     visibility();document.addEventListener('visibilitychange',visibility);

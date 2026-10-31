@@ -61,6 +61,12 @@ A new player can:
       progress, and a bundle-size check in CI.
 - [ ] **7. Accessibility**: full keyboard flow, visible focus, reduced-motion option, readable contrast,
       captions for story audio cues.
+  - [x] 7a. Accessibility settings in the menu: motion (follow the device / reduced / full), sound captions that
+        describe every important sound (bell, messages, doors, whistle, horn…) even with the sound muted, and large
+        text; visible keyboard focus on every in-game control; the game menu keeps Tab inside it and switches
+        tabs with the arrow keys. The playtest drives the menu by keyboard and checks a caption appears.
+  - [ ] 7b. Keyboard flow through the other overlays (map, conversations, training range, wardrobe, league table),
+        a contrast audit of HUD text, and captions for the story scenes' own audio cues where they differ.
 - [ ] **8. Content polish**: two or three downtown characters to talk to; short playable career tasks
       (patrol route, fire call, route march) instead of a fade-to-black shift.
 - [ ] **9. Release checklist**: page title, icons and share image, an error screen with a reload button,
@@ -71,6 +77,8 @@ A new player can:
 - Software rendering in CI runs at about 2 fps; the game clamps frames to 0.05 s of game time, so on very slow
   devices everything moves in slow motion. Worth a "low-end" check in item 6.
 - (add bugs and small follow-ups here)
+- Accessibility settings (motion, captions, text size) live in the browser settings key only; they are
+  device preferences, so they are deliberately not part of the account progress document.
 - "Reset progress" in the game menu (#190) clears the browser saves only; for signed-in players it should also
   reset the account copy (PUT a fresh progress document with a new `savedAt`), or the account copy comes back.
 - The playtest's pitch step failed on `main`: it asked for the trip home while the pitch taxi was still driving
