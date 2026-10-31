@@ -1,9 +1,12 @@
 export type NpcSpeechMood = 'neutral' | 'happy' | 'sad';
+export type NpcSpeechCue = { start: number; end: number; open: number; press: number };
 export type NpcSpeechState = {
   id: string | null;
   mood: NpcSpeechMood;
   elapsed: number;
   duration: number;
+  /** Cached bounded mouth/closure timeline derived from the displayed text. */
+  cues: ReadonlyArray<NpcSpeechCue>;
 };
 /** Estimate a bounded mouth-animation window from a displayed dialogue line. */
 export declare function npcSpeechDuration(line: unknown): number;

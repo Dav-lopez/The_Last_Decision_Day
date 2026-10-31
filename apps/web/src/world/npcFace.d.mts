@@ -9,6 +9,8 @@ export type NpcFaceContext = {
   gaze?: number;
   /** Seconds since the currently displayed dialogue line began. */
   speechElapsed?: number;
+  /** Precomputed dialogue articulation; absent for ambient NPC chatter. */
+  speechCues?: ReadonlyArray<{ start: number; end: number; open: number; press: number }>;
 };
 export type NpcMorph = { name: string; influence: number };
 export type NpcFaceState = { elapsed: number; motions: Map<string, { value: number; velocity: number }>; frame: Map<string, number> };
