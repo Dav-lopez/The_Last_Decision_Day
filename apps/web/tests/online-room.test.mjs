@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRoomClient, normalizeCode, mergeMessage } from '../src/world/multiplayer/roomClient.mjs';
+import { remoteAvatarPresentation } from '../src/world/multiplayer/remoteAvatarPresentation.mjs';
 const code = '0123456789ABCDEF';
 const snapshot = { code, selfId: 'alice', players: [{ characterId: 'alice', name: 'Alice', pose: null }, { characterId: 'bob', name: 'Bob', pose: null }], messages: [] };
 function transport() {
@@ -66,6 +67,36 @@ test('a failed join cannot pretend to connect or discard an existing room', asyn
 test('message history is ordered and bounded to the latest 64', () => {
   let history = []; for (let i = 100; i > 0; i--) history = mergeMessage(history, { id: `${i}`, text: `${i}`, sequence: i });
   assert.equal(history.length, 64); assert.equal(history[0].sequence, 37); assert.equal(history.at(-1).sequence, 100);
+});
+
+test('remote peers use their advertised body rig, with safe legacy and invalid-data fallback', () => {
+  const female = remoteAvatarPresentation({ body: 'female' });
+  assert.equal(female.model, 'human-female.glb');
+  assert.equal(female.look.body, 'female');
+  assert.equal(female.look.hairStyle, 'long');
+  const male = remoteAvatarPresentation({ body: 'male' });
+  assert.equal(male.model, 'human.glb');
+  for (const pose of [null, {}, { body: '../evil.glb' }, { body: null }, { body: 123 }]) {
+    assert.equal(remoteAvatarPresentation(pose).model, 'human.glb');
+  }
+});
+
+test('pose publication includes current body and rejects arbitrary model names', async () => {
+  let clock = 0, selected = 'female';
+  const hub = transport();
+  const client = createRoomClient({ connect: async () => hub, now: () => clock, bodyFor: () => selected });
+  await client.create();
+  const pose = { x: 2, z: 1, rotation: 0, location: 'street', speed: 1, mode: 'walking' };
+  for (const [body, expected] of [['female', 'female'], ['male', 'male'], ['../custom.glb', 'male']]) {
+    selected = body;
+    client.publish(pose);
+    await new Promise(resolve => setImmediate(resolve));
+    const published = hub.calls.filter(call => call[0] === 'PublishPose').at(-1)[1];
+    assert.equal(published.body, expected);
+    assert.equal(published.x, 2);
+    clock += 250;
+  }
+  client.dispose();
 });
 
 import { initialRemoteFacialReaction, remoteMessageReaction, remoteEmoteReaction, remoteFacialPose } from '../src/world/multiplayer/remoteFacialReactions.mjs';
