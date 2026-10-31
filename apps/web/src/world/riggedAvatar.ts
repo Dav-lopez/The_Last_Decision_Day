@@ -9,6 +9,8 @@ import { planarSkinUV, skinMicroNormalMap } from './skinMicroNormalMap.mjs';
 import { stepBlink } from './blinkCycle.mjs';
 import { advanceSharedFacialMorph } from './facialMorphSync.mjs';
 import { idleGazeTarget } from './gazeDynamics.mjs';
+import { emotionHeadTarget, stepEmotionHeadPose } from './emotionalHeadPose.mjs';
+import { createEmotionalHeadRig } from './emotionalHeadRig.mjs';
 import { actionFacialWeight } from './actionFacial.mjs';
 import { composeFacialLayer } from './facialLayerBlend.mjs';
 import { stepSpeechOverlay } from './speechOverlay.mjs';
@@ -244,6 +246,10 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
     const expressionInfluences = new Map<string, { value: number; velocity: number }>();
     // A morph name may appear on several skinned facial surfaces in the same GLB.
     const frameExpressionWeights = new Map<string, number>();
+    // Add restrained emotional head posture after authored bone animations,
+    // restoring the base pose before each new animation frame.
+    const headRig = createEmotionalHeadRig(scene, root!);
+    let headPose = { pitch: 0, roll: 0 };
     let disposed = false;
     return {
       root,
@@ -307,6 +313,10 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
         // the body clip and its speech articulation, including stop transitions.
         const step = stepAction(action, frameSeconds);
         action = step.state;
+        headPose = stepEmotionHeadPose(
+          headPose, emotionHeadTarget(emotion, movementSpeed, step.state?.name), frameSeconds,
+        );
+        headRig.setPose(headPose);
         speechOverlay = stepSpeechOverlay(speechOverlay, speaking, frameSeconds);
         // Remote chat uses only facial articulation; body clips remain free to walk.
         const speechAction: ActionState | null = speechOverlay.weight > 0.001
@@ -361,6 +371,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
         if (disposed) return;
         disposed = true;
         for (const { group } of actions.values()) group.dispose();
+        headRig.dispose();
         container.dispose();
         root?.dispose();
         leanNode.dispose();
