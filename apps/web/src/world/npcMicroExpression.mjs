@@ -28,7 +28,7 @@ export function npcIdleMicroExpression(name, elapsed, {
   talking = false, nearby = false, moving = false, flinch = 0, emotion = 'neutral',
 } = {}) {
   if (typeof name !== 'string' || !Number.isFinite(elapsed) || elapsed < 0 ||
-      !Number.isFinite(flinch) || flinch > 0.05 ||
+      !Number.isFinite(flinch) || flinch < 0 || flinch > 0.05 ||
       talking || nearby || moving || emotion !== 'neutral') return 0;
 
   const cycle = Math.floor(elapsed / PERIOD);
