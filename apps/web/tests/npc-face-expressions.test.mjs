@@ -276,6 +276,7 @@ test('idle micro-expressions have smooth zero endpoints and reject malformed inp
   }
   assert.equal(npcIdleMicroExpression(null, 1.2), 0);
   assert.equal(npcIdleMicroExpression('browInnerUp', 1.2, { flinch: NaN }), 0);
+  assert.equal(npcIdleMicroExpression('browInnerUp', 1.2, { flinch: -1 }), 0);
 });
 
 test('talking, player proximity, movement and distress suppress idle expressions', () => {
