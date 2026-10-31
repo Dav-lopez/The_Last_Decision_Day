@@ -266,7 +266,7 @@ test('idle residents show brief, asymmetric curiosity and half-smiles separated 
 });
 
 test('idle micro-expressions have smooth zero endpoints and reject malformed inputs', () => {
-  for (const t of [0, 0.85, 2.3, 7.2, 8.3, 9.9]) {
+  for (const t of [0, 0.85, 2.3, 7.2, 8.2, 10.0]) {
     assert.equal(npcIdleMicroExpression('browInnerUp', t), 0);
   }
   assert.ok(npcIdleMicroExpression('browInnerUp', 0.851) < 0.001);
