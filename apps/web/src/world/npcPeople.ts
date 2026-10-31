@@ -10,6 +10,7 @@ import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 import { initialNpcBlink, collectNpcEyelids, advanceNpcBlink } from './npcBlink.mjs';
 import { collectNpcFaceTargets, initialNpcFace, advanceNpcFace, resetNpcFace } from './npcFace.mjs';
 import { npcAttentionGaze } from './npcAttentionGaze.mjs';
+import { beginNpcSpeech, advanceNpcSpeech, isNpcSpeaking, npcShouldArticulate } from './npcSpeechTimeline.mjs';
 import { createNpcFacialMaterials } from './npcFacialMaterials.mjs';
 import { resolveNpcBody, resolveNpcClips } from './npcAnimationClips.mjs';
 
@@ -24,7 +25,7 @@ export type Neighbors = {
   /** Where each resident who is out stands right now (resident id → position). */
   positions: () => Record<string, { x: number; z: number }>;
   /** Highlight the speaking resident and apply the latest reply emotion; they stop and face the player. */
-  setConversation: (residentId: string | null, mood?: 'neutral' | 'happy' | 'sad') => void;
+  setConversation: (residentId: string | null, mood?: 'neutral' | 'happy' | 'sad', line?: string) => void;
   dispose: () => void;
 };
 
@@ -115,11 +116,11 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     hit.group.start(false, 1, hit.group.from, hit.group.to);
     hit.group.setWeightForAllAnimatables(0);
   };
-  let speaker: { id: string | null; mood: 'neutral' | 'happy' | 'sad' } = { id: null, mood: 'neutral' };
+  let speaker = beginNpcSpeech(null, 'neutral', '');
   const live: Record<string, { x: number; z: number }> = {};
   return {
     positions: () => live,
-    setConversation(id, mood = 'neutral') { speaker = { id, mood }; },
+    setConversation(id, mood = 'neutral', line = '') { speaker = beginNpcSpeech(id, mood, line); },
     react(x, z) {
       let nearest: (typeof people)[number] | null = null;
       let best = 2.6;
@@ -132,6 +133,8 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     },
     update(seconds, minute, player, cars) {
       const dt = Number.isFinite(seconds) ? Math.max(0, Math.min(seconds, 0.1)) : 0;
+      // One shared clock for the selected resident, not one tick per NPC.
+      speaker = advanceNpcSpeech(speaker, dt);
       const outside: Person[] = [];
       for (const person of people) {
         const out = isOut(person.npc, minute);
@@ -151,6 +154,7 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
         const obstacles = player ? [{ x: player.x, z: player.z, radius: 0.38 }] : [];
         // Give way to traffic at the kerb; once out on the road, hurry across.
         const talking = speaker.id === person.npc.id;
+        const speaking = talking && isNpcSpeaking(speaker);
         const blocked = talking || !pose.moving || shouldYield(pose, obstacles) || carAhead(person.npc, person.walked, cars) || carComing(person.npc, person.walked, cars);
         const pace = blocked ? 1 : crossingPace(pose, cars);
         if (!blocked) {
@@ -191,7 +195,10 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
         // Conversations move jaw/lips, nearby stationary residents acknowledge
         // the player, and Hit actions briefly override those poses with surprise.
         person.face = advanceNpcFace(person.face, dt, person.faceTargets, {
-          talking: speaker.id === person.npc.id || (person.npc.route.kind === 'stand' && person.actions.has('Talk')),
+          talking: npcShouldArticulate(speaker, person.npc.id, person.npc.route.kind === 'stand' && person.actions.has('Talk')),
+          // A new displayed reply restarts lip motion; an open dialog does not
+          // make the NPC mouth loop forever. Ambient Talk clips are unchanged.
+          speechElapsed: speaking ? speaker.elapsed : undefined,
           emotion: speaker.id === person.npc.id ? speaker.mood : 'neutral',
           nearby: Boolean(player && Math.hypot(player.x - pose.x, player.z - pose.z) < 2.5),
           moving: person.walkWeight > 0.15,
