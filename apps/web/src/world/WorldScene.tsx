@@ -36,6 +36,7 @@ import type { GameAudio } from './audio/director.mjs';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
 import { buildFootballPitch } from './footballScene';
 import { createMatch, formatClock as formatMatchClock, stepMatch, type MatchState } from './footballMatch.mjs';
+import { ROUNDS as LEAGUE_ROUNDS, YOU as LEAGUE_YOU, clubName, clubShort, readLeague, recordResult, standings, upcomingFixture, writeLeague, yourPosition, type ClubId, type League } from './footballLeague.mjs';
 import { loadFootballPlayers } from './footballPlayers';
 import { CAREERS, SHIFT_HOURS, joinCareer, quitCareer, rankOf, readCareer, workShift, writeCareer, type CareerId, type CareerState } from './careers.mjs';
 import { buildWorkplaces, createLightBar, createSiren } from './careersScene';
@@ -461,6 +462,12 @@ export default function WorldScene({
   // Five-a-side: the scoreboard while a match is on, and whether you can start one.
   const [scoreboard, setScoreboard] = useState<string | null>(null);
   const [matchPrompt, setMatchPrompt] = useState(false);
+  // Season league: each match is a round against the next local club; the table is saved per character.
+  const [league, setLeague] = useState<League>(() => readLeague(characterId));
+  const leagueRef = useRef(league);
+  const [leagueOpen, setLeagueOpen] = useState(false);
+  const saveLeague = (next: League) => { leagueRef.current = next; writeLeague(characterId, next); setLeague(next); };
+  const fixture = upcomingFixture(league);
   const matchRef = useRef<{ start: () => void; pass: () => void; leave: () => void }>({ start: () => {}, pass: () => {}, leave: () => {} });
   const emoteRef = useRef<(emote: 'jump' | 'dance') => void>(() => {});
   const housePainterRef = useRef<HousePainter | null>(null);
@@ -1396,6 +1403,7 @@ export default function WorldScene({
       let matchActions: { shoot?: boolean; chip?: boolean; pass?: boolean } = {};
       let matchEndsIn = 0;
       let lastPhase = '';
+      let opponent: ClubId = 'creek';
       const youInMatch = () => match?.players.find(p => p.human) ?? null;
       const endMatch = () => {
         match = null;
@@ -1411,13 +1419,16 @@ export default function WorldScene({
           matchLoading = true;
           notify('Picking teams…');
           const fresh = createMatch();
+          const next = upcomingFixture(leagueRef.current);
+          opponent = next.opponent ?? 'creek';
+          setLeagueOpen(false);
           void loadFootballPlayers(scene, fresh.players, shadows).then(bodies => {
             matchLoading = false;
             if (!bodies || locationRef.current !== 'city') { bodies?.dispose(); notify("Couldn't get the teams together. Try again."); return; }
             matchPlayers = bodies;
             match = fresh;
             lastPhase = '';
-            notify('Five-a-side! You play up front for Blue. Run into the ball to dribble · F shoots · Shift+F chips · Q passes.');
+            notify(`League match, season ${next.season} round ${next.round} of ${next.rounds}: Blue v ${clubName(opponent)}. You play up front. Run into the ball to dribble · F shoots · Shift+F chips · Q passes.`);
           });
         },
         pass: () => { if (match) matchActions = { ...matchActions, pass: true }; },
@@ -1802,12 +1813,16 @@ export default function WorldScene({
             else if (event.type === 'save') audioRef.current?.cue('save');
             else if (event.type === 'goal' || event.type === 'fulltime') audioRef.current?.cue(event.type === 'goal' ? 'goal' : 'whistle');
             if (event.type === 'goal') {
-              notify(event.team === 'home' ? `GOAL for Blue! ${match.score.home}–${match.score.away}` : `Red score. ${match.score.home}–${match.score.away}`);
+              notify(event.team === 'home' ? `GOAL for Blue! ${match.score.home}–${match.score.away}` : `${clubShort(opponent)} score. ${match.score.home}–${match.score.away}`);
               if (event.team === 'home') riggedRef.current?.playAction('Dance');
-            } else if (event.type === 'save' && event.team === 'away') notify('Saved by the Red keeper!');
+            } else if (event.type === 'save' && event.team === 'away') notify(`Saved by the ${clubShort(opponent)} keeper!`);
             else if (event.type === 'fulltime') {
               const { home, away } = match.score;
-              notify(`Full time: Blue ${home}–${away} Red. ${home > away ? 'You win!' : home < away ? 'Red win this one.' : "It's a draw."}`);
+              const table = recordResult(leagueRef.current, home, away);
+              saveLeague(table);
+              const champion = table.round >= LEAGUE_ROUNDS ? table.champions.at(-1)?.club ?? null : null;
+              notify(`Full time: Blue ${home}–${away} ${clubShort(opponent)}. ${home > away ? 'You win!' : home < away ? `${clubShort(opponent)} win this one.` : "It's a draw."} You're ${yourPosition(table)} in the league.${champion ? ` Season over: ${champion === LEAGUE_YOU ? 'Maple Street Blue are champions!' : `${clubName(champion)} win the league.`}` : ''}`);
+              setLeagueOpen(true);
               matchEndsIn = 5;
               storyActionsRef.current.reportStory('played-match');
             }
@@ -1870,7 +1885,7 @@ export default function WorldScene({
             const canStart = onPitchNow && !match;
             setMatchPrompt(previous => previous === canStart ? previous : canStart);
             if (match && toPitch > 45) matchRef.current.leave();
-            const board = match ? `Blue ${match.score.home} – ${match.score.away} Red · ${match.phase === 'fulltime' ? 'Full time' : formatMatchClock(match.clock)}` : null;
+            const board = match ? `Blue ${match.score.home} – ${match.score.away} ${clubShort(opponent)} · ${match.phase === 'fulltime' ? 'Full time' : formatMatchClock(match.clock)}` : null;
             setScoreboard(previous => previous === board ? previous : board);
             setBallPrompt(previous => previous === nearBall ? previous : nearBall);
             const work = workplaceAt(position);
@@ -2175,7 +2190,20 @@ export default function WorldScene({
         {workPrompt && inCity && career.career === workPrompt && !rangeOpen && <button type="button" className="world-car-action world-range-start"
           onClick={event => { rangeRef.current.open(); focusWorld(event); }}>{RANGE_DRILLS[workPrompt].title} (T)</button>}
         {matchPrompt && inCity && !scoreboard && <button type="button" className="world-car-action world-match-start"
-          onClick={event => { matchRef.current.start(); focusWorld(event); }}>Start a five-a-side match (M)</button>}
+          onClick={event => { matchRef.current.start(); focusWorld(event); }}>League match v {clubShort(fixture.opponent ?? 'creek')} (M)</button>}
+        {matchPrompt && inCity && !scoreboard && !leagueOpen && <button type="button" className="world-car-action world-league-open"
+          onClick={event => { setLeagueOpen(true); focusWorld(event); }}>League table</button>}
+        {leagueOpen && inCity && <section className="world-league" aria-label="League table">
+          <header><strong>Five-a-side league · season {league.round >= fixture.rounds ? league.season : fixture.season}</strong>
+            <button type="button" onClick={event => { setLeagueOpen(false); focusWorld(event); }} aria-label="Close league table">✕</button></header>
+          <table>
+            <thead><tr><th scope="col">#</th><th scope="col">Club</th><th scope="col" title="Played">P</th><th scope="col" title="Won">W</th><th scope="col" title="Drawn">D</th><th scope="col" title="Lost">L</th><th scope="col" title="Goal difference">GD</th><th scope="col" title="Points">Pts</th></tr></thead>
+            <tbody>{standings(league).map((row, i) => <tr key={row.club} className={row.club === LEAGUE_YOU ? 'you' : undefined}>
+              <td>{i + 1}</td><td>{row.name}</td><td>{row.played}</td><td>{row.won}</td><td>{row.drawn}</td><td>{row.lost}</td><td>{row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}</td><td><strong>{row.points}</strong></td></tr>)}</tbody>
+          </table>
+          <small>{league.round >= fixture.rounds ? `Season ${league.season} finished. Next: season ${fixture.season}, ` : `Next: round ${fixture.round} of ${fixture.rounds}, `}Blue v {clubName(fixture.opponent ?? 'creek')}. Win 3 · draw 1.
+            {league.champions.length > 0 && ` Champions: ${league.champions.slice(-3).map(c => `S${c.season} ${clubShort(c.club)}`).join(', ')}.`}</small>
+        </section>}
         {(busAction ?? workAction ?? (ballPrompt && inCity ? 'Kick (E or F) · Shift+F chips' : null) ?? actionLabel) && <button type="button" className="world-car-action"
           onClick={event => { interactRef.current(); focusWorld(event); }}>
           {busAction ?? workAction ?? (ballPrompt && inCity ? 'Kick (E or F) · Shift+F chips' : null) ?? actionLabel}

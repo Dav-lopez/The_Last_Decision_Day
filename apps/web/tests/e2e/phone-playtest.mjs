@@ -61,7 +61,7 @@ const holdTouch = async (locator, untilFn, maxMs) => {
 
 // Overlays drawn over the 3D view must not cover each other.
 const OVERLAYS = ['caption', 'clock and energy', 'objective', 'scoreboard', 'wayfinding', 'drive HUD', 'notice',
-  'action button', 'chip button', 'range button', 'match button', 'school button'];
+  'action button', 'chip button', 'range button', 'match button', 'league button', 'school button'];
 const measure = () => page.evaluate(() => {
   const visible = element => {
     const style = getComputedStyle(element);
@@ -79,11 +79,12 @@ const measure = () => page.evaluate(() => {
   hud('.world-wayfinding', 'wayfinding');
   hud('.world-drive-hud', 'drive HUD');
   hud('.world-notice', 'notice');
-  hud('.world-car-action:not(.world-range-start):not(.world-match-start):not(.world-chip-action)', 'action button');
+  hud('.world-car-action:not(.world-range-start):not(.world-match-start):not(.world-league-open):not(.world-chip-action)', 'action button');
   hud('.world-chip-action', 'chip button');
   hud('.world-enter', 'school button');
   hud('.world-range-start', 'range button');
   hud('.world-match-start', 'match button');
+  hud('.world-league-open', 'league button');
   // The buttons a player needs to play: everything over the 3D view, the pad, the camera row and the map.
   const core = '.world-viewport button, .world-control-buttons button, .world-camera-toggle button';
   const small = [];
