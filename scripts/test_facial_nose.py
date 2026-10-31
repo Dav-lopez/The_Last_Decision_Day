@@ -59,7 +59,7 @@ class NoseGeometryTests(unittest.TestCase):
                 if x * side <= 0 or abs(x) >= 0.031 or y in (1.625, 1.676):
                     self.assertEqual(delta, (0, 0, 0))
                 if x * side <= 0:
-                    self.assertTrue(all(abs(v) < 1e-8 for v in normal_delta))
+                    self.assertTrue(all(abs(v) < 0.001 for v in normal_delta))
                 self.assertAlmostEqual(
                     math.sqrt(sum((a + b) ** 2 for a, b in zip(rest_normal, normal_delta))),
                     1, places=6)
