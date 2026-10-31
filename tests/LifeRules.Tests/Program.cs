@@ -50,4 +50,25 @@ Check(LifeRules.Validate(tired with { Minute = 15 * 60 + 25, Energy = 60 }, tire
 Check(LifeRules.Validate(tired with { Minute = 15 * 60 + 10, Energy = 19 }, tired, TimeSpan.FromMinutes(10)) == LifeSaveVerdict.Accepted,
     "Energy draining while awake is accepted");
 Check(LifeRules.TotalMinutes(new LifeState(2, 0, 50, "street")) == 1440, "Total minutes count whole days");
-Console.WriteLine("All life rules passed.");
+
+// Progress (story, career, relationships): newest save wins.
+var now = DateTimeOffset.FromUnixTimeMilliseconds(1_800_000_000_000);
+System.Text.Json.JsonElement Doc(string json) => System.Text.Json.JsonDocument.Parse(json).RootElement.Clone();
+var full = Doc("{\"version\":1,\"story\":{\"chapter\":1},\"career\":{\"career\":null},\"relations\":{\"version\":1,\"people\":{}}}");
+var save = new ProgressSave(now.ToUnixTimeMilliseconds() - 1000, full);
+Check(ProgressRules.Validate(save, null, now) == ProgressSaveVerdict.Accepted, "First progress save is accepted");
+Check(ProgressRules.Validate(save, save.SavedAt, now) == ProgressSaveVerdict.Accepted, "Saving the same progress twice is fine");
+Check(ProgressRules.Validate(save, save.SavedAt + 1, now) == ProgressSaveVerdict.Stale, "An older progress save cannot replace a newer one");
+Check(ProgressRules.Validate(save with { SavedAt = save.SavedAt + 5000 }, save.SavedAt, now) == ProgressSaveVerdict.Accepted, "A newer progress save replaces the old one");
+foreach (var bad in new ProgressSave?[]
+{
+    null,
+    save with { SavedAt = 0 },
+    save with { SavedAt = now.Add(TimeSpan.FromHours(1)).ToUnixTimeMilliseconds() },
+    save with { Data = Doc("[]") },
+    save with { Data = Doc("{\"story\":{},\"career\":{}}") },
+    save with { Data = Doc("{\"story\":{},\"career\":{},\"relations\":\"x\"}") },
+    save with { Data = Doc("{\"story\":{},\"career\":{},\"relations\":{},\"pad\":\"" + new string('a', ProgressRules.MaxDocumentBytes) + "\"}") },
+})
+    Check(ProgressRules.Validate(bad, null, now) == ProgressSaveVerdict.Invalid, "Rejects an invalid progress save");
+Console.WriteLine("All life and progress rules passed.");

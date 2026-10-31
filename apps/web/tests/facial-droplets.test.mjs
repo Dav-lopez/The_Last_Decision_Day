@@ -73,3 +73,38 @@ test('switching emotions releases stale tear and eye effects', () => {
   assert.ok(embarrassed.wateryEyes < sad.wateryEyes);
   assert.ok(embarrassed.blush > 0);
 });
+
+import { stepDropletClock } from '../src/world/facialDroplets.mjs';
+
+test('new crying episodes begin at the tear duct on both sides', () => {
+  for (const kind of ['tear', 'sweat']) {
+    for (const side of ['Left', 'Right']) {
+      const atOnset = dropletCycle(0, kind, side);
+      assert.equal(atOnset.phase, 0);
+      assert.equal(atOnset.opacity, 0);
+    }
+    const early = dropletCycle(0.25, kind, 'Right');
+    assert.equal(early.opacity, 0, 'right drop should not materialize midway down the cheek');
+    assert.ok(dropletCycle(0.5, kind, 'Left').phase > dropletCycle(0.5, kind, 'Right').phase);
+  }
+});
+
+test('droplet clocks reset between episodes but preserve motion while fading', () => {
+  const start = stepDropletClock({ elapsed: 9, active: false }, 0.8, 0.016);
+  assert.ok(start.active && start.elapsed > 0 && start.elapsed < 0.02);
+  const ongoing = stepDropletClock(start, 0.15, 0.08);
+  assert.ok(ongoing.elapsed > start.elapsed, 'release envelope must not restart visible droplets');
+  const stopped = stepDropletClock(ongoing, 0.01, 0.08);
+  assert.deepEqual(stopped, { elapsed: 0, active: false });
+  const restarted = stepDropletClock(stopped, 0.8, 0.016);
+  assert.equal(restarted.elapsed, start.elapsed);
+});
+
+test('droplet clocks reject invalid intensities and bounded timing spikes', () => {
+  for (const intensity of [NaN, Infinity, -1, 0]) {
+    assert.deepEqual(stepDropletClock({ elapsed: 2, active: true }, intensity, 1), { elapsed: 0, active: false });
+  }
+  const invalid = { elapsed: Infinity, active: true };
+  assert.deepEqual(stepDropletClock(invalid, 0.9, NaN), { elapsed: 0, active: true });
+  assert.deepEqual(stepDropletClock(invalid, 0.9, 100), { elapsed: 0.1, active: true });
+});
