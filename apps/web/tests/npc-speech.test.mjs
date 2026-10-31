@@ -40,7 +40,7 @@ test('invalid times never corrupt morphs and all weights stay in range', () => {
   }
 });
 
-import { npcSpeechDuration, beginNpcSpeech, advanceNpcSpeech, isNpcSpeaking } from '../src/world/npcSpeechTimeline.mjs';
+import { npcSpeechDuration, beginNpcSpeech, advanceNpcSpeech, isNpcSpeaking, npcShouldArticulate } from '../src/world/npcSpeechTimeline.mjs';
 
 test('dialogue text creates finite, bounded speech windows instead of endless mouth loops', () => {
   assert.equal(npcSpeechDuration(''), 0);
@@ -93,4 +93,13 @@ test('invalid or huge frames cannot skip a line or propagate non-finite speech s
   assert.equal(speech.elapsed, 0.1);
   assert.equal(isNpcSpeaking(speech), true);
   assert.equal(npcFaceTarget('jawOpen', NaN, { talking: true, speechElapsed: NaN }), 0.06);
+});
+
+test('selected standing NPC does not fall back to ambient mouth loops after a reply', () => {
+  let speech = beginNpcSpeech('maya', 'neutral', 'Hello!');
+  assert.equal(npcShouldArticulate(speech, 'maya', true), true);
+  for (let i = 0; i < 1000; i++) speech = advanceNpcSpeech(speech, 1 / 60);
+  assert.equal(npcShouldArticulate(speech, 'maya', true), false);
+  assert.equal(npcShouldArticulate(speech, 'jordan', true), true);
+  assert.equal(npcShouldArticulate(speech, 'jordan', false), false);
 });
