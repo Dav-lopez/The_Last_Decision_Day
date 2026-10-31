@@ -64,4 +64,6 @@ A new player can:
 - (add bugs and small follow-ups here)
 - "Reset progress" in the game menu (#190) clears the browser saves only; for signed-in players it should also
   reset the account copy (PUT a fresh progress document with a new `savedAt`), or the account copy comes back.
+- The playtest's pitch step failed on `main`: it asked for the trip home while the pitch taxi was still driving
+  (quick travel refuses a second trip). The playtest now waits for `travelling` to clear.
 - The day/clock (`/me/life`) and progress (`/me/progress`) are synced separately; a later pass could merge them.
