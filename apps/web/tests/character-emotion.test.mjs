@@ -110,3 +110,6 @@ test('bilateral gaze has slight asymmetry but never divergent directions', () =>
   assert.ok(left > 0 && right > left && right - left < 0.02);
   assert.equal(idleGazeTarget('eyeLookUpLeft', 1, 'neutral', 0), 0);
 });
+
+// Exercise horizontal idle-gaze regressions in the existing CI emotion test entrypoint.
+import './idle-horizontal-gaze.test.mjs';
