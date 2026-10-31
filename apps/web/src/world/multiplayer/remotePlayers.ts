@@ -41,8 +41,11 @@ export function createRemotePlayers(scene: Scene, shadows: ShadowGenerator) {
         }).catch(() => { /* Visible fallback remains if the GLB cannot load. */ });
       }
       const entry = active!; const pose = peer.pose;
-      const dt = Number.isFinite(delta) ? Math.min(0.1, Math.max(0, delta)) : 0;
-      clock += dt;
+      // Advance reaction expiry across background-tab resumes, but clamp the
+      // animation step so a delayed frame cannot snap the body or face.
+      const elapsed = Number.isFinite(delta) ? Math.min(60, Math.max(0, delta)) : 0;
+      const dt = Math.min(0.1, elapsed);
+      clock += elapsed;
       // New chat line or emote from your friend: show it over their head for a few seconds.
       const said = room!.messages.filter(m => m.senderId === peer.characterId).at(-1);
       const emote = room!.emotes?.filter(e => e.characterId === peer.characterId).at(-1);
