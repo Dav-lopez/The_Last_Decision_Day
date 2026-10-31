@@ -1,11 +1,11 @@
-import { Color3, PBRMaterial, RawTexture, Scene, SceneLoader, Texture, TransformNode, type AbstractMesh, type AnimationGroup, type Material } from '@babylonjs/core';
+import { Color3, Mesh, MultiMaterial, PBRMaterial, RawTexture, Scene, SceneLoader, Texture, TransformNode, VertexBuffer, type AbstractMesh, type AnimationGroup, type Material } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
 import { ZONE_MATERIALS, dressZones, type Look, type Zone } from './appearance.mjs';
 import { faceTarget, type Emotion } from './facialEmotions';
 import { EMPTY_EFFECTS, smoothFacialEffects, targetFacialEffects } from './facialEffects';
 import { dropletCycle } from './facialDroplets.mjs';
 import { skinSurface, hairSurface, skinRoughness } from './surfaceShading.mjs';
-import { skinMicroNormalMap } from './skinMicroNormalMap.mjs';
+import { planarSkinUV, skinMicroNormalMap } from './skinMicroNormalMap.mjs';
 import { stepBlink } from './blinkCycle.mjs';
 import { advanceSharedFacialMorph } from './facialMorphSync.mjs';
 import { idleGazeTarget } from './gazeDynamics.mjs';
@@ -63,6 +63,18 @@ function attachSkinPores(material: PBRMaterial) {
   material.bumpTexture = tile;
 }
 
+/** Populate only absent UVs on imported skin meshes; preserve authored UV maps. */
+function ensureSkinUVs(meshes: ReadonlyArray<AbstractMesh>) {
+  for (const mesh of meshes) {
+    if (!(mesh instanceof Mesh) || mesh.isVerticesDataPresent(VertexBuffer.UVKind)) continue;
+    const materials = mesh.material instanceof MultiMaterial ? mesh.material.subMaterials : [mesh.material];
+    if (!materials.some(item => item instanceof PBRMaterial && unprefixed(item.name) === 'Student skin')) continue;
+    const positions = mesh.getVerticesData(VertexBuffer.PositionKind);
+    const uvs = planarSkinUV(positions);
+    if (uvs) mesh.setVerticesData(VertexBuffer.UVKind, uvs, false, 2);
+  }
+}
+
 /**
  * Paints a character copy for a look: skin, hair colour and style, and each
  * outfit zone (sleeves, legs, socks, shoes, soles) as clothing or skin, plus
@@ -71,6 +83,7 @@ function attachSkinPores(material: PBRMaterial) {
  */
 export function dressCharacter(materials: ReadonlyArray<Material>, meshes: ReadonlyArray<AbstractMesh>, look: Look) {
   const dress = dressZones(look);
+  ensureSkinUVs(meshes);
   const linear = (hex: string) => Color3.FromHexString(hex).toLinearSpace();
   const skin = linear(dress.skin);
   const hair = linear(dress.hairColour);
@@ -136,6 +149,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
     // Source units are metres. Normalize by the rest-pose bounds, including hair,
     // and place the soles on the same ground used by collisions and the camera.
     normalizeRiggedVisual(root);
+    ensureSkinUVs(container.meshes);
     // A lean node between the player and the model banks the body into turns.
     const leanNode = new TransformNode('rigged player lean', scene);
     leanNode.parent = parent;
