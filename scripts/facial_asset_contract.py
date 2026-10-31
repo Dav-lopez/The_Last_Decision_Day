@@ -19,7 +19,9 @@ REQUIRED_MORPHS = {
     "mouthPressRight", "jawOpen", "mouthOpen",
     "cheekSquintLeft", "cheekSquintRight",
     "eyeLookDownLeft", "eyeLookDownRight", "eyeLookUpLeft",
-    "eyeLookUpRight", "tearTrackLeft", "tearTrackRight",
+    "eyeLookUpRight", "eyeLookLeftLeft", "eyeLookLeftRight",
+    "eyeLookRightLeft", "eyeLookRightRight",
+    "tearTrackLeft", "tearTrackRight",
     "sweatTrackLeft", "sweatTrackRight",
 }
 HEAD_MESHES = {

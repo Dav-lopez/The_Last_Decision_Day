@@ -45,6 +45,18 @@ class CorneaGeometryTests(unittest.TestCase):
                 if "Blink" in name and x * side > 0:
                     self.assertLessEqual(abs((y + dy) - 1.686), abs(y - 1.686) + 1e-9)
 
+    def test_horizontal_gaze_moves_cornea_with_eye_but_not_opposite_side(self):
+        g = self.g
+        for side in ("Left", "Right"):
+            left = g["targets"][g["names"].index("eyeLookLeft" + side)]
+            right = g["targets"][g["names"].index("eyeLookRight" + side)]
+            owner = -1 if side == "Left" else 1
+            center = next(i for i, (x, y, z) in enumerate(g["positions"])
+                          if abs(x - owner * 0.052) < 1e-8 and abs(y - 1.686) < 1e-8)
+            self.assertLess(left[center][0], 0)
+            self.assertGreater(right[center][0], 0)
+            self.assertAlmostEqual(left[center][0], -right[center][0])
+
     def test_reject_invalid_head_joint(self):
         for bad in (-1, 256, True, 2.4, "Head"):
             with self.assertRaises(ValueError):

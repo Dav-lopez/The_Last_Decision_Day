@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { composeEyeExpression } from '../src/world/eyeExpression.mjs';
 
 test('a fully closed blink suppresses competing squint and wide morphs', () => {
-  for (const name of ['eyeWideLeft', 'eyeWideRight', 'eyeSquintLeft', 'eyeSquintRight', 'eyeLookDownLeft', 'eyeLookDownRight', 'eyeLookUpLeft', 'eyeLookUpRight']) {
+  for (const name of ['eyeWideLeft', 'eyeWideRight', 'eyeSquintLeft', 'eyeSquintRight', 'eyeLookDownLeft', 'eyeLookDownRight', 'eyeLookUpLeft', 'eyeLookUpRight', 'eyeLookLeftLeft', 'eyeLookLeftRight', 'eyeLookRightLeft', 'eyeLookRightRight']) {
     assert.equal(composeEyeExpression(name, 0.8, {left: 1, right: 1}), 0);
     assert.equal(composeEyeExpression(name, 0.8, {left: 0, right: 0}), 0.8);
   }

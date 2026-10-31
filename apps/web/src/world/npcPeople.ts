@@ -9,6 +9,7 @@ import { NEIGHBORS, PERSON_RADIUS, carAhead, carComing, crossingPace, dodgeFrom,
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 import { initialNpcBlink, collectNpcEyelids, advanceNpcBlink } from './npcBlink.mjs';
 import { collectNpcFaceTargets, initialNpcFace, advanceNpcFace, resetNpcFace } from './npcFace.mjs';
+import { npcAttentionGaze } from './npcAttentionGaze.mjs';
 import { createNpcFacialMaterials } from './npcFacialMaterials.mjs';
 import { resolveNpcBody, resolveNpcClips } from './npcAnimationClips.mjs';
 
@@ -196,6 +197,7 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
           moving: person.walkWeight > 0.15,
           flinch: flinch.weight,
           blink: person.blink,
+          gaze: npcAttentionGaze(pose, player, person.heading),
         });
         // Surface reactions use the same conversation mood and Hit response
         // as the facial morphs; hidden residents never run these updates.

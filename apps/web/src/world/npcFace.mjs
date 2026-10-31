@@ -2,7 +2,7 @@ import { advanceSharedFacialMorph } from './facialMorphSync.mjs';
 import { idleGazeTarget } from './gazeDynamics.mjs';
 import { npcSpeechWeight } from './npcSpeechDynamics.mjs';
 
-const FACIAL_MORPH = /^(?:eye(?:Look(?:Up|Down)|Wide|Squint)(?:Left|Right)|brow(?:InnerUp|DownLeft|DownRight)|cheekSquint(?:Left|Right)|jawOpen|mouth(?:Open|SmileLeft|SmileRight|FrownLeft|FrownRight|PressLeft|PressRight))$/;
+const FACIAL_MORPH = /^(?:eye(?:Look(?:Up|Down|Left|Right)|Wide|Squint)(?:Left|Right)|brow(?:InnerUp|DownLeft|DownRight)|cheekSquint(?:Left|Right)|jawOpen|mouth(?:Open|SmileLeft|SmileRight|FrownLeft|FrownRight|PressLeft|PressRight))$/;
 
 /** Collect only the cloned resident's expression morphs. Blink and droplet tracks have separate owners. */
 export function collectNpcFaceTargets(meshes) {
@@ -25,7 +25,7 @@ export function initialNpcFace(index) {
 }
 
 /** Small, bounded poses layered over each resident's existing locomotion/action clips. */
-export function npcFaceTarget(name, elapsed, { talking = false, nearby = false, moving = false, flinch = 0, emotion = 'neutral' } = {}) {
+export function npcFaceTarget(name, elapsed, { talking = false, nearby = false, moving = false, flinch = 0, emotion = 'neutral', gaze = 0 } = {}) {
   if (!FACIAL_MORPH.test(name)) return 0;
   const startled = Number.isFinite(flinch) ? Math.min(1, Math.max(0, flinch)) : 0;
   const composure = 1 - startled;
@@ -53,11 +53,17 @@ export function npcFaceTarget(name, elapsed, { talking = false, nearby = false, 
   else if (name.startsWith('eyeWide')) pose = startled * (name.endsWith('Left') ? 0.44 : 0.46);
   else if (name.startsWith('eyeSquint')) pose = sad * (name.endsWith('Left') ? 0.19 : 0.15);
   else if (name.startsWith('eyeLook')) {
-    // Sadness lowers the gaze while neutral idle glances remain independent.
-    // A Hit reaction interrupts both; eye blink masking is handled downstream.
-    const down = name.startsWith('eyeLookDown') ? sad * (name.endsWith('Left') ? 0.24 : 0.21) : 0;
-    pose = down + composure * idleGazeTarget(name, time, 'neutral',
-      moving || talking || startled > 0.1 || emotion !== 'neutral' ? 1 : 0);
+    if (/^eyeLook(?:Left|Right)(?:Left|Right)$/.test(name)) {
+      // Eyes lead the body when acknowledging a player. Distress, walking
+      // and a flinch suppress eye contact without affecting mouth movement.
+      const focus = Number.isFinite(gaze) ? Math.max(-0.55, Math.min(0.55, gaze)) : 0;
+      pose = greeting > 0 && !sad && startled < 0.1
+        ? Math.max(0, name.startsWith('eyeLookRight') ? focus : -focus) * composure : 0;
+    } else {
+      const down = name.startsWith('eyeLookDown') ? sad * (name.endsWith('Left') ? 0.24 : 0.21) : 0;
+      pose = down + composure * idleGazeTarget(name, time, 'neutral',
+        moving || talking || startled > 0.1 || emotion !== 'neutral' ? 1 : 0);
+    }
   }
   return Math.min(1, Math.max(0, pose));
 }
