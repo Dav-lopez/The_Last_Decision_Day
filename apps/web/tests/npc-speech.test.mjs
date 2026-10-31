@@ -39,3 +39,58 @@ test('invalid times never corrupt morphs and all weights stay in range', () => {
     assert.ok(Number.isFinite(value) && value >= 0 && value <= 1);
   }
 });
+
+import { npcSpeechDuration, beginNpcSpeech, advanceNpcSpeech, isNpcSpeaking } from '../src/world/npcSpeechTimeline.mjs';
+
+test('dialogue text creates finite, bounded speech windows instead of endless mouth loops', () => {
+  assert.equal(npcSpeechDuration(''), 0);
+  assert.equal(npcSpeechDuration(null), 0);
+  assert.ok(npcSpeechDuration('Hello, how are you?') > npcSpeechDuration('Hello'));
+  assert.ok(npcSpeechDuration('a '.repeat(5000)) <= 8);
+  assert.ok(npcSpeechDuration('Hi') >= 0.8);
+});
+
+test('NPC finishes a line but keeps its selected identity and emotional reaction', () => {
+  let speech = beginNpcSpeech('maya', 'sad', 'I am upset about what happened.');
+  assert.equal(isNpcSpeaking(speech), true);
+  for (let i = 0; i < 1000; i++) speech = advanceNpcSpeech(speech, 1 / 60);
+  assert.equal(isNpcSpeaking(speech), false);
+  assert.equal(speech.elapsed, speech.duration);
+  assert.equal(speech.id, 'maya');
+  assert.equal(speech.mood, 'sad');
+  assert.equal(npcFaceTarget('mouthOpen', 0.5, { talking: false, emotion: speech.mood }), 0);
+  assert.ok(npcFaceTarget('mouthFrownLeft', 0.5, { talking: false, emotion: speech.mood }) > 0);
+});
+
+test('a new reply restarts articulation for the same NPC without resetting other faces', () => {
+  let speech = beginNpcSpeech('maya', 'neutral', 'Hello!');
+  for (let i = 0; i < 1000; i++) speech = advanceNpcSpeech(speech, 1 / 60);
+  assert.equal(isNpcSpeaking(speech), false);
+  speech = beginNpcSpeech('maya', 'happy', 'Thank you for coming back!');
+  assert.equal(speech.elapsed, 0);
+  assert.equal(speech.mood, 'happy');
+  assert.equal(isNpcSpeaking(speech), true);
+  assert.equal(isNpcSpeaking(beginNpcSpeech(null, 'happy', 'Hello')), false);
+});
+
+test('speech clock is independent of NPC idle face clock and never changes gaze or blink', () => {
+  const oldPhase = npcFaceTarget('jawOpen', 2.3, { talking: true });
+  const newLine = npcFaceTarget('jawOpen', 2.3, { talking: true, speechElapsed: 0.23 });
+  assert.equal(oldPhase, 0, 'old idle face phase is in a phrase pause');
+  assert.ok(newLine > 0, 'new reply uses its own speech clock');
+  assert.equal(npcFaceTarget('eyeBlinkLeft', 2.3, { talking: true, speechElapsed: 0.23 }), 0);
+  assert.equal(npcFaceTarget('eyeLookDownLeft', 2.3, { talking: true, emotion: 'sad', speechElapsed: 0.23 }),
+    npcFaceTarget('eyeLookDownLeft', 2.3, { talking: true, emotion: 'sad' }));
+});
+
+test('invalid or huge frames cannot skip a line or propagate non-finite speech state', () => {
+  let speech = beginNpcSpeech('jordan', 'neutral', 'Hello world');
+  for (const dt of [NaN, Infinity, -Infinity, -1]) {
+    speech = advanceNpcSpeech(speech, dt);
+    assert.equal(speech.elapsed, 0);
+  }
+  speech = advanceNpcSpeech(speech, 999);
+  assert.equal(speech.elapsed, 0.1);
+  assert.equal(isNpcSpeaking(speech), true);
+  assert.equal(npcFaceTarget('jawOpen', NaN, { talking: true, speechElapsed: NaN }), 0.06);
+});
