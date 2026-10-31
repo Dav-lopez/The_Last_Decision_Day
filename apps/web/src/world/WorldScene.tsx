@@ -9,6 +9,8 @@ import { loadRiggedAvatar, type RiggedAvatar } from './riggedAvatar';
 import type { Emotion } from './facialEmotions';
 import { resolveCharacterEmotion } from './characterEmotion.mjs';
 import { loadSchoolEnvironment } from './schoolEnvironment';
+import LoadingScreen from './LoadingScreen';
+import { WORLD_LOAD_TASKS, createLoadingTracker } from './loadingProgress.mjs';
 import { smoothHumanHeading } from './humanMotion.mjs';
 import { HUMAN_HEIGHT, movementHeading } from './riggedPresentation.mjs';
 import { SCHOOL_DOOR, isNearSchool, type PlanarPosition } from './movement.mjs';
@@ -40,6 +42,7 @@ import type { GameAudio } from './audio/director.mjs';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
 import { buildFootballPitch } from './footballScene';
 import { createMatch, formatClock as formatMatchClock, stepMatch, type MatchState } from './footballMatch.mjs';
+import { ROUNDS as LEAGUE_ROUNDS, YOU as LEAGUE_YOU, clubName, clubShort, readLeague, recordResult, standings, upcomingFixture, writeLeague, yourPosition, type ClubId, type League } from './footballLeague.mjs';
 import { loadFootballPlayers } from './footballPlayers';
 import { CAREERS, SHIFT_HOURS, joinCareer, quitCareer, rankOf, readCareer, workShift, writeCareer, type CareerId, type CareerState } from './careers.mjs';
 import { buildWorkplaces, createLightBar, createSiren } from './careersScene';
@@ -476,6 +479,12 @@ export default function WorldScene({
   // Five-a-side: the scoreboard while a match is on, and whether you can start one.
   const [scoreboard, setScoreboard] = useState<string | null>(null);
   const [matchPrompt, setMatchPrompt] = useState(false);
+  // Season league: each match is a round against the next local club; the table is saved per character.
+  const [league, setLeague] = useState<League>(() => readLeague(characterId));
+  const leagueRef = useRef(league);
+  const [leagueOpen, setLeagueOpen] = useState(false);
+  const saveLeague = (next: League) => { leagueRef.current = next; writeLeague(characterId, next); setLeague(next); };
+  const fixture = upcomingFixture(league);
   const matchRef = useRef<{ start: () => void; pass: () => void; leave: () => void }>({ start: () => {}, pass: () => {}, leave: () => {} });
   const emoteRef = useRef<(emote: 'jump' | 'dance') => void>(() => {});
   const housePainterRef = useRef<HousePainter | null>(null);
@@ -483,6 +492,9 @@ export default function WorldScene({
   const [previewEmotion, setPreviewEmotion] = useState<Emotion>('neutral');
   const previewEmotionRef = useRef<Emotion>('neutral');
   const [modelStatus, setModelStatus] = useState('Loading character…');
+  // The loading screen: Maple Street's downloads as weighted tasks (downtown carries on in the background).
+  const [loadTracker] = useState(() => createLoadingTracker(WORLD_LOAD_TASKS, performance.now()));
+  const worldReadyRef = useRef(false);
   const [cameraMode, setCameraMode] = useState<'follow' | 'overhead'>('follow');
   const cameraModeRef = useRef<'follow' | 'overhead'>('follow');
   const cameraControlsRef = useRef<ReturnType<typeof createCameraControls> | null>(null);
@@ -672,6 +684,9 @@ export default function WorldScene({
       // Nothing in the world is clicked: skip ray-picking on every pointer move.
       scene.skipPointerMovePicking = true;
       sceneRef.current = scene;
+      const loadStartedAt = performance.now();
+      for (const task of WORLD_LOAD_TASKS) loadTracker.start(task.id, loadStartedAt);
+      scene.onAfterRenderObservable.addOnce(() => loadTracker.finish('scene'));
       scene.clearColor = new Color4(0.67, 0.83, 0.96, 1);
       const sun = new HemisphericLight('daylight', new Vector3(0, 1, 0), scene);
       sun.intensity = 0.65;
@@ -762,7 +777,8 @@ export default function WorldScene({
         const disposeStop = buildBusStop(scene, world.x + local.awayX * 0.9, world.z + local.awayZ * 0.9, local.heading);
         downtown = { city, collider, stop: { ...world, rotation: movementHeading(local.dx, local.dz), dx: local.dx, dz: local.dz, awayX: local.awayX, awayZ: local.awayZ, street: local.street }, dispose: () => { disposeCity(); disposeStop(); lights.dispose(); pitch.dispose(); workplaces.dispose(); cityTraffic?.dispose(); cityTraffic = null; } };
       };
-      loadDowntown().catch(() => { /* Downtown is optional; Maple Street plays without it. */ });
+      loadDowntown().then(() => loadTracker.finish('downtown'),
+        () => loadTracker.fail('downtown') /* Downtown is optional; Maple Street plays without it. */);
       // The town around the street, so the world reaches the horizon instead of ending at a cliff edge.
       buildSurroundings(scene);
       // The barrier at the north end lifts for a car: the road out of town leads downtown.
@@ -838,13 +854,14 @@ export default function WorldScene({
       void loadNeighbors(scene, shadows).then(loaded => {
         if (environmentLoad.cancelled || scene.isDisposed) loaded?.dispose();
         else { neighbors = loaded; npcSceneRef.current = loaded; }
-      }).catch(error => console.warn('Neighbours unavailable', error));
+        loadTracker.finish('neighbours');
+      }).catch(error => { loadTracker.fail('neighbours'); console.warn('Neighbours unavailable', error); });
       void addWorldProps(scene, environmentLoad, shadows)
-        .then(manifest => { if (manifest && !environmentLoad.cancelled) setPropCredit(true); })
-        .catch(error => console.warn('Street props unavailable', error));
+        .then(manifest => { if (manifest && !environmentLoad.cancelled) setPropCredit(true); loadTracker.finish('props'); })
+        .catch(error => { loadTracker.fail('props'); console.warn('Street props unavailable', error); });
       void upgradeNeighborhoodAssets(scene, environmentLoad, shadows, roots => {
         roots.forEach((root, index) => { carRoots[index]?.push(root); placeCar(index); });
-      });
+      }).then(() => loadTracker.finish('cars'), () => loadTracker.fail('cars'));
       // Limit shadow-map draw calls to the large world silhouettes.
       // Ground and paving receive shadows but do not cast; small facade details
       // are omitted from the shadow pass while remaining visible in the scene.
@@ -864,7 +881,9 @@ export default function WorldScene({
         if (schoolAssetCancelled || scene.isDisposed) { asset?.dispose(); return; }
         schoolAsset = asset;
         for (const mesh of asset?.meshes ?? []) { shadows.addShadowCaster(mesh, false); mesh.checkCollisions = true; }
+        loadTracker.finish('school');
       }).catch(error => {
+        loadTracker.fail('school');
         // Procedural school stays visible if the authored asset fails validation.
         console.warn('School glTF unavailable; using procedural fallback', error);
       });
@@ -887,7 +906,7 @@ export default function WorldScene({
         const token = ++loadToken;
         void loadRiggedAvatar(scene, avatar, model).then(human => {
           if (humanLoadCancelled || scene.isDisposed || token !== loadToken) { human?.dispose(); return; }
-          if (!human) return;
+          if (!human) { loadTracker.fail('character'); return; }
           const previous = riggedRef.current;
           if (previous) {
             for (const mesh of previous.root.getChildMeshes()) shadows.removeShadowCaster(mesh, false);
@@ -907,7 +926,9 @@ export default function WorldScene({
           }
           for (const mesh of human.root.getChildMeshes()) shadows.addShadowCaster(mesh, false);
           setModelStatus('Character ready · Idle, walk and run');
+          loadTracker.finish('character');
         }).catch(() => {
+          loadTracker.fail('character');
           if (humanLoadCancelled || token !== loadToken) return;
           loadedModel = '';
           if (!riggedRef.current) setModelStatus('Basic character in use. Reload to retry loading the human character.');
@@ -1083,6 +1104,7 @@ export default function WorldScene({
             traffic: cityTraffic?.cars().slice(0, 30).map(car => ({ x: car.x, z: car.z, speed: car.speed })) ?? [],
             taxi: Boolean(pendingTaxi) || Boolean(pendingDrive),
             travelling: pendingTaxi !== null,
+            loading: !worldReadyRef.current,
           }),
           travel: (to: TravelTarget) => travelRef.current(to),
           route: () => mapReadRef.current().routeLength ?? 0,
@@ -1466,6 +1488,7 @@ export default function WorldScene({
       let matchActions: { shoot?: boolean; chip?: boolean; pass?: boolean } = {};
       let matchEndsIn = 0;
       let lastPhase = '';
+      let opponent: ClubId = 'creek';
       const youInMatch = () => match?.players.find(p => p.human) ?? null;
       const endMatch = () => {
         match = null;
@@ -1481,13 +1504,16 @@ export default function WorldScene({
           matchLoading = true;
           notify('Picking teams…');
           const fresh = createMatch();
+          const next = upcomingFixture(leagueRef.current);
+          opponent = next.opponent ?? 'creek';
+          setLeagueOpen(false);
           void loadFootballPlayers(scene, fresh.players, shadows).then(bodies => {
             matchLoading = false;
             if (!bodies || locationRef.current !== 'city') { bodies?.dispose(); notify("Couldn't get the teams together. Try again."); return; }
             matchPlayers = bodies;
             match = fresh;
             lastPhase = '';
-            notify('Five-a-side! You play up front for Blue. Run into the ball to dribble · F shoots · Shift+F chips · Q passes.');
+            notify(`League match, season ${next.season} round ${next.round} of ${next.rounds}: Blue v ${clubName(opponent)}. You play up front. Run into the ball to dribble · F shoots · Shift+F chips · Q passes.`);
           });
         },
         pass: () => { if (match) matchActions = { ...matchActions, pass: true }; },
@@ -1911,12 +1937,16 @@ export default function WorldScene({
             else if (event.type === 'save') audioRef.current?.cue('save');
             else if (event.type === 'goal' || event.type === 'fulltime') audioRef.current?.cue(event.type === 'goal' ? 'goal' : 'whistle');
             if (event.type === 'goal') {
-              notify(event.team === 'home' ? `GOAL for Blue! ${match.score.home}–${match.score.away}` : `Red score. ${match.score.home}–${match.score.away}`);
+              notify(event.team === 'home' ? `GOAL for Blue! ${match.score.home}–${match.score.away}` : `${clubShort(opponent)} score. ${match.score.home}–${match.score.away}`);
               if (event.team === 'home') riggedRef.current?.playAction('Dance');
-            } else if (event.type === 'save' && event.team === 'away') notify('Saved by the Red keeper!');
+            } else if (event.type === 'save' && event.team === 'away') notify(`Saved by the ${clubShort(opponent)} keeper!`);
             else if (event.type === 'fulltime') {
               const { home, away } = match.score;
-              notify(`Full time: Blue ${home}–${away} Red. ${home > away ? 'You win!' : home < away ? 'Red win this one.' : "It's a draw."}`);
+              const table = recordResult(leagueRef.current, home, away);
+              saveLeague(table);
+              const champion = table.round >= LEAGUE_ROUNDS ? table.champions.at(-1)?.club ?? null : null;
+              notify(`Full time: Blue ${home}–${away} ${clubShort(opponent)}. ${home > away ? 'You win!' : home < away ? `${clubShort(opponent)} win this one.` : "It's a draw."} You're ${yourPosition(table)} in the league.${champion ? ` Season over: ${champion === LEAGUE_YOU ? 'Maple Street Blue are champions!' : `${clubName(champion)} win the league.`}` : ''}`);
+              setLeagueOpen(true);
               matchEndsIn = 5;
               storyActionsRef.current.reportStory('played-match');
             }
@@ -1979,7 +2009,7 @@ export default function WorldScene({
             const canStart = onPitchNow && !match;
             setMatchPrompt(previous => previous === canStart ? previous : canStart);
             if (match && toPitch > 45) matchRef.current.leave();
-            const board = match ? `Blue ${match.score.home} – ${match.score.away} Red · ${match.phase === 'fulltime' ? 'Full time' : formatMatchClock(match.clock)}` : null;
+            const board = match ? `Blue ${match.score.home} – ${match.score.away} ${clubShort(opponent)} · ${match.phase === 'fulltime' ? 'Full time' : formatMatchClock(match.clock)}` : null;
             setScoreboard(previous => previous === board ? previous : board);
             setBallPrompt(previous => previous === nearBall ? previous : nearBall);
             const work = workplaceAt(position);
@@ -2202,6 +2232,7 @@ export default function WorldScene({
     <div className="world-viewport">
       {!error && <canvas ref={canvasRef} tabIndex={0} aria-label={`3D world for ${displayName}; click to focus, use WASD or arrow keys to move`} />}
       {error ? <p className="world-fallback" role="status">{error}</p> : <>
+        <LoadingScreen tracker={loadTracker} onReady={() => { worldReadyRef.current = true; }} />
         <div className="world-life" role="status" aria-label={`Day ${lifeView.day}, ${formatClock(lifeView.minute)}, energy ${Math.round(lifeView.energy)} percent`}>
           <span>Day {lifeView.day} · {formatClock(lifeView.minute)}{lifeSync && syncStatus !== 'idle' &&
             <small className="world-sync"> · {syncStatus === 'offline' ? 'Saved in this browser' : syncStatus === 'saving' ? 'Saving…' : 'Saved to your account'}</small>}</span>
@@ -2285,7 +2316,20 @@ export default function WorldScene({
         {workPrompt && inCity && career.career === workPrompt && !rangeOpen && <button type="button" className="world-car-action world-range-start"
           onClick={event => { rangeRef.current.open(); focusWorld(event); }}>{RANGE_DRILLS[workPrompt].title} (T)</button>}
         {matchPrompt && inCity && !scoreboard && <button type="button" className="world-car-action world-match-start"
-          onClick={event => { matchRef.current.start(); focusWorld(event); }}>Start a five-a-side match (M)</button>}
+          onClick={event => { matchRef.current.start(); focusWorld(event); }}>League match v {clubShort(fixture.opponent ?? 'creek')} (M)</button>}
+        {matchPrompt && inCity && !scoreboard && !leagueOpen && <button type="button" className="world-car-action world-league-open"
+          onClick={event => { setLeagueOpen(true); focusWorld(event); }}>League table</button>}
+        {leagueOpen && inCity && <section className="world-league" aria-label="League table">
+          <header><strong>Five-a-side league · season {league.round >= fixture.rounds ? league.season : fixture.season}</strong>
+            <button type="button" onClick={event => { setLeagueOpen(false); focusWorld(event); }} aria-label="Close league table">✕</button></header>
+          <table>
+            <thead><tr><th scope="col">#</th><th scope="col">Club</th><th scope="col" title="Played">P</th><th scope="col" title="Won">W</th><th scope="col" title="Drawn">D</th><th scope="col" title="Lost">L</th><th scope="col" title="Goal difference">GD</th><th scope="col" title="Points">Pts</th></tr></thead>
+            <tbody>{standings(league).map((row, i) => <tr key={row.club} className={row.club === LEAGUE_YOU ? 'you' : undefined}>
+              <td>{i + 1}</td><td>{row.name}</td><td>{row.played}</td><td>{row.won}</td><td>{row.drawn}</td><td>{row.lost}</td><td>{row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}</td><td><strong>{row.points}</strong></td></tr>)}</tbody>
+          </table>
+          <small>{league.round >= fixture.rounds ? `Season ${league.season} finished. Next: season ${fixture.season}, ` : `Next: round ${fixture.round} of ${fixture.rounds}, `}Blue v {clubName(fixture.opponent ?? 'creek')}. Win 3 · draw 1.
+            {league.champions.length > 0 && ` Champions: ${league.champions.slice(-3).map(c => `S${c.season} ${clubShort(c.club)}`).join(', ')}.`}</small>
+        </section>}
         {(busAction ?? workAction ?? (ballPrompt && inCity ? 'Kick (E or F) · Shift+F chips' : null) ?? actionLabel) && <button type="button" className="world-car-action"
           onClick={event => { interactRef.current(); focusWorld(event); }}>
           {busAction ?? workAction ?? (ballPrompt && inCity ? 'Kick (E or F) · Shift+F chips' : null) ?? actionLabel}

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { collectNpcFaceTargets, initialNpcFace, npcFaceTarget, advanceNpcFace, resetNpcFace } from '../src/world/npcFace.mjs';
 import { npcAttentionGaze } from '../src/world/npcAttentionGaze.mjs';
+import { npcIdleMicroExpression } from '../src/world/npcMicroExpression.mjs';
 
 const weight = (name, emotion, extra = {}) => npcFaceTarget(name, 0.23, { emotion, talking: true, nearby: true, ...extra });
 const morph = name => ({ name, influence: 0 });
@@ -197,4 +198,113 @@ test('NPC eye attention remains finite for malformed and extreme target position
     assert.ok(Number.isFinite(gaze) && Math.abs(gaze) <= 0.55);
   }
   assert.equal(npcAttentionGaze(npc, { x: 1, z: -1 }, Infinity), 0);
+});
+
+test('unattended residents make short, coordinated left and right idle glances', () => {
+  for (const [direction, cycle] of [['Left', 3], ['Right', 5]]) {
+    const time = cycle * 4.8 + 1;
+    const left = npcFaceTarget(`eyeLook${direction}Left`, time);
+    const right = npcFaceTarget(`eyeLook${direction}Right`, time);
+    assert.ok(left > 0 && right > left && right <= 0.20, `${direction} glance is bilateral`);
+    const opposite = direction === 'Left' ? 'Right' : 'Left';
+    assert.equal(npcFaceTarget(`eyeLook${opposite}Left`, time), 0,
+      'opposing horizontal gaze must not activate');
+    assert.equal(npcFaceTarget(`eyeLook${direction}Left`, cycle * 4.8 + 0.4), 0,
+      'eyes remain centred before the saccade');
+    assert.equal(npcFaceTarget(`eyeLook${direction}Left`, cycle * 4.8 + 2.2), 0,
+      'eyes return to centre after fixation');
+  }
+});
+
+test('player attention, conversations, movement and distress suppress idle eye glances', () => {
+  const time = 3 * 4.8 + 1;
+  const morphName = 'eyeLookLeftLeft';
+  assert.ok(npcFaceTarget(morphName, time) > 0);
+  for (const context of [
+    { nearby: true, gaze: 0 }, { talking: true }, { moving: true },
+    { emotion: 'sad' }, { emotion: 'happy' }, { flinch: 1 },
+  ]) {
+    assert.equal(npcFaceTarget(morphName, time, context), 0, JSON.stringify(context));
+  }
+  assert.ok(npcFaceTarget('eyeLookRightLeft', time, { nearby: true, gaze: 0.4 }) > 0,
+    'active attention continues to take precedence');
+  assert.equal(npcFaceTarget('eyeLookLeftLeft', time, { nearby: true, gaze: 0.4 }), 0);
+});
+
+test('idle horizontal gaze remains blink-masked and synchronized across cloned face meshes', () => {
+  const left = morph('eyeLookLeftLeft'), duplicate = morph('eyeLookLeftLeft');
+  const right = morph('eyeLookLeftRight');
+  let state = initialNpcFace(0);
+  state.elapsed = 3 * 4.8 + 1;
+  for (let i = 0; i < 12; i++) {
+    state = advanceNpcFace(state, 1 / 60, [left, duplicate, right], {
+      blink: { left: 1, right: 0 },
+    });
+  }
+  assert.equal(left.influence, 0);
+  assert.equal(left.influence, duplicate.influence);
+  assert.ok(right.influence > 0);
+  state = advanceNpcFace(state, 1 / 60, [left, duplicate, right], {
+    blink: { left: 0, right: 0 },
+  });
+  assert.ok(left.influence > 0);
+  assert.equal(left.influence, duplicate.influence);
+});
+
+test('idle residents show brief, asymmetric curiosity and half-smiles separated by rest', () => {
+  const brow = npcIdleMicroExpression('browInnerUp', 1.2);
+  assert.ok(brow > 0.08 && brow <= 0.09);
+  assert.ok(npcIdleMicroExpression('cheekSquintLeft', 1.2) > npcIdleMicroExpression('cheekSquintRight', 1.2));
+  assert.equal(npcIdleMicroExpression('mouthSmileLeft', 1.2), 0, 'curiosity is not a smile');
+
+  const smileTime = 7.2 + 1.5;
+  assert.ok(npcIdleMicroExpression('mouthSmileLeft', smileTime) > npcIdleMicroExpression('mouthSmileRight', smileTime) > 0);
+  assert.ok(npcIdleMicroExpression('cheekSquintLeft', smileTime) > 0);
+  assert.equal(npcIdleMicroExpression('mouthFrownLeft', smileTime), 0);
+  assert.equal(npcIdleMicroExpression('eyeBlinkLeft', smileTime), 0, 'blink has its own animator');
+  assert.equal(npcIdleMicroExpression('mouthSmileLeft', 14.4 + 1.5), 0, 'every third cycle rests');
+});
+
+test('idle micro-expressions have smooth zero endpoints and reject malformed inputs', () => {
+  for (const t of [0, 0.85, 2.3, 7.2, 8.2, 10.0]) {
+    assert.equal(npcIdleMicroExpression('browInnerUp', t), 0);
+  }
+  assert.ok(npcIdleMicroExpression('browInnerUp', 0.851) < 0.001);
+  assert.ok(npcIdleMicroExpression('browInnerUp', 2.299) < 0.001);
+  for (const t of [NaN, Infinity, -Infinity, -1]) {
+    assert.equal(npcIdleMicroExpression('browInnerUp', t), 0);
+  }
+  assert.equal(npcIdleMicroExpression(null, 1.2), 0);
+  assert.equal(npcIdleMicroExpression('browInnerUp', 1.2, { flinch: NaN }), 0);
+  assert.equal(npcIdleMicroExpression('browInnerUp', 1.2, { flinch: -1 }), 0);
+});
+
+test('talking, player proximity, movement and distress suppress idle expressions', () => {
+  const time = 8.7;
+  assert.ok(npcFaceTarget('mouthSmileLeft', time) > 0);
+  for (const context of [
+    { talking: true }, { nearby: true }, { moving: true },
+    { emotion: 'sad' }, { emotion: 'happy' }, { flinch: 0.2 },
+  ]) {
+    assert.equal(npcIdleMicroExpression('mouthSmileLeft', time, context), 0);
+  }
+  assert.equal(npcFaceTarget('mouthSmileLeft', time, { emotion: 'sad' }), 0,
+    'a sad resident must never inherit an idle grin');
+  assert.equal(npcFaceTarget('mouthSmileLeft', time, { moving: true }), 0);
+});
+
+test('resident offsets desynchronize micro-expressions and shared mesh morphs stay identical', () => {
+  const a = initialNpcFace(0), b = initialNpcFace(4);
+  a.elapsed = 1.2;
+  assert.ok(npcIdleMicroExpression('browInnerUp', a.elapsed) > 0);
+  assert.equal(npcIdleMicroExpression('browInnerUp', b.elapsed), 0);
+
+  const brow = morph('browInnerUp'), duplicate = morph('browInnerUp');
+  let state = a;
+  for (let i = 0; i < 18; i++) state = advanceNpcFace(state, 1 / 60, [brow, duplicate]);
+  assert.ok(brow.influence > 0);
+  assert.equal(brow.influence, duplicate.influence, 'cloned facial surfaces share one spring');
+  state = resetNpcFace(state, [brow, duplicate]);
+  assert.equal(brow.influence, 0);
+  assert.equal(state.motions.size, 0);
 });

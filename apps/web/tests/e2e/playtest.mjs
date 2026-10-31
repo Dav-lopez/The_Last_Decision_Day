@@ -62,6 +62,14 @@ await step('loads the start page', async () => {
   await page.goto(`${base}/?playtest`, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.getByRole('button', { name: /try the 3d demo/i }).click({ timeout: 20000 });
 });
+await step('loading screen shows progress and gets out of the way', async () => {
+  const started = Date.now();
+  await page.waitForSelector('.world-loading [role=progressbar]', { timeout: 90000 });
+  await shot('00-loading');
+  await page.waitForFunction(() => Boolean(window.__tld) && !window.__tld.read().loading, null, { timeout: 120000 });
+  await page.waitForSelector('.world-loading', { state: 'detached', timeout: 10000 });
+  notes.push(`world ready ${((Date.now() - started) / 1000).toFixed(1)}s after the game code loaded`);
+});
 await step('world loads', async () => {
   await page.waitForSelector('.world-life', { timeout: 90000 });
   await page.waitForFunction(() => Boolean(window.__tld), null, { timeout: 30000 });

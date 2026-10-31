@@ -90,6 +90,14 @@ async function post<T>(path: string, payload?: unknown): Promise<T> {
   });
 }
 
+/** While the game code itself downloads (before the world's own loading screen can show). */
+function GameDownloading() {
+  return <div className="hero hero-placeholder hero-loading" role="status" aria-label="Downloading the game">
+    <p>Downloading the game…</p>
+    <div className="hero-loading-bar" aria-hidden="true"><span /></div>
+  </div>;
+}
+
 function App() {
   const onlineRef = useRef<RoomClient | null>(null);
   const schoolSection = useRef<HTMLHeadingElement>(null);
@@ -285,7 +293,7 @@ function App() {
 
   return <main className="page">
     <header><h1>The Last Decision</h1><p>Your life. Your choices. Your consequences.</p></header>
-    {(profile || guestDemo) ? <Suspense fallback={<div className="hero hero-placeholder" role="status">Loading your 3D neighborhood…</div>}>
+    {(profile || guestDemo) ? <Suspense fallback={<GameDownloading />}>
       <WorldScene online={profile ? onlineRef : undefined} key={profile?.id ?? 'guest-demo'} characterId={profile?.id ?? 'guest-demo'}
         displayName={profile?.displayName ?? 'Guest explorer'} demoMode={!profile}
         onSchoolEnter={() => schoolSection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
