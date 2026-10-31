@@ -263,8 +263,8 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
         action = step.state;
         speechOverlay = stepSpeechOverlay(speechOverlay, speaking, frameSeconds);
         // Remote chat uses only facial articulation; body clips remain free to walk.
-        const speechAction = speechOverlay.weight > 0.001
-          ? { name: 'Talk', elapsed: speechOverlay.elapsed } : null;
+        const speechAction: ActionState | null = speechOverlay.weight > 0.001
+          ? { name: 'Talk', elapsed: speechOverlay.elapsed, loop: true, duration: 1, stopAt: null } : null;
         frameExpressionWeights.clear();
         for (const morph of facialTargets) {
           const dropletKind = morph.name.startsWith('tearTrack') ? 'tear'
