@@ -38,8 +38,16 @@ export function Minimap({ read, hidden }: { read: () => MapSnapshot; hidden: boo
     const ratio = Math.min(2, window.devicePixelRatio || 1);
     canvas.width = SIZE * ratio; canvas.height = SIZE * ratio;
     let timer = 0;
+    let lastKey = '';
     const draw = () => {
       const snap = read();
+      // Skip the redraw when nothing on the minimap has visibly changed.
+      const r = (v: number, k = 2) => Math.round(v * k);
+      const key = [snap.location, snap.you && r(snap.you.x), snap.you && r(snap.you.z), snap.you && r(snap.you.heading, 20), r(snap.view, 20),
+        snap.route?.length ?? 0, snap.routeLength && r(snap.routeLength, 0.1), snap.waypoint && r(snap.waypoint.x), snap.waypoint && r(snap.waypoint.z),
+        snap.traffic.length, snap.traffic.slice(0, 30).map(car => `${r(car.x, 0.5)},${r(car.z, 0.5)}`).join(';')].join('|');
+      if (key === lastKey) return;
+      lastKey = key;
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       ctx.clearRect(0, 0, SIZE, SIZE);
       ctx.save();
@@ -107,7 +115,7 @@ export function Minimap({ read, hidden }: { read: () => MapSnapshot; hidden: boo
         if (label.current.textContent !== text) label.current.textContent = text;
       }
     };
-    const loop = () => { draw(); timer = window.setTimeout(loop, 120); };
+    const loop = () => { draw(); timer = window.setTimeout(loop, 150); };
     loop();
     return () => window.clearTimeout(timer);
   }, [read, hidden]);
