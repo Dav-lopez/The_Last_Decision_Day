@@ -155,7 +155,7 @@ await step('downtown layout fits the phone', async () => {
 });
 await step('pitch: start a match and pass by tapping', async () => {
   await page.evaluate(() => window.__tld.travel('pitch'));
-  await page.waitForFunction(() => { const s = window.__tld.read(); return s.location === 'city' && !s.dialogue; }, null, { timeout: 180000 });
+  await page.waitForFunction(() => { const s = window.__tld.read(); return s.location === 'city' && !s.dialogue && !s.travelling; }, null, { timeout: 180000 });
   await page.waitForTimeout(3000);
   await tapAway();
   await page.locator('.world-viewport').scrollIntoViewIfNeeded();
@@ -173,7 +173,13 @@ await step('pitch: start a match and pass by tapping', async () => {
 });
 
 await browser.close();
-for (const note of notes) annotate('notice', 'Phone playtest', note);
+// GitHub shows at most ten notices per step, so pack the notes into a few long ones.
+const packed = [];
+for (const note of notes) {
+  if (packed.length && packed[packed.length - 1].length + note.length < 880) packed[packed.length - 1] += ` | ${note}`;
+  else packed.push(note);
+}
+for (const note of packed.slice(0, 8)) annotate('notice', 'Phone playtest', note);
 for (const problem of [...new Set(problems)]) annotate('error', 'Phone playtest', problem);
 console.log(problems.length ? `${problems.length} phone playtest problem(s)` : 'Phone playtest passed');
 process.exit(problems.length ? 1 : 0);

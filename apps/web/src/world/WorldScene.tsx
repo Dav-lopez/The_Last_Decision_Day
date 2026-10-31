@@ -956,6 +956,7 @@ export default function WorldScene({
           read: () => ({
             x: position.x, z: position.z, location: locationRef.current, minute: life.minute, energy: life.energy,
             story: storyRef.current, driving: drivenIndex() >= 0, dialogue: dialogueRef.current, npcChat: npcActiveRef.current,
+            travelling: pendingTaxi !== null,
           }),
           travel: (to: TravelTarget) => travelRef.current(to),
         };
