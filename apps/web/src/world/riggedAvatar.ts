@@ -10,6 +10,7 @@ import { stepBlink } from './blinkCycle.mjs';
 import { advanceSharedFacialMorph } from './facialMorphSync.mjs';
 import { idleGazeTarget } from './gazeDynamics.mjs';
 import { actionFacialWeight } from './actionFacial.mjs';
+import { composeFacialLayer } from './facialLayerBlend.mjs';
 import { stepSpeechOverlay } from './speechOverlay.mjs';
 import { blendHumanWeights, classifyHumanMotion, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
@@ -325,9 +326,10 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
             // Blink and droplet morphs retain their dedicated timing paths.
             morph.influence = advanceSharedFacialMorph(
               morph.name, morph.influence,
-              Math.min(1, Math.max(faceTarget(emotion, morph.name),
+              composeFacialLayer(morph.name, emotion,
+                faceTarget(emotion, morph.name),
                 actionFacialWeight(morph.name, step.state, step.weight),
-                actionFacialWeight(morph.name, speechAction, speechOverlay.weight)) +
+                actionFacialWeight(morph.name, speechAction, speechOverlay.weight),
                 idleGazeTarget(morph.name, effectTime, emotion, movementSpeed)),
               frameSeconds, blinkState, expressionInfluences, frameExpressionWeights,
             );
