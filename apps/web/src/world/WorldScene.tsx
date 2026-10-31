@@ -965,6 +965,7 @@ export default function WorldScene({
             x: position.x, z: position.z, location: locationRef.current, minute: life.minute, energy: life.energy,
             story: storyRef.current, driving: drivenIndex() >= 0, dialogue: dialogueRef.current, npcChat: npcActiveRef.current,
             traffic: cityTraffic?.cars().slice(0, 30).map(car => ({ x: car.x, z: car.z, speed: car.speed })) ?? [],
+            taxi: Boolean(pendingTaxi) || Boolean(pendingDrive),
           }),
           travel: (to: TravelTarget) => travelRef.current(to),
         };

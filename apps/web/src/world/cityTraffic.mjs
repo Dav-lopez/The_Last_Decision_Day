@@ -185,8 +185,8 @@ export function createTraffic(graph, count, seed = 7, avoid = []) {
  * Distance to the nearest thing in this car's lane ahead (another car, the
  * player, the player's car), or Infinity. Obstacles are city-local points.
  */
-export function gapAhead(graph, car, others, obstacles = []) {
-  const pose = carPose(graph, car);
+export function gapAhead(graph, car, others, obstacles = [], poses = null) {
+  const pose = poses?.get(car.id) ?? carPose(graph, car);
   let best = Infinity;
   const consider = (x, z, radius) => {
     const rx = x - pose.x, rz = z - pose.z;
@@ -196,7 +196,7 @@ export function gapAhead(graph, car, others, obstacles = []) {
   };
   for (const other of others) {
     if (other === car) continue;
-    const o = carPose(graph, other);
+    const o = poses?.get(other.id) ?? carPose(graph, other);
     // Only cars heading roughly our way count as "the car ahead"; oncoming ones are in the other lane.
     if (o.dx * pose.dx + o.dz * pose.dz < 0.2) continue;
     consider(o.x, o.z, TRAFFIC.carLength / 2);
@@ -214,6 +214,8 @@ export function stepTraffic(graph, traffic, seconds, obstacles = []) {
   if (!dt || !graph.edges.length) return traffic;
   const { random } = traffic;
   const holders = junctionHolders(graph, traffic.cars);
+  // Every car's pose once per step, not once per pair.
+  const poses = new Map(traffic.cars.map(car => [car.id, carPose(graph, car)]));
   const cars = traffic.cars.map(car => {
     const edge = graph.edges[car.edge];
     let target = CRUISE[edge.kind] ?? 8;
@@ -228,7 +230,7 @@ export function stepTraffic(graph, traffic, seconds, obstacles = []) {
         target = 0;
       }
     }
-    const gap = gapAhead(graph, car, traffic.cars, obstacles) - TRAFFIC.carLength / 2 - TRAFFIC.gap;
+    const gap = gapAhead(graph, car, traffic.cars, obstacles, poses) - TRAFFIC.carLength / 2 - TRAFFIC.gap;
     if (gap < 0) target = 0;
     else if (gap < 10) target = Math.min(target, gap * 0.9);
     const speed = car.speed < target ? Math.min(target, car.speed + TRAFFIC.accel * dt) : Math.max(target, car.speed - TRAFFIC.brake * dt);
@@ -243,7 +245,7 @@ export function stepTraffic(graph, traffic, seconds, obstacles = []) {
       const over = next.s - graph.edges[next.edge].length;
       const turn = nextEdge(graph, next, random);
       if (!turn) {
-        const occupied = traffic.cars.filter(other => other.id !== car.id).map(other => carPose(graph, other));
+        const occupied = traffic.cars.filter(other => other.id !== car.id).map(other => poses.get(other.id));
         next = { ...next, ...spawn(graph, random, obstacles, TRAFFIC.respawnClear, occupied), speed: 0 };
         break;
       }

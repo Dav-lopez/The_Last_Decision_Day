@@ -91,7 +91,7 @@ await step('frame rate', async () => {
 });
 await step('quick travel downtown', async () => {
   await page.evaluate(() => window.__tld.travel('downtown'));
-  await page.waitForFunction(() => window.__tld.read().location === 'city', null, { timeout: 180000 });
+  await page.waitForFunction(() => { const s = window.__tld.read(); return s.location === 'city' && !s.taxi; }, null, { timeout: 180000 });
   await page.waitForTimeout(3000);
   await dismissDialogue();
   await shot('05-downtown');
@@ -106,7 +106,8 @@ await step('downtown traffic drives', async () => {
 });
 await step('quick travel to the pitch and back home', async () => {
   await page.evaluate(() => window.__tld.travel('pitch'));
-  await page.waitForFunction(() => { const s = window.__tld.read(); return s.location === 'city' && !s.dialogue; }, null, { timeout: 180000 });
+  // Wait for the taxi to set off and arrive; a new trip is refused while one is under way.
+  await page.waitForFunction(() => { const s = window.__tld.read(); return s.location === 'city' && !s.dialogue && !s.taxi; }, null, { timeout: 180000 });
   await page.waitForTimeout(3000);
   await shot('06-pitch');
   await page.evaluate(() => window.__tld.travel('maple'));

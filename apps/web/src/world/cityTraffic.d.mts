@@ -15,6 +15,6 @@ export declare function edgePoint(edge: TrafficEdge, s: number, forward?: boolea
 export declare function carPose(graph: RoadGraph, car: TrafficCar): { x: number; z: number; rotation: number; dx: number; dz: number };
 export declare function junctionHolders(graph: RoadGraph, cars: ReadonlyArray<TrafficCar>): Map<string, Set<number>>;
 export declare function createTraffic(graph: RoadGraph, count: number, seed?: number, avoid?: ReadonlyArray<TrafficObstacle>): Traffic;
-export declare function gapAhead(graph: RoadGraph, car: TrafficCar, others: ReadonlyArray<TrafficCar>, obstacles?: ReadonlyArray<TrafficObstacle>): number;
+export declare function gapAhead(graph: RoadGraph, car: TrafficCar, others: ReadonlyArray<TrafficCar>, obstacles?: ReadonlyArray<TrafficObstacle>, poses?: Map<number, { x: number; z: number; dx: number; dz: number }> | null): number;
 export declare function stepTraffic(graph: RoadGraph, traffic: Traffic, seconds: number, obstacles?: ReadonlyArray<TrafficObstacle>): Traffic;
 export declare function trafficPoses(graph: RoadGraph, traffic: Traffic): TrafficPose[];
