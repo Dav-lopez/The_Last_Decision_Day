@@ -59,6 +59,11 @@ A new player can:
         on-screen controls visible without scrolling on a phone (pad next to the view).
 - [ ] **6. Loading speed**: compressed models, downtown and range loaded on demand, a loading screen with
       progress, and a bundle-size check in CI.
+  - [x] 6a. Loading screen with real progress (Maple Street, character, school, neighbours, props, cars; tips;
+        "Start now" after 8 s; never holds you more than 45 s), downtown loading shown as a chip afterwards, and a
+        gzipped bundle-size budget (`apps/web/bundle-budget.json`) checked in CI.
+  - [ ] 6b. Compressed models (meshopt/Draco or texture-size cuts for the 1.6 MB human and plant GLBs), and
+        downtown and the training range loaded only when you first go there.
 - [ ] **7. Accessibility**: full keyboard flow, visible focus, reduced-motion option, readable contrast,
       captions for story audio cues.
 - [ ] **8. Content polish**: two or three downtown characters to talk to; short playable career tasks
@@ -108,5 +113,9 @@ above is done or blocked; any item may be split into slices.
   5b should overlay a compact pad on the view itself.
 - Wardrobe and character-creator buttons (tabs, skin tones) are under 40 px tall on phones; the phone playtest
   lists them as notices. Worth enlarging in 5b or item 7.
+- The start page used to preload the whole Babylon chunk (1.6 MB gzipped) because Rollup put the shared
+  lazy-import helper inside it; the helpers now get their own tiny `runtime` chunk, and the budget forbids it.
+- Loading progress is per task (with a gentle creep while a file downloads); byte-level progress for the large
+  GLBs (Babylon's `onProgress`) would make the bar smoother on slow connections.
 - The football league save (`tld-league-v1:`) is local only; add it to the account progress document now that #192 has landed.
 - The opponents in a league match still wear the red kit; club colours per opponent would make rounds feel distinct.
