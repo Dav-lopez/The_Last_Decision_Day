@@ -1,16 +1,17 @@
 {
-  "_note": "Gzipped sizes in KB, checked by scripts/check-bundle-size.mjs in CI. Raise a limit only on purpose, in the same PR as the code that needs it.",
+  "_note": "Gzipped sizes in KB, checked by scripts/check-bundle-size.mjs in CI (about 15 % headroom over the build of 2026-10-31). Raise a limit only on purpose, in the same PR as the code that needs it. largestAssetKB is raw bytes of any model, texture or data file.",
   "chunksKB": {
-    "index": 400,
-    "WorldScene": 900,
-    "LandingWorld": 400,
-    "babylon": 2500,
-    "babylon-loaders": 400,
-    "react": 150
+    "index": 35,
+    "runtime": 3,
+    "react": 55,
+    "LandingWorld": 10,
+    "WorldScene": 120,
+    "babylon": 1850,
+    "babylon-loaders": 135
   },
-  "otherChunkKB": 400,
-  "totalJsKB": 4500,
-  "cssKB": 80,
-  "largestAssetKB": 2500,
+  "otherChunkKB": 60,
+  "totalJsKB": 2200,
+  "cssKB": 12,
+  "largestAssetKB": 2000,
   "firstPageMustNotLoad": ["babylon", "babylon-loaders"]
 }

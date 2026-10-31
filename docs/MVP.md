@@ -69,5 +69,7 @@ A new player can:
 - (add bugs and small follow-ups here)
 - The playtest's pitch step failed on `main` (trip home requested while the pitch taxi was still driving).
   Same fix as #192/#196/#197: the playtest waits for `travelling` to clear.
+- The start page used to preload the whole Babylon chunk (1.6 MB gzipped) because Rollup put the shared
+  lazy-import helper inside it; the helpers now get their own tiny `runtime` chunk, and the budget forbids it.
 - Loading progress is per task (with a gentle creep while a file downloads); byte-level progress for the large
   GLBs (Babylon's `onProgress`) would make the bar smoother on slow connections.
