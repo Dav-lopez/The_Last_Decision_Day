@@ -39,9 +39,9 @@ A new player can:
 
 ## To do (in order)
 
-- [ ] **1. Automated playtest in CI**: headless Chromium loads the build, plays the guest demo (story scene,
-      walking, map, quick travel downtown, pitch, home) and fails on page or console errors. *(in progress)*
-- [ ] **2. Game shell**: an in-game menu (Esc / ☰) with Resume, Controls (every key and touch control),
+- [x] **1. Automated playtest in CI**: headless Chromium loads the build, plays the guest demo (story scene,
+      walking, map, quick travel downtown, pitch, home) and fails on page or console errors.
+- [x] **2. Game shell**: an in-game menu (Esc / ☰) with Resume, Controls (every key and touch control),
       Settings (audio volumes, graphics quality), Story so far (chapter, objective, decision), Credits & licences,
       and Reset progress. A first-run hint showing the basic controls.
 - [ ] **3. Progress saved to the account**: story, career and training record, and neighbour relationships
@@ -61,4 +61,6 @@ A new player can:
 
 ## Found along the way
 
+- Software rendering in CI runs at about 2 fps; the game clamps frames to 0.05 s of game time, so on very slow
+  devices everything moves in slow motion. Worth a "low-end" check in item 6.
 - (add bugs and small follow-ups here)

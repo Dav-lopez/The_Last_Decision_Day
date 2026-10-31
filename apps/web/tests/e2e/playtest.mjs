@@ -81,6 +81,19 @@ await step('map opens and closes (N)', async () => {
   await page.keyboard.press('n');
   await page.waitForSelector('.world-map', { state: 'detached', timeout: 5000 });
 });
+await step('menu opens with Esc, shows every tab, and closes', async () => {
+  await page.locator('canvas').first().click({ position: { x: 320, y: 120 } });
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.game-menu-backdrop:not([hidden])', { timeout: 10000 });
+  for (const tab of ['Settings', 'Story', 'Credits', 'Controls']) {
+    await page.getByRole('tab', { name: tab }).click();
+    await page.waitForTimeout(200);
+  }
+  if (!(await page.getByText('OpenStreetMap contributors', { exact: false }).count())) throw new Error('credits missing OpenStreetMap');
+  await shot('04b-menu');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.game-menu-backdrop[hidden]', { state: 'attached', timeout: 10000 });
+});
 await step('frame rate', async () => {
   const fps = await page.evaluate(() => new Promise(resolve => {
     let frames = 0; const start = performance.now();
