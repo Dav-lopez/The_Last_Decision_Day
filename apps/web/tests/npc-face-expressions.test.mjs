@@ -198,3 +198,54 @@ test('NPC eye attention remains finite for malformed and extreme target position
   }
   assert.equal(npcAttentionGaze(npc, { x: 1, z: -1 }, Infinity), 0);
 });
+
+test('unattended residents make short, coordinated left and right idle glances', () => {
+  for (const [direction, cycle] of [['Left', 3], ['Right', 5]]) {
+    const time = cycle * 4.8 + 1;
+    const left = npcFaceTarget(`eyeLook${direction}Left`, time);
+    const right = npcFaceTarget(`eyeLook${direction}Right`, time);
+    assert.ok(left > 0 && right > left && right <= 0.20, `${direction} glance is bilateral`);
+    const opposite = direction === 'Left' ? 'Right' : 'Left';
+    assert.equal(npcFaceTarget(`eyeLook${opposite}Left`, time), 0,
+      'opposing horizontal gaze must not activate');
+    assert.equal(npcFaceTarget(`eyeLook${direction}Left`, cycle * 4.8 + 0.4), 0,
+      'eyes remain centred before the saccade');
+    assert.equal(npcFaceTarget(`eyeLook${direction}Left`, cycle * 4.8 + 2.2), 0,
+      'eyes return to centre after fixation');
+  }
+});
+
+test('player attention, conversations, movement and distress suppress idle eye glances', () => {
+  const time = 3 * 4.8 + 1;
+  const morphName = 'eyeLookLeftLeft';
+  assert.ok(npcFaceTarget(morphName, time) > 0);
+  for (const context of [
+    { nearby: true, gaze: 0 }, { talking: true }, { moving: true },
+    { emotion: 'sad' }, { emotion: 'happy' }, { flinch: 1 },
+  ]) {
+    assert.equal(npcFaceTarget(morphName, time, context), 0, JSON.stringify(context));
+  }
+  assert.ok(npcFaceTarget('eyeLookRightLeft', time, { nearby: true, gaze: 0.4 }) > 0,
+    'active attention continues to take precedence');
+  assert.equal(npcFaceTarget('eyeLookLeftLeft', time, { nearby: true, gaze: 0.4 }), 0);
+});
+
+test('idle horizontal gaze remains blink-masked and synchronized across cloned face meshes', () => {
+  const left = morph('eyeLookLeftLeft'), duplicate = morph('eyeLookLeftLeft');
+  const right = morph('eyeLookLeftRight');
+  let state = initialNpcFace(0);
+  state.elapsed = 3 * 4.8 + 1;
+  for (let i = 0; i < 12; i++) {
+    state = advanceNpcFace(state, 1 / 60, [left, duplicate, right], {
+      blink: { left: 1, right: 0 },
+    });
+  }
+  assert.equal(left.influence, 0);
+  assert.equal(left.influence, duplicate.influence);
+  assert.ok(right.influence > 0);
+  state = advanceNpcFace(state, 1 / 60, [left, duplicate, right], {
+    blink: { left: 0, right: 0 },
+  });
+  assert.ok(left.influence > 0);
+  assert.equal(left.influence, duplicate.influence);
+});
