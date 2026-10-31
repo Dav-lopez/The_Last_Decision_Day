@@ -990,6 +990,7 @@ export default function WorldScene({
           }),
           travel: (to: TravelTarget) => travelRef.current(to),
           route: () => mapReadRef.current().routeLength ?? 0,
+          waypoint: () => mapReadRef.current().waypoint,
         };
       }
       travelRef.current = (to) => {

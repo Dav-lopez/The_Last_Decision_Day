@@ -123,8 +123,12 @@ await step('minimap shows, and a map waypoint gives a GPS route', async () => {
   await page.keyboard.press('n');
   // The main thread is busy rendering in software, so UI updates can take a while.
   await waitFor('big map opens on the downtown tab', timeout => page.waitForSelector('.world-map-gps', { timeout }));
-  const box = await page.locator('.world-map-gps').boundingBox();
-  await page.mouse.click(box.x + box.width * 0.8, box.y + box.height * 0.3);
+  const map = page.locator('.world-map-gps');
+  const box = await map.boundingBox();
+  notes.push(`big map ${Math.round(box.width)}×${Math.round(box.height)} px`);
+  // Locator clicks scroll the map into view first.
+  await map.click({ position: { x: box.width * 0.75, y: box.height * 0.35 } });
+  await waitFor('waypoint set', timeout => page.waitForFunction(() => Boolean(window.__tld.waypoint()), null, { timeout }));
   await shot('05c-gps-map');
   await page.keyboard.press('n');
   await waitFor('big map closes', timeout => page.waitForSelector('.world-map', { state: 'detached', timeout }));
