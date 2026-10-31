@@ -106,6 +106,30 @@ export function workplaceCentre(city, career) {
   return { local: [x, z], world: { x: CITY_ORIGIN.x + x, z: CITY_ORIGIN.z + z }, building };
 }
 
+/**
+ * The walkable spot outside each workplace: the nearest point to the building centre that the collider leaves
+ * free (rings outward from 2 m to 60 m, 32 directions each). Pure, so the map and taxi know the doors before the
+ * downtown scene (and its signs) is built.
+ * @param {{ blockedLocal: (x: number, z: number) => boolean }} collider
+ */
+export function workplaceDoors(city, collider) {
+  const doors = new Map();
+  for (const id of Object.keys(CAREERS)) {
+    const centre = workplaceCentre(city, id);
+    if (!centre) continue;
+    const [cx, cz] = centre.local;
+    let door = null;
+    for (let r = 2; r < 60 && !door; r += 0.5) {
+      for (let a = 0; a < 32; a++) {
+        const x = cx + Math.cos(a / 32 * Math.PI * 2) * r; const z = cz + Math.sin(a / 32 * Math.PI * 2) * r;
+        if (!collider.blockedLocal(x, z)) { door = [x, z]; break; }
+      }
+    }
+    if (door) doors.set(id, { x: CITY_ORIGIN.x + door[0], z: CITY_ORIGIN.z + door[1] });
+  }
+  return doors;
+}
+
 const KEY = 'tld-career-v1:';
 export function readCareer(characterId, storage = globalThis.localStorage) {
   try { return normalizeCareer(JSON.parse(storage?.getItem(KEY + characterId) ?? 'null')); } catch { return { ...NO_CAREER }; }

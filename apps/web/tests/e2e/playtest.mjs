@@ -124,8 +124,13 @@ await step('frame rate', async () => {
   notes.push(`~${Math.round(fps)} fps in software rendering`);
 });
 await step('quick travel downtown', async () => {
+  // Downtown's 3D city is built on the first trip, not at start-up (MVP 6b).
+  if ((await read()).downtownBuilt) throw new Error('the downtown 3D city was built before the first trip there');
   await page.evaluate(() => window.__tld.travel('downtown'));
   await page.waitForFunction(() => { const s = window.__tld.read(); return s.location === 'city' && !s.taxi; }, null, { timeout: 180000 });
+  const arrived = await read();
+  if (!arrived.downtownBuilt) throw new Error('arrived downtown but the city was never built');
+  notes.push(`downtown built on the first trip in ${arrived.downtownBuildMs} ms (software rendering)`);
   await page.waitForTimeout(3000);
   await dismissDialogue();
   await shot('05-downtown');
