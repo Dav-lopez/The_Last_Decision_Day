@@ -1,3 +1,5 @@
+import { npcSpeechCueWeight } from './npcSpeechCues.mjs';
+
 /**
  * Lightweight NPC dialogue articulation. This is a deterministic approximation
  * of syllables and consonant closures, not audio-driven phoneme lip sync.
@@ -7,8 +9,11 @@ const MORPHS = new Set(['jawOpen', 'mouthOpen', 'mouthPressLeft', 'mouthPressRig
 const smoothstep = t => t * t * (3 - 2 * t);
 
 /** Returns a bounded mouth morph influence without changing the character's emotion. */
-export function npcSpeechWeight(name, elapsed) {
+export function npcSpeechWeight(name, elapsed, cues = undefined) {
   if (!MORPHS.has(name) || !Number.isFinite(elapsed) || elapsed < 0) return 0;
+  // Displayed dialogue uses its cached text cues. Unselected ambient Talk
+  // retains the original deterministic rhythm for backward compatibility.
+  if (Array.isArray(cues)) return npcSpeechCueWeight(name, elapsed, cues);
   const phase = elapsed % 2.8;
   const phrase = phase <= 1.95 ? 1 : phase >= 2.2 ? 0 :
     1 - smoothstep((phase - 1.95) / 0.25);
