@@ -1,3 +1,5 @@
+import { readLook } from '../appearance.mjs';
+
 export const emptyRoom = () => ({ status: 'offline', code: '', selfId: '', players: [], messages: [], emotes: [], error: '' });
 export const EMOTES = Object.freeze(['wave', 'cheer', 'dance', 'thumbs-up', 'laugh', 'follow-me', 'over-here', 'nice']);
 export const EMOTE_LABELS = Object.freeze({ wave: '👋 Wave', cheer: '🎉 Cheer', dance: '💃 Dance', 'thumbs-up': '👍 Thumbs up', laugh: '😂 Laugh', 'follow-me': '➡️ Follow me', 'over-here': '📍 Over here', nice: '✨ Nice!' });
@@ -16,7 +18,7 @@ export function mergeMessage(messages, message) {
   return [...messages.filter(item => item.id !== message.id), message].sort((a, b) => a.sequence - b.sequence).slice(-64);
 }
 /** Transport-independent lifecycle; account changes dispose this instance. */
-export function createRoomClient({ connect, changed = () => {}, now = () => performance.now(), uuid = () => crypto.randomUUID(), onSignal = () => {} }) {
+export function createRoomClient({ connect, changed = () => {}, now = () => performance.now(), uuid = () => crypto.randomUUID(), onSignal = () => {}, bodyFor = id => readLook(id).body }) {
   const signalListeners = new Set(onSignal ? [onSignal] : []);
   let selfPose = null, state = emptyRoom(), hub = null, generation = 0, disposed = false, starting = null, action = false, posePending = false, lastPose = -Infinity;
   const emit = patch => { if (!disposed) { state = { ...state, ...patch }; changed(state); } };
@@ -105,7 +107,10 @@ export function createRoomClient({ connect, changed = () => {}, now = () => perf
       selfPose = pose;
       if (!hub || state.status !== 'connected' || posePending || now() - lastPose < 200) return;
       posePending = true; lastPose = now();
-      void hub.invoke('PublishPose', pose).catch(() => {}).finally(() => { posePending = false; });
+      // Only send the two supported body variants; never accept model paths
+      // from local storage or the network. The server validates this too.
+      const body = bodyFor(state.selfId) === 'female' ? 'female' : 'male';
+      void hub.invoke('PublishPose', { ...pose, body }).catch(() => {}).finally(() => { posePending = false; });
     },
     async leave() {
       generation++; const old = hub; hub = null;
