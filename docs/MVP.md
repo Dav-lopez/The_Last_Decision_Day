@@ -68,6 +68,12 @@ A new player can:
   - [ ] 6c. Compressed models (meshopt/Draco or texture-size cuts for the 1.6 MB human and plant GLBs).
 - [ ] **7. Accessibility**: full keyboard flow, visible focus, reduced-motion option, readable contrast,
       captions for story audio cues.
+  - [x] 7a. Accessibility settings in the menu: motion (follow the device / reduced / full), sound captions that
+        describe every important sound (bell, messages, doors, whistle, horn…) even with the sound muted, and large
+        text; visible keyboard focus on every in-game control; the game menu keeps Tab inside it and switches
+        tabs with the arrow keys. The playtest drives the menu by keyboard and checks a caption appears.
+  - [ ] 7b. Keyboard flow through the other overlays (map, conversations, training range, wardrobe, league table),
+        a contrast audit of HUD text, and captions for the story scenes' own audio cues where they differ.
 - [ ] **8. Content polish**: two or three downtown characters to talk to; short playable career tasks
       (patrol route, fire call, route march) instead of a fade-to-black shift.
 - [ ] **9. Release checklist**: page title, icons and share image, an error screen with a reload button,
@@ -112,6 +118,8 @@ above is done or blocked; any item may be split into slices.
   contract job.
 - Building downtown on the first trip takes a noticeable moment on slow devices; it happens behind the ride's
   fade, but a later pass could build it in idle frames while the player walks to the bus stop.
+- Accessibility settings (motion, captions, text size) live in the browser settings key only; they are
+  device preferences, so they are deliberately not part of the account progress document.
 - "Reset progress" in the game menu (#190) clears the browser saves only; for signed-in players it should also
   reset the account copy (PUT a fresh progress document with a new `savedAt`), or the account copy comes back.
 - The playtest's pitch step failed on `main`: it asked for the trip home while the pitch taxi was still driving

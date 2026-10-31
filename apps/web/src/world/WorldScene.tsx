@@ -36,7 +36,7 @@ import { RANGE_DRILLS, TRAINING_MINUTES, canTrain, finishTraining } from './trai
 import { AudioPanel } from './audio/AudioPanel';
 import { loadCityTraffic, type CityTraffic } from './cityTrafficScene';
 import { GameMenu, type MenuTab } from './GameMenu';
-import { graphicsMode, readSettings, resetProgress, writeSettings, type PlayerSettings } from './gameSettings.mjs';
+import { graphicsMode, readSettings, reducedMotion, resetProgress, writeSettings, type PlayerSettings } from './gameSettings.mjs';
 import type { GameAudio } from './audio/director.mjs';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
 import { buildFootballPitch } from './footballScene';
@@ -84,6 +84,7 @@ export type ProgressSync = {
 import { BED_SIDE, FRONT_DOORS, HOME_SPAWN, atHomeExit, nearFridge, nearStove, wallsToFadeFor, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade } from './homeInterior.mjs';
 import { TOWN_EXIT, canExitVehicle, chaseCameraAlpha, driveInput, footprintPoints, leavingTown, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
+import { activeCaptions, captionLabel, CAPTION_SECONDS, pushCaption, type SoundCaption } from './soundCaptions.mjs';
 import { applyProgress, chooseNewestProgress, collectProgress, fromServerProgress, markProgressChanged, toServerProgress, type Progress, type ServerProgress, type ServerProgressResponse } from './progressSync.mjs';
 
 type SchoolActivityView = { id: string; title: string; description: string; timeCost: number };
@@ -449,6 +450,42 @@ export default function WorldScene({
     graphicsRef.current = graphicsMode(next.graphics);
     applyGraphicsRef.current();
   };
+  // Accessibility: calm motion (setting or device preference) and large text apply to the whole page.
+  const [systemReducedMotion, setSystemReducedMotion] = useState(() => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true);
+  useEffect(() => {
+    const query = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    if (!query) return;
+    const changed = () => setSystemReducedMotion(query.matches);
+    query.addEventListener?.('change', changed);
+    return () => query.removeEventListener?.('change', changed);
+  }, []);
+  const calmMotion = reducedMotion(playerSettings, systemReducedMotion);
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.reduceMotion = String(calmMotion);
+    root.dataset.textSize = playerSettings.textSize;
+    return () => { delete root.dataset.reduceMotion; delete root.dataset.textSize; };
+  }, [calmMotion, playerSettings.textSize]);
+  // Sound captions: every sound cue is described in text while captions are on (even with the sound muted).
+  const [soundCaptions, setSoundCaptions] = useState<SoundCaption[]>([]);
+  const captionsOnRef = useRef(playerSettings.captions);
+  captionsOnRef.current = playerSettings.captions;
+  const lastCaptionCue = useRef(new Map<string, number>());
+  const captionCue = useCallback((cue: string) => {
+    if (!captionsOnRef.current) return;
+    const now = performance.now() / 1000;
+    if (now - (lastCaptionCue.current.get(cue) ?? -Infinity) < 0.3) return;
+    lastCaptionCue.current.set(cue, now);
+    setSoundCaptions(list => pushCaption(list, cue, now));
+  }, []);
+  useEffect(() => {
+    if (!playerSettings.captions) { setSoundCaptions([]); return; }
+    if (!soundCaptions.length) return;
+    const oldest = Math.min(...soundCaptions.map(caption => caption.at));
+    const wait = Math.max(50, (oldest + CAPTION_SECONDS - performance.now() / 1000) * 1000 + 20);
+    const timer = window.setTimeout(() => setSoundCaptions(list => activeCaptions(list, performance.now() / 1000)), wait);
+    return () => window.clearTimeout(timer);
+  }, [soundCaptions, playerSettings.captions]);
   // Career training range (an overlay): open while you're at your own workplace.
   const [rangeOpen, setRangeOpen] = useState<CareerId | null>(null);
   const rangeOpenRef = useRef<CareerId | null>(null);
@@ -2222,8 +2259,12 @@ export default function WorldScene({
         </div>}
         <GameMenu open={menuOpen} tab={menuTab} setTab={setMenuTab} onClose={closeMenu} story={story}
           graphics={playerSettings.graphics} setGraphics={mode => updateSettings({ ...playerSettings, graphics: mode })}
+          access={playerSettings} setAccess={change => updateSettings({ ...playerSettings, ...change })}
           onReset={() => { resetProgress(characterId); window.location.reload(); }}
-          audio={<AudioPanel director={audioRef} />} />
+          audio={<AudioPanel director={audioRef} onCue={captionCue} />} />
+        {playerSettings.captions && <ul className="world-sound-captions" aria-live="polite" aria-label="Sound captions">
+          {soundCaptions.map(caption => <li key={caption.id}>{captionLabel(caption)}</li>)}
+        </ul>}
         {rangeOpen && <Suspense fallback={<p className="world-range-loading" role="status">Setting up the range…</p>}>
           <TrainingRange drill={RANGE_DRILLS[rangeOpen]} energy={lifeView.energy}
             onFinish={score => rangeRef.current.finish(score)} canRetry={() => rangeRef.current.canRetry()}

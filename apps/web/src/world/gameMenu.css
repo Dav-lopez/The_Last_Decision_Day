@@ -36,3 +36,14 @@
 .game-menu-credits li{margin-bottom:6px;line-height:1.45}
 .game-menu .game-audio{margin-top:14px}
 @media(max-width:520px){.game-menu-head{flex-direction:column;align-items:flex-start}.game-menu-keys th{width:45%}.world-first-hint{bottom:12px;font-size:.8rem}}
+/* Accessibility: visible keyboard focus everywhere in the game, sound captions, reduced motion, large text. */
+.world-root :is(button,a[href],input,select,textarea,[tabindex]):focus-visible{outline:3px solid #ffd27a;outline-offset:2px}
+.game-menu-choice label:has(input:focus-visible){outline:3px solid #ffd27a;outline-offset:1px}
+.game-menu-choice input{accent-color:#ffd27a;margin-top:3px}
+.game-menu-toggles{margin-top:8px}
+.world-sound-captions{pointer-events:none;position:absolute;left:50%;bottom:118px;transform:translateX(-50%);z-index:6;display:flex;flex-direction:column;align-items:center;gap:4px;max-width:calc(100% - 24px);margin:0;padding:0;list-style:none}
+.world-sound-captions li{padding:3px 10px;border-radius:6px;background:#000000d9;color:#fff;font-size:.9rem;line-height:1.35;text-align:center}
+[data-reduce-motion=true] .world-root *,[data-reduce-motion=true] .world-root *::before,[data-reduce-motion=true] .world-root *::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+[data-reduce-motion=true] .game-menu-backdrop{backdrop-filter:none}
+html[data-text-size=large]{font-size:118%}
+@media(max-width:520px){.world-sound-captions{bottom:150px}.world-sound-captions li{font-size:.8rem}}

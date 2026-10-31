@@ -1,9 +1,16 @@
 export type GraphicsMode = 'auto' | 'performance' | 'quality';
 export type GraphicsPreset = Readonly<{ id: GraphicsMode; title: string; description: string; scale: number; adaptive: boolean; ambientOcclusion: boolean }>;
-export type PlayerSettings = { graphics: GraphicsMode; hintDismissed: boolean };
+export type MotionMode = 'system' | 'reduce' | 'full';
+export type TextSize = 'normal' | 'large';
+export type PlayerSettings = { graphics: GraphicsMode; hintDismissed: boolean; motion: MotionMode; captions: boolean; textSize: TextSize };
+export declare const MOTION_MODES: ReadonlyArray<Readonly<{ id: MotionMode; title: string; description: string }>>;
+export declare const TEXT_SIZES: ReadonlyArray<Readonly<{ id: TextSize; title: string; scale: number }>>;
+export declare function normalizeSettings(value: unknown): PlayerSettings;
+export declare function reducedMotion(settings: Partial<PlayerSettings> | null | undefined, systemPrefersReduced?: boolean): boolean;
+export declare function textScale(settings: Partial<PlayerSettings> | null | undefined): number;
 export declare const GRAPHICS_MODES: ReadonlyArray<GraphicsPreset>;
 export declare function graphicsMode(id: unknown): GraphicsPreset;
 export declare function readSettings(storage?: Pick<Storage, 'getItem'>): PlayerSettings;
-export declare function writeSettings(settings: PlayerSettings, storage?: Pick<Storage, 'setItem'>): boolean;
+export declare function writeSettings(settings: Partial<PlayerSettings>, storage?: Pick<Storage, 'setItem'>): boolean;
 export declare function progressKeys(characterId: string): string[];
 export declare function resetProgress(characterId: string, storage?: Pick<Storage, 'getItem' | 'removeItem'>): number;
