@@ -45,6 +45,14 @@ await step('loads the start page', async () => {
   await page.goto(`${base}/?playtest`, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.getByRole('button', { name: /try the 3d demo/i }).click({ timeout: 20000 });
 });
+await step('loading screen shows progress and gets out of the way', async () => {
+  const started = Date.now();
+  await page.waitForSelector('.world-loading [role=progressbar]', { timeout: 90000 });
+  await shot('00-loading');
+  await page.waitForFunction(() => Boolean(window.__tld) && !window.__tld.read().loading, null, { timeout: 120000 });
+  await page.waitForSelector('.world-loading', { state: 'detached', timeout: 10000 });
+  notes.push(`world ready ${((Date.now() - started) / 1000).toFixed(1)}s after the game code loaded`);
+});
 await step('world loads', async () => {
   await page.waitForSelector('.world-life', { timeout: 90000 });
   await page.waitForFunction(() => Boolean(window.__tld), null, { timeout: 30000 });
@@ -98,7 +106,8 @@ await step('quick travel downtown', async () => {
 });
 await step('quick travel to the pitch and back home', async () => {
   await page.evaluate(() => window.__tld.travel('pitch'));
-  await page.waitForFunction(() => { const s = window.__tld.read(); return s.location === 'city' && !s.dialogue; }, null, { timeout: 180000 });
+  // Already downtown, so wait for the taxi ride itself to finish: a new trip is refused while one is under way.
+  await page.waitForFunction(() => { const s = window.__tld.read(); return s.location === 'city' && !s.dialogue && !s.travelling; }, null, { timeout: 180000 });
   await page.waitForTimeout(3000);
   await shot('06-pitch');
   await page.evaluate(() => window.__tld.travel('maple'));

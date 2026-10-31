@@ -9,6 +9,8 @@ import { loadRiggedAvatar, type RiggedAvatar } from './riggedAvatar';
 import type { Emotion } from './facialEmotions';
 import { resolveCharacterEmotion } from './characterEmotion.mjs';
 import { loadSchoolEnvironment } from './schoolEnvironment';
+import LoadingScreen from './LoadingScreen';
+import { WORLD_LOAD_TASKS, createLoadingTracker } from './loadingProgress.mjs';
 import { smoothHumanHeading } from './humanMotion.mjs';
 import { HUMAN_HEIGHT, movementHeading } from './riggedPresentation.mjs';
 import { SCHOOL_DOOR, isNearSchool, type PlanarPosition } from './movement.mjs';
@@ -434,6 +436,9 @@ export default function WorldScene({
   const [previewEmotion, setPreviewEmotion] = useState<Emotion>('neutral');
   const previewEmotionRef = useRef<Emotion>('neutral');
   const [modelStatus, setModelStatus] = useState('Loading character…');
+  // The loading screen: Maple Street's downloads as weighted tasks (downtown carries on in the background).
+  const [loadTracker] = useState(() => createLoadingTracker(WORLD_LOAD_TASKS, performance.now()));
+  const worldReadyRef = useRef(false);
   const [cameraMode, setCameraMode] = useState<'follow' | 'overhead'>('follow');
   const cameraModeRef = useRef<'follow' | 'overhead'>('follow');
   const cameraControlsRef = useRef<ReturnType<typeof createCameraControls> | null>(null);
@@ -570,6 +575,9 @@ export default function WorldScene({
       // Nothing in the world is clicked: skip ray-picking on every pointer move.
       scene.skipPointerMovePicking = true;
       sceneRef.current = scene;
+      const loadStartedAt = performance.now();
+      for (const task of WORLD_LOAD_TASKS) loadTracker.start(task.id, loadStartedAt);
+      scene.onAfterRenderObservable.addOnce(() => loadTracker.finish('scene'));
       scene.clearColor = new Color4(0.67, 0.83, 0.96, 1);
       const sun = new HemisphericLight('daylight', new Vector3(0, 1, 0), scene);
       sun.intensity = 0.65;
@@ -646,7 +654,8 @@ export default function WorldScene({
         const disposeStop = buildBusStop(scene, world.x + local.awayX * 0.9, world.z + local.awayZ * 0.9, local.heading);
         downtown = { city, collider, stop: { ...world, rotation: movementHeading(local.dx, local.dz), dx: local.dx, dz: local.dz, awayX: local.awayX, awayZ: local.awayZ, street: local.street }, dispose: () => { disposeCity(); disposeStop(); lights.dispose(); pitch.dispose(); workplaces.dispose(); } };
       };
-      loadDowntown().catch(() => { /* Downtown is optional; Maple Street plays without it. */ });
+      loadDowntown().then(() => loadTracker.finish('downtown'),
+        () => loadTracker.fail('downtown') /* Downtown is optional; Maple Street plays without it. */);
       // The town around the street, so the world reaches the horizon instead of ending at a cliff edge.
       buildSurroundings(scene);
       // The barrier at the north end lifts for a car: the road out of town leads downtown.
@@ -722,13 +731,14 @@ export default function WorldScene({
       void loadNeighbors(scene, shadows).then(loaded => {
         if (environmentLoad.cancelled || scene.isDisposed) loaded?.dispose();
         else { neighbors = loaded; npcSceneRef.current = loaded; }
-      }).catch(error => console.warn('Neighbours unavailable', error));
+        loadTracker.finish('neighbours');
+      }).catch(error => { loadTracker.fail('neighbours'); console.warn('Neighbours unavailable', error); });
       void addWorldProps(scene, environmentLoad, shadows)
-        .then(manifest => { if (manifest && !environmentLoad.cancelled) setPropCredit(true); })
-        .catch(error => console.warn('Street props unavailable', error));
+        .then(manifest => { if (manifest && !environmentLoad.cancelled) setPropCredit(true); loadTracker.finish('props'); })
+        .catch(error => { loadTracker.fail('props'); console.warn('Street props unavailable', error); });
       void upgradeNeighborhoodAssets(scene, environmentLoad, shadows, roots => {
         roots.forEach((root, index) => { carRoots[index]?.push(root); placeCar(index); });
-      });
+      }).then(() => loadTracker.finish('cars'), () => loadTracker.fail('cars'));
       // Limit shadow-map draw calls to the large world silhouettes.
       // Ground and paving receive shadows but do not cast; small facade details
       // are omitted from the shadow pass while remaining visible in the scene.
@@ -748,7 +758,9 @@ export default function WorldScene({
         if (schoolAssetCancelled || scene.isDisposed) { asset?.dispose(); return; }
         schoolAsset = asset;
         for (const mesh of asset?.meshes ?? []) { shadows.addShadowCaster(mesh, false); mesh.checkCollisions = true; }
+        loadTracker.finish('school');
       }).catch(error => {
+        loadTracker.fail('school');
         // Procedural school stays visible if the authored asset fails validation.
         console.warn('School glTF unavailable; using procedural fallback', error);
       });
@@ -771,7 +783,7 @@ export default function WorldScene({
         const token = ++loadToken;
         void loadRiggedAvatar(scene, avatar, model).then(human => {
           if (humanLoadCancelled || scene.isDisposed || token !== loadToken) { human?.dispose(); return; }
-          if (!human) return;
+          if (!human) { loadTracker.fail('character'); return; }
           const previous = riggedRef.current;
           if (previous) {
             for (const mesh of previous.root.getChildMeshes()) shadows.removeShadowCaster(mesh, false);
@@ -791,7 +803,9 @@ export default function WorldScene({
           }
           for (const mesh of human.root.getChildMeshes()) shadows.addShadowCaster(mesh, false);
           setModelStatus('Character ready · Idle, walk and run');
+          loadTracker.finish('character');
         }).catch(() => {
+          loadTracker.fail('character');
           if (humanLoadCancelled || token !== loadToken) return;
           loadedModel = '';
           if (!riggedRef.current) setModelStatus('Basic character in use. Reload to retry loading the human character.');
@@ -956,6 +970,8 @@ export default function WorldScene({
           read: () => ({
             x: position.x, z: position.z, location: locationRef.current, minute: life.minute, energy: life.energy,
             story: storyRef.current, driving: drivenIndex() >= 0, dialogue: dialogueRef.current, npcChat: npcActiveRef.current,
+            travelling: pendingTaxi !== null,
+            loading: !worldReadyRef.current,
           }),
           travel: (to: TravelTarget) => travelRef.current(to),
         };
@@ -1980,6 +1996,7 @@ export default function WorldScene({
     <div className="world-viewport">
       {!error && <canvas ref={canvasRef} tabIndex={0} aria-label={`3D world for ${displayName}; click to focus, use WASD or arrow keys to move`} />}
       {error ? <p className="world-fallback" role="status">{error}</p> : <>
+        <LoadingScreen tracker={loadTracker} onReady={() => { worldReadyRef.current = true; }} />
         <div className="world-life" role="status" aria-label={`Day ${lifeView.day}, ${formatClock(lifeView.minute)}, energy ${Math.round(lifeView.energy)} percent`}>
           <span>Day {lifeView.day} · {formatClock(lifeView.minute)}{lifeSync && syncStatus !== 'idle' &&
             <small className="world-sync"> · {syncStatus === 'offline' ? 'Saved in this browser' : syncStatus === 'saving' ? 'Saving…' : 'Saved to your account'}</small>}</span>

@@ -1,0 +1,16 @@
+{
+  "_note": "Gzipped sizes in KB, checked by scripts/check-bundle-size.mjs in CI. Raise a limit only on purpose, in the same PR as the code that needs it.",
+  "chunksKB": {
+    "index": 400,
+    "WorldScene": 900,
+    "LandingWorld": 400,
+    "babylon": 2500,
+    "babylon-loaders": 400,
+    "react": 150
+  },
+  "otherChunkKB": 400,
+  "totalJsKB": 4500,
+  "cssKB": 80,
+  "largestAssetKB": 2500,
+  "firstPageMustNotLoad": []
+}
