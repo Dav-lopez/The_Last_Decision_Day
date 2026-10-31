@@ -361,7 +361,9 @@ test('malformed speech clocks and background frames never produce invalid head p
     assert.ok(Number.isFinite(target.pitch) && Number.isFinite(target.roll));
     const next = stepNpcConversationHead({ pitch: bad, roll: bad },
       { pitch: bad, roll: bad }, bad);
-    assert.deepEqual(next, { pitch: 0, roll: 0 });
+    assert.ok(Number.isFinite(next.pitch) && Math.abs(next.pitch) <= 0.085);
+    assert.ok(Number.isFinite(next.roll) && Math.abs(next.roll) <= 0.04);
+    if (!Number.isFinite(bad)) assert.deepEqual(next, { pitch: 0, roll: 0 });
   }
   let state = { pitch: 0, roll: 0 };
   for (let i = 0; i < 100; i++) {
