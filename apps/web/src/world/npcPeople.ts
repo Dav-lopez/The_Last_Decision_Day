@@ -10,7 +10,7 @@ import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 import { initialNpcBlink, collectNpcEyelids, advanceNpcBlink } from './npcBlink.mjs';
 import { collectNpcFaceTargets, initialNpcFace, advanceNpcFace, resetNpcFace } from './npcFace.mjs';
 import { npcAttentionGaze } from './npcAttentionGaze.mjs';
-import { beginNpcSpeech, advanceNpcSpeech, isNpcSpeaking } from './npcSpeechTimeline.mjs';
+import { beginNpcSpeech, advanceNpcSpeech, isNpcSpeaking, npcShouldArticulate } from './npcSpeechTimeline.mjs';
 import { createNpcFacialMaterials } from './npcFacialMaterials.mjs';
 import { resolveNpcBody, resolveNpcClips } from './npcAnimationClips.mjs';
 
@@ -195,7 +195,7 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
         // Conversations move jaw/lips, nearby stationary residents acknowledge
         // the player, and Hit actions briefly override those poses with surprise.
         person.face = advanceNpcFace(person.face, dt, person.faceTargets, {
-          talking: speaking || (person.npc.route.kind === 'stand' && person.actions.has('Talk')),
+          talking: npcShouldArticulate(speaker, person.npc.id, person.npc.route.kind === 'stand' && person.actions.has('Talk')),
           // A new displayed reply restarts lip motion; an open dialog does not
           // make the NPC mouth loop forever. Ambient Talk clips are unchanged.
           speechElapsed: speaking ? speaker.elapsed : undefined,
