@@ -53,3 +53,22 @@ export function skinMicroNormalMap(size = 64) {
   }
   return data;
 }
+
+/**
+ * Legacy body GLBs have normals and skin weights but no skin UVs. Generate
+ * rest-pose planar coordinates once at import, without changing skeletons,
+ * morph targets, indices or checked-in binaries. Repeating microdetail avoids
+ * needing atlas seams; existing artist-authored UVs always take precedence.
+ */
+export function planarSkinUV(positions) {
+  if (!positions || !Number.isInteger(positions.length) || positions.length === 0 ||
+      positions.length % 3 !== 0) return null;
+  const uvs = new Float32Array(positions.length / 3 * 2);
+  for (let i = 0; i < positions.length; i += 3) {
+    const x = positions[i], y = positions[i + 1], z = positions[i + 2];
+    if (![x, y, z].every(Number.isFinite)) return null;
+    uvs[i / 3 * 2] = x * 1.5;
+    uvs[i / 3 * 2 + 1] = y * 1.5;
+  }
+  return uvs;
+}
