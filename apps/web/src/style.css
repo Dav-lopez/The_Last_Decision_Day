@@ -114,8 +114,9 @@
 .world-car-action.world-chip-action{bottom:112px;background:#cfe6b8}
 .world-scoreboard-actions{display:flex;gap:6px}
 
-/* Phones (360–420 px wide): one column of overlays at the top, one stack of buttons at the bottom,
-   and every button big enough for a thumb. The phone playtest checks these never overlap. */
+/* Phones (360–420 px wide): overlays in two columns at the top; at the bottom, from the edge up: notice or
+   drive HUD, the main action, chip/range/school/scoreboard, then the match button. Thumb-sized buttons,
+   and the phone playtest checks none of these overlap. */
 @media(max-width:420px){
   .world-root .world-viewport{height:min(72vh,470px)}
   .world-root .world-caption{top:8px;left:8px;max-width:calc(100% - 16px);padding:6px 10px;font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -124,12 +125,13 @@
   .world-root .story-objective{top:44px;right:8px;max-width:calc(52% - 12px);padding:6px 8px;font-size:.74rem}
   .world-root .world-wayfinding{top:100px;bottom:auto;left:8px;right:auto;max-width:calc(48% - 8px);font-size:.74rem}
   .world-root .world-car-action{left:8px;right:8px;transform:none;max-width:none;white-space:normal;text-align:center;min-height:44px;padding:8px 10px;font-size:.88rem}
-  .world-root .world-car-action{top:auto;bottom:104px}
-  .world-root .world-car-action.world-chip-action,.world-root .world-car-action.world-range-start{top:auto;bottom:154px}
-  .world-root .world-car-action.world-match-start{top:auto;bottom:204px}
-  .world-root .world-notice{bottom:254px;left:8px;right:8px;transform:none;max-width:none;white-space:normal;text-align:center}
-  .world-root .world-drive-hud{bottom:56px;left:8px;right:8px;font-size:.74rem}
-  .world-root .world-scoreboard{top:auto;bottom:154px;left:8px;right:8px;transform:none;flex-wrap:wrap;justify-content:center;gap:6px;padding:6px 8px}
+  .world-root .world-car-action{top:auto;bottom:100px}
+  .world-root .world-car-action.world-chip-action,.world-root .world-car-action.world-range-start{top:auto;bottom:150px}
+  .world-root .world-enter{bottom:150px;max-width:calc(100% - 16px);white-space:normal;min-height:44px}
+  .world-root .world-car-action.world-match-start{top:auto;bottom:200px}
+  .world-root .world-notice{bottom:8px;left:8px;right:8px;transform:none;max-width:none;white-space:normal;text-align:center;font-size:.78rem;padding:6px 10px}
+  .world-root .world-drive-hud{bottom:8px;left:8px;right:8px;font-size:.74rem}
+  .world-root .world-scoreboard{top:auto;bottom:150px;left:8px;right:8px;transform:none;flex-wrap:wrap;justify-content:center;gap:6px;padding:6px 8px}
   .world-root .world-scoreboard small{display:none}
   .world-root .world-camera-toggle{padding:10px 8px;gap:6px}
   .world-root .world-camera-toggle button{padding:8px 10px;font-size:.85rem}
