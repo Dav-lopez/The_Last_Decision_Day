@@ -109,3 +109,34 @@
 .world-class span{color:#e6efe0}
 .world-kitchen{background:#2a1c12;animation-duration:2s}
 .world-kitchen span{color:#ffe2bf}
+
+/* Football on touch: the chip button sits above the kick button. */
+.world-car-action.world-chip-action{bottom:112px;background:#cfe6b8}
+.world-scoreboard-actions{display:flex;gap:6px}
+
+/* Phones (360–420 px wide): one column of overlays at the top, one stack of buttons at the bottom,
+   and every button big enough for a thumb. The phone playtest checks these never overlap. */
+@media(max-width:420px){
+  .world-root .world-viewport{height:min(72vh,470px)}
+  .world-root .world-caption{top:8px;left:8px;max-width:calc(100% - 16px);padding:6px 10px;font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .world-root .world-life{top:44px;left:8px;max-width:calc(48% - 8px);padding:6px 8px;font-size:.72rem}
+  .world-root .world-energy-bar{width:48px}
+  .world-root .story-objective{top:44px;right:8px;max-width:calc(52% - 12px);padding:6px 8px;font-size:.74rem}
+  .world-root .world-wayfinding{top:auto;bottom:254px;left:8px;right:auto;max-width:calc(100% - 16px)}
+  .world-root .world-car-action{left:8px;right:8px;transform:none;max-width:none;white-space:normal;text-align:center;min-height:44px;padding:8px 10px;font-size:.88rem}
+  .world-root .world-car-action{top:auto;bottom:104px}
+  .world-root .world-car-action.world-chip-action,.world-root .world-car-action.world-range-start{top:auto;bottom:154px}
+  .world-root .world-car-action.world-match-start{top:auto;bottom:204px}
+  .world-root .world-notice{bottom:254px;left:8px;right:8px;transform:none;max-width:none;white-space:normal;text-align:center}
+  .world-root .world-drive-hud{bottom:56px;left:8px;right:8px;font-size:.74rem}
+  .world-root .world-scoreboard{top:auto;bottom:154px;left:8px;right:8px;transform:none;flex-wrap:wrap;justify-content:center;gap:6px;padding:6px 8px}
+  .world-root .world-scoreboard small{display:none}
+  .world-root .world-camera-toggle{padding:10px 8px;gap:6px}
+  .world-root .world-camera-toggle button{padding:8px 10px;font-size:.85rem}
+  .world-root .world-controls{padding:10px 8px}
+  .world-root .world-map{inset:6px}
+}
+@media(pointer:coarse),(max-width:420px){
+  .world-root .world-viewport button,.world-root .world-control-buttons button,.world-root .world-camera-toggle button,
+  .world-root .world-scoreboard button,.world-root .world-map button,.world-root .training-range-touch button{min-height:44px;min-width:44px}
+}

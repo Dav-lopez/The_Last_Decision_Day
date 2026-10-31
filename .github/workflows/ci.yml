@@ -77,6 +77,9 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://localhost:4173/ > /dev/null && break; sleep 1; done
       - name: Play the guest demo
         run: node tests/e2e/playtest.mjs http://localhost:4173
+      - name: Play the guest demo on a phone-sized touch screen
+        if: always()
+        run: node tests/e2e/phone-playtest.mjs http://localhost:4173
       - uses: actions/upload-artifact@v4
         if: always()
         with:

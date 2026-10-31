@@ -1994,7 +1994,11 @@ export default function WorldScene({
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
         <WorldMap open={mapOpen} onClose={() => setMapOpen(false)} read={readMap} travel={travelTo} />
         {scoreboard && <div className="world-scoreboard" role="status" aria-live="polite"><strong>{scoreboard}</strong><small>F shoot · Shift+F chip · Q pass</small>
-          <button type="button" onClick={event => { matchRef.current.pass(); focusWorld(event); }}>Pass (Q)</button></div>}
+          <span className="world-scoreboard-actions">
+            <button type="button" onClick={event => { kickRef.current(false); focusWorld(event); }}>Shoot (F)</button>
+            <button type="button" onClick={event => { kickRef.current(true); focusWorld(event); }}>Chip</button>
+            <button type="button" onClick={event => { matchRef.current.pass(); focusWorld(event); }}>Pass (Q)</button>
+          </span></div>}
         {(() => {
           const { chapter, step } = currentStep(story);
           return <div className="story-objective" aria-live="polite"><small>{chapter.title}</small><strong>{step.objective}</strong></div>;
@@ -2050,6 +2054,8 @@ export default function WorldScene({
           onClick={event => { interactRef.current(); focusWorld(event); }}>
           {busAction ?? workAction ?? (ballPrompt && inCity ? 'Kick (E or F) · Shift+F chips' : null) ?? actionLabel}
         </button>}
+        {ballPrompt && inCity && !scoreboard && !busAction && !workAction && <button type="button" className="world-car-action world-chip-action"
+          onClick={event => { kickRef.current(true); focusWorld(event); }}>Chip (Shift+F)</button>}
         {riding && <div className="world-sleep world-bus" role="status" aria-live="polite"><span>{riding}</span></div>}
         {nearSchool && <button type="button" className="world-enter"
           aria-expanded={schoolOpen} aria-controls="school-game-panel"
