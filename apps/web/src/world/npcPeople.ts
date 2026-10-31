@@ -10,6 +10,8 @@ import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 import { initialNpcBlink, collectNpcEyelids, advanceNpcBlink } from './npcBlink.mjs';
 import { collectNpcFaceTargets, initialNpcFace, advanceNpcFace, resetNpcFace } from './npcFace.mjs';
 import { npcAttentionGaze } from './npcAttentionGaze.mjs';
+import { npcHeadAttentionTarget, stepNpcHeadAttention } from './npcHeadAttention.mjs';
+import { createNpcHeadRig } from './npcHeadRig.mjs';
 import { beginNpcSpeech, advanceNpcSpeech, isNpcSpeaking, npcShouldArticulate } from './npcSpeechTimeline.mjs';
 import { createNpcFacialMaterials } from './npcFacialMaterials.mjs';
 import { resolveNpcBody, resolveNpcClips } from './npcAnimationClips.mjs';
@@ -79,11 +81,12 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     // original GLB container or the player's morph target manager.
     const eyelids = collectNpcEyelids(holder.getChildMeshes());
     const faceTargets = collectNpcFaceTargets(holder.getChildMeshes());
+    const headRig = createNpcHeadRig(scene, holder);
     holder.setEnabled(false);
     const start = routePose(npc, 0);
     const reaction: { state: ActionState | null; clip: BoundAction | null } = { state: null, clip: null };
     const actions = new Map<string, BoundAction>();
-    return [{ npc, model, entries, holder, idle, walk, reaction, actions, eyelids, blink: initialNpcBlink(index), faceTargets, face: initialNpcFace(index), facialMaterials, walked: 0, walkWeight: 0, heading: personHeading(start.dx, start.dz), visible: false, dodge: { x: 0, z: 0 }, dodgeTarget: { x: 0, z: 0 }, dodgeHold: 0 }];
+    return [{ npc, model, entries, holder, idle, walk, reaction, actions, eyelids, blink: initialNpcBlink(index), faceTargets, face: initialNpcFace(index), facialMaterials, headRig, headYaw: 0, walked: 0, walkWeight: 0, heading: personHeading(start.dx, start.dz), visible: false, dodge: { x: 0, z: 0 }, dodgeTarget: { x: 0, z: 0 }, dodgeHold: 0 }];
   });
 
   // Action clips (a separate download): people standing together talk with their hands; anyone can flinch.
@@ -145,6 +148,8 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
           if (!out) {
             person.face = resetNpcFace(person.face, person.faceTargets);
             person.facialMaterials.reset();
+            person.headYaw = 0;
+            person.headRig.setYaw(0);
           }
         }
         if (!out) { delete live[person.npc.id]; continue; }
@@ -214,6 +219,13 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
         const facing = talking && player && Math.hypot(player.x - pose.x, player.z - pose.z) > 0.05
           ? personHeading(player.x - pose.x, player.z - pose.z) : personHeading(pose.dx, pose.dz);
         person.heading = smoothHumanHeading(person.heading, facing, dt, 8);
+        // A subtle Head-bone turn follows eye contact without rotating the
+        // entire torso. Babylon applies it after authored clip evaluation.
+        const headTarget = npcHeadAttentionTarget(pose, player, person.heading, {
+          talking, moving: person.walkWeight > 0.15, flinch: flinch.weight,
+        });
+        person.headYaw = stepNpcHeadAttention(person.headYaw, headTarget, dt);
+        person.headRig.setYaw(person.headYaw);
         person.holder.position.set(pose.x, 0, pose.z);
         person.holder.rotation.y = person.heading;
         outside.push({ x: pose.x, z: pose.z, radius: PERSON_RADIUS });
@@ -224,6 +236,7 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     dispose() {
       for (const person of people) {
         for (const { group } of person.actions.values()) group.dispose();
+        person.headRig.dispose();
         person.entries.dispose();
         person.holder.dispose();
       }

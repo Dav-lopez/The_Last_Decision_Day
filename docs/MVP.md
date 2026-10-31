@@ -39,17 +39,22 @@ A new player can:
 
 ## To do (in order)
 
-- [ ] **1. Automated playtest in CI**: headless Chromium loads the build, plays the guest demo (story scene,
-      walking, map, quick travel downtown, pitch, home) and fails on page or console errors. *(in progress)*
-- [ ] **2. Game shell**: an in-game menu (Esc / ☰) with Resume, Controls (every key and touch control),
+- [x] **1. Automated playtest in CI**: headless Chromium loads the build, plays the guest demo (story scene,
+      walking, map, quick travel downtown, pitch, home) and fails on page or console errors.
+- [x] **2. Game shell**: an in-game menu (Esc / ☰) with Resume, Controls (every key and touch control),
       Settings (audio volumes, graphics quality), Story so far (chapter, objective, decision), Credits & licences,
       and Reset progress. A first-run hint showing the basic controls.
-- [ ] **3. Progress saved to the account**: story, career and training record, and neighbour relationships
+- [x] **3. Progress saved to the account**: story, career and training record, and neighbour relationships
       synced through the API for signed-in players (guests keep local saves); newest-wins merge; tests on both sides.
 - [ ] **4. Football extras**: better goalkeeping, smarter opponents (support runs, marking), a season league
       table that records your match results.
 - [ ] **5. Phone and touch pass**: every action reachable by touch (talk, map, range, match, car), layouts that
       fit 360-pixel-wide screens, and a phone-viewport run in the playtest.
+  - [x] 5a. Phone playtest (360×640 touch screen, tap-only: story, touch-pad walking, map, downtown, pitch, match)
+        that fails on sideways scrolling, overlapping overlays or core buttons under 40 px; phone HUD layout;
+        Shoot and Chip buttons for football.
+  - [ ] 5b. Touch flow through talking to a neighbour, the training range and driving a car in the phone playtest;
+        on-screen controls visible without scrolling on a phone (pad next to the view).
 - [ ] **6. Loading speed**: compressed models, downtown and range loaded on demand, a loading screen with
       progress, and a bundle-size check in CI.
   - [x] 6a. Loading screen with real progress (Maple Street, character, school, neighbours, props, cars; tips;
@@ -66,9 +71,18 @@ A new player can:
 
 ## Found along the way
 
+- Software rendering in CI runs at about 2 fps; the game clamps frames to 0.05 s of game time, so on very slow
+  devices everything moves in slow motion. Worth a "low-end" check in item 6.
 - (add bugs and small follow-ups here)
-- The playtest's pitch step failed on `main` (trip home requested while the pitch taxi was still driving).
-  Same fix as #192/#196/#197: the playtest waits for `travelling` to clear.
+- "Reset progress" in the game menu (#190) clears the browser saves only; for signed-in players it should also
+  reset the account copy (PUT a fresh progress document with a new `savedAt`), or the account copy comes back.
+- The playtest's pitch step failed on `main`: it asked for the trip home while the pitch taxi was still driving
+  (quick travel refuses a second trip). The playtest now waits for `travelling` to clear.
+- The day/clock (`/me/life`) and progress (`/me/progress`) are synced separately; a later pass could merge them.
+- On a phone the direction pad and camera buttons sit below the 3D view, so the player scrolls between them;
+  5b should overlay a compact pad on the view itself.
+- Wardrobe and character-creator buttons (tabs, skin tones) are under 40 px tall on phones; the phone playtest
+  lists them as notices. Worth enlarging in 5b or item 7.
 - The start page used to preload the whole Babylon chunk (1.6 MB gzipped) because Rollup put the shared
   lazy-import helper inside it; the helpers now get their own tiny `runtime` chunk, and the budget forbids it.
 - Loading progress is per task (with a gentle creep while a file downloads); byte-level progress for the large
