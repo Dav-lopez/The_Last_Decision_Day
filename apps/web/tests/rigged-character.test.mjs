@@ -195,3 +195,79 @@ test('both checked-in character bodies receive usable UVs for legacy skin primit
     }
   }
 });
+
+test('player emotions create restrained, asymmetric head language that yields to locomotion and actions', async () => {
+  const { emotionHeadTarget } = await import('../src/world/emotionalHeadPose.mjs');
+  assert.deepEqual(emotionHeadTarget('neutral'), { pitch: 0, roll: 0 });
+  assert.ok(emotionHeadTarget('sad').pitch > 0, 'sadness lowers the chin');
+  assert.ok(emotionHeadTarget('fear').pitch < 0, 'fear raises the chin');
+  assert.ok(emotionHeadTarget('happy').roll > 0, 'happiness has a subtle head tilt');
+  assert.ok(emotionHeadTarget('embarrassed').roll < 0);
+  for (const mood of ['neutral', 'happy', 'sad', 'angry', 'fear', 'embarrassed', 'exerted', 'unknown']) {
+    const pose = emotionHeadTarget(mood);
+    assert.ok(Number.isFinite(pose.pitch) && Math.abs(pose.pitch) <= 0.12);
+    assert.ok(Number.isFinite(pose.roll) && Math.abs(pose.roll) <= 0.07);
+  }
+  const walking = emotionHeadTarget('sad', 0.7).pitch;
+  assert.ok(walking > 0 && walking < emotionHeadTarget('sad', 0).pitch);
+  assert.deepEqual(emotionHeadTarget('sad', 3), { pitch: 0, roll: 0 });
+  for (const action of ['Drive', 'JumpAir', 'Dance']) {
+    assert.deepEqual(emotionHeadTarget('sad', 0, action), { pitch: 0, roll: 0 });
+  }
+  assert.ok(emotionHeadTarget('sad', 0, 'Talk').pitch > 0);
+  assert.ok(emotionHeadTarget('sad', 0, 'Talk').pitch < emotionHeadTarget('sad').pitch);
+});
+
+test('emotional head posture settles smoothly, reverses on a mood change and rejects bad frames', async () => {
+  const { emotionHeadTarget, stepEmotionHeadPose } = await import('../src/world/emotionalHeadPose.mjs');
+  let pose = { pitch: 0, roll: 0 };
+  for (let i = 0; i < 30; i++) {
+    const next = stepEmotionHeadPose(pose, emotionHeadTarget('sad'), 1 / 60);
+    assert.ok(Math.abs(next.pitch - pose.pitch) <= 0.36 / 60 + 1e-12);
+    pose = next;
+  }
+  assert.ok(pose.pitch > 0.06);
+  const reversed = stepEmotionHeadPose(pose, emotionHeadTarget('fear'), 1 / 60);
+  assert.ok(reversed.pitch < pose.pitch && reversed.pitch > 0, 'no snap when switching mood');
+  for (let i = 0; i < 90; i++) pose = stepEmotionHeadPose(pose, emotionHeadTarget('fear'), 1 / 60);
+  assert.ok(pose.pitch < 0, 'the new expression eventually wins');
+  for (const dt of [NaN, Infinity, -1, 1000]) {
+    const next = stepEmotionHeadPose({ pitch: NaN, roll: Infinity }, { pitch: 1e30, roll: -1e30 }, dt);
+    assert.ok(Number.isFinite(next.pitch) && Math.abs(next.pitch) <= 0.12);
+    assert.ok(Number.isFinite(next.roll) && Math.abs(next.roll) <= 0.07);
+  }
+  assert.deepEqual(stepEmotionHeadPose(pose, emotionHeadTarget('sad'), 0), pose);
+});
+
+test('additive Head-bone pose restores authored animation without drift and cleans up observers', async () => {
+  const { NullEngine, Scene, TransformNode, Quaternion } = await import('@babylonjs/core');
+  const { createEmotionalHeadRig } = await import('../src/world/emotionalHeadRig.mjs');
+  const engine = new NullEngine(), scene = new Scene(engine);
+  try {
+    const holder = new TransformNode('player', scene);
+    const head = new TransformNode('Head', scene);
+    head.parent = holder;
+    const authored = Quaternion.RotationYawPitchRoll(0.15, 0.08, -0.04);
+    head.rotationQuaternion = authored.clone();
+    const rig = createEmotionalHeadRig(scene, holder);
+    const close = (a, b) => ['x', 'y', 'z', 'w'].every(axis => Math.abs(a[axis] - b[axis]) < 1e-9);
+    rig.setPose({ pitch: 0.08, roll: -0.03 });
+    for (let i = 0; i < 10; i++) {
+      scene.onAfterAnimationsObservable.notifyObservers(scene);
+      assert.ok(!close(head.rotationQuaternion, authored), 'emotion changes the Head bone');
+      scene.onBeforeAnimationsObservable.notifyObservers(scene);
+      assert.ok(close(head.rotationQuaternion, authored), 'base animation pose restored every frame');
+    }
+    scene.onAfterAnimationsObservable.notifyObservers(scene);
+    rig.dispose();
+    assert.ok(close(head.rotationQuaternion, authored), 'disposal restores original pose');
+    scene.onAfterAnimationsObservable.notifyObservers(scene);
+    assert.ok(close(head.rotationQuaternion, authored), 'disposed rig has no observer side effects');
+    const missing = createEmotionalHeadRig(scene, new TransformNode('legacy no head', scene));
+    missing.setPose({ pitch: 0.1, roll: 0.05 });
+    missing.dispose();
+  } finally {
+    scene.dispose();
+    engine.dispose();
+  }
+});

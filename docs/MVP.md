@@ -59,6 +59,11 @@ A new player can:
         on-screen controls visible without scrolling on a phone (pad next to the view).
 - [ ] **6. Loading speed**: compressed models, downtown and range loaded on demand, a loading screen with
       progress, and a bundle-size check in CI.
+  - [x] 6a. Loading screen with real progress (Maple Street, character, school, neighbours, props, cars; tips;
+        "Start now" after 8 s; never holds you more than 45 s), downtown loading shown as a chip afterwards, and a
+        gzipped bundle-size budget (`apps/web/bundle-budget.json`) checked in CI.
+  - [ ] 6b. Compressed models (meshopt/Draco or texture-size cuts for the 1.6 MB human and plant GLBs), and
+        downtown and the training range loaded only when you first go there.
 - [ ] **7. Accessibility**: full keyboard flow, visible focus, reduced-motion option, readable contrast,
       captions for story audio cues.
   - [x] 7a. Accessibility settings in the menu: motion (follow the device / reduced / full), sound captions that
@@ -72,10 +77,38 @@ A new player can:
 - [ ] **9. Release checklist**: page title, icons and share image, an error screen with a reload button,
       a privacy note, a "what's new" list, and a final full playthrough of all three endings in the playtest.
 
+## After MVP: open-world track ("GTA standard")
+
+The aim is GTA's *feel* — a living city, great driving, a phone, missions, polish — within a browser and the
+game's own rules (no crime gameplay; weapons only at the training range). Work these in order once the MVP list
+above is done or blocked; any item may be split into slices.
+
+- [x] **10. Living downtown traffic**: AI cars driving the real street network, keeping right,
+      following each other, yielding to you, and solid to your car.
+- [ ] **11. Minimap and GPS**: a corner minimap that rotates with you, a waypoint you set on the big map, and a
+      route line along the roads to it (story objectives set it automatically).
+- [ ] **12. Traffic lights and pedestrians downtown**: signal-controlled junctions the traffic obeys; people
+      walking downtown sidewalks who cross at lights.
+- [ ] **13. Driving feel**: body roll and pitch, tyre squeal and skid marks, engine sound by speed and gear,
+      cosmetic dents and scratches, a horn; a police cruiser and a fire engine for those careers.
+- [ ] **14. Phone**: an in-game phone (Esc-free, key P) with messages from Mom and friends, contacts you've
+      met, the map, your career, and a camera / photo mode.
+- [ ] **15. Car radio**: three or four original procedural stations with DJ-style station idents.
+- [ ] **16. Career missions**: police patrol calls (traffic stop, lost child, noise complaint), fire calls with
+      the hose, army route march with checkpoints; timed, scored, and paid better than a plain shift.
+- [ ] **17. Seamless road**: drive from Maple Street to downtown and back without a fade (streamed world).
+- [ ] **18. Weather and sky**: rain and wet roads, fog, sunsets, clouds; weather changes by day.
+- [ ] **19. Cinematic story**: camera-directed cutscenes with letterboxing and character animation for each
+      chapter opening and the three endings.
+- [ ] **20. Visual quality pass**: better materials and lighting downtown, higher-detail characters (with the
+      facial work), screen-space reflections on wet roads where the device can afford it.
+
 ## Found along the way
 
 - Software rendering in CI runs at about 2 fps; the game clamps frames to 0.05 s of game time, so on very slow
   devices everything moves in slow motion. Worth a "low-end" check in item 6.
+- Traffic: a road crossing without a shared OSM node (an overpass or a data gap) lets cars pass through each
+  other there; traffic lights (item 12) should add explicit junctions. Cars have no headlights at night yet.
 - (add bugs and small follow-ups here)
 - Accessibility settings (motion, captions, text size) live in the browser settings key only; they are
   device preferences, so they are deliberately not part of the account progress document.
@@ -88,5 +121,9 @@ A new player can:
   5b should overlay a compact pad on the view itself.
 - Wardrobe and character-creator buttons (tabs, skin tones) are under 40 px tall on phones; the phone playtest
   lists them as notices. Worth enlarging in 5b or item 7.
+- The start page used to preload the whole Babylon chunk (1.6 MB gzipped) because Rollup put the shared
+  lazy-import helper inside it; the helpers now get their own tiny `runtime` chunk, and the budget forbids it.
+- Loading progress is per task (with a gentle creep while a file downloads); byte-level progress for the large
+  GLBs (Babylon's `onProgress`) would make the bar smoother on slow connections.
 - The football league save (`tld-league-v1:`) is local only; add it to the account progress document now that #192 has landed.
 - The opponents in a league match still wear the red kit; club colours per opponent would make rounds feel distinct.
