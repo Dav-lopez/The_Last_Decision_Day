@@ -33,3 +33,8 @@ export function isNpcSpeaking(state) {
     Number.isFinite(state.duration) && state.duration > 0 &&
     state.elapsed >= 0 && state.elapsed < state.duration);
 }
+
+/** The selected resident must not fall back to ambient chatter after a line. */
+export function npcShouldArticulate(state, residentId, ambientTalking = false) {
+  return state?.id === residentId ? isNpcSpeaking(state) : Boolean(ambientTalking);
+}
