@@ -120,3 +120,6 @@ test('speech overlay clamps bad frame deltas and malformed state', () => {
   assert.ok(Number.isFinite(safe.elapsed) && Number.isFinite(safe.weight));
   assert.ok(safe.weight > 0 && safe.weight < 1);
 });
+
+// Keep the emotional speech-layer regression suite in the existing CI character test entrypoint.
+import './facial-layer-blend.test.mjs';
