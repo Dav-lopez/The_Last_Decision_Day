@@ -5,6 +5,7 @@ import { NullEngine, Scene, LoadAssetContainerAsync, PBRMaterial, TransformNode 
 import '@babylonjs/loaders/glTF/index.js';
 import { NEIGHBORS } from '../src/world/npcLayout.mjs';
 import { HUMAN_HEIGHT, normalizeRiggedVisual } from '../src/world/riggedPresentation.mjs';
+import { findNpcLocomotionIndices, selectNpcAnimationModel } from '../src/world/npcAnimationSelection.mjs';
 
 // Checks the assumptions npcPeople.ts makes about copying the shipped human model.
 test('each neighbour is an independent copy of the human with its own clips and materials', async t => {
@@ -56,4 +57,43 @@ test('each neighbour is an independent copy of the human with its own clips and 
   assert.notEqual(copies[0].entries.animationGroups[walkIndex], copies[1].entries.animationGroups[walkIndex]);
   for (const { entries } of copies) entries.dispose();
   container.dispose();
+});
+
+test('locomotion indices are resolved per body, not copied from the male GLB', () => {
+  assert.deepEqual(findNpcLocomotionIndices([{ name: 'Idle' }, { name: 'Walk' }, { name: 'Run' }]),
+    { idleIndex: 0, walkIndex: 1 });
+  assert.deepEqual(findNpcLocomotionIndices([{ name: 'Run' }, { name: 'Walk' }, { name: 'Idle' }]),
+    { idleIndex: 2, walkIndex: 1 }, 'reordered female groups must still select the right clips');
+  assert.equal(findNpcLocomotionIndices([{ name: 'Idle' }, { name: 'Run' }]), null);
+  assert.equal(findNpcLocomotionIndices([{ name: 'Walk' }]), null);
+  assert.equal(findNpcLocomotionIndices(null), null);
+});
+
+test('a missing female body or clip set falls back with matching male actions', () => {
+  const both = new Map([['human.glb', true], ['human-female.glb', true]]);
+  assert.equal(selectNpcAnimationModel('human-female.glb', both), 'human-female.glb');
+  assert.equal(selectNpcAnimationModel('human.glb', both), 'human.glb');
+  const maleOnly = new Map([['human.glb', true]]);
+  assert.equal(selectNpcAnimationModel('human-female.glb', maleOnly), 'human.glb');
+  assert.equal(selectNpcAnimationModel('missing.glb', maleOnly), 'human.glb');
+  assert.equal(selectNpcAnimationModel('human-female.glb', new Map()), null);
+});
+
+test('actual male and female GLBs clone their own named locomotion clips', async t => {
+  const engine = new NullEngine();
+  const scene = new Scene(engine);
+  t.after(() => { scene.dispose(); engine.dispose(); });
+  for (const model of ['human.glb', 'human-female.glb']) {
+    const bytes = readFileSync(new URL(`../public/models/${model}`, import.meta.url));
+    const container = await LoadAssetContainerAsync(new Uint8Array(bytes), scene, { pluginExtension: '.glb' });
+    const indices = findNpcLocomotionIndices(container.animationGroups);
+    assert.ok(indices, `${model}: both clips must be present`);
+    const entries = container.instantiateModelsToScene(name => `test ${model} ${name}`, true);
+    assert.equal(entries.animationGroups.length, container.animationGroups.length);
+    assert.ok(entries.animationGroups[indices.idleIndex].targetedAnimations.length > 0, `${model}: Idle bound`);
+    assert.ok(entries.animationGroups[indices.walkIndex].targetedAnimations.length > 0, `${model}: Walk bound`);
+    assert.notEqual(entries.animationGroups[indices.idleIndex], entries.animationGroups[indices.walkIndex]);
+    entries.dispose();
+    container.dispose();
+  }
 });

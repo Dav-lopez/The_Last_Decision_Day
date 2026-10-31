@@ -1,3 +1,5 @@
+import { buildNpcSpeechCues } from './npcSpeechCues.mjs';
+
 /**
  * A dialogue line owns a finite mouth-animation window. The conversation can
  * remain open after the line finishes without leaving the resident talking
@@ -14,11 +16,13 @@ export function npcSpeechDuration(line) {
 
 export function beginNpcSpeech(id, mood = 'neutral', line = '') {
   const resident = typeof id === 'string' && id.length ? id : null;
+  const duration = resident ? npcSpeechDuration(line) : 0;
   return {
     id: resident,
     mood: mood === 'happy' || mood === 'sad' ? mood : 'neutral',
     elapsed: 0,
-    duration: resident ? npcSpeechDuration(line) : 0,
+    duration,
+    cues: resident ? buildNpcSpeechCues(line, duration) : [],
   };
 }
 
