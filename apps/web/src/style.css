@@ -136,6 +136,8 @@
 
 /* Football on touch: the chip button sits above the kick button. */
 .world-car-action.world-chip-action{bottom:112px;background:#cfe6b8}
+.world-car-action.world-range-start{bottom:auto;top:148px}
+.world-range-loading{position:fixed;inset:0;z-index:60;margin:0;display:grid;place-items:center;background:#0d1114;color:#f4f5f6;font:600 1.1rem system-ui,sans-serif}
 .world-scoreboard-actions{display:flex;gap:6px}
 
 /* Phones (360–420 px wide): overlays in two columns at the top; at the bottom, from the edge up: notice or

@@ -19,5 +19,6 @@ export declare function quitCareer(state: CareerState): CareerState;
 export declare function workShift(state: CareerState, now: { minute: number; totalMinutes: number; energy: number }):
   { ok: false; reason: string } | { ok: true; state: CareerState; pay: number; duty: string; promoted: string | null; hours: number; energy: number };
 export declare function workplaceCentre(city: City | null | undefined, career: string): { local: [number, number]; world: PlanarPosition; building: City['buildings'][number] } | null;
+export declare function workplaceDoors(city: City | null | undefined, collider: { blockedLocal(x: number, z: number): boolean }): Map<CareerId, PlanarPosition>;
 export declare function readCareer(characterId: string, storage?: Pick<Storage, 'getItem'>): CareerState;
 export declare function writeCareer(characterId: string, state: CareerState, storage?: Pick<Storage, 'setItem'>): boolean;

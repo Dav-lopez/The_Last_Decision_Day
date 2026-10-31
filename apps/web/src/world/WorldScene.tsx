@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent, type CSSProperties } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent, type CSSProperties } from 'react';
 import {
   ArcRotateCamera, Color3, Color4, DirectionalLight, DynamicTexture, Engine, HemisphericLight,
   MeshBuilder, Scene, ShadowGenerator, StandardMaterial, TransformNode, Vector3,
@@ -29,7 +29,9 @@ import { readHouseStyle } from './photoPalette.mjs';
 import { colorFor, modelFor, readLook, writeLook, type Look } from './appearance.mjs';
 import { Wardrobe } from './Wardrobe';
 import { WorldMap, type MapMarker, type MapSnapshot, type TravelTarget, type WaypointControl } from './WorldMap';
-import { TrainingRange, type RangeOutcome } from './TrainingRange';
+import type { RangeOutcome } from './TrainingRange';
+// The training range (its drawing code and styles) downloads the first time you train.
+const TrainingRange = lazy(() => import('./TrainingRange').then(module => ({ default: module.TrainingRange })));
 import { RANGE_DRILLS, TRAINING_MINUTES, canTrain, finishTraining } from './trainingRange.mjs';
 import { AudioPanel } from './audio/AudioPanel';
 import { loadCityTraffic, type CityTraffic } from './cityTrafficScene';
@@ -37,14 +39,14 @@ import { buildRoadGraph, type RoadGraph } from './cityTraffic.mjs';
 import { nearestOnRoads, routeBetween } from './gps.mjs';
 import { Minimap } from './Minimap';
 import { GameMenu, type MenuTab } from './GameMenu';
-import { graphicsMode, readSettings, resetProgress, writeSettings, type PlayerSettings } from './gameSettings.mjs';
+import { graphicsMode, readSettings, reducedMotion, resetProgress, writeSettings, type PlayerSettings } from './gameSettings.mjs';
 import type { GameAudio } from './audio/director.mjs';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
 import { buildFootballPitch } from './footballScene';
 import { createMatch, formatClock as formatMatchClock, stepMatch, type MatchState } from './footballMatch.mjs';
 import { ROUNDS as LEAGUE_ROUNDS, YOU as LEAGUE_YOU, clubName, clubShort, readLeague, recordResult, standings, upcomingFixture, writeLeague, yourPosition, type ClubId, type League } from './footballLeague.mjs';
 import { loadFootballPlayers } from './footballPlayers';
-import { CAREERS, SHIFT_HOURS, joinCareer, quitCareer, rankOf, readCareer, workShift, writeCareer, type CareerId, type CareerState } from './careers.mjs';
+import { CAREERS, SHIFT_HOURS, joinCareer, workplaceDoors, quitCareer, rankOf, readCareer, workShift, writeCareer, type CareerId, type CareerState } from './careers.mjs';
 import { buildWorkplaces, createLightBar, createSiren } from './careersScene';
 import { CareersPanel } from './CareersPanel';
 import { bindActions, loadActionClips } from './characterActions';
@@ -85,6 +87,7 @@ export type ProgressSync = {
 import { BED_SIDE, FRONT_DOORS, HOME_SPAWN, atHomeExit, nearFridge, nearStove, wallsToFadeFor, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade } from './homeInterior.mjs';
 import { TOWN_EXIT, canExitVehicle, chaseCameraAlpha, driveInput, footprintPoints, leavingTown, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
+import { activeCaptions, captionLabel, CAPTION_SECONDS, pushCaption, type SoundCaption } from './soundCaptions.mjs';
 import { applyProgress, chooseNewestProgress, collectProgress, fromServerProgress, markProgressChanged, toServerProgress, type Progress, type ServerProgress, type ServerProgressResponse } from './progressSync.mjs';
 
 type SchoolActivityView = { id: string; title: string; description: string; timeCost: number };
@@ -461,6 +464,42 @@ export default function WorldScene({
     graphicsRef.current = graphicsMode(next.graphics);
     applyGraphicsRef.current();
   };
+  // Accessibility: calm motion (setting or device preference) and large text apply to the whole page.
+  const [systemReducedMotion, setSystemReducedMotion] = useState(() => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true);
+  useEffect(() => {
+    const query = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    if (!query) return;
+    const changed = () => setSystemReducedMotion(query.matches);
+    query.addEventListener?.('change', changed);
+    return () => query.removeEventListener?.('change', changed);
+  }, []);
+  const calmMotion = reducedMotion(playerSettings, systemReducedMotion);
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.reduceMotion = String(calmMotion);
+    root.dataset.textSize = playerSettings.textSize;
+    return () => { delete root.dataset.reduceMotion; delete root.dataset.textSize; };
+  }, [calmMotion, playerSettings.textSize]);
+  // Sound captions: every sound cue is described in text while captions are on (even with the sound muted).
+  const [soundCaptions, setSoundCaptions] = useState<SoundCaption[]>([]);
+  const captionsOnRef = useRef(playerSettings.captions);
+  captionsOnRef.current = playerSettings.captions;
+  const lastCaptionCue = useRef(new Map<string, number>());
+  const captionCue = useCallback((cue: string) => {
+    if (!captionsOnRef.current) return;
+    const now = performance.now() / 1000;
+    if (now - (lastCaptionCue.current.get(cue) ?? -Infinity) < 0.3) return;
+    lastCaptionCue.current.set(cue, now);
+    setSoundCaptions(list => pushCaption(list, cue, now));
+  }, []);
+  useEffect(() => {
+    if (!playerSettings.captions) { setSoundCaptions([]); return; }
+    if (!soundCaptions.length) return;
+    const oldest = Math.min(...soundCaptions.map(caption => caption.at));
+    const wait = Math.max(50, (oldest + CAPTION_SECONDS - performance.now() / 1000) * 1000 + 20);
+    const timer = window.setTimeout(() => setSoundCaptions(list => activeCaptions(list, performance.now() / 1000)), wait);
+    return () => window.clearTimeout(timer);
+  }, [soundCaptions, playerSettings.captions]);
   // Career training range (an overlay): open while you're at your own workplace.
   const [rangeOpen, setRangeOpen] = useState<CareerId | null>(null);
   const rangeOpenRef = useRef<CareerId | null>(null);
@@ -735,7 +774,12 @@ export default function WorldScene({
         setBusyLabel(`On duty: ${result.duty}…`);
       };
       let football: { pitch: ReturnType<typeof buildFootballPitch>; ball: Ball; goals: number; resetIn: number } | null = null;
-      let downtown: { city: City; collider: ReturnType<typeof createCityCollider>; stop: PlanarPosition & { rotation: number; street: string; dx: number; dz: number; awayX: number; awayZ: number }; dispose: () => void } | null = null;
+      type DowntownStop = PlanarPosition & { rotation: number; street: string; dx: number; dz: number; awayX: number; awayZ: number };
+      // Downtown in two steps. The map data (streets, bus stop, workplace doors) loads at start-up so the map, the
+      // taxi and the workplace pins work at once; the 3D city, lights, pitch, signs and traffic are only built the
+      // first time you head downtown, behind the ride's fade, so Maple Street starts with less to build and draw.
+      let downtownSite: { city: City; collider: ReturnType<typeof createCityCollider>; stop: DowntownStop; heading: number } | null = null;
+      let downtown: { city: City; collider: ReturnType<typeof createCityCollider>; stop: DowntownStop; dispose: () => void } | null = null;
       // Downtown traffic loads after the city itself; it's optional.
       let cityTraffic: CityTraffic | null = null;
       let trafficShown = false;
@@ -755,6 +799,21 @@ export default function WorldScene({
         const local = findBusStop(city, collider);
         if (!local) return;
         const world = toWorld([local.x, local.z]);
+        workDoors = workplaceDoors(city, collider);
+        // The GPS works from the map data, before the 3D city is built.
+        roadGraph = buildRoadGraph(city.roads);
+        downtownSite = {
+          city, collider, heading: local.heading,
+          stop: { ...world, rotation: movementHeading(local.dx, local.dz), dx: local.dx, dz: local.dz, awayX: local.awayX, awayZ: local.awayZ, street: local.street },
+        };
+        // A link with ?play=football takes the bus straight to the pitch.
+        if (playFootball) window.setTimeout(() => { if (!disposed && locationRef.current === 'street') boardBus('downtown'); }, 600);
+      };
+      /** Builds the 3D downtown the first time it's needed; afterwards (or with no map data yet) returns what there is. */
+      const ensureDowntown = () => {
+        if (downtown || !downtownSite || disposed || scene.isDisposed) return downtown;
+        const { city, collider, stop, heading } = downtownSite;
+        const builtAt = performance.now();
         const disposeCity = buildCityScene(scene, city);
         // Street lamps on every downtown street (clustered lights at night).
         const lights = buildCityLights(scene, city, collider);
@@ -763,20 +822,21 @@ export default function WorldScene({
         // A caged five-a-side pitch in Central Park.
         const pitch = buildFootballPitch(scene);
         football = { pitch, ball: newBall(), goals: 0, resetIn: 0 };
-        // Police station, army recruiting office and fire station, at real downtown buildings.
-        const workplaces = buildWorkplaces(scene, city, collider);
-        workDoors = workplaces.doors;
-        roadGraph = buildRoadGraph(city.roads);
+        // Signs over the police station, army recruiting office and fire station, at real downtown buildings.
+        const workplaces = buildWorkplaces(scene, workDoors);
         void loadCityTraffic(scene, city, 28, shadows).then(traffic => {
           if (disposed || scene.isDisposed) traffic?.dispose();
           else cityTraffic = traffic;
         }).catch(() => { /* No traffic: downtown still works. */ });
-        // A link with ?play=football takes the bus straight to the pitch.
-        if (playFootball) window.setTimeout(() => { if (!disposed && locationRef.current === 'street') boardBus('downtown'); }, 600);
         pitch.show(football.ball);
-        const disposeStop = buildBusStop(scene, world.x + local.awayX * 0.9, world.z + local.awayZ * 0.9, local.heading);
-        downtown = { city, collider, stop: { ...world, rotation: movementHeading(local.dx, local.dz), dx: local.dx, dz: local.dz, awayX: local.awayX, awayZ: local.awayZ, street: local.street }, dispose: () => { disposeCity(); disposeStop(); lights.dispose(); pitch.dispose(); workplaces.dispose(); cityTraffic?.dispose(); cityTraffic = null; } };
+        const disposeStop = buildBusStop(scene, stop.x + stop.awayX * 0.9, stop.z + stop.awayZ * 0.9, heading);
+        downtown = { city, collider, stop, dispose: () => { disposeCity(); disposeStop(); lights.dispose(); pitch.dispose(); workplaces.dispose(); cityTraffic?.dispose(); cityTraffic = null; } };
+        downtownBuildMs = Math.round(performance.now() - builtAt);
+        return downtown;
       };
+      // Start building on the next tick, so the ride's "Riding…" fade paints before the work begins.
+      const prepareDowntown = () => { if (!downtown) window.setTimeout(() => { ensureDowntown(); }, 60); };
+      let downtownBuildMs: number | null = null;
       loadDowntown().then(() => loadTracker.finish('downtown'),
         () => loadTracker.fail('downtown') /* Downtown is optional; Maple Street plays without it. */);
       // The town around the street, so the world reaches the horizon instead of ending at a cliff edge.
@@ -1060,9 +1120,10 @@ export default function WorldScene({
       // Driving between Maple Street and downtown: a short fade on the road.
       let pendingDrive: { to: 'downtown' | 'home'; index: number; timer: number } | null = null;
       const startDrive = (to: 'downtown' | 'home', index: number) => {
-        if (!downtown) { notify('The road downtown is still loading. Try again in a moment.'); return; }
+        if (!downtownSite) { notify('The road downtown is still loading. Try again in a moment.'); return; }
         pendingDrive = { to, index, timer: 0 };
-        setRiding(to === 'downtown' ? `Driving to ${downtown.city.name}…` : 'Driving home to Maple Street…');
+        prepareDowntown();
+        setRiding(to === 'downtown' ? `Driving to ${downtownSite.city.name}…` : 'Driving home to Maple Street…');
       };
       const trainingCheck = () => {
         const job = careerRef.current.career ? CAREERS[careerRef.current.career] : null;
@@ -1105,6 +1166,7 @@ export default function WorldScene({
             taxi: Boolean(pendingTaxi) || Boolean(pendingDrive),
             travelling: pendingTaxi !== null,
             loading: !worldReadyRef.current,
+            downtownBuilt: downtown !== null, downtownBuildMs,
           }),
           travel: (to: TravelTarget) => travelRef.current(to),
           route: () => mapReadRef.current().routeLength ?? 0,
@@ -1114,8 +1176,9 @@ export default function WorldScene({
       travelRef.current = (to) => {
         if (pendingTaxi || pendingDrive || pendingRide || interaction.mode !== 'walking') { notify('Quick travel works on foot.'); return; }
         if (locationRef.current !== 'street' && locationRef.current !== 'city') { notify('Head outside first.'); return; }
-        if (to !== 'maple' && !downtown) { notify('Downtown is still loading.'); return; }
+        if (to !== 'maple' && !downtownSite) { notify('Downtown is still loading.'); return; }
         pendingTaxi = { to, timer: 0 };
+        if (to !== 'maple') prepareDowntown();
         inputRef.current.clear();
         avatar.setEnabled(false);
         setRiding('Taking a taxi…');
@@ -1130,6 +1193,7 @@ export default function WorldScene({
         setLifeView({ ...life });
         avatar.setEnabled(true);
         setRiding(null);
+        if (to !== 'maple') ensureDowntown();
         if (to === 'maple' || !downtown) {
           locationRef.current = 'street';
           matchRef.current.leave();
@@ -1190,8 +1254,8 @@ export default function WorldScene({
           { id: 'gate', label: 'Road to downtown', x: 0, z: 11.2, kind: 'gate' },
         ];
         const downtownPins: MapMarker[] = [];
-        if (downtown) {
-          const [bx, bz] = toLocal(downtown.stop);
+        if (downtownSite) {
+          const [bx, bz] = toLocal(downtownSite.stop);
           downtownPins.push({ id: 'bus', label: 'Bus stop', x: bx, z: bz, kind: 'bus' });
           const [px, pz] = toLocal(PITCH);
           downtownPins.push({ id: 'pitch', label: 'Football pitch', x: px, z: pz, kind: 'pitch' });
@@ -1204,7 +1268,7 @@ export default function WorldScene({
         return {
           location: locationRef.current,
           you: { x: local[0], z: local[1], heading },
-          city: downtown?.city ?? null,
+          city: downtownSite?.city ?? null,
           street, downtown: downtownPins,
           canTravel: interaction.mode === 'walking' && (locationRef.current === 'street' || locationRef.current === 'city'),
           view: viewHeading,
@@ -1224,6 +1288,7 @@ export default function WorldScene({
         syncLighting();
         setLifeView({ ...life });
         setRiding(null);
+        if (drive.to === 'downtown') ensureDowntown();
         if (drive.to === 'downtown' && downtown) {
           const stop = downtown.stop;
           // In the near lane of the stop's street, heading along it.
@@ -1250,14 +1315,15 @@ export default function WorldScene({
       let cityCameraRadius: number | null = null;
       let cityClampedRadius = -1;
       const boardBus = (to: 'downtown' | 'home') => {
-        if (!downtown) { notify('The bus is running late. Try again in a moment.'); return; }
+        if (!downtownSite) { notify('The bus is running late. Try again in a moment.'); return; }
+        if (to === 'downtown') prepareDowntown();
         audioRef.current?.cue('bus');
         pendingRide = to;
         rideTimer = 0;
         inputRef.current.clear();
         avatar.setEnabled(false);
         setBusPrompt(null);
-        setRiding(to === 'downtown' ? `Riding the bus to ${downtown.city.name}…` : 'Riding the bus home to Maple Street…');
+        setRiding(to === 'downtown' ? `Riding the bus to ${downtownSite.city.name}…` : 'Riding the bus home to Maple Street…');
       };
       const playFootball = new URLSearchParams(window.location.search).get('play') === 'football';
       const arrive = () => {
@@ -1269,6 +1335,7 @@ export default function WorldScene({
         setLifeView({ ...life });
         avatar.setEnabled(true);
         setRiding(null);
+        if (to === 'downtown') ensureDowntown();
         if (to === 'downtown' && downtown) {
           locationRef.current = 'city';
           applyFog();
@@ -2282,12 +2349,18 @@ export default function WorldScene({
         </div>}
         <GameMenu open={menuOpen} tab={menuTab} setTab={setMenuTab} onClose={closeMenu} story={story}
           graphics={playerSettings.graphics} setGraphics={mode => updateSettings({ ...playerSettings, graphics: mode })}
+          access={playerSettings} setAccess={change => updateSettings({ ...playerSettings, ...change })}
           onReset={() => { resetProgress(characterId); window.location.reload(); }}
-          audio={<AudioPanel director={audioRef} />} />
-        {rangeOpen && <TrainingRange drill={RANGE_DRILLS[rangeOpen]} energy={lifeView.energy}
-          onFinish={score => rangeRef.current.finish(score)} canRetry={() => rangeRef.current.canRetry()}
-          onLeave={() => { closeRange(); canvasRef.current?.focus(); }}
-          cue={name => audioRef.current?.cue(name)} />}
+          audio={<AudioPanel director={audioRef} onCue={captionCue} />} />
+        {playerSettings.captions && <ul className="world-sound-captions" aria-live="polite" aria-label="Sound captions">
+          {soundCaptions.map(caption => <li key={caption.id}>{captionLabel(caption)}</li>)}
+        </ul>}
+        {rangeOpen && <Suspense fallback={<p className="world-range-loading" role="status">Setting up the range…</p>}>
+          <TrainingRange drill={RANGE_DRILLS[rangeOpen]} energy={lifeView.energy}
+            onFinish={score => rangeRef.current.finish(score)} canRetry={() => rangeRef.current.canRetry()}
+            onLeave={() => { closeRange(); canvasRef.current?.focus(); }}
+            cue={name => audioRef.current?.cue(name)} />
+        </Suspense>}
         {npcChat && <div className="npc-chat-backdrop" role="dialog" aria-modal="true"
           aria-label={`Conversation with ${npcChat.conversation.name}`}>
           <section className="npc-chat-card">

@@ -128,6 +128,40 @@ await step('menu opens with Esc, shows every tab, and closes', async () => {
   }
   await page.waitForSelector('.game-menu-backdrop[hidden]', { state: 'attached', timeout: 10000 });
 });
+await step('accessibility: keyboard menu, motion, large text and sound captions', async () => {
+  await page.locator('canvas').first().click({ position: { x: 320, y: 120 } });
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.game-menu-backdrop:not([hidden])', { timeout: 10000 });
+  try {
+    if (!(await page.evaluate(() => document.activeElement?.classList.contains('game-menu-resume')))) throw new Error('menu did not focus Resume');
+    // Tab never leaves the open menu.
+    await page.keyboard.press('Shift+Tab');
+    if (!(await page.evaluate(() => Boolean(document.activeElement?.closest('.game-menu'))))) throw new Error('Shift+Tab left the menu');
+    // Arrow keys move between tabs.
+    const menu = page.locator('.game-menu');
+    await menu.getByRole('tab', { name: 'Controls' }).click();
+    await page.keyboard.press('ArrowRight');
+    if ((await menu.getByRole('tab', { selected: true }).textContent()) !== 'Settings') throw new Error('ArrowRight did not select Settings');
+    if (!(await page.evaluate(() => document.activeElement?.getAttribute('role') === 'tab'))) throw new Error('tab focus not moved');
+    await menu.getByLabel(/^Motion: Reduced/).check();
+    await menu.getByLabel(/^Sound captions/).check();
+    await menu.getByLabel(/^Large text/).check();
+    const root = await page.evaluate(() => ({ ...document.documentElement.dataset }));
+    if (root.reduceMotion !== 'true' || root.textSize !== 'large') throw new Error(`page not updated: ${JSON.stringify(root)}`);
+    await shot('04c-accessibility');
+    // Back to normal text so the rest of the run sees the usual layout; captions stay on.
+    await menu.getByLabel(/^Large text/).uncheck();
+    await menu.getByLabel(/^Motion: Follow my device/).check();
+  } finally {
+    await page.keyboard.press('Escape');
+  }
+  await page.waitForSelector('.game-menu-backdrop[hidden]', { state: 'attached', timeout: 10000 });
+  await page.keyboard.press('n');
+  await page.waitForSelector('.world-sound-captions li:has-text("Map unfolds")', { timeout: 5000 });
+  await shot('04d-caption');
+  await page.keyboard.press('n');
+  await page.waitForSelector('.world-map', { state: 'detached', timeout: 5000 });
+});
 await step('frame rate', async () => {
   const fps = await page.evaluate(() => new Promise(resolve => {
     let frames = 0; const start = performance.now();
@@ -137,8 +171,13 @@ await step('frame rate', async () => {
   notes.push(`~${Math.round(fps)} fps in software rendering`);
 });
 await step('quick travel downtown', async () => {
+  // Downtown's 3D city is built on the first trip, not at start-up (MVP 6b).
+  if ((await read()).downtownBuilt) throw new Error('the downtown 3D city was built before the first trip there');
   await page.evaluate(() => window.__tld.travel('downtown'));
   await page.waitForFunction(() => { const s = window.__tld.read(); return s.location === 'city' && !s.taxi; }, null, { timeout: 180000 });
+  const arrived = await read();
+  if (!arrived.downtownBuilt) throw new Error('arrived downtown but the city was never built');
+  notes.push(`downtown built on the first trip in ${arrived.downtownBuildMs} ms (software rendering)`);
   await page.waitForTimeout(3000);
   await dismissDialogue();
   await shot('05-downtown');
