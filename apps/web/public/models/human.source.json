@@ -112,8 +112,8 @@
   "body": "male",
   "output": {
     "file": "human.glb",
-    "bytes": 1617092,
-    "sha256": "0ff4522d86871460d952e9523d916c76985a29b0d86aa0cb4db6620044d70011",
+    "bytes": 1662444,
+    "sha256": "94b8bf7e1a18c3d4c490f484c5ab8f0e9af5e489c1b5b7d986c1699a7d117b6f",
     "morphTargets": [
       "browDownLeft",
       "browDownRight",
@@ -124,6 +124,10 @@
       "eyeBlinkRight",
       "eyeLookDownLeft",
       "eyeLookDownRight",
+      "eyeLookLeftLeft",
+      "eyeLookLeftRight",
+      "eyeLookRightLeft",
+      "eyeLookRightRight",
       "eyeLookUpLeft",
       "eyeLookUpRight",
       "eyeSquintLeft",

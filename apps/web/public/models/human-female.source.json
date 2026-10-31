@@ -112,8 +112,8 @@
   "body": "female",
   "output": {
     "file": "human-female.glb",
-    "bytes": 1584796,
-    "sha256": "38ed2de722e1b92e70dc1b927bbdeeb203e1ba80e3f339be454204387feeb19f",
+    "bytes": 1630196,
+    "sha256": "b8d866c7434e1d0a80086c93d112924d712a948f1d93bef19da21d9c172c7655",
     "morphTargets": [
       "browDownLeft",
       "browDownRight",
@@ -124,6 +124,10 @@
       "eyeBlinkRight",
       "eyeLookDownLeft",
       "eyeLookDownRight",
+      "eyeLookLeftLeft",
+      "eyeLookLeftRight",
+      "eyeLookRightLeft",
+      "eyeLookRightRight",
       "eyeLookUpLeft",
       "eyeLookUpRight",
       "eyeSquintLeft",
