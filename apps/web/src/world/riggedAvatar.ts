@@ -9,6 +9,7 @@ import { stepBlink } from './blinkCycle.mjs';
 import { advanceSharedFacialMorph } from './facialMorphSync.mjs';
 import { idleGazeTarget } from './gazeDynamics.mjs';
 import { actionFacialWeight } from './actionFacial.mjs';
+import { stepSpeechOverlay } from './speechOverlay.mjs';
 import { blendHumanWeights, classifyHumanMotion, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 import { startAction, stepAction, stopAction, type ActionState } from './actionMixer.mjs';
@@ -18,6 +19,8 @@ export type RiggedAvatar = {
   root: TransformNode;
   applyLook: (look: Look) => void;
   setEmotion: (emotion: Emotion) => void;
+  /** Drive remote chat mouth morphs without requiring a body animation clip. */
+  setSpeaking: (speaking: boolean) => void;
   /** Clips from characterActions, bound to this character's bones. */
   setActions: (actions: Map<string, BoundAction>) => void;
   /** Play an action over locomotion (one at a time); false if it isn't available. */
@@ -171,6 +174,8 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
       group.setWeightForAllAnimatables(weights[state]);
     }
     let emotion: Emotion = 'neutral';
+    let speaking = false;
+    let speechOverlay = { elapsed: 0, weight: 0 };
     const facialTargets = container.meshes.flatMap(mesh => {
       const manager = mesh.morphTargetManager;
       return manager ? Array.from({ length: manager.numTargets }, (_, i) => manager.getTarget(i)) : [];
@@ -199,6 +204,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
     return {
       root,
       setEmotion(next) { emotion = next; },
+      setSpeaking(next) { speaking = next === true; },
       setActions(next) {
         for (const { group } of actions.values()) group.dispose();
         actions = next;
@@ -255,6 +261,10 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
         // the body clip and its speech articulation, including stop transitions.
         const step = stepAction(action, frameSeconds);
         action = step.state;
+        speechOverlay = stepSpeechOverlay(speechOverlay, speaking, frameSeconds);
+        // Remote chat uses only facial articulation; body clips remain free to walk.
+        const speechAction = speechOverlay.weight > 0.001
+          ? { name: 'Talk', elapsed: speechOverlay.elapsed } : null;
         frameExpressionWeights.clear();
         for (const morph of facialTargets) {
           const dropletKind = morph.name.startsWith('tearTrack') ? 'tear'
@@ -275,7 +285,8 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
             morph.influence = advanceSharedFacialMorph(
               morph.name, morph.influence,
               Math.min(1, Math.max(faceTarget(emotion, morph.name),
-                actionFacialWeight(morph.name, step.state, step.weight)) +
+                actionFacialWeight(morph.name, step.state, step.weight),
+                actionFacialWeight(morph.name, speechAction, speechOverlay.weight)) +
                 idleGazeTarget(morph.name, effectTime, emotion, movementSpeed)),
               frameSeconds, blinkState, expressionInfluences, frameExpressionWeights,
             );
