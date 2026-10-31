@@ -10,6 +10,7 @@ import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 import { initialNpcBlink, collectNpcEyelids, advanceNpcBlink } from './npcBlink.mjs';
 import { collectNpcFaceTargets, initialNpcFace, advanceNpcFace, resetNpcFace } from './npcFace.mjs';
 import { createNpcFacialMaterials } from './npcFacialMaterials.mjs';
+import { findNpcLocomotionIndices, selectNpcAnimationModel } from './npcAnimationSelection.mjs';
 
 type CarFootprint = { x: number; z: number; rotation: number; speed?: number };
 const DODGE_SPEED = 3.2;
@@ -39,14 +40,23 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
   const loaded = await Promise.all(models.map(model => SceneLoader.LoadAssetContainerAsync('/models/', model, scene).catch(() => null)));
   const containers = new Map(models.map((model, i) => [model, loaded[i]]));
   if (scene.isDisposed || !containers.get('human.glb')) { for (const c of loaded) c?.dispose(); return null; }
-  const clipIndex = (container: AssetContainer, name: string) => container.animationGroups.findIndex(group => group.name === name);
-  const idleIndex = clipIndex(containers.get('human.glb')!, 'Idle');
-  const walkIndex = clipIndex(containers.get('human.glb')!, 'Walk');
-  if (idleIndex < 0 || walkIndex < 0) { for (const c of loaded) c?.dispose(); return null; }
+  // AnimationGroup order is not a cross-body contract. A regenerated female
+  // GLB may place Walk/Idle at different indices from the male GLB. Resolve
+  // indices per source container and fall back to the known-good male rig if
+  // the preferred body is missing either required locomotion clip.
+  const usable = new Map<string, { container: AssetContainer; idleIndex: number; walkIndex: number }>();
+  for (const [model, container] of containers) {
+    if (!container) continue;
+    const indices = findNpcLocomotionIndices(container.animationGroups);
+    if (indices) usable.set(model, { container, ...indices });
+  }
+  if (!usable.has('human.glb')) { for (const c of loaded) c?.dispose(); return null; }
 
   const people = NEIGHBORS.map((npc, index) => {
-    // A body that failed to load falls back to the default model.
-    const container = containers.get(modelFor(npc.look)) ?? containers.get('human.glb')!;
+    // A missing or incomplete body falls back as a pair: geometry AND its
+    // matching action clips. Never bind female action clips onto a male fallback.
+    const model = selectNpcAnimationModel(modelFor(npc.look), usable)!;
+    const { container, idleIndex, walkIndex } = usable.get(model)!;
     const entries = container.instantiateModelsToScene(name => `npc ${npc.id} ${name}`, true);
     const holder = new TransformNode(`npc ${npc.id}`, scene);
     const visual = new TransformNode(`npc ${npc.id} visual`, scene);
@@ -73,14 +83,14 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     const start = routePose(npc, 0);
     const reaction: { state: ActionState | null; clip: BoundAction | null } = { state: null, clip: null };
     const actions = new Map<string, BoundAction>();
-    return { npc, entries, holder, idle, walk, reaction, actions, eyelids, blink: initialNpcBlink(index), faceTargets, face: initialNpcFace(index), facialMaterials, walked: 0, walkWeight: 0, heading: personHeading(start.dx, start.dz), visible: false, dodge: { x: 0, z: 0 }, dodgeTarget: { x: 0, z: 0 }, dodgeHold: 0 };
+    return { npc, model, entries, holder, idle, walk, reaction, actions, eyelids, blink: initialNpcBlink(index), faceTargets, face: initialNpcFace(index), facialMaterials, walked: 0, walkWeight: 0, heading: personHeading(start.dx, start.dz), visible: false, dodge: { x: 0, z: 0 }, dodgeTarget: { x: 0, z: 0 }, dodgeHold: 0 };
   });
 
   // Action clips (a separate download): people standing together talk with their hands; anyone can flinch.
   void Promise.all(models.map(model => loadActionClips(scene, model))).then(clipSets => {
     if (scene.isDisposed) return;
     for (const person of people) {
-      const clips = clipSets[models.indexOf(modelFor(person.npc.look))];
+      const clips = clipSets[models.indexOf(person.model)];
       if (!clips) continue;
       const prefix = `npc ${person.npc.id} `;
       const bound = bindActions(clips, person.holder.getChildTransformNodes(false), `npc ${person.npc.id}`,
