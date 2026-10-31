@@ -18,7 +18,7 @@ FACE_MESHES = {
     "Student expressive lips", "Student oral cavity", "Student upper teeth",
     "Student tongue", "Student expressive cheeks", "Student sculpted nose",
     "Student sculpted ears",
-    "Student eyelid rims", "Student corneal shells",
+    "Student eyebrow fibres", "Student eyelid rims", "Student corneal shells",
     "Student tear Left", "Student tear Right", "Student sweat Left", "Student sweat Right",
 }
 EXPECTED_HAIR = {"parted", "buzzed", "pixie", "long", "buns", "beard"}
@@ -102,6 +102,16 @@ def inspect_variant(folder, body):
                         abs(w[0] - 1) < 1e-5 and all(abs(v) < 1e-5 for v in w[1:])
                         for j, w in zip(joints, weights)),
                     f"{body}: {name} must follow the Head bone")
+
+    brow = meshes["Student eyebrow fibres"][1]["primitives"][0]
+    require(brow["material"] == 4, f"{body}: brow fibres must inherit hair colour")
+    require(meshes["Student eyebrow fibres"][1].get("extras", {}).get("targetNames") ==
+            ["browInnerUp", "browDownLeft", "browDownRight"],
+            f"{body}: eyebrow fibres must follow the existing expression morphs")
+    require(len(brow.get("targets", [])) == 3,
+            f"{body}: eyebrow fibre morph geometry missing")
+    require(len(vectors(doc, binary, brow["attributes"]["POSITION"])) == 168,
+            f"{body}: unexpected eyebrow fibre vertex budget")
 
     hair = validate_hairstyles(meshes.keys(), body)
     clips = {animation["name"] for animation in doc["animations"]}
