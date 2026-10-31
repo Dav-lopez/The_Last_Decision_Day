@@ -105,16 +105,16 @@ await step('downtown traffic drives', async () => {
   await shot('05b-traffic');
 });
 await step('minimap shows, and a map waypoint gives a GPS route', async () => {
-  await page.waitForSelector('.world-minimap canvas', { timeout: 20000 });
+  await page.waitForSelector('.world-minimap canvas', { timeout: 60000 });
   await page.locator('canvas').first().click({ position: { x: 320, y: 120 } });
   await page.keyboard.press('n');
-  await page.waitForSelector('.world-map-gps', { timeout: 10000 });
+  // The main thread is busy rendering in software, so UI updates can take a while.
+  await page.waitForSelector('.world-map-gps', { timeout: 60000 });
   const box = await page.locator('.world-map-gps').boundingBox();
   await page.mouse.click(box.x + box.width * 0.8, box.y + box.height * 0.3);
-  await page.waitForFunction(() => { const s = window.__tld.read(); return true; }, null, { timeout: 2000 });
   await shot('05c-gps-map');
   await page.keyboard.press('n');
-  await page.waitForSelector('.world-map', { state: 'detached', timeout: 10000 });
+  await page.waitForSelector('.world-map', { state: 'detached', timeout: 60000 });
   await page.waitForFunction(() => window.__tld.route() > 0, null, { timeout: 120000 });
   notes.push(`GPS route ${Math.round(await page.evaluate(() => window.__tld.route()))} m`);
   await shot('05d-minimap-route');
