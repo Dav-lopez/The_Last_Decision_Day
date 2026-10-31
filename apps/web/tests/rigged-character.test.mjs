@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { skinMicroNormalMap } from '../src/world/skinMicroNormalMap.mjs';
+import { planarSkinUV, skinMicroNormalMap } from '../src/world/skinMicroNormalMap.mjs';
 
 const bytes = readFileSync(new URL('../public/models/human.glb', import.meta.url));
 const jsonLength = bytes.readUInt32LE(12);
@@ -154,5 +154,21 @@ test('Babylon NullEngine accepts the generated normal tile as a PBR bump texture
   } finally {
     scene.dispose();
     engine.dispose();
+  }
+});
+
+test('legacy body rest positions generate finite repeatable UVs without changing positions', () => {
+  const positions = new Float32Array([-0.2, 1.6, 0.3, 0.2, 1.6, 0.3, 0, 1.8, -0.2]);
+  const original = [...positions];
+  const uv = planarSkinUV(positions);
+  assert.ok(uv instanceof Float32Array);
+  assert.deepEqual([...uv], [...planarSkinUV(positions)]);
+  assert.equal(uv.length, 6);
+  assert.ok(uv.every(Number.isFinite));
+  assert.notEqual(uv[0], uv[2], 'horizontal skin positions must not collapse to one UV');
+  assert.notEqual(uv[1], uv[5], 'vertical skin positions must not collapse to one UV');
+  assert.deepEqual([...positions], original, 'skinning and morph source positions remain unchanged');
+  for (const invalid of [null, [], [1, 2], [NaN, 1, 2], [0, Infinity, 0]]) {
+    assert.equal(planarSkinUV(invalid), null);
   }
 });
