@@ -86,7 +86,7 @@ export function createRemotePlayers(scene: Scene, shadows: ShadowGenerator) {
       entry.rig?.root.setEnabled(target.showBody);
       entry.body.setEnabled(target.showBody && !entry.rig);
       entry.rig?.update(target.speed, dt);
-      const caption = `${peer.name}${pose.mode === 'driving' ? ' · driving' : pose.mode === 'busy' ? ' · busy' : ''}`;
+      const caption = `${peer.name}${target.mode === 'driving' ? ' · driving' : target.mode === 'busy' ? ' · busy' : ''}`;
       if (caption !== entry.caption) { entry.caption = caption; entry.texture.drawText(caption, null, 64, 'bold 28px sans-serif', '#ffffff', '#102938cc', true); }
     },
     dispose() { disposed = true; clear(); },
