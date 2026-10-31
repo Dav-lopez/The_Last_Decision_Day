@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { skinMicroNormalMap } from '../src/world/skinMicroNormalMap.mjs';
 
 const bytes = readFileSync(new URL('../public/models/human.glb', import.meta.url));
 const jsonLength = bytes.readUInt32LE(12);
@@ -95,6 +96,61 @@ test('Babylon imports the actual asset and each locomotion clip changes the skel
       group.stop();
     }
     container.dispose();
+  } finally {
+    scene.dispose();
+    engine.dispose();
+  }
+});
+
+test('procedural skin normal tile is deterministic, bounded and nonflat', () => {
+  const a = skinMicroNormalMap(), b = skinMicroNormalMap();
+  assert.deepEqual(a, b);
+  assert.equal(a.length, 64 * 64 * 4);
+  const directions = new Set();
+  for (let i = 0; i < a.length; i += 4) {
+    assert.equal(a[i + 3], 255);
+    assert.ok(a[i + 2] >= 250, 'microdetail must not distort facial geometry');
+    const normal = [a[i], a[i + 1], a[i + 2]].map(value => value / 127.5 - 1);
+    assert.ok(Math.abs(Math.hypot(...normal) - 1) < 0.016);
+    directions.add(`${a[i]},${a[i + 1]}`);
+  }
+  assert.ok(directions.size > 20, 'tile needs genuine pore-scale variation');
+});
+
+test('skin pore normals repeat continuously without hard tile seams', () => {
+  const size = 64, bytes = skinMicroNormalMap(size);
+  const normal = (x, y) => [...bytes.slice((y * size + x) * 4, (y * size + x) * 4 + 3)];
+  for (let i = 0; i < size; i++) {
+    for (const [first, last] of [[normal(0, i), normal(size - 1, i)], [normal(i, 0), normal(i, size - 1)]]) {
+      assert.ok(Math.abs(first[0] - last[0]) <= 12);
+      assert.ok(Math.abs(first[1] - last[1]) <= 12);
+    }
+  }
+});
+
+test('normal tile rejects excessive sizes and supports power-of-two resolutions', () => {
+  for (const size of [0, 15, 17, 512, NaN, Infinity, 64.5]) assert.throws(() => skinMicroNormalMap(size), RangeError);
+  for (const size of [16, 32, 128, 256]) assert.equal(skinMicroNormalMap(size).length, size * size * 4);
+});
+
+test('Babylon NullEngine accepts the generated normal tile as a PBR bump texture', async () => {
+  const { NullEngine, Scene, RawTexture, Texture, PBRMaterial } = await import('@babylonjs/core');
+  const engine = new NullEngine();
+  const scene = new Scene(engine);
+  try {
+    const texture = RawTexture.CreateRGBATexture(skinMicroNormalMap(), 64, 64, scene,
+      true, false, Texture.TRILINEAR_SAMPLINGMODE);
+    texture.wrapU = Texture.WRAP_ADDRESSMODE;
+    texture.wrapV = Texture.WRAP_ADDRESSMODE;
+    texture.uScale = 5;
+    texture.vScale = 5;
+    texture.level = 0.24;
+    const skin = new PBRMaterial('Student skin', scene);
+    skin.bumpTexture = texture;
+    assert.equal(skin.bumpTexture, texture);
+    assert.deepEqual(texture.getSize(), { width: 64, height: 64 });
+    assert.equal(texture.wrapU, Texture.WRAP_ADDRESSMODE);
+    assert.equal(texture.wrapV, Texture.WRAP_ADDRESSMODE);
   } finally {
     scene.dispose();
     engine.dispose();
