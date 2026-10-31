@@ -1,7 +1,7 @@
 import { advanceSharedFacialMorph } from './facialMorphSync.mjs';
 import { idleGazeTarget } from './gazeDynamics.mjs';
 
-const FACIAL_MORPH = /^(?:eye(?:Look(?:Up|Down)|Wide|Squint)(?:Left|Right)|brow(?:InnerUp|DownLeft|DownRight)|cheekSquint(?:Left|Right)|jawOpen|mouth(?:Open|SmileLeft|SmileRight|PressLeft|PressRight))$/;
+const FACIAL_MORPH = /^(?:eye(?:Look(?:Up|Down)|Wide|Squint)(?:Left|Right)|brow(?:InnerUp|DownLeft|DownRight)|cheekSquint(?:Left|Right)|jawOpen|mouth(?:Open|SmileLeft|SmileRight|FrownLeft|FrownRight|PressLeft|PressRight))$/;
 
 /** Collect only the cloned resident's expression morphs. Blink and droplet tracks have separate owners. */
 export function collectNpcFaceTargets(meshes) {
@@ -27,24 +27,39 @@ export function initialNpcFace(index) {
 export function npcFaceTarget(name, elapsed, { talking = false, nearby = false, moving = false, flinch = 0, emotion = 'neutral' } = {}) {
   if (!FACIAL_MORPH.test(name)) return 0;
   const startled = Number.isFinite(flinch) ? Math.min(1, Math.max(0, flinch)) : 0;
-  const speaking = talking && !moving ? 1 - startled : 0;
-  const greeting = nearby && !moving ? 1 - startled : 0;
+  const composure = 1 - startled;
+  const sad = emotion === 'sad' ? composure : 0;
+  const happy = emotion === 'happy' ? composure : 0;
+  const speaking = talking && !moving ? composure : 0;
+  const greeting = nearby && !moving ? composure : 0;
+  // Invalid timestamps must not propagate NaN to morphs or disrupt a resident.
+  const time = Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : 0;
   // Two non-commensurate rhythms suggest syllables without claiming lip-sync.
-  const syllables = Math.pow(Math.max(0, Math.sin(elapsed * 10.7) * 0.7 + Math.sin(elapsed * 17.3) * 0.3), 2);
+  const syllables = Math.pow(Math.max(0, Math.sin(time * 10.7) * 0.7 + Math.sin(time * 17.3) * 0.3), 2);
   let pose = 0;
-  if (name === 'jawOpen') pose = speaking * (0.06 + syllables * 0.24);
+  if (name === 'jawOpen') pose = speaking * (0.06 + syllables * 0.24) + startled * 0.13 + sad * 0.035;
   else if (name === 'mouthOpen') pose = speaking * (0.04 + syllables * 0.19) + startled * 0.28;
-  else if (name.startsWith('mouthSmile')) pose = (speaking * 0.16 + greeting * 0.08 + (emotion === 'happy' ? 0.28 : 0)) * (name.endsWith('Left') ? 0.94 : 1);
-  else if (name.startsWith('mouthPress')) pose = emotion === 'sad' ? 0.20 : 0;
-  else if (name.startsWith('cheekSquint')) pose = speaking * 0.06 + greeting * 0.03;
-  else if (name === 'browInnerUp') pose = speaking * 0.06 + greeting * 0.09 + startled * 0.38 + (emotion === 'sad' ? 0.24 : 0);
-  else if (name.startsWith('eyeWide')) pose = startled * 0.46;
+  else if (name.startsWith('mouthSmile')) {
+    // A hurt resident must not grin simply because they are speaking or the
+    // player is nearby. Positive conversation still lifts the mouth corners.
+    const warmth = sad ? 0 : speaking * 0.16 + greeting * 0.08 + happy * 0.28;
+    pose = warmth * (name.endsWith('Left') ? 0.94 : 1);
+  } else if (name.startsWith('mouthFrown')) {
+    pose = sad * (name.endsWith('Left') ? 0.46 : 0.40);
+  } else if (name.startsWith('mouthPress')) pose = sad * 0.08;
+  else if (name.startsWith('cheekSquint')) pose = speaking * 0.06 + greeting * 0.03 + happy * 0.16;
+  else if (name === 'browInnerUp') pose = speaking * 0.06 + greeting * 0.09 + startled * 0.38 + sad * 0.30;
+  else if (name.startsWith('eyeWide')) pose = startled * (name.endsWith('Left') ? 0.44 : 0.46);
+  else if (name.startsWith('eyeSquint')) pose = sad * (name.endsWith('Left') ? 0.19 : 0.15);
   else if (name.startsWith('eyeLook')) {
-    pose = idleGazeTarget(name, elapsed, 'neutral', moving || talking || startled > 0.1 ? 1 : 0);
+    // Sadness lowers the gaze while neutral idle glances remain independent.
+    // A Hit reaction interrupts both; eye blink masking is handled downstream.
+    const down = name.startsWith('eyeLookDown') ? sad * (name.endsWith('Left') ? 0.24 : 0.21) : 0;
+    pose = down + composure * idleGazeTarget(name, time, 'neutral',
+      moving || talking || startled > 0.1 || emotion !== 'neutral' ? 1 : 0);
   }
   return Math.min(1, Math.max(0, pose));
 }
-
 /**
  * Advance a resident's facial pose; do not touch blink, tears, sweat, or player morphs.
  * Long/invalid frames are bounded, and a new pose inherits existing morph velocity.
