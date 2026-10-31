@@ -1,4 +1,4 @@
-import { SceneLoader, TransformNode, type AnimationGroup, type AssetContainer, type Material, type Scene, type ShadowGenerator } from '@babylonjs/core';
+import { SceneLoader, TransformNode, type Material, type Scene, type ShadowGenerator } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
 import { modelFor, normalizeLook } from './appearance.mjs';
 import { dressCharacter } from './riggedAvatar';
@@ -10,6 +10,7 @@ import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 import { initialNpcBlink, collectNpcEyelids, advanceNpcBlink } from './npcBlink.mjs';
 import { collectNpcFaceTargets, initialNpcFace, advanceNpcFace, resetNpcFace } from './npcFace.mjs';
 import { createNpcFacialMaterials } from './npcFacialMaterials.mjs';
+import { resolveNpcBody, resolveNpcClips } from './npcAnimationClips.mjs';
 
 type CarFootprint = { x: number; z: number; rotation: number; speed?: number };
 const DODGE_SPEED = 3.2;
@@ -38,25 +39,32 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
   const models = [...new Set(NEIGHBORS.map(npc => modelFor(npc.look)))];
   const loaded = await Promise.all(models.map(model => SceneLoader.LoadAssetContainerAsync('/models/', model, scene).catch(() => null)));
   const containers = new Map(models.map((model, i) => [model, loaded[i]]));
-  if (scene.isDisposed || !containers.get('human.glb')) { for (const c of loaded) c?.dispose(); return null; }
-  const clipIndex = (container: AssetContainer, name: string) => container.animationGroups.findIndex(group => group.name === name);
-  const idleIndex = clipIndex(containers.get('human.glb')!, 'Idle');
-  const walkIndex = clipIndex(containers.get('human.glb')!, 'Walk');
-  if (idleIndex < 0 || walkIndex < 0) { for (const c of loaded) c?.dispose(); return null; }
+  if (scene.isDisposed || !resolveNpcBody('human.glb', containers)) {
+    for (const c of loaded) c?.dispose();
+    return null;
+  }
 
-  const people = NEIGHBORS.map((npc, index) => {
-    // A body that failed to load falls back to the default model.
-    const container = containers.get(modelFor(npc.look)) ?? containers.get('human.glb')!;
+  const people = NEIGHBORS.flatMap((npc, index) => {
+    // Select clips from the body we actually instantiated, not the male model's
+    // animation indices. Fall back to male when a requested body is unusable.
+    const chosen = resolveNpcBody(modelFor(npc.look), containers);
+    if (!chosen) { console.warn(`[npc] No usable character model for ${npc.id}`); return []; }
+    const { model, container } = chosen;
     const entries = container.instantiateModelsToScene(name => `npc ${npc.id} ${name}`, true);
+    const clips = resolveNpcClips(container.animationGroups, entries.animationGroups);
+    if (!clips) {
+      console.warn(`[npc] ${model} cloned without bound Idle/Walk clips for ${npc.id}`);
+      entries.dispose();
+      return [];
+    }
+    const { idle, walk } = clips;
     const holder = new TransformNode(`npc ${npc.id}`, scene);
     const visual = new TransformNode(`npc ${npc.id} visual`, scene);
     for (const node of entries.rootNodes) node.parent = visual;
     normalizeRiggedVisual(visual);
     visual.parent = holder;
-    // Clips are cloned in the container's order.
-    const idle: AnimationGroup = entries.animationGroups[idleIndex];
-    const walk: AnimationGroup = entries.animationGroups[walkIndex];
-    entries.animationGroups.forEach((group, index) => { if (index !== idleIndex && index !== walkIndex) group.stop(); });
+    // Other animation groups remain stopped until explicitly bound as actions.
+    entries.animationGroups.forEach(group => { if (group !== idle && group !== walk) group.stop(); });
     for (const group of [idle, walk]) { group.start(true); group.setWeightForAllAnimatables(group === idle ? 1 : 0); }
     walk.speedRatio = npc.speed / HUMAN_WALK_SPEED;
     const materials = [...new Set(holder.getChildMeshes().map(mesh => mesh.material).filter((m): m is Material => Boolean(m)))];
@@ -73,14 +81,15 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     const start = routePose(npc, 0);
     const reaction: { state: ActionState | null; clip: BoundAction | null } = { state: null, clip: null };
     const actions = new Map<string, BoundAction>();
-    return { npc, entries, holder, idle, walk, reaction, actions, eyelids, blink: initialNpcBlink(index), faceTargets, face: initialNpcFace(index), facialMaterials, walked: 0, walkWeight: 0, heading: personHeading(start.dx, start.dz), visible: false, dodge: { x: 0, z: 0 }, dodgeTarget: { x: 0, z: 0 }, dodgeHold: 0 };
+    return [{ npc, model, entries, holder, idle, walk, reaction, actions, eyelids, blink: initialNpcBlink(index), faceTargets, face: initialNpcFace(index), facialMaterials, walked: 0, walkWeight: 0, heading: personHeading(start.dx, start.dz), visible: false, dodge: { x: 0, z: 0 }, dodgeTarget: { x: 0, z: 0 }, dodgeHold: 0 }];
   });
 
   // Action clips (a separate download): people standing together talk with their hands; anyone can flinch.
-  void Promise.all(models.map(model => loadActionClips(scene, model))).then(clipSets => {
+  const clipModels = [...new Set(people.map(person => person.model))];
+  void Promise.all(clipModels.map(model => loadActionClips(scene, model))).then(clipSets => {
     if (scene.isDisposed) return;
     for (const person of people) {
-      const clips = clipSets[models.indexOf(modelFor(person.npc.look))];
+      const clips = clipSets[clipModels.indexOf(person.model)];
       if (!clips) continue;
       const prefix = `npc ${person.npc.id} `;
       const bound = bindActions(clips, person.holder.getChildTransformNodes(false), `npc ${person.npc.id}`,
