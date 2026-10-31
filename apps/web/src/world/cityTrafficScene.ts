@@ -2,6 +2,7 @@ import { Color3, PBRMaterial, SceneLoader, StandardMaterial, TransformNode, type
 import '@babylonjs/loaders/glTF';
 import { CITY_ORIGIN, type City } from './cityLayout.mjs';
 import { buildRoadGraph, createTraffic, stepTraffic, trafficPoses, type TrafficObstacle } from './cityTraffic.mjs';
+import { buildTrafficLights } from './trafficLightsScene';
 
 /** Paint colours for traffic: the authored sedan is repainted, one shared material per colour. */
 const PAINTS = ['#b3261e', '#e8e6e1', '#1f3b63', '#2b2d31', '#8a9399', '#2f6b45'];
@@ -58,6 +59,9 @@ export async function loadCityTraffic(scene: Scene, city: City, count: number, s
     }
     return root;
   });
+  // Traffic lights at the main junctions; the cars obey the same signals.
+  const lights = traffic.signals ? buildTrafficLights(scene, graph, traffic.signals) : null;
+  lights?.setVisible(false);
   let visible = false;
   let world: TrafficCarState[] = [];
 
@@ -66,6 +70,7 @@ export async function loadCityTraffic(scene: Scene, city: City, count: number, s
       if (!visible) return;
       const local = obstacles.map(o => ({ x: o.x - CITY_ORIGIN.x, z: o.z - CITY_ORIGIN.z, radius: o.radius }));
       traffic = stepTraffic(graph, traffic, seconds, local);
+      lights?.update(traffic.time ?? 0);
       const poses = trafficPoses(graph, traffic);
       world = poses.map(pose => ({ x: CITY_ORIGIN.x + pose.x, z: CITY_ORIGIN.z + pose.z, rotation: pose.rotation, speed: pose.speed }));
       world.forEach((car, index) => {
@@ -80,9 +85,11 @@ export async function loadCityTraffic(scene: Scene, city: City, count: number, s
     cars: () => world,
     setVisible(next) {
       visible = next;
+      lights?.setVisible(next);
       if (!next) for (const root of roots) root.setEnabled(false);
     },
     dispose() {
+      lights?.dispose();
       for (const root of roots) root.dispose();
       for (const template of templates) template.dispose(false, true);
       container.dispose();
