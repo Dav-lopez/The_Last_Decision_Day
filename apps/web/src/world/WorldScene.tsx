@@ -26,11 +26,14 @@ import { ScanImport } from './ScanImport';
 import { readHouseStyle } from './photoPalette.mjs';
 import { colorFor, modelFor, readLook, writeLook, type Look } from './appearance.mjs';
 import { Wardrobe } from './Wardrobe';
-import { WorldMap, type MapMarker, type MapSnapshot, type TravelTarget } from './WorldMap';
+import { WorldMap, type MapMarker, type MapSnapshot, type TravelTarget, type WaypointControl } from './WorldMap';
 import { TrainingRange, type RangeOutcome } from './TrainingRange';
 import { RANGE_DRILLS, TRAINING_MINUTES, canTrain, finishTraining } from './trainingRange.mjs';
 import { AudioPanel } from './audio/AudioPanel';
 import { loadCityTraffic, type CityTraffic } from './cityTrafficScene';
+import { buildRoadGraph, type RoadGraph } from './cityTraffic.mjs';
+import { routeBetween } from './gps.mjs';
+import { Minimap } from './Minimap';
 import type { GameAudio } from './audio/director.mjs';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
 import { buildFootballPitch } from './footballScene';
@@ -409,8 +412,10 @@ export default function WorldScene({
   const swapBodyRef = useRef<((model: string) => void) | null>(null);
   // The map (N) reads a live snapshot; quick travel goes through the scene.
   const [mapOpen, setMapOpen] = useState(false);
-  const mapReadRef = useRef<() => MapSnapshot>(() => ({ location: 'street', you: null, city: null, street: [], downtown: [], canTravel: false }));
+  const mapReadRef = useRef<() => MapSnapshot>(() => ({ location: 'street', you: null, city: null, street: [], downtown: [], canTravel: false, view: 0, traffic: [], waypoint: null, waypointLabel: null, route: null, routeLength: null }));
   const travelRef = useRef<(to: TravelTarget) => void>(() => {});
+  const waypointRef = useRef<WaypointControl>({ set: () => {}, clear: () => {} });
+  const waypointControl = useRef<WaypointControl>({ set: (x, z) => waypointRef.current.set(x, z), clear: () => waypointRef.current.clear() }).current;
   // Career training range (an overlay): open while you're at your own workplace.
   const [rangeOpen, setRangeOpen] = useState<CareerId | null>(null);
   const rangeOpenRef = useRef<CareerId | null>(null);
@@ -623,6 +628,12 @@ export default function WorldScene({
       // Downtown traffic loads after the city itself; it's optional.
       let cityTraffic: CityTraffic | null = null;
       let trafficShown = false;
+      // GPS: the road network, your waypoint (manual from the map, or the story objective) and the route to it.
+      let roadGraph: RoadGraph | null = null;
+      let waypoint: { x: number; z: number; label: string; manual: boolean } | null = null;
+      let route: { points: [number, number][]; length: number } | null = null;
+      let routeTimer = 0;
+      let viewHeading = 0;
       const loadDowntown = async () => {
         const index = await fetch('/city/index.json').then(response => response.ok ? response.json() : null);
         const entry = Array.isArray(index?.cities) ? index.cities[0] : null;
@@ -644,6 +655,7 @@ export default function WorldScene({
         // Police station, army recruiting office and fire station, at real downtown buildings.
         const workplaces = buildWorkplaces(scene, city, collider);
         workDoors = workplaces.doors;
+        roadGraph = buildRoadGraph(city.roads);
         void loadCityTraffic(scene, city, 28, shadows).then(traffic => {
           if (disposed || scene.isDisposed) traffic?.dispose();
           else cityTraffic = traffic;
@@ -968,6 +980,7 @@ export default function WorldScene({
             taxi: Boolean(pendingTaxi) || Boolean(pendingDrive),
           }),
           travel: (to: TravelTarget) => travelRef.current(to),
+          route: () => mapReadRef.current().routeLength ?? 0,
         };
       }
       travelRef.current = (to) => {
@@ -1008,9 +1021,33 @@ export default function WorldScene({
         applyFog();
         saveToAccount();
       };
+      /** Story objectives that happen downtown point the GPS at the right place. */
+      const objectiveWaypoint = (): { x: number; z: number; label: string } | null => {
+        if (!downtown) return null;
+        const stepId = currentStep(storyRef.current).step.id;
+        const local = (p: PlanarPosition, label: string) => { const [x, z] = toLocal(p); return { x, z, label }; };
+        if (stepId === 'the-match') return local(PITCH, 'Football pitch');
+        const mine = careerRef.current.career ? workDoors.get(careerRef.current.career) : undefined;
+        if (stepId === 'first-shift' && mine) return local(mine, CAREERS[careerRef.current.career!].workplace);
+        if (stepId === 'find-work' || (stepId === 'first-shift' && !mine)) {
+          const here = drivenIndex() >= 0 ? cars[drivenIndex()] : position;
+          let best: { door: PlanarPosition; id: CareerId } | null = null;
+          for (const [id, door] of workDoors) if (!best || Math.hypot(door.x - here.x, door.z - here.z) < Math.hypot(best.door.x - here.x, best.door.z - here.z)) best = { door, id };
+          return best ? local(best.door, CAREERS[best.id].workplace) : null;
+        }
+        return null;
+      };
+      waypointRef.current = {
+        set: (x, z) => { waypoint = { x, z, label: 'Waypoint', manual: true }; routeTimer = Infinity; },
+        clear: () => { waypoint = null; route = null; },
+      };
       mapReadRef.current = () => {
         const inCityNow = locationRef.current === 'city';
-        const local = inCityNow ? toLocal(position) : [position.x, position.z];
+        // You: on foot, or your car while driving. Heading is the direction of travel (0 = north/+z, clockwise).
+        const driven = drivenIndex();
+        const at = driven >= 0 ? cars[driven] : position;
+        const heading = driven >= 0 ? cars[driven].rotation : avatar.rotation.y + Math.PI;
+        const local = inCityNow ? toLocal(at) : [at.x, at.z];
         const street: MapMarker[] = [
           { id: 'home', label: 'Home', x: -8.4, z: -5.05, kind: 'home' },
           { id: 'school', label: 'School', x: SCHOOL_DOOR.x, z: SCHOOL_DOOR.z, kind: 'school' },
@@ -1031,10 +1068,16 @@ export default function WorldScene({
         }
         return {
           location: locationRef.current,
-          you: { x: local[0], z: local[1], heading: avatar.rotation.y },
+          you: { x: local[0], z: local[1], heading },
           city: downtown?.city ?? null,
           street, downtown: downtownPins,
           canTravel: interaction.mode === 'walking' && (locationRef.current === 'street' || locationRef.current === 'city'),
+          view: viewHeading,
+          traffic: inCityNow ? (cityTraffic?.cars() ?? []).map(car => { const [x, z] = toLocal(car); return { x, z }; }) : [],
+          waypoint: inCityNow && waypoint ? { x: waypoint.x, z: waypoint.z } : null,
+          waypointLabel: waypoint?.label ?? null,
+          route: inCityNow ? route?.points ?? null : null,
+          routeLength: inCityNow && route ? route.length : null,
         };
       };
       const finishDrive = () => {
@@ -1500,6 +1543,27 @@ export default function WorldScene({
         }
         schoolMarker.position.y = 4.6 + Math.sin(markerTime * 2.5) * 0.12;
         const cameraForward = { x: cameraDirection.x, z: cameraDirection.z };
+        viewHeading = Math.atan2(cameraForward.x, cameraForward.z);
+        routeTimer += delta;
+        if (routeTimer >= 0.5) {
+          routeTimer = 0;
+          if (locationRef.current === 'city' && roadGraph && downtown) {
+            // With no waypoint of your own, the GPS follows the story objective.
+            if (!waypoint?.manual) {
+              const target = objectiveWaypoint();
+              waypoint = target ? { ...target, manual: false } : null;
+            }
+            const driven = drivenIndex();
+            const [lx, lz] = toLocal(driven >= 0 ? cars[driven] : position);
+            if (waypoint && Math.hypot(lx - waypoint.x, lz - waypoint.z) < 14) {
+              if (waypoint.manual) { notify('You have arrived.'); audioRef.current?.cue('notice'); waypoint = null; }
+              route = null;
+            } else if (waypoint) {
+              const found = routeBetween(roadGraph, { x: lx, z: lz }, waypoint);
+              route = found ? { points: found.points as [number, number][], length: found.length } : null;
+            } else route = null;
+          } else if (locationRef.current !== 'city') route = null;
+        }
         remotePlayers.update(online?.current?.read(), locationRef.current, delta);
         onlineElapsed += delta;
         if (onlineElapsed >= 0.2) {
@@ -2013,7 +2077,8 @@ export default function WorldScene({
         {inClass && <div className="world-sleep world-class" role="status" aria-live="polite"><span>{inClass} class…</span></div>}
         <div className="world-caption"><strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : inCity ? inCity : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
-        <WorldMap open={mapOpen} onClose={() => setMapOpen(false)} read={readMap} travel={travelTo} />
+        <WorldMap open={mapOpen} onClose={() => setMapOpen(false)} read={readMap} travel={travelTo} waypoint={waypointControl} />
+        <Minimap read={readMap} hidden={mapOpen || Boolean(rangeOpen) || inHome || atSchool} />
         {scoreboard && <div className="world-scoreboard" role="status" aria-live="polite"><strong>{scoreboard}</strong><small>F shoot · Shift+F chip · Q pass</small>
           <button type="button" onClick={event => { matchRef.current.pass(); focusWorld(event); }}>Pass (Q)</button></div>}
         {(() => {

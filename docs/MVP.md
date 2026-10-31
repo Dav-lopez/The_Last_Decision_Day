@@ -67,7 +67,7 @@ above is done or blocked; any item may be split into slices.
 
 - [x] **10. Living downtown traffic**: AI cars driving the real street network, keeping right,
       following each other, yielding to you, and solid to your car.
-- [ ] **11. Minimap and GPS**: a corner minimap that rotates with you, a waypoint you set on the big map, and a
+- [x] **11. Minimap and GPS**: a corner minimap that rotates with you, a waypoint you set on the big map, and a
       route line along the roads to it (story objectives set it automatically).
 - [ ] **12. Traffic lights and pedestrians downtown**: signal-controlled junctions the traffic obeys; people
       walking downtown sidewalks who cross at lights.
@@ -89,4 +89,6 @@ above is done or blocked; any item may be split into slices.
 
 - Traffic: a road crossing without a shared OSM node (an overpass or a data gap) lets cars pass through each
   other there; traffic lights (item 12) should add explicit junctions. Cars have no headlights at night yet.
+- Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
+  opposite conventions).
 - (add bugs and small follow-ups here)
