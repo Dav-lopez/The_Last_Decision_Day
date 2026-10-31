@@ -95,9 +95,10 @@ var repeated = await alice.InvokeAsync<WorldMessage>("SendMessage", request, "he
 Check(repeated.Id == sent.Id && bobMessages.Count == 1, "retrying a delivered message does not duplicate it");
 await bob.InvokeAsync<WorldMessage>("SendMessage", Guid.NewGuid(), "hello back");
 await Wait(() => aliceMessages.Count == 2 && bobMessages.Count == 2);
-await alice.InvokeAsync("PublishPose", new WorldPose(2, 4, .5, "street", 1.8, "walking"));
+await alice.InvokeAsync("PublishPose", new WorldPose(2, 4, .5, "street", 1.8, "walking", "female"));
 await Wait(() => bobPoses.Count > 0);
-Check(bobPoses.Last().CharacterId == created.SelfId && bobPoses.Last().Pose!.X == 2, "peer position updates cross the live hub");
+Check(bobPoses.Last().CharacterId == created.SelfId && bobPoses.Last().Pose!.X == 2 && bobPoses.Last().Pose!.Body == "female", "peer position and female body variant cross the live hub");
+await Fails(() => alice.InvokeAsync("PublishPose", new WorldPose(0, 0, 0, "street", 0, "walking", "../../arbitrary.glb")), "untrusted avatar model paths are rejected");
 await Fails(() => alice.InvokeAsync("PublishPose", new WorldPose(9000, 0, 0, "street", 0, "walking")), "invalid world coordinates are rejected");
 await Fails(() => alice.InvokeAsync<WorldMessage>("SendMessage", Guid.NewGuid(), new string('x', 281)), "oversized messages are rejected");
 var bobEmotes = new ConcurrentQueue<WorldEmote>(); var bobSignals = new ConcurrentQueue<WorldSignal>();
@@ -135,6 +136,8 @@ await replacement.InvokeAsync<WorldMessage>("SendMessage", Guid.NewGuid(), "new 
 await Wait(() => replacementMessages.Count == 1 && bobMessages.Count == 3);
 Check(replacementMessages.Single().Text == "new room only" && bobMessages.Last().Text == "old room only", "moving rooms removes the old group before delivering new messages");
 
+var legacyPose = System.Text.Json.JsonSerializer.Deserialize<WorldPose>("""{"X":0,"Z":0,"Rotation":0,"Location":"street","Speed":0,"Mode":"walking"}""");
+Check(legacyPose?.Body == "male", "legacy position payloads without body remain male by default");
 var clock = new ManualClock(); var rooms = new WorldRooms(clock);
 var who = new WorldIdentity(Guid.NewGuid(), "First"); var room = rooms.Create("first", who);
 rooms.Join("second", new WorldIdentity(Guid.NewGuid(), "Second"), room.Snapshot.Code);
