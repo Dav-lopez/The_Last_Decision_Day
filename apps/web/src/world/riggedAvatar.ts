@@ -1,10 +1,11 @@
-import { Color3, PBRMaterial, Scene, SceneLoader, TransformNode, type AbstractMesh, type AnimationGroup, type Material } from '@babylonjs/core';
+import { Color3, PBRMaterial, RawTexture, Scene, SceneLoader, Texture, TransformNode, type AbstractMesh, type AnimationGroup, type Material } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
 import { ZONE_MATERIALS, dressZones, type Look, type Zone } from './appearance.mjs';
 import { faceTarget, type Emotion } from './facialEmotions';
 import { EMPTY_EFFECTS, smoothFacialEffects, targetFacialEffects } from './facialEffects';
 import { dropletCycle } from './facialDroplets.mjs';
 import { skinSurface, hairSurface, skinRoughness } from './surfaceShading.mjs';
+import { skinMicroNormalMap } from './skinMicroNormalMap.mjs';
 import { stepBlink } from './blinkCycle.mjs';
 import { advanceSharedFacialMorph } from './facialMorphSync.mjs';
 import { idleGazeTarget } from './gazeDynamics.mjs';
@@ -39,6 +40,30 @@ const ZONE_BY_MATERIAL = new Map(Object.entries(ZONE_MATERIALS).map(([zone, name
 const unprefixed = (name: string) => name.replace(/^.* (?=Student )/, '');
 
 /**
+ * One tiny GPU normal tile per Babylon scene, shared by the playable character
+ * and every independently dressed NPC. Keep any artist-authored normal map.
+ * Scene disposal releases the texture; no per-frame texture work is performed.
+ */
+const skinTiles = new WeakMap<Scene, RawTexture>();
+function attachSkinPores(material: PBRMaterial) {
+  if (material.bumpTexture) return;
+  const scene = material.getScene();
+  let tile = skinTiles.get(scene);
+  if (!tile) {
+    tile = RawTexture.CreateRGBATexture(skinMicroNormalMap(), 64, 64, scene,
+      true, false, Texture.TRILINEAR_SAMPLINGMODE);
+    tile.name = 'shared skin pore normals';
+    tile.wrapU = Texture.WRAP_ADDRESSMODE;
+    tile.wrapV = Texture.WRAP_ADDRESSMODE;
+    tile.uScale = 5;
+    tile.vScale = 5;
+    tile.level = 0.24; // Pore shading, not large visible bumps.
+    skinTiles.set(scene, tile);
+  }
+  material.bumpTexture = tile;
+}
+
+/**
  * Paints a character copy for a look: skin, hair colour and style, and each
  * outfit zone (sleeves, legs, socks, shoes, soles) as clothing or skin, plus
  * the skirt. Names may carry a clone prefix (NPC copies). Returns the skin
@@ -56,6 +81,7 @@ export function dressCharacter(materials: ReadonlyArray<Material>, meshes: Reado
     const name = unprefixed(material.name);
     const zone = ZONE_BY_MATERIAL.get(name);
     if (name === 'Student skin') {
+      attachSkinPores(material);
       material.albedoColor = skin.clone();
       material.subSurface.tintColor = Color3.FromArray(skinDetail.subsurfaceTint);
       material.subSurface.translucencyIntensity = skinDetail.translucencyIntensity;
@@ -125,6 +151,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
     for (const material of container.materials) {
       if (!(material instanceof PBRMaterial)) continue;
       if (material.name === 'Student skin') {
+        attachSkinPores(material);
         material.metallic = 0;
         material.roughness = 0.82;
         material.subSurface.isTranslucencyEnabled = true;
