@@ -1,6 +1,6 @@
 import { Color3, DynamicTexture, Mesh, MeshBuilder, Scene, ShadowGenerator, StandardMaterial, TransformNode } from '@babylonjs/core';
 import { loadRiggedAvatar, type RiggedAvatar } from '../riggedAvatar';
-import { smoothHumanHeading } from '../humanMotion.mjs';
+import { visibleRemotePose, stepRemotePose } from './remotePosePresentation.mjs';
 import { initialRemoteFacialReaction, remoteMessageReaction, remoteEmoteReaction, remoteFacialPose, type RemoteFacialReaction } from './remoteFacialReactions.mjs';
 import { EMOTE_LABELS, type RoomState } from './roomClient.mjs';
 
@@ -67,20 +67,25 @@ export function createRemotePlayers(scene: Scene, shadows: ShadowGenerator) {
         entry.bubbleTexture.drawText(text, null, 96, 'bold 40px sans-serif', '#1b2433', 'rgba(255,255,255,0.92)', true);
       }
       entry.bubble.setEnabled(clock < entry.bubbleUntil);
-      entry.root.setEnabled(Boolean(pose && pose.location === location));
-      if (!pose || pose.location !== location) { entry.placed = false; return; }
-      const snap = !entry.placed || Math.hypot(entry.root.position.x - pose.x, entry.root.position.z - pose.z) > 12;
-      const blend = snap ? 1 : 1 - Math.exp(-12 * dt);
-      entry.root.position.x += (pose.x - entry.root.position.x) * blend;
-      entry.root.position.z += (pose.z - entry.root.position.z) * blend;
-      entry.root.rotation.y = snap ? pose.rotation : smoothHumanHeading(entry.root.rotation.y, pose.rotation, dt);
+      // Keep busy peers visible with an idle body so chat/emotes still animate
+      // their face. Drivers retain their nameplate, not an on-foot avatar.
+      // Reject malformed network coordinates before they reach Babylon matrices.
+      const target = visibleRemotePose(pose, location);
+      entry.root.setEnabled(Boolean(target));
+      if (!target) { entry.placed = false; return; }
+      const next = stepRemotePose({
+        x: entry.root.position.x, z: entry.root.position.z, rotation: entry.root.rotation.y,
+      }, target, dt, entry.placed);
+      entry.root.position.x = next.x;
+      entry.root.position.z = next.z;
+      entry.root.rotation.y = next.rotation;
       entry.placed = true;
-      const walking = pose.mode === 'walking';
-      const face = remoteFacialPose(entry.reaction, clock, walking);
+      const face = remoteFacialPose(entry.reaction, clock, target.showBody);
       entry.rig?.setEmotion(face.emotion);
       entry.rig?.setSpeaking(face.speaking);
-      entry.rig?.root.setEnabled(walking); entry.body.setEnabled(walking && !entry.rig);
-      entry.rig?.update(walking ? pose.speed : 0, dt);
+      entry.rig?.root.setEnabled(target.showBody);
+      entry.body.setEnabled(target.showBody && !entry.rig);
+      entry.rig?.update(target.speed, dt);
       const caption = `${peer.name}${pose.mode === 'driving' ? ' · driving' : pose.mode === 'busy' ? ' · busy' : ''}`;
       if (caption !== entry.caption) { entry.caption = caption; entry.texture.drawText(caption, null, 64, 'bold 28px sans-serif', '#ffffff', '#102938cc', true); }
     },
