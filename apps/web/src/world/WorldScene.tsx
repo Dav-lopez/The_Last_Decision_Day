@@ -411,7 +411,16 @@ export default function WorldScene({
   const riggedRef = useRef<RiggedAvatar | null>(null);
   const swapBodyRef = useRef<((model: string) => void) | null>(null);
   // The map (N) reads a live snapshot; quick travel goes through the scene.
-  const [mapOpen, setMapOpen] = useState(false);
+  const [mapOpen, setMapOpenState] = useState(false);
+  // The ref lets key handlers see the map's state; focus may be on the map, not the game.
+  const mapOpenRef = useRef(false);
+  const setMapOpen = useCallback((next: boolean | ((open: boolean) => boolean)) => {
+    setMapOpenState(open => {
+      const value = typeof next === 'function' ? next(open) : next;
+      mapOpenRef.current = value;
+      return value;
+    });
+  }, []);
   const mapReadRef = useRef<() => MapSnapshot>(() => ({ location: 'street', you: null, city: null, street: [], downtown: [], canTravel: false, view: 0, traffic: [], waypoint: null, waypointLabel: null, route: null, routeLength: null }));
   const travelRef = useRef<(to: TravelTarget) => void>(() => {});
   const waypointRef = useRef<WaypointControl>({ set: () => {}, clear: () => {} });
@@ -1419,6 +1428,13 @@ export default function WorldScene({
           return;
         }
         if (rangeOpenRef.current) return;
+        // N or Esc closes the big map even after you clicked on it (focus is then on the map).
+        if (mapOpenRef.current && (event.key === 'n' || event.key === 'N' || event.key === 'Escape') && !event.repeat) {
+          event.preventDefault();
+          setMapOpen(false);
+          canvas.focus({ preventScroll: true });
+          return;
+        }
         if (document.activeElement !== canvas) return;
         const key = normalizeKey(event.key);
         if (MOVE_KEYS.has(key)) {
