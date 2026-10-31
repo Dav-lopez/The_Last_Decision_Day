@@ -14,3 +14,7 @@ export declare function beginNpcSpeech(
 /** Advance once per scene frame; invalid and large deltas are clamped. */
 export declare function advanceNpcSpeech(state: NpcSpeechState, seconds: number): NpcSpeechState;
 export declare function isNpcSpeaking(state: NpcSpeechState): boolean;
+/** Prevent ambient Talk from reactivating a selected resident's finished line. */
+export declare function npcShouldArticulate(
+  state: NpcSpeechState, residentId: string, ambientTalking?: boolean,
+): boolean;
