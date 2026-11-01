@@ -112,8 +112,8 @@
   "body": "male",
   "output": {
     "file": "human.glb",
-    "bytes": 1675600,
-    "sha256": "a74ed04a81b2f9f9ec7352e4900fc76dc313f8cb78bbd27709a7cfb44d24ad60",
+    "bytes": 1737756,
+    "sha256": "ed3f4d87403d56baa026f7c215441d1004fcadf6661f6adf474fc0fb873afc4d",
     "morphTargets": [
       "browDownLeft",
       "browDownRight",
