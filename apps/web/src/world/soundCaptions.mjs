@@ -21,6 +21,8 @@ export const SOUND_CAPTIONS = Object.freeze({
   shift: 'Shift complete',
   promotion: 'Fanfare: promotion',
   horn: 'Car horn',
+  checkpoint: 'Checkpoint reached',
+  dispatch: 'Radio: duty call',
   map: 'Map unfolds',
   chat: 'Chat message',
   emote: 'Emote',
