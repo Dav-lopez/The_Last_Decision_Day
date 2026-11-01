@@ -94,6 +94,9 @@ above is done or blocked; any item may be split into slices.
       route line along the roads to it (story objectives set it automatically).
 - [ ] **12. Traffic lights and pedestrians downtown**: signal-controlled junctions the traffic obeys; people
       walking downtown sidewalks who cross at lights.
+  - [x] 12a. Traffic lights: 22 signalised junctions (wherever a main road meets others), two-way phases with
+        yellow and all-red, offsets per junction; traffic stops at the line on red, and on yellow when it can.
+  - [ ] 12b. Pedestrians walking downtown sidewalks, crossing at the lights.
 - [ ] **13. Driving feel**: body roll and pitch, tyre squeal and skid marks, engine sound by speed and gear,
       cosmetic dents and scratches, a horn; a police cruiser and a fire engine for those careers.
 - [ ] **14. Phone**: an in-game phone (Esc-free, key P) with messages from Mom and friends, contacts you've
