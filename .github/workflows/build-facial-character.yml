@@ -92,6 +92,11 @@ jobs:
           cheeks = next(mesh for mesh in d['meshes'] if mesh['name'] == 'Student expressive cheeks')
           assert cheeks['extras']['targetNames'] == ['cheekSquintLeft', 'cheekSquintRight']
           assert len(cheeks['primitives'][0]['targets']) == 2
+          cheek_prim = cheeks['primitives'][0]
+          cheek_vertices = d['accessors'][cheek_prim['attributes']['POSITION']]['count']
+          assert cheek_vertices == 34, 'Two sculpted cheek patches must retain their inner and outer rings'
+          assert all({'POSITION', 'NORMAL'} <= set(target) for target in cheek_prim['targets'])
+          assert all(d['accessors'][target['NORMAL']]['count'] == cheek_vertices for target in cheek_prim['targets'])
           material = d['materials'][cheeks['primitives'][0]['material']]
           assert material['name'] == 'Student cheek blush' and material['alphaMode'] == 'BLEND'
           assert material['pbrMetallicRoughness']['baseColorFactor'][3] == 0

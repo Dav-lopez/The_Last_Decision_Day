@@ -102,6 +102,14 @@ const checkLayout = async label => {
   const found = layoutProblems({ viewport: { width: 360, height: 640 }, documentWidth, elements, overlays: OVERLAYS });
   for (const problem of found) problems.push(`layout (${label}): ${problem}`);
   if (small.length) notes.push(`(${label}) smaller secondary buttons: ${[...new Set(small)].slice(0, 8).join(', ')}`);
+  // Car radio: on phones the dial sits under the touch pad; tapping › tunes to the next station.
+  const radio = page.locator('.world-radio-panel');
+  await radio.waitFor({ timeout: 10000 });
+  const stationBefore = (await radio.locator('strong').textContent())?.trim();
+  await radio.getByRole('button', { name: 'Next station' }).tap();
+  await page.waitForFunction(before => document.querySelector('.world-radio-panel strong')?.textContent?.trim() !== before, stationBefore, { timeout: 5000 });
+  if (await page.locator('.world-radio-overlay').isVisible()) throw new Error('the radio overlay should not cover the phone view');
+  notes.push(`radio: ${stationBefore} -> ${(await radio.locator('strong').textContent())?.trim()}`);
   notes.push(`layout (${label}): ${elements.length} elements checked, ${found.length} problem(s)`);
 };
 
@@ -179,20 +187,27 @@ await step('talk to a neighbour by tapping', async () => {
   await tapAway();
   if ((await read()).npcChat) throw new Error('conversation still open');
 });
+await step('phone by tapping: contacts include who you just met, then put away', async () => {
+  await page.locator('.world-camera-toggle .world-phone-button').tap();
+  await page.waitForSelector('.world-phone', { timeout: 30000 });
+  await page.locator('.world-viewport').scrollIntoViewIfNeeded();
+  await checkLayout('phone');
+  const { documentWidth } = await measure();
+  if (documentWidth > 361) throw new Error(`the phone makes the page ${documentWidth}px wide`);
+  await page.locator('.world-phone [role=tab]', { hasText: 'Contacts' }).tap();
+  const people = await page.locator('.world-phone-contact').count();
+  notes.push(`phone: ${people} contact(s) after one conversation`);
+  if (people < 2) throw new Error('the neighbour you talked to is not in the phone contacts');
+  await shot('03bb-phone');
+  await page.getByRole('button', { name: 'Put away (P)' }).tap();
+  await page.waitForSelector('.world-phone', { state: 'detached', timeout: 15000 });
+});
 await step('drive a car by tapping', async () => {
   if (!(await page.evaluate(() => window.__tld.place('car')))) throw new Error('no parked car to get into');
   const getIn = actionButton(/^Get in car/);
   await getIn.waitFor({ timeout: 60000 });
   await getIn.tap();
   await page.waitForFunction(() => window.__tld.read().driving, null, { timeout: 15000 });
-  // Car radio: on phones the dial sits under the touch pad; tapping › tunes to the next station.
-  const radio = page.locator('.world-radio-panel');
-  await radio.waitFor({ timeout: 10000 });
-  const stationBefore = (await radio.locator('strong').textContent())?.trim();
-  await radio.getByRole('button', { name: 'Next station' }).tap();
-  await page.waitForFunction(before => document.querySelector('.world-radio-panel strong')?.textContent?.trim() !== before, stationBefore, { timeout: 5000 });
-  if (await page.locator('.world-radio-overlay').isVisible()) throw new Error('the radio overlay should not cover the phone view');
-  notes.push(`radio: ${stationBefore} -> ${(await radio.locator('strong').textContent())?.trim()}`);
   const start = (await read()).car;
   const drove = () => read().then(now => now.car && Math.hypot(now.car.x - start.x, now.car.z - start.z) >= 1);
   // Forward first; a car parked nose-in to a kerb backs out instead.
