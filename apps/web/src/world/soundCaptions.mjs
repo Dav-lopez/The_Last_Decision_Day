@@ -41,12 +41,13 @@ export function captionFor(cue) {
 }
 
 /**
- * Adds a caption for `cue` at time `now` (seconds). Repeats of a caption that
+ * Adds a caption for `cue` at time `now` (seconds); `override` replaces the
+ * generic text when the game knows more (who is speaking in a story scene). Repeats of a caption that
  * is still showing refresh it and count up ("×3") instead of stacking.
  * Returns a new list, newest last, never longer than MAX_CAPTIONS.
  */
-export function pushCaption(list, cue, now) {
-  const text = captionFor(cue);
+export function pushCaption(list, cue, now, override = null) {
+  const text = override || captionFor(cue);
   const live = activeCaptions(list, now);
   if (!text) return live;
   const same = live.find(caption => caption.text === text);
@@ -62,4 +63,32 @@ export function activeCaptions(list, now) {
 
 export function captionLabel(caption) {
   return caption.count > 1 ? `[${caption.text}] ×${caption.count}` : `[${caption.text}]`;
+}
+
+/**
+ * Story scenes play the same short cues as the rest of the game (a chime for a
+ * line of dialogue, a buzz for a text message), but the generic captions would
+ * say "Someone speaks" or "Phone buzzes" for every line. These name the
+ * speaker instead, and say when a line is a text rather than a voice.
+ * `cast` is the story's CAST entry for the speaker ({ name, tone }).
+ */
+export function storyLineCue(cast) {
+  return cast?.tone === 'phone' ? 'message' : 'talk';
+}
+
+export function storyLineCaption(cast) {
+  if (!cast) return null;
+  const name = String(cast.name ?? '').replace(/\s*\(text message\)\s*$/i, '').trim();
+  if (cast.tone === 'phone') return name ? `Phone buzzes: text from ${name}` : 'Phone buzzes: new text';
+  if (cast.tone === 'narration' || !name) return 'Story chime';
+  if (cast.tone === 'player') return 'You speak';
+  if (cast.tone === 'mystery') return 'An unknown voice speaks';
+  return `${name} speaks`;
+}
+
+/** The fanfare when a chapter ends; the last chapter's fanfare closes the story. */
+export function chapterCaption(title, last = false) {
+  const name = String(title ?? '').replace(/^Chapter\s+\d+\s*·\s*/i, '').trim();
+  if (last) return name ? `Fanfare: the story ends (${name})` : 'Fanfare: the story ends';
+  return name ? `Fanfare: chapter complete (${name})` : 'Fanfare: chapter complete';
 }

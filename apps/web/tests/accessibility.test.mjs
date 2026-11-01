@@ -121,3 +121,35 @@ test('keyboard GPS lists downtown places nearest first, without you', () => {
   assert.deepEqual(gpsDestinations(markers, null).map(m => m.id), ['bus', 'pitch', 'work'], 'map order without a position');
   assert.deepEqual(gpsDestinations([], { x: 0, z: 0 }), []);
 });
+
+test('story scenes caption who is speaking, and texts as texts', async () => {
+  const { CAST, CHAPTERS } = await import('../src/world/storyChapters.mjs');
+  const { storyLineCaption, storyLineCue, chapterCaption } = await import('../src/world/soundCaptions.mjs');
+  assert.equal(storyLineCaption(CAST.mom), 'Phone buzzes: text from Mom');
+  assert.equal(storyLineCue(CAST.mom), 'message');
+  assert.equal(storyLineCaption(CAST.elena), 'Phone buzzes: text from Elena');
+  assert.equal(storyLineCue(CAST.elena), 'message');
+  assert.equal(storyLineCaption(CAST.maya), 'Maya speaks');
+  assert.equal(storyLineCue(CAST.maya), 'talk');
+  assert.equal(storyLineCaption(CAST.rivera), 'Ms. Rivera speaks');
+  assert.equal(storyLineCaption(CAST.you), 'You speak');
+  assert.equal(storyLineCaption(CAST.narrator), 'Story chime');
+  assert.equal(storyLineCaption(CAST.stranger), 'An unknown voice speaks');
+  assert.equal(storyLineCaption(undefined), null);
+  // Every speaker in every scene gets a caption.
+  for (const chapter of CHAPTERS) for (const step of chapter.steps) {
+    const scenes = !step.scene ? [] : Array.isArray(step.scene) ? [step.scene] : Object.values(step.scene);
+    for (const scene of scenes) for (const line of scene) assert.ok(storyLineCaption(CAST[line.speaker]), line.speaker);
+  }
+  assert.equal(chapterCaption('Chapter 2 · The Note'), 'Fanfare: chapter complete (The Note)');
+  assert.equal(chapterCaption('Chapter 5 · The Last Decision Day', true), 'Fanfare: the story ends (The Last Decision Day)');
+});
+
+test('a caption override replaces the generic text and still counts repeats', () => {
+  let list = pushCaption([], 'talk', 0, 'Maya speaks');
+  assert.equal(list[0].text, 'Maya speaks');
+  list = pushCaption(list, 'talk', 1, 'Maya speaks');
+  assert.equal(captionLabel(list.at(-1)), '[Maya speaks] ×2');
+  list = pushCaption(list, 'talk', 1.5);
+  assert.deepEqual(list.map(c => c.text), ['Maya speaks', 'Someone speaks']);
+});
