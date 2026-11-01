@@ -16,6 +16,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install the prop slimmer's Python dependencies
+        run: pip install numpy pillow
       - name: Download, verify and convert CC0 models
         run: python tools/assets/polyhaven_fetch.py
       - name: Install web test dependencies

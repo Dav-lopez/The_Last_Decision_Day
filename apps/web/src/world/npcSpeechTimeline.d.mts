@@ -1,3 +1,4 @@
+import type { NpcSpeechProsody } from './npcSpeechProsody.mjs';
 export type NpcSpeechMood = 'neutral' | 'happy' | 'sad';
 export type NpcSpeechCue = { start: number; end: number; open: number; press: number };
 export type NpcSpeechState = {
@@ -5,6 +6,8 @@ export type NpcSpeechState = {
   mood: NpcSpeechMood;
   elapsed: number;
   duration: number;
+  /** Cached ending inflection, independent of the character's emotional mood. */
+  prosody: NpcSpeechProsody;
   /** Cached bounded mouth/closure timeline derived from the displayed text. */
   cues: ReadonlyArray<NpcSpeechCue>;
 };

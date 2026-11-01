@@ -283,6 +283,36 @@ await step('minimap shows, and a map waypoint gives a GPS route', async () => {
   notes.push(`GPS route ${Math.round(await page.evaluate(() => window.__tld.route()))} m`);
   await shot('05d-minimap-route');
 });
+await step('career duty: a fire call downtown, paid on sign-off (MVP 8b)', async () => {
+  if (!(await page.evaluate(() => window.__tld.place('firefighter')))) throw new Error('fire station sign not found downtown');
+  const apply = page.locator('.world-car-action', { hasText: /Apply: Firefighter/ });
+  await waitFor('apply button at the fire station', timeout => apply.waitFor({ timeout }));
+  await apply.click();
+  await waitFor('joined the fire service', timeout => page.waitForFunction(() => window.__tld.read().career.id === 'firefighter', null, { timeout }));
+  await dismissDialogue();
+  const start = page.locator('.world-car-action', { hasText: /Start duty: Fire call/ });
+  await waitFor('start-duty button', timeout => start.waitFor({ timeout }));
+  await start.click();
+  await waitFor('duty starts', timeout => page.waitForFunction(() => Boolean(window.__tld.read().duty), null, { timeout }));
+  await waitFor('duty card shows', timeout => page.waitForSelector('.world-duty', { timeout }));
+  const { duty, career } = await read();
+  notes.push(`fire call: ${duty.stops} stops, par ${duty.par}s`);
+  await page.waitForTimeout(1500);
+  await shot('05e-duty');
+  // Stand at each stop in turn (walking the route at 2 fps software rendering would take far too long).
+  for (let i = 0; i < duty.stops; i++) {
+    const at = (await read()).duty?.next;
+    if (at === undefined) break;
+    if (!(await page.evaluate(() => window.__tld.place('duty')))) throw new Error(`could not stand at duty stop ${at + 1}`);
+    await waitFor(`duty stop ${at + 1} counts`, timeout => page.waitForFunction(n => window.__tld.read().duty?.next !== n, at, { timeout }));
+  }
+  await waitFor('shift signed off and paid', timeout => page.waitForFunction(shifts => { const s = window.__tld.read(); return !s.duty && !s.busy && s.career.shifts > shifts; }, career.shifts, { timeout }));
+  const after = (await read()).career;
+  if (!(after.money > career.money)) throw new Error(`no pay for the duty (savings ${career.money} → ${after.money})`);
+  if (await page.locator('.world-duty').count()) throw new Error('the duty card stayed up after signing off');
+  notes.push(`duty paid $${after.money - career.money}`);
+  await dismissDialogue();
+});
 await step('quick travel to the pitch and back home', async () => {
   await page.evaluate(() => window.__tld.travel('pitch'));
   // Already downtown, so wait for the taxi ride itself to finish: a new trip is refused while one is under way.

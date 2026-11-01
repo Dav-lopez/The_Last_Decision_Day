@@ -11,6 +11,10 @@ export type NpcFaceContext = {
   vergence?: number;
   /** Seconds since the currently displayed dialogue line began. */
   speechElapsed?: number;
+  /** Duration of the active line, used for finite sentence-ending facial movement. */
+  speechDuration?: number;
+  /** Cached question/exclamation ending; no text parsing during rendering. */
+  prosody?: 'none' | 'question' | 'exclaim';
   /** Precomputed dialogue articulation; absent for ambient NPC chatter. */
   speechCues?: ReadonlyArray<{ start: number; end: number; open: number; press: number }>;
 };

@@ -210,6 +210,8 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator, res
           // A new displayed reply restarts lip motion; an open dialog does not
           // make the NPC mouth loop forever. Ambient Talk clips are unchanged.
           speechElapsed: speaking ? speaker.elapsed : undefined,
+          speechDuration: speaking ? speaker.duration : 0,
+          prosody: speaking ? speaker.prosody : 'none',
           speechCues: speaking ? speaker.cues : undefined,
           emotion: speaker.id === person.npc.id ? speaker.mood : 'neutral',
           nearby: Boolean(player && Math.hypot(player.x - pose.x, player.z - pose.z) < 2.5),

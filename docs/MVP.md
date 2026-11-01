@@ -72,6 +72,12 @@ A new player can:
     - [x] 6c-1 (partial slice). Action clips (talk, sit, drive, jump, dance…) slimmed from 711 KB to 255 KB per body
           (278 KB → 75 KB gzipped) by `scripts/slim_clips.py`: redundant keys dropped (≤0.02°, 0.1 mm), rotations
           stored as 16-bit, shared buffer views; Babylon import checked in CI. Still to do: the plant and human GLBs.
+    - [x] 6c-2 (partial slice). Poly Haven props slimmed by `scripts/slim_props.py` (numpy + Pillow, runs inside
+          `polyhaven_fetch.py`): the porch plant simplified from 69,345 to 37,907 triangles (quadric half-edge
+          collapses that never move a vertex, touch a UV seam or flip a face; ≤3 mm, sub-pixel from the street) with
+          512 px textures, 1.68 MB → 0.78 MB (1.20 MB → 0.49 MB gzipped); every prop's normals packed to 8 bits;
+          all ten props 5.37 MB → 4.27 MB. Checked by `polyhaven-slim.test.mjs`. Still to do: the human GLBs
+          (facial-asset pipeline) and meshopt with a self-hosted decoder.
 - [ ] **7. Accessibility**: full keyboard flow, visible focus, reduced-motion option, readable contrast,
       captions for story audio cues.
   - [x] 7a. Accessibility settings in the menu: motion (follow the device / reduced / full), sound captions that
@@ -86,13 +92,21 @@ A new player can:
           conversation answers; Escape closes the league table; and the downtown map lists "GPS to" place buttons so
           a waypoint can be set without a mouse. The playtest walks the map and a whole conversation by keyboard
           and sets a GPS waypoint with Enter. Still to do: the HUD contrast audit and story-scene captions.
-- [ ] **8. Content polish**: two or three downtown characters to talk to; short playable career tasks
+- [x] **8. Content polish**: two or three downtown characters to talk to; short playable career tasks
       (patrol route, fire call, route march) instead of a fade-to-black shift.
   - [x] 8a. Three downtown regulars to talk to: Priya, a volunteer guide by the bus stop; Coach Dee at the
         Central Park pitch; Captain Brooks outside the fire station. Placed from the real street data (off the
         roads, clear of the bus, workplace and match prompts), out during the day, with relationships saved like
         the neighbours'. The playtest stands beside one, presses E and has a conversation.
-  - [ ] 8b. Short playable career tasks (patrol route, fire call, route march) instead of a fade-to-black shift.
+  - [x] 8b. Short playable career tasks instead of the fade: pressing E at your workplace starts a duty — a police
+        patrol route (four stops), a fire call (three), an army route march (five checkpoints, on foot only) — planned
+        on the real downtown streets (`careerTasks.mjs`), with a glowing beam at the next stop, the GPS routed to it,
+        a duty card (stops, par clock, Give up) and a sign-off back at the door on foot. Beating par pays a bonus
+        (+50 % inside three quarters of par, +25 % on time). The playtest runs a fire call and checks the pay.
+- Career duties (8b) are the groundwork for item 16: the stops are walk-to markers with a line of text; real
+  mission beats (the hose at a fire, a lost child to find) can hang off the same stop events.
+- Leaving downtown (bus, taxi) mid-duty abandons it without pay; the life clock keeps running during a duty and
+  then jumps the rest of the four-hour shift at sign-off.
 - [ ] **9. Release checklist**: page title, icons and share image, an error screen with a reload button,
       a privacy note, a "what's new" list, and a final full playthrough of all three endings in the playtest.
   - [x] 9a. Page title "The Last Decision Day", description, SVG and PNG icons (home-screen icon, web manifest), a
@@ -148,6 +162,9 @@ above is done or blocked; any item may be split into slices.
   (for example if analytics, a TURN server for voice or cloud photo uploads are ever added).
 - The web manifest makes the game installable to a home screen, but there is no service worker, so it still needs a
   connection; an offline shell could come with the release work.
+- The porch plant's pot and soil carried 59,000 of its 69,000 triangles (552 pebbles, each UV-seamed); a third of
+  its vertices sit on UV seams, which the simplifier keeps, so a seam-aware collapse (as meshoptimizer does) could
+  halve it again. Four porch plants stand on Maple Street; an LOD level would still help frame rate on phones.
 - 7b: in the training range, Space fires and also presses whichever range button has focus (Hold breath, Reload,
   Stop); the live phase should keep focus off the buttons or ignore Space on them.
 - 6c's remaining work (meshopt for the plant and human GLBs) can't be done in the sandbox: no gltfpack, and neither

@@ -10,11 +10,21 @@ export const GAME_TAGLINE = 'Your life. Your choices. Your consequences.';
  */
 export const RELEASE_NOTES = Object.freeze([
   Object.freeze({
-    id: '2026-11-01', title: 'Polish and a proper front door',
+    id: '2026-11-01b', title: 'Polish and a proper front door',
     items: Object.freeze([
       'The game has a name in your browser tab, an icon for your home screen and a picture when you share a link.',
       'If something goes wrong, an error screen explains it and offers a one-tap reload instead of a blank page.',
       'This "What\'s new" list and a plain-language privacy note in the menu and on the start page.',
+    ]),
+  }),
+  Object.freeze({
+    id: '2026-11-01', title: 'People, duties and the keyboard',
+    items: Object.freeze([
+      'Pedestrians walk the downtown sidewalks and cross at the lights.',
+      'Three downtown regulars to talk to: a city guide, a football coach and a fire captain.',
+      'Career duties: a police patrol, a fire call or a route march, with a bonus for beating par.',
+      'Play the map, conversations, training range and league table by keyboard.',
+      'Lighter furniture and plant models, so Maple Street loads faster.',
     ]),
   }),
   Object.freeze({
