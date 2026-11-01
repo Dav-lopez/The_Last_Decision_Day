@@ -9,7 +9,7 @@ class SmileFoldTests(unittest.TestCase):
     def setUp(self):
         self.g = build_smile_fold_geometry(42)
 
-    def test_rounded_topology_head_skinning_and_front_winding(self):
+    def test_sloped_topology_head_skinning_and_front_winding(self):
         g = self.g
         self.assertEqual(len(g["positions"]), 2 * SAMPLES * RAILS)
         self.assertEqual(len(g["indices"]), 2 * (SAMPLES - 1) * (RAILS - 1) * 6)
@@ -24,9 +24,8 @@ class SmileFoldTests(unittest.TestCase):
             self.assertTrue(0.082 <= z < 0.087)
         for start in (0, SAMPLES * RAILS):
             for i in range(1, SAMPLES - 1):
-                low, ridge, high = g["positions"][start + i * RAILS:start + (i + 1) * RAILS]
+                low, ridge = g["positions"][start + i * RAILS:start + (i + 1) * RAILS]
                 self.assertGreater(ridge[2], low[2])
-                self.assertGreater(ridge[2], high[2])
 
     def test_smooth_normals_are_unit_length_and_have_real_side_relief(self):
         normals = self.g["normals"]
