@@ -1,0 +1,9 @@
+import type { AudioCue } from './audio/director.mjs';
+export type SoundCaption = { id: number; text: string; count: number; at: number };
+export declare const SOUND_CAPTIONS: Readonly<Partial<Record<AudioCue, string>>>;
+export declare const CAPTION_SECONDS: number;
+export declare const MAX_CAPTIONS: number;
+export declare function captionFor(cue: string): string | null;
+export declare function pushCaption(list: ReadonlyArray<SoundCaption>, cue: string, now: number): SoundCaption[];
+export declare function activeCaptions(list: ReadonlyArray<SoundCaption>, now: number): SoundCaption[];
+export declare function captionLabel(caption: SoundCaption): string;

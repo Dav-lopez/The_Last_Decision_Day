@@ -31,6 +31,9 @@
 .world-pad-key{min-width:43px;min-height:43px;padding:8px;background:#b7cef5;touch-action:none}
 .world-pad-key:active{background:#ffe0a0}
 @media(max-width:640px){.world-viewport{height:350px}.world-controls{flex-direction:column;align-items:stretch;gap:4px}.world-controls p{margin:0 0 6px}.world-pad-key{min-width:52px;min-height:48px}}
+/* On phones the touch pad sits right under the 3D view (the help text goes below it), so with the view
+   scrolled to the top of the screen both fit without scrolling between them. */
+@media(max-width:640px){.world-controls .world-control-buttons{order:1}.world-controls p{order:2;margin:6px 0 0;font-size:.8rem;opacity:.85}}
 
 .world-customize{padding:15px 18px 18px;border-top:1px solid #39516b;background:#102139}
 .world-customize h3{font-size:1.05rem;margin:0 0 10px}
@@ -86,7 +89,7 @@
 
 /* Driving: car prompt sits above the school button so both stay reachable. */
 .world-car-action{position:absolute;bottom:62px;left:50%;transform:translateX(-50%);background:#a8d8ff;color:#10233a;box-shadow:0 4px 18px #0007;white-space:nowrap}
-.world-drive-hud{position:absolute;bottom:14px;left:12px;padding:8px 12px;border-radius:8px;background:#11243ae6;color:#fff;font-size:.85rem;pointer-events:none;box-shadow:0 2px 10px #0005}
+.world-drive-hud{position:absolute;bottom:14px;left:194px;max-width:calc(100% - 206px);padding:8px 12px;border-radius:8px;background:#11243ae6;color:#fff;font-size:.85rem;pointer-events:none;box-shadow:0 2px 10px #0005}
 .world-drive-hud strong{font-size:1.25rem;margin-right:6px}
 .world-drive-notice{display:block;margin-top:4px;color:#ffd38a}
 @media(max-width:640px){.world-drive-hud{bottom:60px;font-size:.78rem}.world-car-action{bottom:110px}}
@@ -136,6 +139,8 @@
 
 /* Football on touch: the chip button sits above the kick button. */
 .world-car-action.world-chip-action{bottom:112px;background:#cfe6b8}
+.world-car-action.world-range-start{bottom:auto;top:148px}
+.world-range-loading{position:fixed;inset:0;z-index:60;margin:0;display:grid;place-items:center;background:#0d1114;color:#f4f5f6;font:600 1.1rem system-ui,sans-serif}
 .world-scoreboard-actions{display:flex;gap:6px}
 
 /* Phones (360–420 px wide): overlays in two columns at the top; at the bottom, from the edge up: notice or
@@ -162,7 +167,7 @@
   .world-root .world-scoreboard small{display:none}
   .world-root .world-camera-toggle{padding:10px 8px;gap:6px}
   .world-root .world-camera-toggle button{padding:8px 10px;font-size:.85rem}
-  .world-root .world-controls{padding:10px 8px}
+  .world-root .world-controls{padding:8px}
   .world-root .world-map{inset:6px}
   .world-root .world-menu-button{min-height:40px;line-height:1.2;vertical-align:middle}
   .world-root .world-first-hint{bottom:auto;top:50%;transform:translate(-50%,-50%);width:calc(100% - 16px);max-width:none}

@@ -147,6 +147,61 @@ await step('player walks with the touch pad', async () => {
   await page.locator('.world-viewport').scrollIntoViewIfNeeded();
   await shot('03-walked');
 });
+await step('touch pad sits right under the view', async () => {
+  // Players land with the view at the top of the screen (the game scrolls it there on phones).
+  await page.evaluate(() => document.querySelector('.world-viewport')?.scrollIntoView({ block: 'start' }));
+  const fit = await page.evaluate(() => {
+    const view = document.querySelector('.world-viewport').getBoundingClientRect();
+    const keys = [...document.querySelectorAll('.world-pad-key')].map(key => key.getBoundingClientRect()).filter(r => r.height > 0);
+    return { viewTop: view.top, viewBottom: view.bottom, padBottom: Math.max(...keys.map(r => r.bottom)), padTop: Math.min(...keys.map(r => r.top)), screen: window.innerHeight };
+  });
+  notes.push(`view ${Math.round(fit.viewTop)}–${Math.round(fit.viewBottom)}px, pad ${Math.round(fit.padTop)}–${Math.round(fit.padBottom)}px on a ${fit.screen}px screen`);
+  if (fit.padBottom > fit.screen + 1) throw new Error(`touch pad ends at ${Math.round(fit.padBottom)}px, below the ${fit.screen}px screen`);
+  if (fit.padTop - fit.viewBottom > 40) throw new Error(`touch pad starts ${Math.round(fit.padTop - fit.viewBottom)}px under the view`);
+  await shot('03a-pad');
+});
+const actionButton = text => page.locator('.world-car-action:not(.world-range-start):not(.world-match-start):not(.world-chip-action)', { hasText: text });
+await step('talk to a neighbour by tapping', async () => {
+  await tapAway();
+  if (!(await page.evaluate(() => window.__tld.place('neighbour')))) throw new Error('nobody out to talk to on Maple Street');
+  const talk = actionButton(/^Talk to /);
+  await talk.waitFor({ timeout: 60000 });
+  await checkLayout('talk prompt');
+  await talk.tap();
+  await page.waitForSelector('.npc-chat-card', { timeout: 15000 });
+  const { documentWidth } = await measure();
+  if (documentWidth > 361) throw new Error(`conversation makes the page ${documentWidth}px wide`);
+  await shot('03b-talk');
+  await page.locator('.npc-chat-choices button').first().tap();
+  await page.locator('.npc-chat-result').waitFor({ timeout: 10000 });
+  await page.getByRole('button', { name: 'Continue story' }).tap();
+  await page.waitForSelector('.npc-chat-card', { state: 'detached', timeout: 10000 });
+  await tapAway();
+  if ((await read()).npcChat) throw new Error('conversation still open');
+});
+await step('drive a car by tapping', async () => {
+  if (!(await page.evaluate(() => window.__tld.place('car')))) throw new Error('no parked car to get into');
+  const getIn = actionButton(/^Get in car/);
+  await getIn.waitFor({ timeout: 60000 });
+  await getIn.tap();
+  await page.waitForFunction(() => window.__tld.read().driving, null, { timeout: 15000 });
+  const start = (await read()).car;
+  const drove = () => read().then(now => now.car && Math.hypot(now.car.x - start.x, now.car.z - start.z) >= 1);
+  // Forward first; a car parked nose-in to a kerb backs out instead.
+  if (!(await holdTouch(page.getByRole('button', { name: 'Move forward' }), drove, 60000))) {
+    if (!(await holdTouch(page.getByRole('button', { name: 'Move backward' }), drove, 60000))) throw new Error('the car did not move by touch');
+  }
+  await page.locator('.world-viewport').scrollIntoViewIfNeeded();
+  await checkLayout('driving');
+  await shot('03c-driving');
+  await page.waitForFunction(() => Math.abs(window.__tld.read().car?.speed ?? 0) < 0.3, null, { timeout: 90000 });
+  const getOut = actionButton(/^Get out of car/);
+  for (let tries = 0; tries < 10 && (await read()).driving; tries++) {
+    await getOut.tap({ timeout: 5000 }).catch(() => {});
+    await page.waitForTimeout(1000);
+  }
+  if ((await read()).driving) throw new Error('could not get out of the car by tapping');
+});
 await step('map opens and closes by tapping', async () => {
   await page.getByRole('button', { name: 'Map (N)' }).tap();
   await page.waitForSelector('.world-map', { timeout: 5000 });
@@ -174,6 +229,36 @@ await step('downtown layout fits the phone', async () => {
   await checkLayout('downtown');
   await shot('05-downtown');
 });
+await step('training range by tapping (fire station)', async () => {
+  if (!(await page.evaluate(() => window.__tld.place('firefighter')))) throw new Error('fire station sign not found downtown');
+  const sign = actionButton(/Firefighter|Fire Station/);
+  await sign.waitFor({ timeout: 60000 });
+  if (/Apply/.test(await sign.textContent())) await sign.tap();
+  await page.waitForTimeout(1500);
+  await tapAway();
+  const range = page.locator('.world-range-start');
+  await range.waitFor({ timeout: 30000 });
+  await checkLayout('workplace');
+  await shot('05b-workplace');
+  await range.tap();
+  const drill = page.locator('.training-range');
+  await drill.waitFor({ timeout: 15000 });
+  await drill.getByRole('button', { name: 'Start', exact: true }).tap();
+  await page.waitForSelector('.training-range-touch', { timeout: 10000 });
+  const { documentWidth } = await measure();
+  if (documentWidth > 361) throw new Error(`range makes the page ${documentWidth}px wide`);
+  const canvas = page.locator('.training-range-canvas');
+  const area = await canvas.boundingBox();
+  // Tap the targets (upper middle of the range), clear of the touch buttons along the bottom.
+  for (let i = 0; i < 3; i++) {
+    await page.touchscreen.tap(area.x + area.width * (0.4 + i * 0.1), area.y + area.height * 0.35);
+    await page.waitForTimeout(500);
+  }
+  await shot('05c-range');
+  await drill.getByRole('button', { name: /^Stop/ }).tap();
+  await page.waitForSelector('.training-range', { state: 'detached', timeout: 15000 });
+  await tapAway();
+});
 await step('pitch: start a match and pass by tapping', async () => {
   await page.evaluate(() => window.__tld.travel('pitch'));
   await page.waitForFunction(() => { const s = window.__tld.read(); return s.location === 'city' && !s.dialogue && !s.travelling; }, null, { timeout: 180000 });
@@ -191,6 +276,17 @@ await step('pitch: start a match and pass by tapping', async () => {
   await shot('07-match');
   await page.locator('.world-scoreboard').getByRole('button', { name: /pass/i }).tap();
   await page.locator('.world-scoreboard').getByRole('button', { name: /shoot/i }).tap();
+  // The match keeps running and both keepers stay in front of their own goals (east is the away goal).
+  const before = (await read())?.match;
+  await page.waitForTimeout(4000);
+  const after = (await read())?.match;
+  if (!before || !after) throw new Error('match state not readable');
+  if (after.phase === 'play' && !(after.clock < before.clock)) throw new Error(`match clock stuck at ${after.clock}`);
+  for (const k of after.keepers) {
+    const line = k.team === 'away' ? 20 : -20;
+    if (Math.abs(k.x - line) > 9 || Math.abs(k.z) > 6) throw new Error(`${k.team} keeper wandered to ${k.x.toFixed(1)}, ${k.z.toFixed(1)}`);
+  }
+  notes.push(`match running: ${after.score.home}-${after.score.away}, clock ${Math.round(after.clock)} s`);
 });
 
 await browser.close();
