@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { npcSpeechWeight } from '../src/world/npcSpeechDynamics.mjs';
-import { npcFaceTarget } from '../src/world/npcFace.mjs';
+import { npcFaceTarget, advanceNpcFace } from '../src/world/npcFace.mjs';
 
 const names = ['jawOpen', 'mouthOpen', 'mouthPressLeft', 'mouthPressRight'];
 
