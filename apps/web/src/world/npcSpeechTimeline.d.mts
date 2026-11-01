@@ -1,5 +1,5 @@
 import type { NpcSpeechProsody } from './npcSpeechProsody.mjs';
-export type NpcSpeechMood = 'neutral' | 'happy' | 'sad';
+export type NpcSpeechMood = 'neutral' | 'happy' | 'sad' | 'angry';
 export type NpcSpeechCue = { start: number; end: number; open: number; press: number };
 export type NpcSpeechState = {
   id: string | null;

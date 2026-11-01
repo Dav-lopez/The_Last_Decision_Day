@@ -1,6 +1,6 @@
 export type NpcFaceContext = {
   talking?: boolean;
-  emotion?: 'neutral' | 'happy' | 'sad';
+  emotion?: 'neutral' | 'happy' | 'sad' | 'angry';
   nearby?: boolean;
   moving?: boolean;
   flinch?: number;

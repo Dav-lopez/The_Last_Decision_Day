@@ -6,6 +6,8 @@ import { npcAttentionGaze } from '../src/world/npcAttentionGaze.mjs';
 import { npcEyeVergence } from '../src/world/npcEyeVergence.mjs';
 import { npcIdleMicroExpression } from '../src/world/npcMicroExpression.mjs';
 import { npcConversationHeadTarget, stepNpcConversationHead } from '../src/world/npcConversationHead.mjs';
+import { chooseNpcReply, newNpcRelations } from '../src/world/npcConversations.mjs';
+import { beginNpcSpeech, advanceNpcSpeech } from '../src/world/npcSpeechTimeline.mjs';
 
 const weight = (name, emotion, extra = {}) => npcFaceTarget(name, 0.23, { emotion, talking: true, nearby: true, ...extra });
 const morph = name => ({ name, influence: 0 });
@@ -436,4 +438,50 @@ test('converged eyes remain blink-masked and duplicate facial surfaces stay sync
   });
   assert.ok(left.influence > 0);
   assert.equal(left.influence, duplicate.influence);
+});
+
+test('rude dialogue choices drive angry morphs and a sustained stern head pose', () => {
+  for (const resident of ['ruth', 'dee', 'brooks']) {
+    const reply = chooseNpcReply(newNpcRelations(), resident, 'dismiss');
+    assert.equal(reply.mood, 'angry', resident);
+    assert.ok(reply.trustDelta < 0, 'angry reaction retains the relationship consequence');
+    let speech = beginNpcSpeech(resident, reply.mood, reply.reply);
+    assert.equal(speech.mood, 'angry');
+    assert.ok(speech.duration > 0);
+    for (let i = 0; i < 600; i++) speech = advanceNpcSpeech(speech, 1 / 60);
+    assert.equal(speech.mood, 'angry', 'expression persists after the line ends');
+    const context = { emotion: speech.mood, talking: false, nearby: true };
+    assert.ok(npcFaceTarget('browDownLeft', 0, context) > 0.65);
+    assert.ok(npcFaceTarget('browDownRight', 0, context) > 0.6);
+    assert.ok(npcFaceTarget('mouthPressLeft', 0, context) > 0.4);
+    assert.ok(npcFaceTarget('eyeSquintRight', 0, context) > 0.2);
+    assert.equal(npcFaceTarget('mouthSmileLeft', 0, context), 0,
+      'a hostile resident must not smile at a nearby player');
+    assert.equal(npcFaceTarget('browInnerUp', 0, context), 0,
+      'friendly eyebrow lift must not leak into anger');
+    const head = npcConversationHeadTarget({ talking: true, speaking: false, mood: speech.mood });
+    assert.ok(head.pitch < 0 && head.roll > 0, 'angry dialogue retains a restrained stern head pose');
+  }
+});
+
+test('angry face transitions preserve shared-mesh synchronization, speech and flinch precedence', () => {
+  const brow = morph('browDownLeft'), copy = morph('browDownLeft');
+  const press = morph('mouthPressLeft'), smile = morph('mouthSmileLeft');
+  let state = initialNpcFace(4);
+  for (let i = 0; i < 35; i++) state = advanceNpcFace(state, 1 / 60,
+    [brow, copy, press, smile], { emotion: 'angry', talking: true, nearby: true });
+  assert.equal(brow.influence, copy.influence);
+  assert.ok(brow.influence > 0.5 && press.influence > 0.3);
+  assert.equal(smile.influence, 0);
+  assert.ok(npcFaceTarget('jawOpen', 0.23, { emotion: 'angry', talking: true }) > 0,
+    'angry dialogue still articulates its words');
+  assert.equal(npcFaceTarget('browDownLeft', 0.23, { emotion: 'angry', flinch: 1 }), 0,
+    'a collision overrides the hostile brow pose');
+  assert.ok(npcFaceTarget('eyeWideLeft', 0.23, { emotion: 'angry', flinch: 1 }) > 0);
+  for (let i = 0; i < 30; i++) state = advanceNpcFace(state, 1 / 60,
+    [brow, copy, press, smile], { emotion: 'neutral' });
+  assert.ok(brow.influence < 0.05, 'angry brow relaxes after returning to neutral');
+  assert.equal(brow.influence, copy.influence);
+  resetNpcFace(state, [brow, copy, press, smile]);
+  assert.equal(press.influence, 0);
 });

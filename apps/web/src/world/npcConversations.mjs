@@ -103,7 +103,7 @@ export const NPC_DIALOGUES = Object.freeze({
     choices: Object.freeze([
       option('note', 'Ask Ruth about the mysterious note', "A note on your doorstep? Ooh. I saw someone near the school noticeboard at dusk last week. Ask your classmates, and keep your eyes open, dear.", 2, 'happy'),
       option('gossip', 'Ask what is new on the street', "The house on the corner sat empty for three years, you know. And Marcus swears he once raced a bus. He lost.", 1, 'happy'),
-      option('dismiss', 'Tell her to mind her own business', "Well! Some of us are only being friendly.", -2, 'sad'),
+      option('dismiss', 'Tell her to mind her own business', "Well! Some of us are only being friendly.", -2, 'angry'),
     ]),
   }),
   // Downtown regulars (see downtownPeople.mjs): always at the same spot during the day.
@@ -128,7 +128,7 @@ export const NPC_DIALOGUES = Object.freeze({
     choices: Object.freeze([
       option('tips', 'Ask for football tips', "Pass early, move into space, and shoot low across the keeper. Keepers come off their line now, so a chip over them works if they rush you.", 2, 'happy'),
       option('league', 'Ask about the season league', "Step onto the pitch and start a match. Every result goes in the league table, and the top of the table gets bragging rights all season.", 1, 'happy'),
-      option('dismiss', 'Say football is boring', "Boring? Come lose five-nil to the AI and say that again!", -2, 'sad'),
+      option('dismiss', 'Say football is boring', "Boring? Come lose five-nil to the AI and say that again!", -2, 'angry'),
     ]),
   }),
   brooks: Object.freeze({
@@ -140,7 +140,7 @@ export const NPC_DIALOGUES = Object.freeze({
     choices: Object.freeze([
       option('job', 'Ask what it takes to be a firefighter', "Fitness, teamwork and turning up for every shift. Sign on at the station door, then practise the hose on the flame boards at the training range.", 2, 'happy'),
       option('safety', 'Ask for fire-safety advice', "Test your smoke alarm every month, keep your way out clear, and if there's ever a fire: get out, stay out and call for help.", 1, 'happy'),
-      option('dismiss', 'Say firefighters just sit around', "We train when it's quiet so we're ready when it isn't. You'll be glad of that one day.", -1, 'sad'),
+      option('dismiss', 'Say firefighters just sit around', "We train when it's quiet so we're ready when it isn't. You'll be glad of that one day.", -1, 'angry'),
     ]),
   }),
 });
