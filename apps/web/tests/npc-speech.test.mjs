@@ -170,3 +170,68 @@ test('text cue builder bounds long/unicode lines and rejects malformed inputs', 
   }
   assert.equal(npcSpeechCueWeight('eyeBlinkLeft', 0.2, long), 0);
 });
+
+
+import { classifyNpcSpeechProsody, npcSpeechProsodyWeight } from '../src/world/npcSpeechProsody.mjs';
+
+test('question and exclamation punctuation create distinct cached facial inflections', () => {
+  for (const [line, kind] of [
+    ['Are you coming?', 'question'], ['Really?!', 'question'],
+    ['Welcome!', 'exclaim'], ['Hello.', 'none'], ['No punctuation', 'none'],
+    ['What now?”', 'question'], ['!!', 'none'], [null, 'none'],
+  ]) assert.equal(classifyNpcSpeechProsody(line), kind);
+  const question = beginNpcSpeech('maya', 'neutral', 'Are you coming?');
+  const exclaim = beginNpcSpeech('maya', 'neutral', 'Welcome!');
+  assert.equal(question.prosody, 'question');
+  assert.equal(exclaim.prosody, 'exclaim');
+  assert.equal(beginNpcSpeech(null, 'neutral', 'Hello?').prosody, 'none');
+  assert.equal(advanceNpcSpeech(question, 0.1).prosody, question.prosody,
+    'classification is cached and never recomputed during animation');
+});
+
+test('speech prosody is finite, bounded and limited to existing facial morphs', () => {
+  for (const kind of ['question', 'exclaim']) {
+    for (const name of ['browInnerUp', 'eyeWideLeft', 'eyeWideRight']) {
+      assert.equal(npcSpeechProsodyWeight(name, 0, 2, kind), 0);
+      assert.ok(npcSpeechProsodyWeight(name, 1.5, 2, kind) > 0);
+      assert.equal(npcSpeechProsodyWeight(name, 2, 2, kind), 0);
+      for (const invalid of [NaN, Infinity, -Infinity, -1, 1000]) {
+        assert.equal(npcSpeechProsodyWeight(name, invalid, 2, kind), 0);
+      }
+    }
+  }
+  assert.ok(npcSpeechProsodyWeight('browInnerUp', 1.5, 2, 'question') >
+    npcSpeechProsodyWeight('browInnerUp', 1.5, 2, 'exclaim'));
+  assert.ok(npcSpeechProsodyWeight('eyeWideRight', 1.5, 2, 'exclaim') >
+    npcSpeechProsodyWeight('eyeWideRight', 1.5, 2, 'question'));
+  for (const name of ['jawOpen', 'mouthSmileLeft', 'eyeBlinkLeft', 'tearTrackLeft']) {
+    assert.equal(npcSpeechProsodyWeight(name, 1.5, 2, 'question'), 0);
+  }
+  for (const duration of [0, -1, NaN, Infinity]) {
+    assert.equal(npcSpeechProsodyWeight('browInnerUp', 1, duration, 'question'), 0);
+  }
+});
+
+test('NPC facial inflection follows the current line, yields to distress and fades after speech', () => {
+  const base = { talking: true, emotion: 'neutral', speechElapsed: 1.5, speechDuration: 2 };
+  const question = npcFaceTarget('browInnerUp', 0, { ...base, prosody: 'question' });
+  const exclaim = npcFaceTarget('eyeWideRight', 0, { ...base, prosody: 'exclaim' });
+  assert.ok(question > npcFaceTarget('browInnerUp', 0, { ...base, prosody: 'none' }));
+  assert.ok(exclaim > npcFaceTarget('eyeWideRight', 0, { ...base, prosody: 'question' }));
+  assert.equal(npcFaceTarget('eyeWideRight', 0, { ...base, prosody: 'exclaim', talking: false }), 0);
+  assert.equal(npcFaceTarget('eyeWideRight', 0, { ...base, prosody: 'exclaim', moving: true }), 0);
+  assert.equal(npcFaceTarget('eyeWideRight', 0, { ...base, prosody: 'exclaim', emotion: 'sad' }), 0);
+  assert.equal(npcFaceTarget('eyeWideRight', 0, { ...base, prosody: 'exclaim', speechElapsed: 2 }), 0);
+  assert.ok(npcFaceTarget('eyeWideRight', 0, { ...base, prosody: 'exclaim', flinch: 1 }) > 0,
+    'startle retains its own eye-wide animation');
+  const eye = { name: 'eyeWideLeft', influence: 0 };
+  const copy = { name: 'eyeWideLeft', influence: 0 };
+  let state = { elapsed: 0, motions: new Map(), frame: new Map() };
+  for (let i = 0; i < 25; i++) state = advanceNpcFace(state, 1 / 60, [eye, copy],
+    { ...base, prosody: 'exclaim', blink: { left: 1, right: 0 } });
+  assert.equal(eye.influence, 0, 'blink masks the inflection on the closed eyelid');
+  assert.equal(eye.influence, copy.influence, 'duplicate skinned surfaces stay synchronized');
+  state = advanceNpcFace(state, 1 / 60, [eye, copy],
+    { ...base, prosody: 'exclaim', blink: { left: 0, right: 0 } });
+  assert.ok(eye.influence > 0, 'eyelid reopening restores the spring pose');
+});
