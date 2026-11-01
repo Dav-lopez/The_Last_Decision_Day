@@ -956,7 +956,7 @@ export default function WorldScene({
       const loadDriveFeel = () => {
         if (driveFeelLoading) return;
         driveFeelLoading = true;
-        void import('./driveFeel').then(module => { if (!disposed) driveFeel = module.createDriveFeel(scene); }).catch(() => { driveFeelLoading = false; });
+        void import('./driveFeel').then(module => { if (disposed) return; driveFeel = module.createDriveFeel(scene); audioRef.current?.useCarSynth(module.createCarSynth); }).catch(() => { driveFeelLoading = false; });
       };
       let bumpCooldown = 0;
       let carHorn = false;

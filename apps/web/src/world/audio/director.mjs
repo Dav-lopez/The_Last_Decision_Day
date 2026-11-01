@@ -7,7 +7,7 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
   let disposed = false, enabled = false, hidden = false, resumeVersion = 0;
   let settings = normalizeAudioSettings(null);
   let nextBeat = 0, beat = 0, nextFootstep = 0, nextAmbient = 0, lastLocation = '';
-  let engine = null, squeal = null, horn = null, skidCaptionAt = -Infinity, hornWanted = false;
+  let engine = null, hornWanted = false, carSynthFactory = null, carSynth = null;
   let reverb = null, reverbSend = null, intensity = 0;
   const voices = new Set(), lastCue = new Map();
   const targets = new WeakMap();
@@ -28,7 +28,7 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
       try { voice.source.stop(); } catch {}
       release(voice);
     }
-    if (!category || category === 'effects') { engine = null; squeal = null; horn = null; }
+    if (!category || category === 'effects') { engine = null; carSynth?.reset(); }
   }
   function register(source, gain, category, extra = []) {
     if (voices.size >= 80) return false;
@@ -94,19 +94,6 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
     noiseBuffer = context.createBuffer(1,Math.ceil(context.sampleRate*.5),context.sampleRate);
     const channel = noiseBuffer.getChannelData(0); let seed = 4181;
     for (let i=0;i<channel.length;i++) { seed=(seed*16807)%2147483647; channel[i]=(seed/2147483647)*2-1; }
-  }
-  /** The held horn: two detuned square waves a third apart through a soft lowpass. */
-  function setHornVoice(on) {
-    if (!on) { if (horn) { try { horn.source.stop(); horn.second?.stop(); } catch {} release(horn); horn = null; } return; }
-    if (horn || !playable() || voices.size >= 78) return;
-    const time = now();
-    const a = context.createOscillator(), b = context.createOscillator(), filter = context.createBiquadFilter(), gain = context.createGain();
-    a.type = 'square'; b.type = 'square'; a.frequency.setValueAtTime(349, time); b.frequency.setValueAtTime(440, time);
-    filter.type = 'lowpass'; filter.frequency.setValueAtTime(1800, time);
-    gain.gain.setValueAtTime(0, time); gain.gain.linearRampToValueAtTime(.03, time + .02);
-    a.connect(filter); b.connect(filter); filter.connect(gain); gain.connect(buses.effects);
-    horn = register(a, gain, 'effects', [b, filter]);
-    if (horn) { horn.second = b; a.start(time); b.start(time); }
   }
   function noise(duration, volume, cutoff, category = 'effects', filterType = 'lowpass', start = now()) {
     if (!playable() || voices.size >= 80) return;
@@ -195,7 +182,9 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
       }
     },
     /** Hold the car horn (true) or let go (false). Sounds only while driving. */
-    horn(on) { const want=Boolean(on); if(want && !hornWanted) { try { onCue('horn'); } catch {} } hornWanted=want; if(!want) setHornVoice(false); },
+    horn(on) { const want=Boolean(on); if(want && !hornWanted) { try { onCue('horn'); } catch {} } hornWanted=want; },
+    /** Plug in the car's engine, squeal and horn voices (loaded with the driving code). */
+    useCarSynth(factory) { carSynthFactory=typeof factory==='function' ? factory : null; carSynth=null; },
     update({ location='street', speed=0, drivingSpeed=null, car=null, reading=false, paused=false, evening=false, match=false } = {}) {
       if(!playable()) return;
       const time=now();
@@ -217,47 +206,19 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
         nextFootstep=time+(speed>2.8 ? .25 : .43);
       } else if(!moving) nextFootstep=time;
       const drivingNow=drivingSpeed!==null && Number.isFinite(drivingSpeed) && !paused && !reading && settings.effects>0;
-      if(drivingNow) {
-        // Engine: a sawtooth and a sub an octave down through a lowpass; revs set the pitch,
-        // the gas pedal opens the filter and the volume, and each up-shift dips the note.
-        const rpm=Number.isFinite(car?.rpm) ? Math.max(0,Math.min(1,car.rpm)) : Math.min(1,Math.abs(drivingSpeed)/9);
-        const hz=Number.isFinite(car?.frequency) ? car.frequency : 55+Math.min(35,Math.abs(drivingSpeed))*3;
-        const load=Math.max(0,Math.min(1,Number(car?.throttle)||0));
-        if(!engine && voices.size<78) {
-          const source=context.createOscillator(),sub=context.createOscillator(),filter=context.createBiquadFilter(),gain=context.createGain();
-          source.type='sawtooth';sub.type='triangle';filter.type='lowpass';
-          gain.gain.setValueAtTime(.012,time);filter.frequency.setValueAtTime(400,time);
-          source.connect(filter);sub.connect(filter);filter.connect(gain);gain.connect(buses.effects);
-          engine=register(source,gain,'effects',[sub,filter]);
-          if(engine) { engine.sub=sub;engine.filter=filter;engine.gain=gain;source.start();sub.start(); }
+      if(carSynthFactory && !carSynth) carSynth=carSynthFactory({ context, output: buses.effects, register: (...args)=>voices.size<78 && register(...args), release, ramp, noise: ()=>{ ensureNoise(); return noiseBuffer; } });
+      if(carSynth) {
+        if(engine) { try {engine.source.stop();}catch{} release(engine);engine=null; }
+        if(carSynth.update({ time, driving: drivingNow, speed: drivingSpeed, car, horn: hornWanted })) { try { onCue('skid'); } catch {} }
+      } else if(drivingNow) {
+        // Until the car's own sounds load: a plain engine hum that follows the speed.
+        if(!engine && voices.size<80) {
+          const source=context.createOscillator(),gain=context.createGain();
+          source.type='triangle';gain.gain.setValueAtTime(.012,time);source.connect(gain);gain.connect(buses.effects);
+          engine=register(source,gain,'effects');if(engine) source.start();
         }
-        if(engine) {
-          ramp(engine.source.frequency,hz);
-          if(engine.sub) ramp(engine.sub.frequency,hz/2);
-          if(engine.filter) ramp(engine.filter.frequency,260+rpm*900+load*500);
-          if(engine.gain) ramp(engine.gain.gain,.01+rpm*.012+load*.008);
-        }
-        // Tyres: a narrow band of noise that screams louder the harder they slide.
-        const slip=Math.max(0,Math.min(1,Number(car?.slip)||0));
-        if(slip>.15) {
-          if(!squeal && voices.size<78) {
-            ensureNoise();
-            const source=context.createBufferSource(),filter=context.createBiquadFilter(),gain=context.createGain();
-            source.buffer=noiseBuffer;source.loop=true;filter.type='bandpass';filter.frequency.setValueAtTime(2300,time);
-            if(filter.Q) filter.Q.value=9;
-            gain.gain.setValueAtTime(0,time);
-            source.connect(filter);filter.connect(gain);gain.connect(buses.effects);
-            squeal=register(source,gain,'effects',[filter]);
-            if(squeal) { squeal.gain=gain;squeal.filter=filter;source.start(); }
-          }
-          if(squeal) { ramp(squeal.gain.gain,.012+slip*.05);ramp(squeal.filter.frequency,1900+slip*900); }
-          if(slip>.45 && time-skidCaptionAt>4) { skidCaptionAt=time; try { onCue('skid'); } catch {} }
-        } else if(squeal) { try {squeal.source.stop();}catch{} release(squeal);squeal=null; }
-      } else {
-        if(engine) { try {engine.source.stop();engine.sub?.stop();}catch{} release(engine);engine=null; }
-        if(squeal) { try {squeal.source.stop();}catch{} release(squeal);squeal=null; }
-      }
-      setHornVoice(hornWanted && drivingNow);
+        if(engine) ramp(engine.source.frequency,55+Math.min(35,Math.abs(drivingSpeed))*3);
+      } else if(engine) { try {engine.source.stop();}catch{} release(engine);engine=null; }
       if(time>=nextAmbient && !reading && !paused && settings.ambience>0) {
         if (location==='pitch') {
           // The crowd: a broad murmur that swells, with the odd shout.

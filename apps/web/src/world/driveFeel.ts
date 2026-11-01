@@ -1,6 +1,7 @@
 import type { Scene } from '@babylonjs/core';
 import { createGearbox, createSkidMarks, engineFrequency, skidCapacityFor, stepGearbox, tyreSlip, type Gear } from './carFeel.mjs';
 import { createSkidMarksMesh } from './skidMarksScene';
+export { createCarSynth } from './audio/carAudio.mjs';
 import type { CarState, DriveInput } from './vehicleDrive.mjs';
 
 /**

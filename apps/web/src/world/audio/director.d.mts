@@ -6,6 +6,7 @@ export declare function createGameAudio(options?: { createContext?: () => AudioC
   enable(): Promise<boolean>; disable(): void; setSettings(value: AudioSettings): void; setHidden(hidden: boolean): void;
   cue(name: AudioCue): void;
   horn(on: boolean): void;
+  useCarSynth(factory: ((deps: import('./carAudio.mjs').CarSynthDeps) => import('./carAudio.mjs').CarSynth) | null): void;
   update(world: AudioWorld): void; dispose(): void;
 };
 export type GameAudio = ReturnType<typeof createGameAudio>;
