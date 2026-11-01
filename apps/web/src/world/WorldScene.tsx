@@ -832,7 +832,7 @@ export default function WorldScene({
         football = { pitch, ball: newBall(), goals: 0, resetIn: 0 };
         // Signs over the police station, army recruiting office and fire station, at real downtown buildings.
         const workplaces = buildWorkplaces(scene, workDoors);
-        void loadCityTraffic(scene, city, 28, shadows).then(traffic => {
+        void loadCityTraffic(scene, city, 28, shadows, collider.insideLocal).then(traffic => {
           if (disposed || scene.isDisposed) traffic?.dispose();
           else cityTraffic = traffic;
         }).catch(() => { /* No traffic: downtown still works. */ });
@@ -1171,6 +1171,7 @@ export default function WorldScene({
             x: position.x, z: position.z, location: locationRef.current, minute: life.minute, energy: life.energy,
             story: storyRef.current, driving: drivenIndex() >= 0, dialogue: dialogueRef.current, npcChat: npcActiveRef.current,
             traffic: cityTraffic?.cars().slice(0, 30).map(car => ({ x: car.x, z: car.z, speed: car.speed })) ?? [],
+            walkers: cityTraffic?.people().length ?? 0,
             taxi: Boolean(pendingTaxi) || Boolean(pendingDrive),
             travelling: pendingTaxi !== null,
             match: match ? { phase: match.phase, clock: match.clock, score: match.score, keepers: match.players.filter(p => p.role === 'keeper').map(p => ({ team: p.team, x: p.x - PITCH.x, z: p.z - PITCH.z })) } : null,
@@ -1948,7 +1949,7 @@ export default function WorldScene({
             ? (candidate: CarState) => footprintPoints(candidate).some(point => downtown!.collider.blockedLocal(...toLocal(point)))
             : undefined;
           // Downtown, the other cars are the traffic around you.
-          const next = stepVehicle(before, driveInput(keys), delta, locationRef.current === 'city' ? cityTraffic?.cars() ?? [] : others, locationRef.current === 'city' ? [] : peopleOut, cityBlock);
+          const next = stepVehicle(before, driveInput(keys), delta, locationRef.current === 'city' ? cityTraffic?.cars() ?? [] : others, locationRef.current === 'city' ? cityTraffic?.people() ?? [] : peopleOut, cityBlock);
           cars[driven] = { x: next.x, z: next.z, rotation: next.rotation, speed: next.speed };
           if (locationRef.current === 'street') {
             setGate(Math.hypot(next.x, next.z - TOWN_EXIT.beyond) < TOWN_EXIT.gateRange);

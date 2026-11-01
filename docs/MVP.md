@@ -95,11 +95,12 @@ above is done or blocked; any item may be split into slices.
       following each other, yielding to you, and solid to your car.
 - [x] **11. Minimap and GPS**: a corner minimap that rotates with you, a waypoint you set on the big map, and a
       route line along the roads to it (story objectives set it automatically).
-- [ ] **12. Traffic lights and pedestrians downtown**: signal-controlled junctions the traffic obeys; people
+- [x] **12. Traffic lights and pedestrians downtown**: signal-controlled junctions the traffic obeys; people
       walking downtown sidewalks who cross at lights.
   - [x] 12a. Traffic lights: 22 signalised junctions (wherever a main road meets others), two-way phases with
         yellow and all-red, offsets per junction; traffic stops at the line on red, and on yellow when it can.
-  - [ ] 12b. Pedestrians walking downtown sidewalks, crossing at the lights.
+  - [x] 12b. Pedestrians: 18 people (male and female, varied outfits) walk the pavements, wait at the kerb on red,
+        cross with the traffic that has green, and cars stop for anyone in the road.
 - [ ] **13. Driving feel**: body roll and pitch, tyre squeal and skid marks, engine sound by speed and gear,
       cosmetic dents and scratches, a horn; a police cruiser and a fire engine for those careers.
 - [ ] **14. Phone**: an in-game phone (Esc-free, key P) with messages from Mom and friends, contacts you've
