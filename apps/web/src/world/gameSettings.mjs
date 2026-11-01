@@ -58,9 +58,9 @@ export function textScale(settings) {
   return TEXT_SIZES.find(size => size.id === settings?.textSize)?.scale ?? 1;
 }
 
-/** Saved progress for one character: story, career and training, relationships and the life clock. Looks and settings stay. */
+/** Saved progress for one character: story, career and training, relationships, the life clock and the phone's inbox. Looks and settings stay. */
 export function progressKeys(characterId) {
-  return [`tld-story-v1:${characterId}`, `tld-career-v1:${characterId}`, `tld-npc-relations-v1:${characterId}`, `tld-life-v1:${characterId}`];
+  return [`tld-story-v1:${characterId}`, `tld-career-v1:${characterId}`, `tld-npc-relations-v1:${characterId}`, `tld-life-v1:${characterId}`, `tld-phone-v1:${characterId}`];
 }
 export function resetProgress(characterId, storage = globalThis.localStorage) {
   let cleared = 0;

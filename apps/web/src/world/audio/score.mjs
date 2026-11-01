@@ -113,4 +113,6 @@ export const CUES = Object.freeze({
   reload: [N(.035,.03,4200,0,'highpass'), N(.04,.03,3200,.2,'highpass')],
   // Tyre squeal is a continuous sound made while driving; the cue only carries its caption.
   skid: [],
+  // The phone sliding up: a soft two-note tap.
+  phone: [[740,.05,.022,0],[988,.08,.018,.05]],
 });

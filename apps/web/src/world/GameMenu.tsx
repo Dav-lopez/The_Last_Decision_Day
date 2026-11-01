@@ -15,6 +15,7 @@ const CONTROLS: ReadonlyArray<readonly [string, string]> = [
   ['E', 'Interact: doors, desks, bed, stove, cars, signs, talk to people'],
   ['1 – 3 · ↑ ↓ and Enter', 'Pick an answer in a conversation'],
   ['N', 'Map and quick travel'],
+  ['P', 'Phone: messages from Mom and friends, contacts, career, map'],
   ['W / S · A / D', 'In a car: accelerate, brake, reverse · steer'],
   ['Space · H', 'In a car: handbrake (slide round corners) · horn'],
   ['L', 'Police siren and lights (police officers, in a car)'],

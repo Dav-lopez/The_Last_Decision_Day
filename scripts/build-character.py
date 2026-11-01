@@ -521,7 +521,11 @@ def build(files, variant):
             "attributes": cheek_attrs,
             "indices": b.accessor(cheeks["indices"], "SCALAR", 5123),
             "material": cheek_material,
-            "targets": [{"POSITION": b.accessor(deltas, "VEC3")} for deltas in cheeks["targets"]],
+            "targets": [
+                {"POSITION": b.accessor(deltas, "VEC3"),
+                 "NORMAL": b.accessor(normal_deltas, "VEC3")}
+                for deltas, normal_deltas in zip(cheeks["targets"], cheeks["normal_targets"])
+            ],
         }],
         "extras": {"targetNames": list(cheeks["names"])},
     })
