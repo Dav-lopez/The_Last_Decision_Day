@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Offline outer-ear geometry regressions (standard library only)."""
+"""Offline sculpted ear geometry regressions; no Blender or network."""
 import math
 import unittest
-from facial_ears import build_ear_geometry, SEGMENTS, RINGS, CENTER_Z
+from facial_ears import build_ear_geometry, SEGMENTS, RINGS, CENTER_X, CENTER_Y, CENTER_Z
 
 
 class EarGeometryTests(unittest.TestCase):
@@ -25,11 +25,27 @@ class EarGeometryTests(unittest.TestCase):
         self.assertTrue(all(0.08 < abs(x) < 0.15 and 1.625 < y < 1.705 and 0 < z < 0.05
                             for x, y, z in self.g["positions"]))
 
-    def test_helix_relief_is_not_flat(self):
-        z = [p[2] for p in self.g["positions"]]
-        self.assertGreater(max(z) - min(z), 0.014)
-        self.assertGreater(z[1 + SEGMENTS], CENTER_Z)
-        self.assertLess(z[1 + 2 * SEGMENTS], CENTER_Z)
+    def test_recessed_concha_and_sculpted_cartilage(self):
+        positions = self.g["positions"]
+        concha = positions[0][2]
+        antihelix = positions[1 + 2 * SEGMENTS + SEGMENTS // 4][2]
+        helix = positions[1 + 3 * SEGMENTS + SEGMENTS // 4][2]
+        outer = positions[1 + 4 * SEGMENTS + SEGMENTS // 4][2]
+        self.assertLess(concha, CENTER_Z)
+        self.assertGreater(antihelix - concha, 0.012)
+        self.assertGreater(helix - concha, 0.015)
+        self.assertLess(outer, helix - 0.010)
+        # The curved cartilage ridges are not constant-depth planar rings.
+        for ring in (2, 3):
+            depths = [p[2] for p in positions[1 + ring * SEGMENTS:1 + (ring + 1) * SEGMENTS]]
+            self.assertGreater(max(depths) - min(depths), 0.002)
+
+    def test_lobe_tapers_relative_to_upper_ear(self):
+        ring = 4
+        upper = self.g["positions"][1 + ring * SEGMENTS + SEGMENTS // 8]
+        lower = self.g["positions"][1 + ring * SEGMENTS + 7 * SEGMENTS // 8]
+        self.assertAlmostEqual(upper[1] - CENTER_Y, CENTER_Y - lower[1], places=8)
+        self.assertGreater(abs(upper[0] + CENTER_X), abs(lower[0] + CENTER_X) * 1.2)
 
     def test_front_facing_winding_and_smooth_normals(self):
         for a, b, c in zip(*[iter(self.g["indices"])] * 3):
@@ -40,6 +56,11 @@ class EarGeometryTests(unittest.TestCase):
             self.assertTrue(all(math.isfinite(v) for v in n))
             self.assertAlmostEqual(math.sqrt(sum(v*v for v in n)), 1.0, places=6)
             self.assertGreater(n[2], 0.15)
+        left, right = self.g["normals"][:self.per_ear], self.g["normals"][self.per_ear:]
+        for a, b in zip(left, right):
+            self.assertAlmostEqual(a[0], -b[0], places=8)
+            self.assertAlmostEqual(a[1], b[1], places=8)
+            self.assertAlmostEqual(a[2], b[2], places=8)
 
     def test_invalid_head_joint(self):
         for bad in (-1, 256, True, 1.25, "Head"):

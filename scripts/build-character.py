@@ -671,7 +671,11 @@ def build(files, variant):
             },
             "indices": b.accessor(cornea["indices"], "SCALAR", 5123),
             "material": cornea_material,
-            "targets": [{"POSITION": b.accessor(deltas, "VEC3")} for deltas in cornea["targets"]],
+            "targets": [
+                {"POSITION": b.accessor(deltas, "VEC3"),
+                 "NORMAL": b.accessor(normal_deltas, "VEC3")}
+                for deltas, normal_deltas in zip(cornea["targets"], cornea["normal_targets"])
+            ],
         }],
         "extras": {"targetNames": list(cornea["names"])},
     })

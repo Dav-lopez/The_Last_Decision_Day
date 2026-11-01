@@ -134,7 +134,10 @@ jobs:
               'eyeLookUpLeft', 'eyeLookUpRight', 'eyeLookLeftLeft', 'eyeLookLeftRight',
               'eyeLookRightLeft', 'eyeLookRightRight']
           assert len(cornea_prim['targets']) == 10
-          assert d['accessors'][cornea_prim['attributes']['POSITION']]['count'] >= 200
+          cornea_vertices = d['accessors'][cornea_prim['attributes']['POSITION']]['count']
+          assert all({'POSITION', 'NORMAL'} <= set(target) for target in cornea_prim['targets'])
+          assert all(d['accessors'][target['NORMAL']]['count'] == cornea_vertices for target in cornea_prim['targets'])
+          assert cornea_vertices >= 200
           assert {'POSITION', 'NORMAL', 'JOINTS_0', 'WEIGHTS_0'} <= set(cornea_prim['attributes'])
           assert any(n.get('mesh') == d['meshes'].index(cornea) and n.get('skin') == 0 for n in d['nodes'])
           film = d['materials'][cornea_prim['material']]

@@ -178,3 +178,38 @@
   .world-root .world-viewport button,.world-root .world-control-buttons button,.world-root .world-camera-toggle button,
   .world-root .world-scoreboard button,.world-root .world-map button,.world-root .training-range-touch button{min-height:44px;min-width:44px}
 }
+
+/* Release polish: error screen, "What's new", privacy note, start-page footer. */
+.error-screen{min-height:260px;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:32px;border:1px solid #6b4a4a;border-radius:14px;background:linear-gradient(135deg,#2a1d2a,#1b2338)}
+.error-screen h2{margin:0;font-size:clamp(1.3rem,3vw,1.9rem)}
+.error-screen p{margin:4px 0;color:#d9e2f1;max-width:60ch;line-height:1.5}
+.error-screen-detail{color:#b9c6da!important;overflow-wrap:anywhere}
+.error-screen-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.error-screen-actions button{min-height:44px}
+button.secondary{background:transparent;color:#dbe7ff;border:1px solid #7d93b8}
+.whats-new section+section{margin-top:6px;border-top:1px solid #ffffff14}
+.whats-new h3{display:flex;align-items:center;gap:8px}
+.whats-new ul,.privacy-note{margin:6px 0 10px;padding-left:20px;line-height:1.5;font-size:.9rem}
+.whats-new li,.privacy-note li{margin-bottom:5px}
+.whats-new-tag{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:2px 7px;border-radius:999px;background:#ffd27a;color:#1b1406}
+.game-menu-dot{display:inline-block;width:8px;height:8px;margin-left:6px;border-radius:50%;background:#ffd27a;vertical-align:middle}
+.site-footer{max-width:640px;margin:20px auto 0;display:grid;gap:10px;color:#c5d0e2;font-size:.9rem}
+.site-footer details{padding:12px 16px;background:#121d31;border:1px solid #2b3d5a;border-radius:12px}
+.site-footer summary{cursor:pointer;font-weight:700;color:#e6eefb;min-height:28px;display:flex;align-items:center;gap:8px}
+.site-footer summary:focus-visible{outline:3px solid #86b9ff;outline-offset:2px;border-radius:6px}
+.site-footer h3{font-size:.95rem;margin:12px 0 4px}
+.site-footer small{display:block;text-align:center;color:#8fa2bf}
+/* Career duty card (MVP 8b): title and par clock, a pip per stop, what to do next. */
+.world-duty{position:absolute;top:56px;right:12px;z-index:3;width:min(260px,calc(100% - 24px));padding:8px 10px;border-radius:10px;background:#0f2238eb;color:#fff;box-shadow:0 4px 14px #0006;font-size:.84rem}
+.world-duty header{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.world-duty header span{font-variant-numeric:tabular-nums;font-weight:700;color:#9fe3a8}
+.world-duty header span.world-duty-late{color:#ffb38a}
+.world-duty-pips{display:flex;gap:5px;margin:6px 0 4px;padding:0;list-style:none}
+.world-duty-pips li{width:14px;height:14px;border-radius:50%;border:2px solid #9fb4cf;background:transparent}
+.world-duty-pips li.done{background:#9fe3a8;border-color:#9fe3a8}
+.world-duty-pips li.next{border-color:#ffd38a;box-shadow:0 0 0 3px #ffd38a44}
+.world-duty-pips li[data-final]{border-radius:3px}
+.world-duty p{margin:0 0 6px;line-height:1.3;color:#e8eef7}
+.world-duty button{min-height:32px;padding:4px 12px;border-radius:6px;border:1px solid #9fb4cf;background:transparent;color:#fff;font:inherit;cursor:pointer}
+.world-duty button:hover{background:#ffffff1a}
+@media(max-width:640px){.world-root .world-duty{top:114px;right:8px;width:calc(52% - 12px);font-size:.74rem;padding:6px 8px}.world-root .world-duty button{min-height:40px}}

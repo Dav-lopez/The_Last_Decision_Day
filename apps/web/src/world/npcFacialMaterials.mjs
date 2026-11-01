@@ -9,6 +9,7 @@ import { dressZones } from './appearance.mjs';
 import { skinSurface, hairSurface, skinRoughness } from './surfaceShading.mjs';
 import { calculateFacialEffectTargets, stepFacialEffectWeights } from './facialEffectDynamics.mjs';
 import { dropletCycle, stepDropletClock } from './facialDroplets.mjs';
+import { collectNpcSurfaceMorphs, npcFacialSurfaceResponse } from './npcFacialSurfaceResponse.mjs';
 
 const zero = () => ({ tears: 0, blush: 0, sweat: 0, wateryEyes: 0 });
 const finiteUnit = value => Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
@@ -63,6 +64,9 @@ export function createNpcFacialMaterials(materials, meshes, look) {
       material.transparencyMode = PBRMaterial.PBRMATERIAL_ALPHABLEND;
     }
   }
+  // Read only this clone's existing blink and oral morphs after its facial
+  // animation step; no extra textures, GLB targets, or per-frame mesh scans.
+  const readSurfaceMorphs = collectNpcSurfaceMorphs(meshes);
   const tracks = [];
   for (const mesh of meshes) {
     const manager = mesh.morphTargetManager;
@@ -82,13 +86,20 @@ export function createNpcFacialMaterials(materials, meshes, look) {
     sweat: { elapsed: 0, active: false },
   };
 
-  function paint() {
+  function paint(neutralSurface = false) {
     const skinMaterial = surface.get('Student skin');
     if (skinMaterial) skinMaterial.roughness = skinRoughness(effects.sweat);
     const cheeks = surface.get('Student cheek blush');
     if (cheeks) cheeks.alpha = Math.min(0.65, effects.blush * 0.65);
+    const response = npcFacialSurfaceResponse(effects.wateryEyes,
+      neutralSurface ? {} : readSurfaceMorphs());
     const eyes = surface.get('Student eyes');
-    if (eyes) eyes.clearCoat.intensity = 0.55 + effects.wateryEyes * 0.35;
+    if (eyes) {
+      eyes.clearCoat.intensity = response.eyeIntensity;
+      eyes.clearCoat.roughness = response.eyeRoughness;
+    }
+    const lips = surface.get('Student lips');
+    if (lips) lips.roughness = response.lipRoughness;
     for (const kind of ['tear', 'sweat']) for (const side of ['Left', 'Right']) {
       const material = surface.get(`Student ${kind} ${side}`);
       if (material) {
@@ -121,7 +132,9 @@ export function createNpcFacialMaterials(materials, meshes, look) {
     reset() {
       effects = zero();
       clocks = { tear: { elapsed: 0, active: false }, sweat: { elapsed: 0, active: false } };
-      paint();
+      // Reset materials even if another animation system still owns an
+      // active jaw or eyelid morph at the moment this NPC becomes hidden.
+      paint(true);
       for (const { morph } of tracks) morph.influence = 0;
     },
   };

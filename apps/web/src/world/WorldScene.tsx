@@ -52,7 +52,8 @@ import { createMatch, formatClock as formatMatchClock, saveMessage, stepMatch, t
 import { ROUNDS as LEAGUE_ROUNDS, YOU as LEAGUE_YOU, clubName, clubShort, readLeague, recordResult, standings, upcomingFixture, writeLeague, yourPosition, type ClubId, type League } from './footballLeague.mjs';
 import { loadFootballPlayers } from './footballPlayers';
 import { CAREERS, SHIFT_HOURS, joinCareer, workplaceDoors, quitCareer, rankOf, readCareer, workShift, writeCareer, type CareerId, type CareerState } from './careers.mjs';
-import { buildWorkplaces, createLightBar, createSiren } from './careersScene';
+import { buildWorkplaces, createLightBar, createSiren, createTaskMarker } from './careersScene';
+import { TASKS, formatClock as formatDutyClock, planTask, stepTask, taskResult, taskStatus, type CareerTask } from './careerTasks.mjs';
 import { CareersPanel } from './CareersPanel';
 import { bindActions, loadActionClips } from './characterActions';
 import { bodyLean, headingDelta, jumpFor, jumpHeight } from './actionMixer.mjs';
@@ -94,6 +95,7 @@ import { BED_SIDE, FRONT_DOORS, HOME_SPAWN, atHomeExit, nearFridge, nearStove, w
 import { TOWN_EXIT, canExitVehicle, chaseCameraAlpha, driveInput, footprintPoints, leavingTown, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
 import { activeCaptions, captionLabel, CAPTION_SECONDS, pushCaption, type SoundCaption } from './soundCaptions.mjs';
+import { arrowKeys, trapTab, useDialogFocus } from './dialogFocus';
 import { applyProgress, chooseNewestProgress, collectProgress, fromServerProgress, markProgressChanged, toServerProgress, type Progress, type ServerProgress, type ServerProgressResponse } from './progressSync.mjs';
 
 type SchoolActivityView = { id: string; title: string; description: string; timeCost: number };
@@ -567,6 +569,9 @@ export default function WorldScene({
   const [inHome, setInHome] = useState(false);
   const [doorPrompt, setDoorPrompt] = useState<'enter' | 'locked' | 'exit' | 'bed' | 'cook' | 'snack' | 'school' | 'school-closed' | 'leave-school' | 'desk' | null>(null);
   const [busyLabel, setBusyLabel] = useState<string | null>(null);
+  // A career duty under way downtown (MVP 8b): HUD summary, and a way to give it up.
+  const [duty, setDuty] = useState<ReturnType<typeof taskStatus>>(null);
+  const dutyActionsRef = useRef<{ giveUp: () => void }>({ giveUp: () => {} });
   const [atSchool, setAtSchool] = useState(false);
   const [inClass, setInClass] = useState<string | null>(null);
   const [lifeView, setLifeView] = useState<Life>(() => readLife(characterId));
@@ -775,6 +780,12 @@ export default function WorldScene({
   };
   const npcActionsRef = useRef({ open: openNpcChat, choose: chooseNpc, close: closeNpcChat });
   npcActionsRef.current = { open: openNpcChat, choose: chooseNpc, close: closeNpcChat };
+  // Keyboard flow (MVP 7b): conversations and the league table take focus when they open and hand it
+  // back to the 3D view when they close; a conversation keeps Tab inside itself.
+  const npcChatCardRef = useRef<HTMLElement | null>(null);
+  const leagueTableRef = useRef<HTMLElement | null>(null);
+  useDialogFocus(npcChatCardRef, npcChat !== null, { restore: () => canvasRef.current, step: npcChat?.outcome });
+  useDialogFocus(leagueTableRef, leagueOpen, { restore: () => canvasRef.current, keep: focused => focused === canvasRef.current });
   const toggleCamera = () => {
     // Indoors the camera stays in its cutaway view; the street mode returns on leaving.
     if (locationRef.current === 'home' || locationRef.current === 'school') return;
@@ -831,9 +842,25 @@ export default function WorldScene({
       let workDoors = new Map<CareerId, PlanarPosition>();
       const workplaceAt = (at: PlanarPosition) => [...workDoors].find(([, door]) => Math.hypot(door.x - at.x, door.z - at.z) <= 2)?.[0] ?? null;
       // A shift: a short fade, then the clock jumps SHIFT_HOURS and you're paid.
-      let pendingShift: { result: Extract<ReturnType<typeof workShift>, { ok: true }>; timer: number } | null = null;
+      let pendingShift: { result: Extract<ReturnType<typeof workShift>, { ok: true }>; timer: number; note?: string } | null = null;
+      // A shift is a short playable duty downtown (patrol, fire call, route march); the plain fade is the fallback.
+      let activeTask: { task: CareerTask; result: Extract<ReturnType<typeof workShift>, { ok: true }> } | null = null;
+      const taskMarker = createTaskMarker(scene);
+      let dutyTimer = 0;
+      const showTaskStop = () => {
+        const stop = activeTask ? activeTask.task.stops[activeTask.task.next] : null;
+        taskMarker.show(stop ? toWorld([stop.x, stop.z]) : null, activeTask?.task.career ?? null, Boolean(stop?.final));
+      };
+      const endTask = (message: string | null) => {
+        activeTask = null;
+        showTaskStop();
+        setDuty(null);
+        if (message) notify(message);
+      };
+      dutyActionsRef.current.giveUp = () => { if (activeTask) endTask('Duty given up: no pay for this shift.'); };
       const startShift = (id: CareerId) => {
         const current = careerRef.current;
+        if (activeTask) { notify(`Finish your duty first: ${taskStatus(activeTask.task)!.next}.`); return; }
         if (current.career !== id) {
           const next = joinCareer(current, id);
           saveCareer(next);
@@ -844,6 +871,20 @@ export default function WorldScene({
         }
         const result = workShift(current, { minute: life.minute, totalMinutes: lifeTotalMinutes(life), energy: life.energy });
         if (!result.ok) { notify(result.reason); return; }
+        const door = workDoors.get(id);
+        const task = door && roadGraph ? planTask(id, roadGraph, (([x, z]) => ({ x, z }))(toLocal(door)),
+          { seed: current.shifts + 1, collider: downtownSite?.collider ?? null }) : null;
+        if (task) {
+          activeTask = { task, result };
+          // The GPS follows the duty: a map waypoint of your own gives way to it.
+          if (waypoint?.manual) waypoint = null;
+          setLook(look => ({ ...look, ...CAREERS[id].uniform }));
+          showTaskStop();
+          setDuty(taskStatus(task));
+          notify(`${task.title}: ${task.brief} Par ${formatDutyClock(task.par)}.`);
+          audioRef.current?.cue('dispatch');
+          return;
+        }
         pendingShift = { result, timer: 0 };
         inputRef.current.clear();
         avatar.setEnabled(false);
@@ -1264,18 +1305,25 @@ export default function WorldScene({
             car: drivenIndex() >= 0 ? { x: cars[drivenIndex()].x, z: cars[drivenIndex()].z, speed: cars[drivenIndex()].speed } : null,
             loading: !worldReadyRef.current,
             downtownBuilt: downtown !== null, downtownBuildMs,
+            career: { id: careerRef.current.career, shifts: careerRef.current.shifts, money: careerRef.current.money },
+            duty: activeTask ? { id: activeTask.task.id, next: activeTask.task.next, stops: activeTask.task.stops.length, elapsed: activeTask.task.elapsed, par: activeTask.task.par } : null,
+            busy: pendingShift !== null,
           }),
           travel: (to: TravelTarget) => travelRef.current(to),
           route: () => mapReadRef.current().routeLength ?? 0,
           waypoint: () => mapReadRef.current().waypoint,
           // Stand the player beside something to try by touch: a neighbour, a parked car, or a workplace sign.
-          place: (spot: 'neighbour' | 'car' | CareerId) => {
+          place: (spot: 'neighbour' | 'car' | 'duty' | CareerId) => {
             if (interaction.mode !== 'walking' || pendingTaxi || pendingDrive || pendingRide) return false;
             const where = locationRef.current;
             let to: PlanarPosition | null = null;
             if (spot === 'neighbour') to = where === 'city' ? downtownTalkSpot(regulars ? regularSpots : [], life.minute, position)
               : talkSpot(where, life.minute, neighbors?.positions(), position);
             else if (spot === 'car') to = where === 'street' ? vehicleExitPosition(cars[0], cars) : null;
+            else if (spot === 'duty') {
+              const stop = activeTask && where === 'city' ? activeTask.task.stops[activeTask.task.next] : null;
+              to = stop ? toWorld([stop.x, stop.z]) : null;
+            }
             else if (where === 'city') to = workDoors.get(spot) ?? null;
             if (!to) return false;
             placePlayer({ x: to.x, z: to.z, rotation: avatar.rotation.y });
@@ -1899,7 +1947,8 @@ export default function WorldScene({
           if (locationRef.current === 'city' && roadGraph && downtown) {
             // With no waypoint of your own, the GPS follows the story objective.
             if (!waypoint?.manual) {
-              const target = objectiveWaypoint();
+              const stop = activeTask ? activeTask.task.stops[activeTask.task.next] : null;
+              const target = stop ? { x: stop.x, z: stop.z, label: stop.final ? TASKS[activeTask!.task.career].signOff : `${activeTask!.task.title} · ${taskStatus(activeTask!.task)!.next}` } : objectiveWaypoint();
               waypoint = target ? { ...target, manual: false } : null;
             }
             const driven = drivenIndex();
@@ -1925,10 +1974,40 @@ export default function WorldScene({
             mode: index >= 0 ? 'driving' : pendingRide || pendingShift || interaction.mode !== 'walking' ? 'busy' : 'walking' });
           previousOnlinePosition = { ...currentPosition }; onlineElapsed = 0;
         }
+        if (activeTask && !pendingShift) {
+          if (locationRef.current !== 'city') endTask('Duty abandoned: you left downtown. No pay for this shift.');
+          else if (!pendingTaxi && !pendingDrive && !pendingRide) {
+            const driven = drivenIndex();
+            const [tx, tz] = toLocal(driven >= 0 ? cars[driven] : position);
+            const { task, event } = stepTask(activeTask.task, { x: tx, z: tz, seconds: delta, driving: driven >= 0 });
+            activeTask = { ...activeTask, task };
+            taskMarker.update(delta);
+            dutyTimer += delta;
+            if (dutyTimer >= 0.25) {
+              dutyTimer = 0;
+              const status = taskStatus(task);
+              setDuty(previous => previous && status && previous.next === status.next && previous.left === status.left ? previous : status);
+            }
+            if (event?.type === 'stop') { showTaskStop(); notify(event.line); audioRef.current?.cue('checkpoint'); }
+            else if (event?.type === 'on-foot') notify(task.onFoot && !task.stops[task.next].final ? 'A route march is on foot: leave the car.' : 'Park up and sign off on foot at the door.');
+            else if (event?.type === 'done') {
+              const { result } = activeTask;
+              const outcome = taskResult(task, result.pay);
+              const paid = { ...result, pay: result.pay + outcome.bonus, state: { ...result.state, money: result.state.money + outcome.bonus } };
+              const timing = `${outcome.title} (${formatDutyClock(outcome.seconds)}, par ${formatDutyClock(outcome.par)})`;
+              endTask(null);
+              audioRef.current?.cue('checkpoint');
+              pendingShift = { result: paid, timer: 0, note: `${task.title}: ${timing}. +$${paid.pay}${outcome.bonus ? ` with a $${outcome.bonus} bonus` : ''}.` };
+              inputRef.current.clear();
+              if (drivenIndex() < 0) avatar.setEnabled(false);
+              setBusyLabel(`Signing off: ${task.title} · ${timing}…`);
+            }
+          }
+        }
         if (pendingShift) {
           pendingShift.timer += delta;
           if (pendingShift.timer >= 2.4) {
-            const { result } = pendingShift;
+            const { result, note } = pendingShift;
             pendingShift = null;
             // Four hours on your feet: the clock jumps and the day's walking drains energy.
             for (let minute = 0; minute < SHIFT_HOURS * 60; minute++) life = advanceLife(life, 1, 'walk');
@@ -1938,7 +2017,7 @@ export default function WorldScene({
             saveCareer(result.state);
             avatar.setEnabled(true);
             setBusyLabel(null);
-            notify(result.promoted ? `Promoted to ${result.promoted}! Shift done: +$${result.pay}.` : `Shift done: ${result.duty}. +$${result.pay}.`);
+            notify(result.promoted ? `Promoted to ${result.promoted}! ${note ?? `Shift done: +$${result.pay}.`}` : note ?? `Shift done: ${result.duty}. +$${result.pay}.`);
             storyActionsRef.current.reportStory('worked-shift');
             audioRef.current?.cue(result.promoted ? 'promotion' : 'shift');
             saveToAccount();
@@ -2302,6 +2381,7 @@ export default function WorldScene({
         disposed = true;
         remotePlayers.dispose();
         lightBar.dispose();
+        taskMarker.dispose();
         siren.dispose();
         sirenRef.current = null;
         disposeMapleStop();
@@ -2407,7 +2487,7 @@ export default function WorldScene({
       onBlur={() => { inputRef.current.release(`pad:${key}: `); inputRef.current.release(`pad:${key}:Enter`); }}>{symbol}</button>;
 
   const workAction = workPrompt && inCity
-    ? (career.career === workPrompt ? `Start shift at the ${CAREERS[workPrompt].workplace} (E)` : `Apply: ${CAREERS[workPrompt].title} (E)`)
+    ? (career.career === workPrompt ? (duty ? `On duty: ${duty.next}` : `Start duty: ${TASKS[workPrompt].title} (E)`) : `Apply: ${CAREERS[workPrompt].title} (E)`)
     : null;
   const actionLabel = driving ? 'Get out of car (E)'
     : nearNpc && !inHome && !atSchool ? `Talk to ${NPC_DIALOGUES[nearNpc].name} (E)`
@@ -2436,6 +2516,14 @@ export default function WorldScene({
         </div>
         {sleeping && <div className="world-sleep" role="status" aria-live="polite"><span>Sleeping…</span></div>}
         {busyLabel && <div className="world-sleep world-kitchen" role="status" aria-live="polite"><span>{busyLabel}</span></div>}
+        {duty && inCity && <section className="world-duty" aria-label={`Career duty: ${duty.title}`}>
+          <header><strong>{duty.title}</strong><span className={duty.left < 0 ? 'world-duty-late' : undefined}
+            aria-label={duty.left < 0 ? `${formatDutyClock(duty.left)} over par` : `${formatDutyClock(duty.left)} left on par`}>{formatDutyClock(duty.left)}</span></header>
+          <ol className="world-duty-pips" aria-hidden="true">{Array.from({ length: duty.total + 1 }, (_, i) => <li key={i}
+            className={i < duty.done ? 'done' : i === duty.done ? 'next' : undefined} data-final={i === duty.total ? '' : undefined} />)}</ol>
+          <p role="status" aria-live="polite">{duty.next}{duty.onFoot ? ' · on foot' : ''} · follow the beam and the GPS</p>
+          <button type="button" onClick={event => { dutyActionsRef.current.giveUp(); focusWorld(event); }}>Give up</button>
+        </section>}
         {inClass && <div className="world-sleep world-class" role="status" aria-live="polite"><span>{inClass} class…</span></div>}
         <div className="world-caption"><button type="button" className="world-menu-button" aria-label="Open the game menu (Escape)" aria-expanded={menuOpen}
           onClick={() => openMenu()}>☰ Menu</button> <strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : inCity ? inCity : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
@@ -2452,7 +2540,8 @@ export default function WorldScene({
             <button type="button" onClick={event => { kickRef.current(true); focusWorld(event); }}>Chip</button>
             <button type="button" onClick={event => { matchRef.current.pass(); focusWorld(event); }}>Pass (Q)</button>
           </span></div>}
-        {(() => {
+        {/* The duty card takes the objective's corner while a duty runs; the objective comes back when it ends. */}
+        {!(duty && inCity) && (() => {
           const { chapter, step } = currentStep(story);
           return <div className="story-objective" aria-live="polite"><small>{chapter.title}</small><strong>{step.objective}</strong>
             {phonePeek && !phoneOpen && <span className="world-phone-peek">📱 {phonePeek.name}: {phonePeek.text} · P to read</span>}</div>;
@@ -2495,7 +2584,7 @@ export default function WorldScene({
         </Suspense>}
         {npcChat && <div className="npc-chat-backdrop" role="dialog" aria-modal="true"
           aria-label={`Conversation with ${npcChat.conversation.name}`}>
-          <section className="npc-chat-card">
+          <section ref={npcChatCardRef} className="npc-chat-card" onKeyDown={event => trapTab(event, npcChatCardRef.current)}>
             <div className="npc-chat-heading"><strong>{npcChat.conversation.name}</strong>
               <button type="button" aria-label="Leave conversation" onClick={() => closeNpcChat()}>Close</button></div>
             <p>{npcChat.outcome ? npcChat.outcome.reply : npcChat.conversation.greeting}</p>
@@ -2505,11 +2594,11 @@ export default function WorldScene({
                 · Trust {npcRelations.people[npcChat.conversation.id].trust}
                 <span> · Saved to this browser</span>
               </div>
-              <button type="button" onClick={() => closeNpcChat()}>Continue story</button>
-            </> : <div className="npc-chat-choices">
-              {npcChat.conversation.choices.map((choice, index) => <button type="button" key={choice.id}
+              <button type="button" data-autofocus onClick={() => closeNpcChat()}>Continue story</button>
+            </> : <div className="npc-chat-choices" onKeyDown={event => arrowKeys(event, 'button', 'vertical', false)}>
+              {npcChat.conversation.choices.map((choice, index) => <button type="button" key={choice.id} data-autofocus={index === 0 ? '' : undefined}
                 onClick={() => chooseNpc(choice.id)}>{index + 1}. {choice.label}</button>)}
-              <small>Choose with 1–3, or tap an answer. Escape to leave.</small>
+              <small>Choose with 1–3 (or ↑ ↓ and Enter), or tap an answer. Escape to leave.</small>
             </div>}
           </section>
         </div>}
@@ -2524,7 +2613,8 @@ export default function WorldScene({
           onClick={event => { matchRef.current.start(); focusWorld(event); }}>League match v {clubShort(fixture.opponent ?? 'creek')} (M)</button>}
         {matchPrompt && inCity && !scoreboard && !leagueOpen && <button type="button" className="world-car-action world-league-open"
           onClick={event => { setLeagueOpen(true); focusWorld(event); }}>League table</button>}
-        {leagueOpen && inCity && <section className="world-league" aria-label="League table">
+        {leagueOpen && inCity && <section ref={leagueTableRef} className="world-league" aria-label="League table"
+          onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setLeagueOpen(false); } }}>
           <header><strong>Five-a-side league · season {league.round >= fixture.rounds ? league.season : fixture.season}</strong>
             <button type="button" onClick={event => { setLeagueOpen(false); focusWorld(event); }} aria-label="Close league table">✕</button></header>
           <table>
