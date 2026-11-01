@@ -89,7 +89,7 @@
 
 /* Driving: car prompt sits above the school button so both stay reachable. */
 .world-car-action{position:absolute;bottom:62px;left:50%;transform:translateX(-50%);background:#a8d8ff;color:#10233a;box-shadow:0 4px 18px #0007;white-space:nowrap}
-.world-drive-hud{position:absolute;bottom:14px;left:12px;padding:8px 12px;border-radius:8px;background:#11243ae6;color:#fff;font-size:.85rem;pointer-events:none;box-shadow:0 2px 10px #0005}
+.world-drive-hud{position:absolute;bottom:14px;left:194px;max-width:calc(100% - 206px);padding:8px 12px;border-radius:8px;background:#11243ae6;color:#fff;font-size:.85rem;pointer-events:none;box-shadow:0 2px 10px #0005}
 .world-drive-hud strong{font-size:1.25rem;margin-right:6px}
 .world-drive-notice{display:block;margin-top:4px;color:#ffd38a}
 @media(max-width:640px){.world-drive-hud{bottom:60px;font-size:.78rem}.world-car-action{bottom:110px}}
@@ -139,6 +139,8 @@
 
 /* Football on touch: the chip button sits above the kick button. */
 .world-car-action.world-chip-action{bottom:112px;background:#cfe6b8}
+.world-car-action.world-range-start{bottom:auto;top:148px}
+.world-range-loading{position:fixed;inset:0;z-index:60;margin:0;display:grid;place-items:center;background:#0d1114;color:#f4f5f6;font:600 1.1rem system-ui,sans-serif}
 .world-scoreboard-actions{display:flex;gap:6px}
 
 /* Phones (360–420 px wide): overlays in two columns at the top; at the bottom, from the edge up: notice or

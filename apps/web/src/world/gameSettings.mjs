@@ -17,12 +17,45 @@ const SETTINGS_KEY = 'tld-settings-v1';
 export function readSettings(storage = globalThis.localStorage) {
   let raw = null;
   try { raw = JSON.parse(storage?.getItem(SETTINGS_KEY) ?? 'null'); } catch { raw = null; }
-  const safe = raw && typeof raw === 'object' ? raw : {};
-  return { graphics: graphicsMode(safe.graphics).id, hintDismissed: safe.hintDismissed === true };
+  return normalizeSettings(raw);
 }
 export function writeSettings(settings, storage = globalThis.localStorage) {
-  try { storage?.setItem(SETTINGS_KEY, JSON.stringify({ graphics: graphicsMode(settings?.graphics).id, hintDismissed: settings?.hintDismissed === true })); return true; }
+  try { storage?.setItem(SETTINGS_KEY, JSON.stringify(normalizeSettings(settings))); return true; }
   catch { return false; }
+}
+
+/**
+ * Accessibility options. Motion follows the device's "reduce motion" setting
+ * unless the player picks one; captions describe game sounds in text; large
+ * text scales every panel and HUD label.
+ */
+export const MOTION_MODES = Object.freeze([
+  Object.freeze({ id: 'system', title: 'Follow my device', description: 'calm motion when your device asks for reduced motion' }),
+  Object.freeze({ id: 'reduce', title: 'Reduced', description: 'no sliding banners, fades or pulsing effects' }),
+  Object.freeze({ id: 'full', title: 'Full', description: 'every animation and camera ease' }),
+]);
+export const TEXT_SIZES = Object.freeze([
+  Object.freeze({ id: 'normal', title: 'Normal', scale: 1 }),
+  Object.freeze({ id: 'large', title: 'Large', scale: 1.18 }),
+]);
+const pick = (list, id) => (list.find(item => item.id === id) ?? list[0]).id;
+export function normalizeSettings(value) {
+  const safe = value && typeof value === 'object' ? value : {};
+  return {
+    graphics: graphicsMode(safe.graphics).id,
+    hintDismissed: safe.hintDismissed === true,
+    motion: pick(MOTION_MODES, safe.motion),
+    captions: safe.captions === true,
+    textSize: pick(TEXT_SIZES, safe.textSize),
+  };
+}
+/** Whether to calm motion right now, given the setting and the device preference. */
+export function reducedMotion(settings, systemPrefersReduced = false) {
+  const motion = pick(MOTION_MODES, settings?.motion);
+  return motion === 'reduce' || (motion === 'system' && systemPrefersReduced === true);
+}
+export function textScale(settings) {
+  return TEXT_SIZES.find(size => size.id === settings?.textSize)?.scale ?? 1;
 }
 
 /** Saved progress for one character: story, career and training, relationships and the life clock. Looks and settings stay. */

@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { CAREERS, NO_CAREER, joinCareer, normalizeCareer, quitCareer, rankOf, readCareer, workShift, workplaceCentre, writeCareer } from '../src/world/careers.mjs';
+import { CAREERS, NO_CAREER, joinCareer, normalizeCareer, quitCareer, rankOf, readCareer, workShift, workplaceCentre, workplaceDoors, writeCareer } from '../src/world/careers.mjs';
 import { LOOKS, STYLES, normalizeLook } from '../src/world/appearance.mjs';
-import { readCity } from '../src/world/cityLayout.mjs';
+import { CITY_ORIGIN, createCityCollider, readCity } from '../src/world/cityLayout.mjs';
 
 const at = (minute, day = 1, energy = 90) => ({ minute, totalMinutes: (day - 1) * 1440 + minute, energy });
 
@@ -22,6 +22,23 @@ test('workplaces are real downtown buildings', () => {
   const city = readCity(JSON.parse(readFileSync(new URL('../public/city/boulder-pearl-street.json', import.meta.url))));
   for (const id of Object.keys(CAREERS)) assert.ok(workplaceCentre(city, id), id);
   assert.equal(workplaceCentre(city, 'astronaut'), null);
+});
+
+test('workplace doors are found from map data alone: free ground near each building', () => {
+  const city = readCity(JSON.parse(readFileSync(new URL('../public/city/boulder-pearl-street.json', import.meta.url))));
+  const collider = createCityCollider(city);
+  const doors = workplaceDoors(city, collider);
+  assert.deepEqual([...doors.keys()].sort(), Object.keys(CAREERS).sort());
+  for (const [id, door] of doors) {
+    const local = [door.x - CITY_ORIGIN.x, door.z - CITY_ORIGIN.z];
+    assert.equal(collider.blockedLocal(local[0], local[1]), false, `${id} door is walkable`);
+    const centre = workplaceCentre(city, id).local;
+    assert.ok(Math.hypot(local[0] - centre[0], local[1] - centre[1]) < 60, `${id} door is near its building`);
+  }
+  // Deterministic, so the map pin, the taxi drop-off and the sign always agree.
+  assert.deepEqual([...workplaceDoors(city, collider)], [...doors]);
+  assert.equal(workplaceDoors(null, collider).size, 0);
+  assert.equal(workplaceDoors(city, { blockedLocal: () => true }).size, 0);
 });
 
 test('shifts pay, cost time and need a break; three shifts earn a promotion', () => {

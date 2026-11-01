@@ -95,3 +95,64 @@ test('dead ends and bad input never break the simulation', () => {
   assert.deepEqual(createTraffic(buildRoadGraph([]), 5).cars, []);
   assert.deepEqual(run(createTraffic(graph, 3, 1), 0).cars, createTraffic(graph, 3, 1).cars, 'same seed, same traffic');
 });
+
+test('traffic lights: the two directions never have right of way at the same time', async () => {
+  const { SIGNAL, signalPhase } = await import('../src/world/cityTraffic.mjs');
+  const signal = { axes: [[0], [1]], offset: 3.3 };
+  const cycle = 2 * (SIGNAL.green + SIGNAL.yellow + SIGNAL.allRed);
+  const seen = new Set();
+  for (let t = 0; t < cycle * 2; t += 0.1) {
+    const [a, b] = signalPhase(signal, t);
+    seen.add(`${a}/${b}`);
+    assert.ok(a === 'red' || b === 'red', `both open at ${t.toFixed(1)}: ${a}/${b}`);
+  }
+  for (const state of ['green/red', 'yellow/red', 'red/red', 'red/green', 'red/yellow']) assert.ok(seen.has(state), state);
+});
+
+test('cars stop at a red light and go on green', async () => {
+  const { buildSignals, lightFor, SIGNAL } = await import('../src/world/cityTraffic.mjs');
+  const g = buildRoadGraph([
+    { kind: 'primary', width: 8, points: [[-120, 0], [0, 0]] }, { kind: 'primary', width: 8, points: [[0, 0], [120, 0]] },
+    { kind: 'residential', width: 8, points: [[0, -120], [0, 0]] }, { kind: 'residential', width: 8, points: [[0, 0], [0, 120]] },
+  ]);
+  const signals = buildSignals(g, 1);
+  assert.equal(signals.size, 1);
+  const west = g.edges.find(edge => edge.to === '0,0' && edge.points[0][0] < 0);
+  // Find a moment when the west approach has just turned red.
+  let start = 0;
+  while (lightFor(signals, west.id, '0,0', start) !== 'red' || lightFor(signals, west.id, '0,0', start - 0.1) === 'red') start += 0.1;
+  let traffic = { cars: [{ id: 0, paint: 0, edge: west.id, forward: true, s: west.length - 45, speed: 9 }], random: () => 0.3, signals, time: start };
+  let entered = false;
+  for (let t = 0; t < SIGNAL.yellow + SIGNAL.allRed + 2; t += 1 / 30) {
+    traffic = stepTraffic(g, traffic, 1 / 30);
+    const car = traffic.cars[0];
+    if (car.edge !== west.id || west.length - car.s < TRAFFIC.junctionBox - 0.01) entered = true;
+  }
+  assert.equal(entered, false, 'waits at the line on red');
+  assert.ok(traffic.cars[0].speed < 0.5, 'stopped');
+  // Run until its light turns green: it drives on.
+  for (let t = 0; t < 40 && traffic.cars[0].edge === west.id; t += 1 / 30) traffic = stepTraffic(g, traffic, 1 / 30);
+  assert.notEqual(traffic.cars[0].edge, west.id, 'crossed on green');
+});
+
+test('on the real map nobody enters a junction against a red light', async () => {
+  const { lightFor } = await import('../src/world/cityTraffic.mjs');
+  let traffic = createTraffic(graph, 30, 4, []);
+  let entries = 0, onRed = 0;
+  for (let step = 0; step < 90 * 30; step++) {
+    const before = traffic.cars.map(car => ({ ...car, remaining: graph.edges[car.edge].length - car.s }));
+    traffic = stepTraffic(graph, traffic, 1 / 30, []);
+    traffic.cars.forEach((car, i) => {
+      const was = before[i];
+      const now = car.edge === was.edge ? graph.edges[car.edge].length - car.s : -1;
+      if (was.remaining >= TRAFFIC.junctionBox && now < TRAFFIC.junctionBox) {
+        const edge = graph.edges[was.edge];
+        const node = was.forward ? edge.to : edge.from;
+        const light = lightFor(traffic.signals, was.edge, node, traffic.time);
+        if (light) { entries++; if (light === 'red') onRed++; }
+      }
+    });
+  }
+  assert.ok(entries > 20, `cars go through lit junctions (${entries})`);
+  assert.equal(onRed, 0);
+});

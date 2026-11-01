@@ -10,7 +10,17 @@ export type MapSnapshot = {
   street: MapMarker[];
   downtown: MapMarker[];
   canTravel: boolean;
+  /** Which way the camera looks (radians, 0 = north/+z, clockwise): the minimap turns so this is up. */
+  view: number;
+  /** Traffic downtown (local). */
+  traffic: ReadonlyArray<{ x: number; z: number }>;
+  /** GPS: waypoint and the road route to it (local to the shown area), when there is one. */
+  waypoint: { x: number; z: number } | null;
+  waypointLabel: string | null;
+  route: ReadonlyArray<readonly [number, number]> | null;
+  routeLength: number | null;
 };
+export type WaypointControl = { set: (x: number, z: number) => void; clear: () => void };
 export type TravelTarget = 'maple' | 'downtown' | 'pitch' | 'work';
 
 const COLOURS: Record<MapMarker['kind'], string> = { home: '#f2d48b', school: '#9ad0ff', bus: '#5fb3ff', gate: '#ff9f43', pitch: '#7ddc6f', work: '#ff7a7a', you: '#ffffff' };
@@ -30,7 +40,7 @@ function Pins({ markers, size }: { markers: MapMarker[]; size: number }) {
 }
 
 /** Map of Maple Street and real downtown Boulder, with your position and quick travel. */
-export function WorldMap({ open, onClose, read, travel }: { open: boolean; onClose: () => void; read: () => MapSnapshot; travel: (to: TravelTarget) => void }) {
+export function WorldMap({ open, onClose, read, travel, waypoint }: { open: boolean; onClose: () => void; read: () => MapSnapshot; travel: (to: TravelTarget) => void; waypoint?: WaypointControl }) {
   const [snap, setSnap] = useState<MapSnapshot | null>(null);
   const [tab, setTab] = useState<'street' | 'downtown'>('street');
   useEffect(() => {
@@ -63,13 +73,25 @@ export function WorldMap({ open, onClose, read, travel }: { open: boolean; onClo
       <rect x="-2.6" y="-12.2" width="5.2" height="0.5" fill="#ff9f43" />
       <Pins markers={snap.street} size={0.7} />
       {snap.location !== 'city' && snap.you && <You x={snap.you.x} y={-snap.you.z} heading={snap.you.heading} size={0.8} />}
-    </svg> : city ? <svg className="world-map-svg" viewBox={`${-city.halfSize[0]} ${-city.halfSize[1]} ${city.halfSize[0] * 2} ${city.halfSize[1] * 2}`} role="img" aria-label="Map of downtown Boulder">
+    </svg> : city ? <svg className="world-map-svg world-map-gps" viewBox={`${-city.halfSize[0]} ${-city.halfSize[1]} ${city.halfSize[0] * 2} ${city.halfSize[1] * 2}`} role="img"
+      aria-label="Map of downtown Boulder. Click a street to set a GPS waypoint."
+      onClick={event => {
+        // Click to drop a waypoint; the GPS draws the road route to it.
+        const svg = event.currentTarget;
+        const matrix = svg.getScreenCTM();
+        if (!matrix || !waypoint) return;
+        const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+        waypoint.set(point.x, -point.y);
+        setSnap(read());
+      }}>
       <rect x={-city.halfSize[0]} y={-city.halfSize[1]} width={city.halfSize[0] * 2} height={city.halfSize[1] * 2} fill="#a9a59c" />
       {city.parks.map(p => <polygon key={p.id} points={p.ring.map(([x, z]) => `${x},${-z}`).join(' ')} fill="#5f8a4f" />)}
       {city.roads.map(r => <polyline key={r.id} points={r.points.map(([x, z]) => `${x},${-z}`).join(' ')} fill="none"
         stroke={['footway', 'path', 'cycleway', 'steps'].includes(r.kind) ? '#d6d2c8' : r.kind === 'pedestrian' ? '#b8735a' : '#55595c'} strokeWidth={Math.max(1.5, r.width)} strokeLinecap="round" strokeLinejoin="round" />)}
       {city.buildings.map(b => <polygon key={b.id} points={b.ring.map(([x, z]) => `${x},${-z}`).join(' ')} fill={b.name ? '#c98f6f' : '#8f7a6a'} stroke="#5d4c40" strokeWidth="0.4" />)}
+      {snap.location === 'city' && snap.route && <polyline points={snap.route.map(([x, z]) => `${x},${-z}`).join(' ')} fill="none" stroke="#b44dff" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />}
       <Pins markers={snap.downtown} size={7} />
+      {snap.location === 'city' && snap.waypoint && <circle cx={snap.waypoint.x} cy={-snap.waypoint.z} r="7" fill="#b44dff" stroke="#fff" strokeWidth="2" />}
       {snap.location === 'city' && snap.you && <You x={snap.you.x} y={-snap.you.z} heading={snap.you.heading} size={8} />}
       <text x={city.halfSize[0] - 4} y={city.halfSize[1] - 4} textAnchor="end" fontSize="9" fill="#1d2430">© OpenStreetMap contributors</text>
     </svg> : null}
@@ -79,6 +101,9 @@ export function WorldMap({ open, onClose, read, travel }: { open: boolean; onClo
       <button type="button" disabled={!snap.canTravel || !city} onClick={() => go('downtown')}>Downtown bus stop</button>
       <button type="button" disabled={!snap.canTravel || !city} onClick={() => go('pitch')}>Football pitch</button>
       {snap.downtown.some(m => m.id === 'your-work') && <button type="button" disabled={!snap.canTravel} onClick={() => go('work')}>Your workplace</button>}
+      {tab === 'downtown' && <span className="world-map-gps-hint">{snap.waypoint
+        ? <>GPS to {snap.waypointLabel ?? 'your waypoint'}{snap.routeLength != null ? ` · ${Math.round(snap.routeLength)} m` : ''} <button type="button" onClick={() => { waypoint?.clear(); setSnap(read()); }}>Clear waypoint</button></>
+        : 'Click a street to set a GPS waypoint.'}</span>}
     </div>
   </div>;
 }

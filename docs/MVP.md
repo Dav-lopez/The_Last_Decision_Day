@@ -65,10 +65,18 @@ A new player can:
   - [x] 6a. Loading screen with real progress (Maple Street, character, school, neighbours, props, cars; tips;
         "Start now" after 8 s; never holds you more than 45 s), downtown loading shown as a chip afterwards, and a
         gzipped bundle-size budget (`apps/web/bundle-budget.json`) checked in CI.
-  - [ ] 6b. Compressed models (meshopt/Draco or texture-size cuts for the 1.6 MB human and plant GLBs), and
-        downtown and the training range loaded only when you first go there.
+  - [x] 6b. Downtown and the training range loaded only when you first go there: the 3D city, street lamps, pitch,
+        workplace signs and traffic are built behind the first ride's fade (the map, taxi and workplace pins work
+        from the street data at once), and the range is its own download; the playtest checks both halves.
+  - [ ] 6c. Compressed models (meshopt/Draco or texture-size cuts for the 1.6 MB human and plant GLBs).
 - [ ] **7. Accessibility**: full keyboard flow, visible focus, reduced-motion option, readable contrast,
       captions for story audio cues.
+  - [x] 7a. Accessibility settings in the menu: motion (follow the device / reduced / full), sound captions that
+        describe every important sound (bell, messages, doors, whistle, horn…) even with the sound muted, and large
+        text; visible keyboard focus on every in-game control; the game menu keeps Tab inside it and switches
+        tabs with the arrow keys. The playtest drives the menu by keyboard and checks a caption appears.
+  - [ ] 7b. Keyboard flow through the other overlays (map, conversations, training range, wardrobe, league table),
+        a contrast audit of HUD text, and captions for the story scenes' own audio cues where they differ.
 - [ ] **8. Content polish**: two or three downtown characters to talk to; short playable career tasks
       (patrol route, fire call, route march) instead of a fade-to-black shift.
 - [ ] **9. Release checklist**: page title, icons and share image, an error screen with a reload button,
@@ -82,10 +90,13 @@ above is done or blocked; any item may be split into slices.
 
 - [x] **10. Living downtown traffic**: AI cars driving the real street network, keeping right,
       following each other, yielding to you, and solid to your car.
-- [ ] **11. Minimap and GPS**: a corner minimap that rotates with you, a waypoint you set on the big map, and a
+- [x] **11. Minimap and GPS**: a corner minimap that rotates with you, a waypoint you set on the big map, and a
       route line along the roads to it (story objectives set it automatically).
 - [ ] **12. Traffic lights and pedestrians downtown**: signal-controlled junctions the traffic obeys; people
       walking downtown sidewalks who cross at lights.
+  - [x] 12a. Traffic lights: 22 signalised junctions (wherever a main road meets others), two-way phases with
+        yellow and all-red, offsets per junction; traffic stops at the line on red, and on yellow when it can.
+  - [ ] 12b. Pedestrians walking downtown sidewalks, crossing at the lights.
 - [ ] **13. Driving feel**: body roll and pitch, tyre squeal and skid marks, engine sound by speed and gear,
       cosmetic dents and scratches, a horn; a police cruiser and a fire engine for those careers.
 - [ ] **14. Phone**: an in-game phone (Esc-free, key P) with messages from Mom and friends, contacts you've
@@ -106,7 +117,17 @@ above is done or blocked; any item may be split into slices.
   devices everything moves in slow motion. Worth a "low-end" check in item 6.
 - Traffic: a road crossing without a shared OSM node (an overpass or a data gap) lets cars pass through each
   other there; traffic lights (item 12) should add explicit junctions. Cars have no headlights at night yet.
+- Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
+  opposite conventions).
 - (add bugs and small follow-ups here)
+- 6c note: the Poly Haven props already use 1024 px WebP textures and quantized meshes; the bulk is geometry
+  (the plant is 1.3 MB of vertices, the human GLBs carry facial morph targets), so the real win needs meshopt with
+  a self-hosted decoder (Babylon fetches it from its CDN by default). Leave the facial GLBs to the facial-asset
+  contract job.
+- Building downtown on the first trip takes a noticeable moment on slow devices; it happens behind the ride's
+  fade, but a later pass could build it in idle frames while the player walks to the bus stop.
+- Accessibility settings (motion, captions, text size) live in the browser settings key only; they are
+  device preferences, so they are deliberately not part of the account progress document.
 - "Reset progress" in the game menu (#190) clears the browser saves only; for signed-in players it should also
   reset the account copy (PUT a fresh progress document with a new `savedAt`), or the account copy comes back.
 - The playtest's pitch step failed on `main`: it asked for the trip home while the pitch taxi was still driving

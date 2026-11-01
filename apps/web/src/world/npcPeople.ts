@@ -12,6 +12,7 @@ import { collectNpcFaceTargets, initialNpcFace, advanceNpcFace, resetNpcFace } f
 import { npcAttentionGaze } from './npcAttentionGaze.mjs';
 import { npcHeadAttentionTarget, stepNpcHeadAttention } from './npcHeadAttention.mjs';
 import { createNpcHeadRig } from './npcHeadRig.mjs';
+import { npcConversationHeadTarget, stepNpcConversationHead } from './npcConversationHead.mjs';
 import { beginNpcSpeech, advanceNpcSpeech, isNpcSpeaking, npcShouldArticulate } from './npcSpeechTimeline.mjs';
 import { createNpcFacialMaterials } from './npcFacialMaterials.mjs';
 import { resolveNpcBody, resolveNpcClips } from './npcAnimationClips.mjs';
@@ -86,7 +87,7 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     const start = routePose(npc, 0);
     const reaction: { state: ActionState | null; clip: BoundAction | null } = { state: null, clip: null };
     const actions = new Map<string, BoundAction>();
-    return [{ npc, model, entries, holder, idle, walk, reaction, actions, eyelids, blink: initialNpcBlink(index), faceTargets, face: initialNpcFace(index), facialMaterials, headRig, headYaw: 0, walked: 0, walkWeight: 0, heading: personHeading(start.dx, start.dz), visible: false, dodge: { x: 0, z: 0 }, dodgeTarget: { x: 0, z: 0 }, dodgeHold: 0 }];
+    return [{ npc, model, entries, holder, idle, walk, reaction, actions, eyelids, blink: initialNpcBlink(index), faceTargets, face: initialNpcFace(index), facialMaterials, headRig, headYaw: 0, headPose: { pitch: 0, roll: 0 }, walked: 0, walkWeight: 0, heading: personHeading(start.dx, start.dz), visible: false, dodge: { x: 0, z: 0 }, dodgeTarget: { x: 0, z: 0 }, dodgeHold: 0 }];
   });
 
   // Action clips (a separate download): people standing together talk with their hands; anyone can flinch.
@@ -149,7 +150,8 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
             person.face = resetNpcFace(person.face, person.faceTargets);
             person.facialMaterials.reset();
             person.headYaw = 0;
-            person.headRig.setYaw(0);
+            person.headPose = { pitch: 0, roll: 0 };
+            person.headRig.setPose({ yaw: 0, pitch: 0, roll: 0 });
           }
         }
         if (!out) { delete live[person.npc.id]; continue; }
@@ -225,7 +227,15 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
           talking, moving: person.walkWeight > 0.15, flinch: flinch.weight,
         });
         person.headYaw = stepNpcHeadAttention(person.headYaw, headTarget, dt);
-        person.headRig.setYaw(person.headYaw);
+        // The selected speaker's finite line clock drives a gentle nod, while
+        // mood retains a restrained pose after the line ends. Walking and Hit
+        // actions suppress this overlay; authored clips remain underneath.
+        const conversationPose = npcConversationHeadTarget({
+          talking, speaking, elapsed: speaker.elapsed, duration: speaker.duration,
+          mood: speaker.mood, moving: person.walkWeight > 0.15, flinch: flinch.weight,
+        });
+        person.headPose = stepNpcConversationHead(person.headPose, conversationPose, dt);
+        person.headRig.setPose({ yaw: person.headYaw, ...person.headPose });
         person.holder.position.set(pose.x, 0, pose.z);
         person.holder.rotation.y = person.heading;
         outside.push({ x: pose.x, z: pose.z, radius: PERSON_RADIUS });

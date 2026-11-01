@@ -1,6 +1,5 @@
 import { Color3, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, type Scene } from '@babylonjs/core';
-import { CAREERS, workplaceCentre, type CareerId } from './careers.mjs';
-import { toWorld, type City, type CityCollider } from './cityLayout.mjs';
+import type { CareerId } from './careers.mjs';
 import type { PlanarPosition } from './movement.mjs';
 
 const SIGNS: Record<CareerId, { text: string; colour: string; ink: string }> = {
@@ -9,24 +8,10 @@ const SIGNS: Record<CareerId, { text: string; colour: string; ink: string }> = {
   firefighter: { text: 'FIRE STATION', colour: '#b3261e', ink: '#ffffff' },
 };
 
-/** The walkable spot outside each workplace (nearest free point to the building), with a sign over it. */
-export function buildWorkplaces(scene: Scene, city: City, collider: CityCollider) {
-  const doors = new Map<CareerId, PlanarPosition>();
+/** A sign over each workplace door (see `workplaceDoors`, which finds the doors without touching the scene). */
+export function buildWorkplaces(scene: Scene, doors: ReadonlyMap<CareerId, PlanarPosition>) {
   const meshes: Mesh[] = [];
-  for (const id of Object.keys(CAREERS) as CareerId[]) {
-    const centre = workplaceCentre(city, id);
-    if (!centre) continue;
-    const [cx, cz] = centre.local;
-    let door: [number, number] | null = null;
-    for (let r = 2; r < 60 && !door; r += 0.5) {
-      for (let a = 0; a < 32; a++) {
-        const x = cx + Math.cos(a / 32 * Math.PI * 2) * r; const z = cz + Math.sin(a / 32 * Math.PI * 2) * r;
-        if (!collider.blockedLocal(x, z)) { door = [x, z]; break; }
-      }
-    }
-    if (!door) continue;
-    const world = toWorld(door);
-    doors.set(id, world);
+  for (const [id, world] of doors) {
     const sign = SIGNS[id];
     const width = 64 + sign.text.length * 34;
     const texture = new DynamicTexture(`workplace sign ${id}`, { width, height: 96 }, scene, true);
@@ -46,7 +31,7 @@ export function buildWorkplaces(scene: Scene, city: City, collider: CityCollider
     post.isPickable = false;
     meshes.push(board, post);
   }
-  return { doors, dispose: () => { for (const mesh of meshes) mesh.dispose(); } };
+  return { dispose: () => { for (const mesh of meshes) mesh.dispose(); } };
 }
 
 /** A light bar for a police cruiser: alternating red and blue while on. */
