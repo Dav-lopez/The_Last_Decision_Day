@@ -57,6 +57,36 @@ class CorneaGeometryTests(unittest.TestCase):
             self.assertGreater(right[center][0], 0)
             self.assertAlmostEqual(left[center][0], -right[center][0])
 
+    def test_blink_and_gaze_update_surface_normals_without_cross_eye_bleed(self):
+        g = self.g
+        self.assertEqual(len(g["normal_targets"]), len(TARGET_NAMES))
+        for name, positions, normal_deltas in zip(g["names"], g["targets"], g["normal_targets"]):
+            side = -1 if name.endswith("Left") else 1
+            self.assertEqual(len(normal_deltas), len(g["positions"]))
+            self.assertTrue(any(
+                math.sqrt(sum(value * value for value in delta)) > .005
+                for (x, _, _), delta in zip(g["positions"], normal_deltas) if x * side > 0
+            ), name + " must change the lit surface, not just its positions")
+            for (x, _, _), displacement, base, delta in zip(
+                    g["positions"], positions, g["normals"], normal_deltas):
+                self.assertTrue(all(math.isfinite(v) for v in delta))
+                if x * side < 0:
+                    self.assertEqual(displacement, (0.0, 0.0, 0.0))
+                    self.assertEqual(delta, (0.0, 0.0, 0.0))
+                normal = tuple(a + b for a, b in zip(base, delta))
+                self.assertAlmostEqual(math.sqrt(sum(v * v for v in normal)), 1, places=6)
+                self.assertGreater(normal[2], 0.1)
+
+    def test_closed_eyelid_tilts_cornea_normals_with_compressed_geometry(self):
+        g = self.g
+        # Uppermost point of the outer ring of the left eye.
+        vertex = 1 + (RINGS - 1) * SEGMENTS + SEGMENTS // 4
+        neutral = g["normals"][vertex]
+        blink = g["normal_targets"][g["names"].index("eyeBlinkLeft")][vertex]
+        closed = tuple(a + b for a, b in zip(neutral, blink))
+        self.assertLess(closed[2], neutral[2] - .1)
+        self.assertAlmostEqual(math.sqrt(sum(v * v for v in closed)), 1, places=6)
+
     def test_reject_invalid_head_joint(self):
         for bad in (-1, 256, True, 2.4, "Head"):
             with self.assertRaises(ValueError):

@@ -150,11 +150,15 @@ def main() -> int:
         manifest['assets'].append(record)
         print(f"{slot['slot']}: {asset_id} -> {target.name} ({record['bytes']} bytes, {summary['sizeMeters']} m)")
     (OUT / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+    # Simplify the dense porch plant, pack normals to 8 bits, cut small props' textures
+    # (updates the manifest's byte counts).
+    subprocess.run([sys.executable, str(ROOT / 'scripts/slim_props.py'), str(OUT)], check=True)
     lines = ['# Poly Haven models', '',
              'These models come from [Poly Haven](https://polyhaven.com) and are released under',
              '[CC0](https://creativecommons.org/publicdomain/zero/1.0/): free for commercial use, no attribution',
              'required. We credit Poly Haven in-game anyway. Converted with gltf-transform (quantized',
-             'geometry, WebP textures); regenerate with `python tools/assets/polyhaven_fetch.py`.', '',
+             'geometry, WebP textures) and slimmed by `scripts/slim_props.py` (simplified plant, 8-bit',
+             'normals); regenerate with `python tools/assets/polyhaven_fetch.py`.', '',
              '| Slot | Model | Authors |', '|---|---|---|']
     lines += [f"| {a['slot']} | [{a['name']}]({a['page']}) | {', '.join(a['authors'])} |" for a in manifest['assets']]
     (OUT / 'ATTRIBUTION.md').write_text('\n'.join(lines) + '\n')

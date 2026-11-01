@@ -19,22 +19,41 @@ DOME_DEPTH = 0.0038
 TARGET_NAMES = ("eyeBlinkLeft", "eyeBlinkRight", *GAZE_TARGETS)
 
 
+def _mesh_normals(positions, indices):
+    """Area-weighted vertex normals for the actual triangulated corneal film.
+
+    Compute rest and deformed normals with the same topology. This prevents
+    blink/gaze morphs from moving the surface while its specular normals stay
+    frozen; the untouched eye receives exactly zero normal displacement.
+    """
+    accum = [[0.0, 0.0, 0.0] for _ in positions]
+    for (a,), (b,), (c,) in zip(*[iter(indices)] * 3):
+        p, q, r = positions[a], positions[b], positions[c]
+        ux, uy, uz = (q[i] - p[i] for i in range(3))
+        vx, vy, vz = (r[i] - p[i] for i in range(3))
+        cross = (uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx)
+        for index in (a, b, c):
+            for axis in range(3):
+                accum[index][axis] += cross[axis]
+    normals = []
+    for nx, ny, nz in accum:
+        length = math.sqrt(nx * nx + ny * ny + nz * nz)
+        if length < 1e-12 or nz <= 0:
+            raise ValueError("Degenerate or reversed corneal surface")
+        normals.append((nx / length, ny / length, nz / length))
+    return normals
+
 def build_cornea_geometry(head_joint):
     if type(head_joint) is not int or not 0 <= head_joint < 256:
         raise ValueError("Head joint must fit UNSIGNED_BYTE JOINTS_0")
 
-    positions, normals, indices, owners = [], [], [], []
+    positions, indices, owners = [], [], []
 
     def vertex(side, radius, angle):
         x = side * EYE_X + HALF_WIDTH * radius * math.cos(angle)
         y = CENTER_Y + HALF_HEIGHT * radius * math.sin(angle)
         z = BASE_Z + DOME_DEPTH * (1.0 - radius * radius)
-        # Analytic normal for a smooth convex paraboloid.
-        dx = 2 * DOME_DEPTH * radius * math.cos(angle) / HALF_WIDTH
-        dy = 2 * DOME_DEPTH * radius * math.sin(angle) / HALF_HEIGHT
-        norm = math.sqrt(1.0 + dx * dx + dy * dy)
         positions.append((x, y, z))
-        normals.append((dx / norm, dy / norm, 1.0 / norm))
         owners.append(side)
         return len(positions) - 1
 
@@ -54,7 +73,8 @@ def build_cornea_geometry(head_joint):
                                     (previous[i],), (current[nxt],), (previous[nxt],)))
             previous = current
 
-    targets = []
+    normals = _mesh_normals(positions, indices)
+    targets, normal_targets = [], []
     for name in TARGET_NAMES:
         side = -1 if name.endswith("Left") else 1
         deltas = []
@@ -67,6 +87,13 @@ def build_cornea_geometry(head_joint):
             else:
                 deltas.append(gaze_delta(name, x, y, z, CENTER_Y, HALF_HEIGHT))
         targets.append(deltas)
+        moved = [tuple(p[axis] + delta[axis] for axis in range(3))
+                 for p, delta in zip(positions, deltas)]
+        deformed_normals = _mesh_normals(moved, indices)
+        normal_targets.append([
+            tuple(after[axis] - before[axis] for axis in range(3))
+            for before, after in zip(normals, deformed_normals)
+        ])
 
     return {
         "positions": positions,
@@ -76,4 +103,5 @@ def build_cornea_geometry(head_joint):
         "weights": [(1.0, 0.0, 0.0, 0.0)] * len(positions),
         "names": TARGET_NAMES,
         "targets": targets,
+        "normal_targets": normal_targets,
     }
