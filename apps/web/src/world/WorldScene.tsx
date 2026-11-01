@@ -92,6 +92,7 @@ import { BED_SIDE, FRONT_DOORS, HOME_SPAWN, atHomeExit, nearFridge, nearStove, w
 import { TOWN_EXIT, canExitVehicle, chaseCameraAlpha, driveInput, footprintPoints, leavingTown, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
 import { activeCaptions, captionLabel, CAPTION_SECONDS, pushCaption, type SoundCaption } from './soundCaptions.mjs';
+import { arrowKeys, trapTab, useDialogFocus } from './dialogFocus';
 import { applyProgress, chooseNewestProgress, collectProgress, fromServerProgress, markProgressChanged, toServerProgress, type Progress, type ServerProgress, type ServerProgressResponse } from './progressSync.mjs';
 
 type SchoolActivityView = { id: string; title: string; description: string; timeCost: number };
@@ -718,6 +719,12 @@ export default function WorldScene({
   };
   const npcActionsRef = useRef({ open: openNpcChat, choose: chooseNpc, close: closeNpcChat });
   npcActionsRef.current = { open: openNpcChat, choose: chooseNpc, close: closeNpcChat };
+  // Keyboard flow (MVP 7b): conversations and the league table take focus when they open and hand it
+  // back to the 3D view when they close; a conversation keeps Tab inside itself.
+  const npcChatCardRef = useRef<HTMLElement | null>(null);
+  const leagueTableRef = useRef<HTMLElement | null>(null);
+  useDialogFocus(npcChatCardRef, npcChat !== null, { restore: () => canvasRef.current, step: npcChat?.outcome });
+  useDialogFocus(leagueTableRef, leagueOpen, { restore: () => canvasRef.current, keep: focused => focused === canvasRef.current });
   const toggleCamera = () => {
     // Indoors the camera stays in its cutaway view; the street mode returns on leaving.
     if (locationRef.current === 'home' || locationRef.current === 'school') return;
@@ -2428,7 +2435,7 @@ export default function WorldScene({
         </Suspense>}
         {npcChat && <div className="npc-chat-backdrop" role="dialog" aria-modal="true"
           aria-label={`Conversation with ${npcChat.conversation.name}`}>
-          <section className="npc-chat-card">
+          <section ref={npcChatCardRef} className="npc-chat-card" onKeyDown={event => trapTab(event, npcChatCardRef.current)}>
             <div className="npc-chat-heading"><strong>{npcChat.conversation.name}</strong>
               <button type="button" aria-label="Leave conversation" onClick={() => closeNpcChat()}>Close</button></div>
             <p>{npcChat.outcome ? npcChat.outcome.reply : npcChat.conversation.greeting}</p>
@@ -2438,11 +2445,11 @@ export default function WorldScene({
                 · Trust {npcRelations.people[npcChat.conversation.id].trust}
                 <span> · Saved to this browser</span>
               </div>
-              <button type="button" onClick={() => closeNpcChat()}>Continue story</button>
-            </> : <div className="npc-chat-choices">
-              {npcChat.conversation.choices.map((choice, index) => <button type="button" key={choice.id}
+              <button type="button" data-autofocus onClick={() => closeNpcChat()}>Continue story</button>
+            </> : <div className="npc-chat-choices" onKeyDown={event => arrowKeys(event, 'button', 'vertical', false)}>
+              {npcChat.conversation.choices.map((choice, index) => <button type="button" key={choice.id} data-autofocus={index === 0 ? '' : undefined}
                 onClick={() => chooseNpc(choice.id)}>{index + 1}. {choice.label}</button>)}
-              <small>Choose with 1–3, or tap an answer. Escape to leave.</small>
+              <small>Choose with 1–3 (or ↑ ↓ and Enter), or tap an answer. Escape to leave.</small>
             </div>}
           </section>
         </div>}
@@ -2458,7 +2465,8 @@ export default function WorldScene({
           onClick={event => { matchRef.current.start(); focusWorld(event); }}>League match v {clubShort(fixture.opponent ?? 'creek')} (M)</button>}
         {matchPrompt && inCity && !scoreboard && !leagueOpen && <button type="button" className="world-car-action world-league-open"
           onClick={event => { setLeagueOpen(true); focusWorld(event); }}>League table</button>}
-        {leagueOpen && inCity && <section className="world-league" aria-label="League table">
+        {leagueOpen && inCity && <section ref={leagueTableRef} className="world-league" aria-label="League table"
+          onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setLeagueOpen(false); } }}>
           <header><strong>Five-a-side league · season {league.round >= fixture.rounds ? league.season : fixture.season}</strong>
             <button type="button" onClick={event => { setLeagueOpen(false); focusWorld(event); }} aria-label="Close league table">✕</button></header>
           <table>

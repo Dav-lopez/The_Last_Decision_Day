@@ -6,6 +6,7 @@ import {
 import type { AudioCue } from './audio/director.mjs';
 import { drawRange, type Splash } from './rangeDraw';
 import './trainingRange.css';
+import { trapTab } from './dialogFocus';
 
 export type RangeOutcome = { grade: Grade; pay: number; practice: boolean; personalBest: boolean } | null;
 
@@ -29,6 +30,7 @@ type Props = {
  */
 export function TrainingRange({ drill, energy, onFinish, canRetry, onLeave, cue }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const [phase, setPhase] = useState<'brief' | 'live' | 'done'>('brief');
   const [attempt, setAttempt] = useState(1);
   const [summary, setSummary] = useState<{ score: number; shots: number; scored: number; outcome: RangeOutcome } | null>(null);
@@ -155,7 +157,8 @@ export function TrainingRange({ drill, energy, onFinish, canRetry, onLeave, cue 
 
   const max = maxScore(drill);
   const grade = summary ? (summary.outcome?.grade ?? gradeFor(summary.score, max)) : null;
-  return <div className={`training-range training-range-${drill.theme}`} role="dialog" aria-modal="true" aria-label={`${drill.title} at the ${drill.place}`}>
+  return <div ref={dialogRef} className={`training-range training-range-${drill.theme}`} role="dialog" aria-modal="true" aria-label={`${drill.title} at the ${drill.place}`}
+    onKeyDown={event => trapTab(event, dialogRef.current)}>
     <canvas ref={canvasRef} className="training-range-canvas" aria-hidden="true" />
     {phase === 'live' && <div className="training-range-touch">
       <button type="button" onPointerDown={() => { live.current.breath = true; }} onPointerUp={() => { live.current.breath = false; }}
