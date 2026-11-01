@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { collectNpcFaceTargets, initialNpcFace, npcFaceTarget, advanceNpcFace, resetNpcFace } from '../src/world/npcFace.mjs';
 import { npcAttentionGaze } from '../src/world/npcAttentionGaze.mjs';
+import { npcEyeVergence } from '../src/world/npcEyeVergence.mjs';
 import { npcIdleMicroExpression } from '../src/world/npcMicroExpression.mjs';
 import { npcConversationHeadTarget, stepNpcConversationHead } from '../src/world/npcConversationHead.mjs';
 
@@ -374,4 +375,65 @@ test('malformed speech clocks and background frames never produce invalid head p
     assert.ok(Number.isFinite(state.pitch) && Math.abs(state.pitch) <= 0.085);
     assert.ok(Number.isFinite(state.roll) && Math.abs(state.roll) <= 0.04);
   }
+});
+
+
+test('near frontal players produce subtle binocular convergence without opposing morphs', () => {
+  const npc = { x: 0, z: 0 };
+  const vergence = npcEyeVergence(npc, { x: 0, z: -0.85 }, 0);
+  assert.ok(vergence > 0.02 && vergence < 0.065);
+  const context = { nearby: true, gaze: 0, vergence };
+  assert.ok(npcFaceTarget('eyeLookRightLeft', 0, context) > 0, 'left eye looks inward');
+  assert.ok(npcFaceTarget('eyeLookLeftRight', 0, context) > 0, 'right eye looks inward');
+  assert.equal(npcFaceTarget('eyeLookLeftLeft', 0, context), 0);
+  assert.equal(npcFaceTarget('eyeLookRightRight', 0, context), 0);
+
+  const rightward = { ...context, gaze: 0.4 };
+  assert.ok(npcFaceTarget('eyeLookRightLeft', 0, rightward) >
+    npcFaceTarget('eyeLookRightRight', 0, rightward) > 0);
+  assert.equal(npcFaceTarget('eyeLookLeftRight', 0, rightward), 0,
+    'a rightward fixation cannot also activate the right eye left morph');
+});
+
+test('vergence fades near attention boundaries and ignores invalid or rear targets', () => {
+  const npc = { x: 0, z: 0 };
+  const focus = (x, z, heading = 0) => npcEyeVergence(npc, { x, z }, heading);
+  assert.equal(focus(0, -0.35), 0);
+  assert.ok(focus(0, -0.351) < 0.0001);
+  assert.ok(focus(0, -1.5) > focus(0, -2.3));
+  assert.ok(focus(0, -2.499) < 0.0001);
+  assert.equal(focus(0, -2.5), 0);
+  assert.equal(focus(0, 1), 0);
+  assert.equal(focus(1.2, -0.1), 0);
+  assert.equal(focus(0, -1, NaN), 0);
+  assert.equal(npcEyeVergence(npc, null, 0), 0);
+  assert.equal(focus(1e308, -1e308), 0);
+  assert.ok(Math.abs(focus(0.4, -1) - focus(-0.4, -1)) < 1e-12);
+  for (const context of [{ moving: true }, { emotion: 'sad' }, { flinch: 1 }, { nearby: false }]) {
+    assert.equal(npcFaceTarget('eyeLookRightLeft', 0, {
+      nearby: true, gaze: 0, vergence: 0.04, ...context,
+    }), 0, 'distress, movement or absent attention suppresses convergence');
+  }
+  for (const bad of [NaN, Infinity, -Infinity, -1]) {
+    assert.equal(npcFaceTarget('eyeLookRightLeft', 0, {
+      nearby: true, gaze: 0, vergence: bad,
+    }), 0);
+  }
+});
+
+test('converged eyes remain blink-masked and duplicate facial surfaces stay synchronized', () => {
+  const left = morph('eyeLookRightLeft'), duplicate = morph('eyeLookRightLeft');
+  const right = morph('eyeLookLeftRight');
+  let state = initialNpcFace(2);
+  for (let i = 0; i < 25; i++) state = advanceNpcFace(state, 1 / 60, [left, duplicate, right], {
+    nearby: true, gaze: 0, vergence: 0.04, blink: { left: 1, right: 0 },
+  });
+  assert.equal(left.influence, 0);
+  assert.equal(left.influence, duplicate.influence);
+  assert.ok(right.influence > 0);
+  state = advanceNpcFace(state, 1 / 60, [left, duplicate, right], {
+    nearby: true, gaze: 0, vergence: 0.04, blink: { left: 0, right: 0 },
+  });
+  assert.ok(left.influence > 0);
+  assert.equal(left.influence, duplicate.influence);
 });

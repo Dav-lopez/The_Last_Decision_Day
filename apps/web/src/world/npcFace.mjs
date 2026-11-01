@@ -27,7 +27,7 @@ export function initialNpcFace(index) {
 
 /** Small, bounded poses layered over each resident's existing locomotion/action clips. */
 export function npcFaceTarget(name, elapsed, context = {}) {
-  const { talking = false, nearby = false, moving = false, flinch = 0, emotion = 'neutral', gaze = 0, speechElapsed = undefined, speechCues = undefined } = context;
+  const { talking = false, nearby = false, moving = false, flinch = 0, emotion = 'neutral', gaze = 0, vergence = 0, speechElapsed = undefined, speechCues = undefined } = context;
   if (!FACIAL_MORPH.test(name)) return 0;
   const startled = Number.isFinite(flinch) ? Math.min(1, Math.max(0, flinch)) : 0;
   const composure = 1 - startled;
@@ -63,10 +63,15 @@ export function npcFaceTarget(name, elapsed, context = {}) {
       // Eyes lead the body when acknowledging a player. Distress, walking
       // and a flinch suppress eye contact without affecting mouth movement.
       const focus = Number.isFinite(gaze) ? Math.max(-0.55, Math.min(0.55, gaze)) : 0;
+      const convergence = Number.isFinite(vergence) ? Math.max(0, Math.min(0.065, vergence)) : 0;
       if (greeting > 0 && !sad && startled < 0.1) {
         // A visible player takes precedence over idle saccades. Even when the
         // player is directly ahead (zero yaw), keep eye contact centred.
-        pose = Math.max(0, name.startsWith('eyeLookRight') ? focus : -focus) * composure;
+        // Each eye has its own small inward offset for near targets. Combine
+        // before choosing a direction, so a single eye never receives both
+        // opposing gaze morphs at the same time.
+        const aim = focus + (name.endsWith('Left') ? convergence : -convergence);
+        pose = Math.max(0, name.startsWith('eyeLookRight') ? aim : -aim) * composure;
       } else if (!nearby && !talking && !moving && emotion === 'neutral' && startled < 0.1) {
         // Unattended residents also use the authored horizontal gaze morphs.
         // Their existing per-resident clock offsets keep the glances staggered.
