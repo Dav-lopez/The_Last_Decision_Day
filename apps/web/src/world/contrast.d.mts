@@ -1,0 +1,12 @@
+export type Rgba = { r: number; g: number; b: number; a: number };
+export type ContrastSample = { label: string; color: string; layers?: ReadonlyArray<string>; fontSize?: number; fontWeight?: number | string; overScene?: boolean };
+export type ContrastFinding = { label: string; ratio: number; needed: number; over: 'dark scene' | 'bright scene' | 'page' };
+export declare function parseColor(value: string): Rgba | null;
+export declare function composite(top: Rgba, bottom: Rgba): Rgba;
+export declare function relativeLuminance(color: Rgba): number;
+export declare function contrastRatio(a: Rgba, b: Rgba): number;
+export declare const BACKDROPS: ReadonlyArray<Rgba>;
+export declare function worstContrast(text: string | Rgba, layers?: ReadonlyArray<string | Rgba>, backdrops?: ReadonlyArray<Rgba>): { ratio: number; backdrop: Rgba | null };
+export declare function isLargeText(fontSizePx: number, fontWeight?: number | string): boolean;
+export declare function requiredContrast(fontSizePx: number, fontWeight?: number | string): number;
+export declare function auditSample(sample: ContrastSample): ContrastFinding | null;

@@ -4,7 +4,7 @@ export type NpcConversationHeadContext = {
   speaking?: boolean;
   elapsed?: number;
   duration?: number;
-  mood?: 'neutral' | 'happy' | 'sad';
+  mood?: 'neutral' | 'happy' | 'sad' | 'angry';
   moving?: boolean;
   flinch?: number;
 };

@@ -54,7 +54,7 @@ const Phone = lazy(() => import('./Phone').then(module => ({ default: module.Pho
 type PhoneLib = typeof import('./phone.mjs');
 const NO_MESSAGES: PhoneMessage[] = [];
 import { graphicsMode, readSettings, reducedMotion, resetProgress, writeSettings, type PlayerSettings } from './gameSettings.mjs';
-import type { GameAudio } from './audio/director.mjs';
+import type { AudioCue, GameAudio } from './audio/director.mjs';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
 import type { buildFootballPitch } from './footballScene';
 import type { MatchState } from './footballMatch.mjs';
@@ -109,7 +109,7 @@ import type { Gear } from './carFeel.mjs';
 import type { DriveFeel } from './driveFeel';
 import { TOWN_EXIT, canExitVehicle, chaseCameraAlpha, driveInput, footprintPoints, leavingTown, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
-import { activeCaptions, captionLabel, CAPTION_SECONDS, pushCaption, type SoundCaption } from './soundCaptions.mjs';
+import { activeCaptions, captionLabel, CAPTION_SECONDS, chapterCaption, pushCaption, storyLineCaption, storyLineCue, type SoundCaption } from './soundCaptions.mjs';
 import { arrowKeys, trapTab, useDialogFocus } from './dialogFocus';
 import { applyProgress, chooseNewestProgress, collectProgress, fromServerProgress, markProgressChanged, toServerProgress, type Progress, type ServerProgress, type ServerProgressResponse } from './progressSync.mjs';
 
@@ -519,13 +519,25 @@ export default function WorldScene({
   const captionsOnRef = useRef(playerSettings.captions);
   captionsOnRef.current = playerSettings.captions;
   const lastCaptionCue = useRef(new Map<string, number>());
+  // A more specific caption for the next cue of this name (story scenes name who is speaking).
+  const captionOverride = useRef<{ cue: string; text: string } | null>(null);
   const captionCue = useCallback((cue: string) => {
+    const override = captionOverride.current?.cue === cue ? captionOverride.current.text : null;
+    if (override) captionOverride.current = null;
     if (!captionsOnRef.current) return;
     const now = performance.now() / 1000;
-    if (now - (lastCaptionCue.current.get(cue) ?? -Infinity) < 0.3) return;
-    lastCaptionCue.current.set(cue, now);
-    setSoundCaptions(list => pushCaption(list, cue, now));
+    const key = override ?? cue;
+    if (now - (lastCaptionCue.current.get(key) ?? -Infinity) < 0.3) return;
+    lastCaptionCue.current.set(key, now);
+    setSoundCaptions(list => pushCaption(list, cue, now, override));
   }, []);
+  /** Plays `cue` with a caption that says more than the generic one. */
+  const cueWithCaption = useCallback((cue: AudioCue, text: string | null) => {
+    captionOverride.current = text ? { cue, text } : null;
+    if (audioRef.current) audioRef.current.cue(cue);
+    else if (text) captionCue(cue);
+    captionOverride.current = null;
+  }, [captionCue]);
   useEffect(() => {
     if (!playerSettings.captions) { setSoundCaptions([]); return; }
     if (!soundCaptions.length) return;
@@ -614,6 +626,7 @@ export default function WorldScene({
   const [dialogue, setDialogue] = useState<{ lines: ReadonlyArray<StoryLine>; index: number } | null>(null);
   const dialogueRef = useRef(false);
   const [storyBanner, setStoryBanner] = useState('');
+  const storyBannerCaption = useRef<string | null>(null);
   const saveStory = (next: StoryState) => { storyRef.current = next; writeStory(characterId, next); setStory(next); decorRef.current(); progressChangedRef.current(); };
   // Once the story ends, Maple Street shows the change you chose.
   const decorRef = useRef<() => void>(() => {});
@@ -637,7 +650,10 @@ export default function WorldScene({
     const result = advanceStory(storyRef.current, event);
     if (!result.completed) return;
     saveStory(result.state);
-    if (result.chapterDone) setStoryBanner(`${result.chapterDone.title} — complete`);
+    if (result.chapterDone) {
+      storyBannerCaption.current = chapterCaption(result.chapterDone.title, storyComplete(result.state));
+      setStoryBanner(`${result.chapterDone.title} — complete`);
+    }
     openPendingScene();
   };
   const storyActionsRef = useRef({ reportStory, openPendingScene, advanceDialogue });
@@ -2517,16 +2533,17 @@ export default function WorldScene({
   }, []);
   useEffect(() => {
     if (!storyBanner) return;
-    audioRef.current?.cue('achievement');
+    cueWithCaption('achievement', storyBannerCaption.current);
+    storyBannerCaption.current = null;
     const timer = window.setTimeout(() => setStoryBanner(''), 5000);
     return () => window.clearTimeout(timer);
   }, [storyBanner]);
 
   useEffect(() => {
     if (!dialogue) return;
-    const line = dialogue.lines[dialogue.index];
-    audioRef.current?.cue(line.speaker==='mom' ? 'message' : 'talk');
-  }, [dialogue]);
+    const cast = CAST[dialogue.lines[dialogue.index].speaker];
+    cueWithCaption(storyLineCue(cast), storyLineCaption(cast));
+  }, [dialogue, cueWithCaption]);
 
   const touch = (key: string, down: boolean, event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();

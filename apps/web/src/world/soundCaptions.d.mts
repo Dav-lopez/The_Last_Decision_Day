@@ -4,6 +4,10 @@ export declare const SOUND_CAPTIONS: Readonly<Partial<Record<AudioCue, string>>>
 export declare const CAPTION_SECONDS: number;
 export declare const MAX_CAPTIONS: number;
 export declare function captionFor(cue: string): string | null;
-export declare function pushCaption(list: ReadonlyArray<SoundCaption>, cue: string, now: number): SoundCaption[];
+export declare function pushCaption(list: ReadonlyArray<SoundCaption>, cue: string, now: number, override?: string | null): SoundCaption[];
 export declare function activeCaptions(list: ReadonlyArray<SoundCaption>, now: number): SoundCaption[];
 export declare function captionLabel(caption: SoundCaption): string;
+export type StoryCastEntry = { name?: string; tone?: string };
+export declare function storyLineCue(cast: StoryCastEntry | null | undefined): 'message' | 'talk';
+export declare function storyLineCaption(cast: StoryCastEntry | null | undefined): string | null;
+export declare function chapterCaption(title: string, last?: boolean): string;

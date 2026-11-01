@@ -29,7 +29,7 @@ export type Neighbors = {
   /** Where each resident who is out stands right now (resident id → position). */
   positions: () => Record<string, { x: number; z: number }>;
   /** Highlight the speaking resident and apply the latest reply emotion; they stop and face the player. */
-  setConversation: (residentId: string | null, mood?: 'neutral' | 'happy' | 'sad', line?: string) => void;
+  setConversation: (residentId: string | null, mood?: 'neutral' | 'happy' | 'sad' | 'angry', line?: string) => void;
   dispose: () => void;
 };
 

@@ -8,6 +8,7 @@
  */
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
+import { auditContrast, formatFinding } from './contrastAudit.mjs';
 
 const base = process.argv[2] ?? 'http://localhost:4173';
 const out = 'playtest-output';
@@ -49,10 +50,27 @@ const step = async (name, fn) => {
     const detail = lines.filter(l => /intercepts|waiting for|resolved to/i.test(l)).slice(0, 2).join(' | ');
     problems.push(`${name}: ${lines[0]}${detail ? ` (${detail})` : ''}`); await shot(`failed-${name.replace(/\W+/g, '-')}`).catch(() => {}); }
 };
+// HUD contrast (MVP 7b): every visible piece of text is checked in several game states.
+const contrastFindings = new Map();
+let contrastChecked = 0;
+const checkContrast = async state => {
+  try {
+    const { checked, findings } = await auditContrast(page, state);
+    contrastChecked += checked;
+    for (const finding of findings) if (!contrastFindings.has(finding.label)) contrastFindings.set(finding.label, finding);
+  } catch (error) { notes.push(`contrast audit skipped in ${state}: ${error.message.split('\n')[0]}`); }
+};
+// Story-scene captions (MVP 7b): once captions are on, a scene's lines name who speaks.
+const storyCaptions = { on: false, scenes: 0, seen: new Set() };
+const storyCaptionPattern = /speaks?\]|speak\]|Phone buzzes: text from|Story chime/;
 const dismissDialogue = async () => {
   for (let i = 0; i < 30; i++) {
     const scene = page.locator('.story-scene');
     if (!(await scene.count())) return;
+    if (storyCaptions.on) {
+      storyCaptions.scenes++;
+      for (const text of await page.locator('.world-sound-captions li').allTextContents()) if (storyCaptionPattern.test(text) && !/Someone speaks/.test(text)) storyCaptions.seen.add(text);
+    }
     await scene.first().click({ timeout: 2000 }).catch(() => {});
     await page.waitForTimeout(150);
   }
@@ -88,6 +106,8 @@ await step('world loads', async () => {
   await shot('01-world');
 });
 await step('opening story scene plays and closes', async () => {
+  await checkContrast('the street HUD');
+  if (await page.locator('.story-scene').count()) await checkContrast('a story scene');
   await dismissDialogue();
   await shot('02-after-story');
   const state = await read();
@@ -121,6 +141,7 @@ await step('map opens and closes (N)', async () => {
   await page.keyboard.press('n');
   await page.waitForSelector('.world-map', { timeout: 5000 });
   await shot('04-map');
+  await checkContrast('the big map');
   // Keyboard flow (MVP 7b): focus starts in the map, on the selected tab, and Tab stays in the map.
   await waitFor('map takes focus', timeout => page.waitForFunction(() => document.activeElement?.closest('.world-map')
     && document.activeElement.getAttribute('aria-selected') === 'true', null, { timeout }), 15000);
@@ -152,6 +173,7 @@ await step('talk to a neighbour with the keyboard only', async () => {
   await waitFor('reply shows', timeout => page.locator('.npc-chat-result').waitFor({ timeout }), 15000);
   await waitFor('Continue focused', timeout => page.waitForFunction(() => document.activeElement?.textContent === 'Continue story', null, { timeout }), 15000);
   await shot('04a-talk-keyboard');
+  await checkContrast('a conversation');
   await page.keyboard.press('Enter');
   await waitFor('conversation closes', timeout => page.waitForSelector('.npc-chat-card', { state: 'detached', timeout }), 15000);
   await dismissDialogue();
@@ -193,6 +215,7 @@ await step('menu opens with Esc, shows every tab, and closes', async () => {
     if (!(await page.locator('.game-menu-credits').getByText('OpenStreetMap contributors').count())) throw new Error('credits missing OpenStreetMap');
     if (!(await page.locator('.game-menu-credits .privacy-note li').count())) throw new Error('credits missing the privacy note');
     await shot('04b-menu');
+    await checkContrast('the game menu');
   } finally {
     // Never leave the world paused for the steps after this one.
     await page.keyboard.press('Escape');
@@ -230,6 +253,8 @@ await step('accessibility: keyboard menu, motion, large text and sound captions'
   await page.keyboard.press('n');
   await page.waitForSelector('.world-sound-captions li:has-text("Map unfolds")', { timeout: 5000 });
   await shot('04d-caption');
+  storyCaptions.on = true;
+  await checkContrast('sound captions');
   await page.keyboard.press('n');
   await page.waitForSelector('.world-map', { state: 'detached', timeout: 5000 });
 });
@@ -252,6 +277,7 @@ await step('quick travel downtown', async () => {
   await page.waitForTimeout(3000);
   await dismissDialogue();
   await shot('05-downtown');
+  await checkContrast('downtown');
 });
 await step('downtown traffic drives', async () => {
   await page.waitForFunction(() => window.__tld.read().traffic.length > 0, null, { timeout: 120000 });
@@ -321,6 +347,7 @@ await step('career duty: a fire call downtown, paid on sign-off (MVP 8b)', async
   notes.push(`fire call: ${duty.stops} stops, par ${duty.par}s`);
   await page.waitForTimeout(1500);
   await shot('05e-duty');
+  await checkContrast('a career duty');
   // Stand at each stop in turn (walking the route at 2 fps software rendering would take far too long).
   for (let i = 0; i < duty.stops; i++) {
     const at = (await read()).duty?.next;
@@ -349,21 +376,42 @@ await step('quick travel to the pitch and back home', async () => {
 
 await step('a crash shows the error screen with a working reload button', async () => {
   // A separate tab, so the deliberate crash is not mistaken for a real one in the main run.
+  // The main run is over: park its tab so its software-rendered 3D world stops competing for the CPU.
+  await page.goto('about:blank').catch(() => {});
   const crashPage = await browser.newPage({ viewport: { width: 640, height: 360 } });
   try {
     crashPage.on('pageerror', error => { if (!/Playtest crash/.test(error.message)) problems.push(`page error (crash check): ${error.message}`); });
     await crashPage.goto(`${base}/?playtest&crash`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await crashPage.getByRole('button', { name: /try the 3d demo/i }).click({ timeout: 20000 });
+    await crashPage.getByRole('button', { name: /try the 3d demo/i }).click({ timeout: 45000 });
     const screen = crashPage.locator('.error-screen');
     await screen.waitFor({ timeout: 20000 });
     if (!(await screen.getByText('Something went wrong').count())) throw new Error('error screen has no title');
     await crashPage.screenshot({ path: `${out}/08-error-screen.png` });
     await screen.getByRole('button', { name: 'Back to the start page' }).click();
-    await crashPage.getByRole('button', { name: /try the 3d demo/i }).click({ timeout: 20000 });
+    await crashPage.getByRole('button', { name: /try the 3d demo/i }).click({ timeout: 45000 });
     await screen.waitFor({ timeout: 20000 });
     await Promise.all([crashPage.waitForEvent('load', { timeout: 60000 }), screen.getByRole('button', { name: 'Reload the game' }).click()]);
     await crashPage.getByRole('button', { name: /try the 3d demo/i }).waitFor({ timeout: 30000 });
   } finally { await crashPage.close(); }
+});
+
+await step('story scenes caption who is speaking', async () => {
+  if (!storyCaptions.scenes) { notes.push('no story scene played with captions on'); return; }
+  if (!storyCaptions.seen.size) throw new Error(`${storyCaptions.scenes} story line(s) shown with captions on, but no speaker caption`);
+  notes.push(`story captions: ${[...storyCaptions.seen].slice(0, 4).join(', ')}`);
+});
+await step('HUD text contrast (WCAG AA over dark and bright scenes)', async () => {
+  notes.push(`contrast: ${contrastChecked} text samples checked, ${contrastFindings.size} below AA`);
+  if (!contrastFindings.size) return;
+  // Annotations are capped per step, so the findings are packed several to a line.
+  let chunk = '';
+  for (const finding of contrastFindings.values()) {
+    const line = formatFinding(finding);
+    if (chunk && chunk.length + line.length > 850) { annotate('warning', 'Contrast', chunk); chunk = ''; }
+    chunk += (chunk ? ' · ' : '') + line;
+  }
+  if (chunk) annotate('warning', 'Contrast', chunk);
+  throw new Error(`${contrastFindings.size} HUD text element(s) below WCAG AA contrast (see the Contrast warnings)`);
 });
 
 await browser.close();

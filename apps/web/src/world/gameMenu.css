@@ -5,7 +5,7 @@
 .world-first-hint kbd,.game-menu kbd{display:inline-block;padding:1px 6px;border-radius:4px;background:#ffffff1f;border:1px solid #ffffff33;font:inherit;font-size:.8em;white-space:nowrap}
 .world-first-hint-actions{display:flex;gap:6px;pointer-events:auto}
 .world-first-hint button{padding:5px 10px;border-radius:7px;border:1px solid #ffffff44;background:#ffffff14;color:inherit;font:inherit;cursor:pointer}
-.world-first-hint button:last-child{background:#2f7de1;border-color:#2f7de1}
+.world-first-hint button:last-child{background:#1d5fbf;border-color:#1d5fbf}
 .game-menu-backdrop{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:16px;background:#060b13b8;backdrop-filter:blur(3px)}
 .game-menu-backdrop[hidden]{display:none}
 .game-menu{width:min(640px,100%);max-height:calc(100vh - 32px);display:flex;flex-direction:column;border-radius:14px;background:#101a28;color:#eef3fa;border:1px solid #ffffff22;box-shadow:0 20px 60px #000a;overflow:hidden}
@@ -14,7 +14,7 @@
 .game-menu-kicker{margin:0;text-transform:uppercase;letter-spacing:.08em;font-size:.72rem;color:#ffd27a}
 .game-menu button{font:inherit;padding:8px 14px;border-radius:9px;border:1px solid #ffffff33;background:#ffffff12;color:inherit;cursor:pointer}
 .game-menu button:focus-visible{outline:2px solid #ffd27a;outline-offset:2px}
-.game-menu .game-menu-resume{background:#2f7de1;border-color:#2f7de1;font-weight:600}
+.game-menu .game-menu-resume{background:#1d5fbf;border-color:#1d5fbf;font-weight:600}
 .game-menu .danger{background:#b3261e;border-color:#b3261e}
 .game-menu-tabs{display:flex;gap:4px;padding:0 20px;border-bottom:1px solid #ffffff1c;overflow-x:auto}
 .game-menu-tabs button{border:none;border-radius:8px 8px 0 0;background:transparent;padding:8px 12px;opacity:.75}
