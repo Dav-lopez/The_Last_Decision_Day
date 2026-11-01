@@ -51,6 +51,10 @@ test('saccades stop during speech, movement, anger, sadness and startle', () => 
   assert.ok(npcFaceTarget('eyeLookRightLeft', 1.45, listening) > 0);
   assert.ok(npcFaceTarget('eyeLookLeftLeft', 4.75, listening) > 0);
   assert.ok(npcFaceTarget('eyeLookDownRight', 6.5, listening) > 0);
+  for (let t = 0; t < 12; t += 0.1) {
+    assert.equal(npcFaceTarget('eyeLookUpLeft', t, listening), 0,
+      'idle upward gaze must not oppose a listening downward fixation');
+  }
   for (const context of [
     { talking: true }, { moving: true }, { emotion: 'sad' },
     { emotion: 'angry' }, { flinch: 1 }, { nearby: false }, { attention: 0 },
