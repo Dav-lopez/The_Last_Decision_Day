@@ -7,6 +7,8 @@ export type NpcFaceContext = {
   blink?: { left: number; right: number };
   /** Signed lateral eye focus in [-0.55, 0.55], relative to body heading. */
   gaze?: number;
+  /** Inward binocular offset in [0, 0.065] for nearby player focus. */
+  vergence?: number;
   /** Seconds since the currently displayed dialogue line began. */
   speechElapsed?: number;
   /** Precomputed dialogue articulation; absent for ambient NPC chatter. */

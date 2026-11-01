@@ -10,6 +10,7 @@ import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 import { initialNpcBlink, collectNpcEyelids, advanceNpcBlink } from './npcBlink.mjs';
 import { collectNpcFaceTargets, initialNpcFace, advanceNpcFace, resetNpcFace } from './npcFace.mjs';
 import { npcAttentionGaze } from './npcAttentionGaze.mjs';
+import { npcEyeVergence } from './npcEyeVergence.mjs';
 import { npcHeadAttentionTarget, stepNpcHeadAttention } from './npcHeadAttention.mjs';
 import { createNpcHeadRig } from './npcHeadRig.mjs';
 import { npcConversationHeadTarget, stepNpcConversationHead } from './npcConversationHead.mjs';
@@ -216,6 +217,7 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator, res
           flinch: flinch.weight,
           blink: person.blink,
           gaze: npcAttentionGaze(pose, player, person.heading),
+          vergence: npcEyeVergence(pose, player, person.heading),
         });
         // Surface reactions use the same conversation mood and Hit response
         // as the facial morphs; hidden residents never run these updates.
