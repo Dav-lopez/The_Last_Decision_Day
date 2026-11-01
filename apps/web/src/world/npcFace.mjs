@@ -2,6 +2,7 @@ import { advanceSharedFacialMorph } from './facialMorphSync.mjs';
 import { idleGazeTarget } from './gazeDynamics.mjs';
 import { npcSpeechWeight } from './npcSpeechDynamics.mjs';
 import { npcIdleMicroExpression } from './npcMicroExpression.mjs';
+import { npcSpeechProsodyWeight } from './npcSpeechProsody.mjs';
 
 const FACIAL_MORPH = /^(?:eye(?:Look(?:Up|Down|Left|Right)|Wide|Squint)(?:Left|Right)|brow(?:InnerUp|DownLeft|DownRight)|cheekSquint(?:Left|Right)|jawOpen|mouth(?:Open|SmileLeft|SmileRight|FrownLeft|FrownRight|PressLeft|PressRight))$/;
 
@@ -27,7 +28,7 @@ export function initialNpcFace(index) {
 
 /** Small, bounded poses layered over each resident's existing locomotion/action clips. */
 export function npcFaceTarget(name, elapsed, context = {}) {
-  const { talking = false, nearby = false, moving = false, flinch = 0, emotion = 'neutral', gaze = 0, vergence = 0, speechElapsed = undefined, speechCues = undefined } = context;
+  const { talking = false, nearby = false, moving = false, flinch = 0, emotion = 'neutral', gaze = 0, vergence = 0, speechElapsed = undefined, speechDuration = 0, prosody = 'none', speechCues = undefined } = context;
   if (!FACIAL_MORPH.test(name)) return 0;
   const startled = Number.isFinite(flinch) ? Math.min(1, Math.max(0, flinch)) : 0;
   const composure = 1 - startled;
@@ -41,6 +42,11 @@ export function npcFaceTarget(name, elapsed, context = {}) {
   // Idle micro-expressions are suppressed during player attention, speech,
   // movement, and emotional reactions; existing morph springs smooth the pose.
   const micro = npcIdleMicroExpression(name, time, context);
+  // Sentence-ending eyebrow/eyelid inflection follows only an active line.
+  // Sadness and startle take precedence; the existing spring and blink mask
+  // still control transitions on every cloned facial surface.
+  const inflection = speaking && emotion !== 'sad' && startled < 0.1
+    ? npcSpeechProsodyWeight(name, articulationTime, speechDuration, prosody) * composure : 0;
   // Speech syllables, lip closure and phrase pauses are evaluated only for
   // the oral morphs; blinks, gaze and emotional expressions remain independent.
   let pose = 0;
@@ -55,8 +61,8 @@ export function npcFaceTarget(name, elapsed, context = {}) {
     pose = sad * (name.endsWith('Left') ? 0.46 : 0.40);
   } else if (name.startsWith('mouthPress')) pose = sad * 0.14 + speaking * npcSpeechWeight(name, articulationTime, speechCues);
   else if (name.startsWith('cheekSquint')) pose = speaking * 0.06 + greeting * 0.03 + happy * 0.16 + micro;
-  else if (name === 'browInnerUp') pose = speaking * 0.06 + greeting * 0.09 + startled * 0.38 + sad * 0.30 + micro;
-  else if (name.startsWith('eyeWide')) pose = startled * (name.endsWith('Left') ? 0.44 : 0.46);
+  else if (name === 'browInnerUp') pose = speaking * 0.06 + greeting * 0.09 + startled * 0.38 + sad * 0.30 + micro + inflection;
+  else if (name.startsWith('eyeWide')) pose = startled * (name.endsWith('Left') ? 0.44 : 0.46) + inflection;
   else if (name.startsWith('eyeSquint')) pose = sad * (name.endsWith('Left') ? 0.19 : 0.15);
   else if (name.startsWith('eyeLook')) {
     if (/^eyeLook(?:Left|Right)(?:Left|Right)$/.test(name)) {
