@@ -225,6 +225,15 @@ await step('drive a car by tapping', async () => {
   await page.waitForFunction(() => !window.__tld.read().car?.horn, null, { timeout: 30000 });
   await page.getByRole('button', { name: 'Hold the handbrake' }).waitFor({ timeout: 5000 });
   notes.push(`driving in gear ${gear.trim()}, horn by touch ok`);
+  // Dents and scratches (item 13): a knock at 7 m/s goes through the real damage code (the driving code loads
+  // on the first drive, so retry until it is in), dents the car and shows the bodywork badge in the drive HUD.
+  await page.waitForFunction(() => window.__tld.knock(7), null, { timeout: 30000, polling: 500 });
+  await page.waitForFunction(() => (window.__tld.read().car?.body ?? 100) < 100, null, { timeout: 5000 });
+  const body = page.locator('.world-drive-body');
+  await body.waitFor({ timeout: 5000 });
+  const damage = (await read()).car;
+  notes.push(`car knocked: ${(await body.textContent())?.trim()}, ${damage.damageMarks} mark(s) drawn on the bodywork`);
+  await shot('03d-car-dent');
   await page.waitForFunction(() => Math.abs(window.__tld.read().car?.speed ?? 0) < 0.3, null, { timeout: 90000 });
   const getOut = actionButton(/^Get out of car/);
   for (let tries = 0; tries < 10 && (await read()).driving; tries++) {

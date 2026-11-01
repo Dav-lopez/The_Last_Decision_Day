@@ -107,6 +107,8 @@ export type ProgressSync = {
 import { BED_SIDE, FRONT_DOORS, HOME_SPAWN, atHomeExit, nearFridge, nearStove, wallsToFadeFor, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade } from './homeInterior.mjs';
 import type { Gear } from './carFeel.mjs';
 import type { DriveFeel } from './driveFeel';
+import type { CarDamageView } from './carDamageScene';
+import { conditionLabel } from './carDamage.mjs';
 import { TOWN_EXIT, canExitVehicle, chaseCameraAlpha, driveInput, footprintPoints, leavingTown, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
 import { activeCaptions, captionLabel, CAPTION_SECONDS, chapterCaption, pushCaption, storyLineCaption, storyLineCue, type SoundCaption } from './soundCaptions.mjs';
@@ -588,6 +590,8 @@ export default function WorldScene({
   const [driving, setDriving] = useState(false);
   const [driveSpeed, setDriveSpeed] = useState(0);
   const [driveGear, setDriveGear] = useState<Gear>(1);
+  // Bodywork of the car you're in (100 % = clean); scratches and dents are cosmetic.
+  const [driveBody, setDriveBody] = useState(100);
   const [driveNotice, setDriveNotice] = useState('');
   // Car radio station persists across drives.
   const [radioStation, setRadioStation] = useState(readRadioStation);
@@ -1066,14 +1070,25 @@ export default function WorldScene({
       const lightBar = createLightBar(scene);
       // Driving feel (gearbox revs, tyre squeal, skid marks) loads the first time you get in a car.
       let driveFeel: DriveFeel | null = null;
+      let carDamage: CarDamageView | null = null;
       let driveFeelLoading = false;
       const loadDriveFeel = () => {
         if (driveFeelLoading) return;
         driveFeelLoading = true;
-        void import('./driveFeel').then(module => { if (disposed) return; driveFeel = module.createDriveFeel(scene); audioRef.current?.useCarSynth(module.createCarSynth); }).catch(() => { driveFeelLoading = false; });
+        void import('./driveFeel').then(module => { if (disposed) return; driveFeel = module.createDriveFeel(scene); carDamage = module.createCarDamageView(scene); audioRef.current?.useCarSynth(module.createCarSynth); }).catch(() => { driveFeelLoading = false; });
       };
       let bumpCooldown = 0;
       let carHorn = false;
+      /** A knock on the car you drive: a scratch or a dent where it hit (nothing for a nudge). */
+      const knockCar = (index: number, speed: number, steer: number) => {
+        if (!carDamage || index < 0) return null;
+        carDamage.setQuality(quality);
+        const mark = carDamage.hit(index, carRoots[index] ?? [], cars[index], { speed, steer });
+        if (!mark) return null;
+        audioRef.current?.cue(mark.kind === 'dent' ? 'crunch' : 'scrape');
+        setDriveBody(carDamage.condition(index));
+        return mark;
+      };
       const siren = createSiren();
       sirenRef.current = siren;
       const streetLighting = createStreetLighting(scene, directional, sun);
@@ -1362,7 +1377,7 @@ export default function WorldScene({
             taxi: Boolean(pendingTaxi) || Boolean(pendingDrive),
             travelling: pendingTaxi !== null,
             match: match ? { phase: match.phase, clock: match.clock, score: match.score, keepers: match.players.filter(p => p.role === 'keeper').map(p => ({ team: p.team, x: p.x - PITCH.x, z: p.z - PITCH.z })) } : null,
-            car: drivenIndex() >= 0 ? { x: cars[drivenIndex()].x, z: cars[drivenIndex()].z, speed: cars[drivenIndex()].speed, gear: driveFeel?.gear ?? null, rpm: driveFeel?.rpm ?? null, slip: driveFeel?.slip ?? 0, horn: carHorn, skidMarks: driveFeel?.marks ?? 0 } : null,
+            car: drivenIndex() >= 0 ? { x: cars[drivenIndex()].x, z: cars[drivenIndex()].z, speed: cars[drivenIndex()].speed, gear: driveFeel?.gear ?? null, rpm: driveFeel?.rpm ?? null, slip: driveFeel?.slip ?? 0, horn: carHorn, skidMarks: driveFeel?.marks ?? 0, body: carDamage?.condition(drivenIndex()) ?? 100, damageMarks: carDamage?.marks(drivenIndex()) ?? 0 } : null,
             loading: !worldReadyRef.current,
             downtownBuilt: downtown !== null, downtownBuildMs,
             career: { id: careerRef.current.career, shifts: careerRef.current.shifts, money: careerRef.current.money },
@@ -1377,6 +1392,8 @@ export default function WorldScene({
             restart: () => { if (dialogueRef.current) return false; saveStory({ ...NEW_STORY }); storyActionsRef.current.openPendingScene(); return true; },
           },
           travel: (to: TravelTarget) => travelRef.current(to),
+          // Knock the car you're driving as if it hit something at this speed (m/s), through the real damage code.
+          knock: (speed: number, steer = 0) => Boolean(knockCar(drivenIndex(), speed, steer)),
           route: () => mapReadRef.current().routeLength ?? 0,
           waypoint: () => mapReadRef.current().waypoint,
           // Stand the player beside something to try by touch: a neighbour, a parked car, or a workplace sign.
@@ -1746,6 +1763,7 @@ export default function WorldScene({
           loadDriveFeel();
           driveFeel?.reset();
           setDriveGear(1);
+          setDriveBody(carDamage?.condition(Number(target.id.slice(4))) ?? 100);
           setDriving(true);
           return;
         }
@@ -2149,7 +2167,9 @@ export default function WorldScene({
             setSleeping(false);
             audioRef.current?.cue('wake');
             storyActionsRef.current.reportStory('slept');
-            notify(`Good morning! Day ${life.day} · ${formatClock(life.minute)} · slept ${Math.round(rest.hoursSlept)} h · energy ${Math.round(life.energy)}%`);
+            // The body shop works nights: any scratches and dents are gone by morning.
+            const repaired = carDamage?.repairAll() ?? 0;
+            notify(`Good morning! Day ${life.day} · ${formatClock(life.minute)} · slept ${Math.round(rest.hoursSlept)} h · energy ${Math.round(life.energy)}%${repaired ? ' · the car was repaired overnight' : ''}`);
           }
           home.setFadedWalls(wallsToFade(camera.position), delta);
           scene.render();
@@ -2243,7 +2263,11 @@ export default function WorldScene({
           carHorn = Boolean(controls.horn);
           audioRef.current?.horn(carHorn);
           bumpCooldown = Math.max(0, bumpCooldown - delta);
-          if (next.collided && Math.abs(before.speed) > 2 && bumpCooldown === 0) { bumpCooldown = 0.6; audioRef.current?.cue('land'); }
+          if (next.collided && bumpCooldown === 0 && Math.abs(before.speed) > 0.6) {
+            // Hard enough and the paint pays for it: a scratch, or a dent with a crunch.
+            const mark = knockCar(driven, before.speed, controls.steer);
+            if (mark || Math.abs(before.speed) > 2) { bumpCooldown = 0.6; if (!mark) audioRef.current?.cue('land'); }
+          }
           // Police: a light bar on the car you drive (L toggles the siren).
           const cop = careerRef.current.career === 'police';
           if (cop) {
@@ -2482,6 +2506,7 @@ export default function WorldScene({
         remotePlayers.dispose();
         lightBar.dispose();
         driveFeel?.dispose();
+        carDamage?.dispose();
         taskMarker.dispose();
         siren.dispose();
         sirenRef.current = null;
@@ -2705,7 +2730,7 @@ export default function WorldScene({
           </section>
         </div>}
         {driving && <div className="world-drive-hud" role="status" aria-live="polite">
-          <strong>{driveSpeed}</strong>km/h <span className="world-drive-gear" aria-label={driveGear === 'R' ? 'Reverse gear' : `Gear ${driveGear}`}>{driveGear}</span><span className="world-drive-help"> · W/S gas, brake, reverse · A/D steer · Space handbrake · H horn · E to get out when stopped</span>
+          <strong>{driveSpeed}</strong>km/h <span className="world-drive-gear" aria-label={driveGear === 'R' ? 'Reverse gear' : `Gear ${driveGear}`}>{driveGear}</span>{driveBody < 100 && <span className="world-drive-body" aria-label={`Bodywork ${driveBody} percent, ${conditionLabel(driveBody).toLowerCase()}`}>{conditionLabel(driveBody)} {driveBody}%</span>}<span className="world-drive-help"> · W/S gas, brake, reverse · A/D steer · Space handbrake · H horn · E to get out when stopped</span>
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
         </div>}
         {driving && <Suspense fallback={null}><RadioHud placement="overlay" station={radioStation} onTune={tuneRadio} onFocusWorld={() => canvasRef.current?.focus({ preventScroll: true })} /></Suspense>}
