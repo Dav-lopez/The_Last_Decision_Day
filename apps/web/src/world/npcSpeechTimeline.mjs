@@ -20,7 +20,7 @@ export function beginNpcSpeech(id, mood = 'neutral', line = '') {
   const duration = resident ? npcSpeechDuration(line) : 0;
   return {
     id: resident,
-    mood: mood === 'happy' || mood === 'sad' ? mood : 'neutral',
+    mood: mood === 'happy' || mood === 'sad' || mood === 'angry' ? mood : 'neutral',
     elapsed: 0,
     duration,
     prosody: resident ? classifyNpcSpeechProsody(line) : 'none',

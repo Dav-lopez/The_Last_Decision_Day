@@ -1,5 +1,5 @@
 export type NpcId = 'maya' | 'jordan' | 'rivera' | 'okafor' | 'tess' | 'marcus' | 'elena' | 'ruth' | 'priya' | 'dee' | 'brooks';
-export type NpcMood = 'neutral' | 'happy' | 'sad';
+export type NpcMood = 'neutral' | 'happy' | 'sad' | 'angry';
 export type NpcRelation = { trust: number; conversations: number; lastChoice: string | null };
 export type NpcRelations = { version: number; people: Record<NpcId, NpcRelation> };
 export type NpcConversation = { id: NpcId; name: string; speaker: NpcId; resident: string; greeting: string; choices: Array<{ id: string; label: string }> };

@@ -34,8 +34,9 @@ export function npcFaceTarget(name, elapsed, context = {}) {
   const composure = 1 - startled;
   const sad = emotion === 'sad' ? composure : 0;
   const happy = emotion === 'happy' ? composure : 0;
+  const angry = emotion === 'angry' ? composure : 0;
   const speaking = talking && !moving ? composure : 0;
-  const greeting = nearby && !moving ? composure : 0;
+  const greeting = nearby && !moving && emotion !== 'angry' ? composure : 0;
   // Invalid timestamps must not propagate NaN to morphs or disrupt a resident.
   const time = Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : 0;
   const articulationTime = Number.isFinite(speechElapsed) && speechElapsed >= 0 ? speechElapsed : time;
@@ -45,7 +46,7 @@ export function npcFaceTarget(name, elapsed, context = {}) {
   // Sentence-ending eyebrow/eyelid inflection follows only an active line.
   // Sadness and startle take precedence; the existing spring and blink mask
   // still control transitions on every cloned facial surface.
-  const inflection = speaking && emotion !== 'sad' && startled < 0.1
+  const inflection = speaking && emotion !== 'sad' && emotion !== 'angry' && startled < 0.1
     ? npcSpeechProsodyWeight(name, articulationTime, speechDuration, prosody) * composure : 0;
   // Speech syllables, lip closure and phrase pauses are evaluated only for
   // the oral morphs; blinks, gaze and emotional expressions remain independent.
@@ -55,15 +56,16 @@ export function npcFaceTarget(name, elapsed, context = {}) {
   else if (name.startsWith('mouthSmile')) {
     // A hurt resident must not grin simply because they are speaking or the
     // player is nearby. Positive conversation still lifts the mouth corners.
-    const warmth = sad ? 0 : speaking * 0.16 + greeting * 0.08 + happy * 0.28;
+    const warmth = sad || angry ? 0 : speaking * 0.16 + greeting * 0.08 + happy * 0.28;
     pose = warmth * (name.endsWith('Left') ? 0.94 : 1) + micro;
   } else if (name.startsWith('mouthFrown')) {
     pose = sad * (name.endsWith('Left') ? 0.46 : 0.40);
-  } else if (name.startsWith('mouthPress')) pose = sad * 0.14 + speaking * npcSpeechWeight(name, articulationTime, speechCues);
-  else if (name.startsWith('cheekSquint')) pose = speaking * 0.06 + greeting * 0.03 + happy * 0.16 + micro;
-  else if (name === 'browInnerUp') pose = speaking * 0.06 + greeting * 0.09 + startled * 0.38 + sad * 0.30 + micro + inflection;
+  } else if (name.startsWith('mouthPress')) pose = sad * 0.14 + angry * (name.endsWith('Left') ? 0.48 : 0.43) + speaking * npcSpeechWeight(name, articulationTime, speechCues);
+  else if (name.startsWith('cheekSquint')) pose = speaking * 0.06 + greeting * 0.03 + happy * 0.16 + angry * 0.08 + micro;
+  else if (name === 'browInnerUp') pose = (angry ? 0 : speaking * 0.06) + greeting * 0.09 + startled * 0.38 + sad * 0.30 + micro + inflection;
+  else if (name.startsWith('browDown')) pose = angry * (name.endsWith('Left') ? 0.72 : 0.65);
   else if (name.startsWith('eyeWide')) pose = startled * (name.endsWith('Left') ? 0.44 : 0.46) + inflection;
-  else if (name.startsWith('eyeSquint')) pose = sad * (name.endsWith('Left') ? 0.19 : 0.15);
+  else if (name.startsWith('eyeSquint')) pose = sad * (name.endsWith('Left') ? 0.19 : 0.15) + angry * (name.endsWith('Left') ? 0.25 : 0.22);
   else if (name.startsWith('eyeLook')) {
     if (/^eyeLook(?:Left|Right)(?:Left|Right)$/.test(name)) {
       // Eyes lead the body when acknowledging a player. Distress, walking

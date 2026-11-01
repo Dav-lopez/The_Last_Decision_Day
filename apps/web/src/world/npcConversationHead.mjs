@@ -25,8 +25,8 @@ export function npcConversationHeadTarget({
   mood = 'neutral', moving = false, flinch = 0,
 } = {}) {
   if (!talking || moving || !Number.isFinite(flinch) || flinch < 0 || flinch > 0.15) return REST;
-  const basePitch = mood === 'sad' ? 0.033 : mood === 'happy' ? -0.011 : 0;
-  const baseRoll = mood === 'sad' ? 0.010 : mood === 'happy' ? -0.008 : 0;
+  const basePitch = mood === 'sad' ? 0.033 : mood === 'happy' ? -0.011 : mood === 'angry' ? -0.017 : 0;
+  const baseRoll = mood === 'sad' ? 0.010 : mood === 'happy' ? -0.008 : mood === 'angry' ? 0.006 : 0;
   if (!speaking || !Number.isFinite(elapsed) || !Number.isFinite(duration) ||
       duration <= 0 || elapsed < 0 || elapsed >= duration) {
     return { pitch: basePitch, roll: baseRoll };
