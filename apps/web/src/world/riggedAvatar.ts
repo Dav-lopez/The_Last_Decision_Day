@@ -7,6 +7,7 @@ import { dropletCycle, stepDropletClock } from './facialDroplets.mjs';
 import { skinSurface, hairSurface, skinRoughness } from './surfaceShading.mjs';
 import { planarSkinUV, skinMicroNormalMap } from './skinMicroNormalMap.mjs';
 import { stepBlink } from './blinkCycle.mjs';
+import { initialEmotionBlink, stepEmotionBlink, combineBlinkFrames } from './emotionBlink.mjs';
 import { advanceSharedFacialMorph } from './facialMorphSync.mjs';
 import { idleGazeTarget } from './gazeDynamics.mjs';
 import { emotionHeadTarget, stepEmotionHeadPose } from './emotionalHeadPose.mjs';
@@ -245,6 +246,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
     let sweatClock = { elapsed: 0, active: false };
     // Initialize with the full BlinkFrame type, including left/right eyelid values.
     let blinkState = stepBlink({ elapsed: 0, count: 0 }, 0);
+    let reflexBlink = initialEmotionBlink();
     // Preserve the underlying emotional pose while a blink temporarily masks it.
     const expressionInfluences = new Map<string, { value: number; velocity: number }>();
     // A morph name may appear on several skinned facial surfaces in the same GLB.
@@ -325,6 +327,10 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
           }
         }
         blinkState = stepBlink(blinkState, frameSeconds);
+        reflexBlink = stepEmotionBlink(reflexBlink, emotion, frameSeconds);
+        // Natural cadence continues while a one-shot emotional reflex closes
+        // the same lids; expression/gaze masking sees the combined closure.
+        const eyelids = combineBlinkFrames(blinkState, reflexBlink);
         // Advance the action before facial evaluation: the same fade drives both
         // the body clip and its speech articulation, including stop transitions.
         const step = stepAction(action, frameSeconds);
@@ -351,7 +357,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
           if (eyelid) {
             // The blink curve already eases the eyelid. Passing it through the
             // slow expression filter prevents a full closure on short blinks.
-            morph.influence = morph.name.endsWith('Left') ? blinkState.left : blinkState.right;
+            morph.influence = morph.name.endsWith('Left') ? eyelids.left : eyelids.right;
           } else {
             // Preserve facial muscle velocity across interrupted expressions.
             // Blink and droplet morphs retain their dedicated timing paths.
@@ -364,7 +370,7 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
                    ? remoteCuedSpeechWeight(morph.name, speechCues, speechCueElapsed, speechOverlay.weight)
                    : actionFacialWeight(morph.name, speechAction, speechOverlay.weight),
                 idleGazeTarget(morph.name, effectTime, emotion, movementSpeed)),
-              frameSeconds, blinkState, expressionInfluences, frameExpressionWeights,
+              frameSeconds, eyelids, expressionInfluences, frameExpressionWeights,
             );
           }
         }

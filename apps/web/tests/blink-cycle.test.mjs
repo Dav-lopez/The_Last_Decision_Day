@@ -50,3 +50,6 @@ test('blink cadence varies, with a brief double blink after eight cycles', () =>
   assert.ok(starts[8] - starts[7] < 1);
   assert.ok(starts[3] - starts[2] > 2.5);
 });
+
+// Exercise emotional eyelid reflexes through the existing character CI test script.
+import './emotion-blink.test.mjs';
