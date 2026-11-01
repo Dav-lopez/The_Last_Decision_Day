@@ -131,7 +131,7 @@ above is done or blocked; any item may be split into slices.
 - (add bugs and small follow-ups here)
 - The porch plant's pot and soil carried 59,000 of its 69,000 triangles (552 pebbles, each UV-seamed); a third of
   its vertices sit on UV seams, which the simplifier keeps, so a seam-aware collapse (as meshoptimizer does) could
-  halve it again. Porch plants are drawn 16 times on Maple Street; an LOD level or thin instances would help frame rate.
+  halve it again. Four porch plants stand on Maple Street; an LOD level would still help frame rate on phones.
 - The action-clip GLBs were 40 % JSON (one bufferView per accessor, 1,474 of them) and repeated identical key
   times for every bone; `scripts/slim_clips.py` fixes both and runs inside `build-actions.py`. The same repacking
   would shrink the three locomotion clips inside `human.glb`, but that file belongs to the facial-asset pipeline.
