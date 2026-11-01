@@ -64,3 +64,60 @@ test('the audio director reports cues for captions even before audio is enabled 
   const broken = createGameAudio({ onCue: () => { throw new Error('ui gone'); } });
   assert.doesNotThrow(() => broken.cue('bell'));
 });
+
+// MVP 7b: keyboard flow through the overlays (map, conversations, range, league table, wardrobe).
+import { gpsDestinations, initialFocus, tabListTarget, trapTarget } from '../src/world/focusNav.mjs';
+
+test('tab lists move with the arrows, wrap around, jump with Home/End and skip disabled tabs', () => {
+  const all = [true, true, true, true];
+  assert.equal(tabListTarget('ArrowRight', 0, all), 1);
+  assert.equal(tabListTarget('ArrowRight', 3, all), 0);
+  assert.equal(tabListTarget('ArrowLeft', 0, all), 3);
+  assert.equal(tabListTarget('Home', 2, all), 0);
+  assert.equal(tabListTarget('End', 0, all), 3);
+  assert.equal(tabListTarget('ArrowDown', 0, all), null, 'down is not a horizontal tab key');
+  assert.equal(tabListTarget('Enter', 0, all), null);
+  // The map's downtown tab is disabled until downtown has been visited.
+  assert.equal(tabListTarget('ArrowRight', 0, [true, false]), 0);
+  assert.equal(tabListTarget('End', 0, [true, false]), 0);
+  assert.equal(tabListTarget('ArrowRight', 0, [true, false, true]), 2);
+  assert.equal(tabListTarget('ArrowLeft', 2, [true, false, true]), 0);
+  assert.equal(tabListTarget('ArrowRight', 0, []), null);
+  assert.equal(tabListTarget('ArrowRight', 0, [false, false]), null);
+});
+
+test('vertical lists (conversation answers) use up and down', () => {
+  assert.equal(tabListTarget('ArrowDown', 0, [true, true, true], 'vertical'), 1);
+  assert.equal(tabListTarget('ArrowUp', 0, [true, true, true], 'vertical'), 2);
+  assert.equal(tabListTarget('ArrowRight', 0, [true, true, true], 'vertical'), null);
+});
+
+test('Tab stays inside an open overlay', () => {
+  assert.equal(trapTarget(2, 3, false), 0, 'Tab on the last control wraps to the first');
+  assert.equal(trapTarget(0, 3, true), 2, 'Shift+Tab on the first wraps to the last');
+  assert.equal(trapTarget(1, 3, false), null, 'in the middle the browser moves focus');
+  assert.equal(trapTarget(1, 3, true), null);
+  assert.equal(trapTarget(-1, 3, false), 0, 'focus that escaped comes back in');
+  assert.equal(trapTarget(-1, 3, true), 2);
+  assert.equal(trapTarget(0, 1, false), 0, 'a single control keeps focus');
+  assert.equal(trapTarget(0, 0, false), null);
+});
+
+test('overlays open on their preferred control, else the first', () => {
+  assert.equal(initialFocus([false, false, true, false]), 2);
+  assert.equal(initialFocus([false, false]), 0);
+  assert.equal(initialFocus([]), -1);
+});
+
+test('keyboard GPS lists downtown places nearest first, without you', () => {
+  const markers = [
+    { id: 'bus', label: 'Bus stop', x: 100, z: 0, kind: 'bus' },
+    { id: 'you', label: 'You', x: 0, z: 0, kind: 'you' },
+    { id: 'pitch', label: 'Football pitch', x: 10, z: 10, kind: 'pitch' },
+    { id: 'work', label: 'Fire station', x: -50, z: 0, kind: 'work' },
+    { id: 'bad', label: 'Nowhere', x: Number.NaN, z: 0, kind: 'work' },
+  ];
+  assert.deepEqual(gpsDestinations(markers, { x: 0, z: 0 }).map(m => m.id), ['pitch', 'work', 'bus']);
+  assert.deepEqual(gpsDestinations(markers, null).map(m => m.id), ['bus', 'pitch', 'work'], 'map order without a position');
+  assert.deepEqual(gpsDestinations([], { x: 0, z: 0 }), []);
+});

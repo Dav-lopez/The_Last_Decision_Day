@@ -86,6 +86,12 @@ A new player can:
         tabs with the arrow keys. The playtest drives the menu by keyboard and checks a caption appears.
   - [ ] 7b. Keyboard flow through the other overlays (map, conversations, training range, wardrobe, league table),
         a contrast audit of HUD text, and captions for the story scenes' own audio cues where they differ.
+    - [x] 7b-1 (partial slice). Keyboard flow through the overlays: the map, conversations, the training range and
+          the league table take focus when they open and give it back to the 3D view when they close; Tab stays
+          inside the map, conversations and the range; arrow keys switch the map and wardrobe tabs and move between
+          conversation answers; Escape closes the league table; and the downtown map lists "GPS to" place buttons so
+          a waypoint can be set without a mouse. The playtest walks the map and a whole conversation by keyboard
+          and sets a GPS waypoint with Enter. Still to do: the HUD contrast audit and story-scene captions.
 - [ ] **8. Content polish**: two or three downtown characters to talk to; short playable career tasks
       (patrol route, fire call, route march) instead of a fade-to-black shift.
   - [x] 8a. Three downtown regulars to talk to: Priya, a volunteer guide by the bus stop; Coach Dee at the
@@ -138,6 +144,10 @@ above is done or blocked; any item may be split into slices.
 - The porch plant's pot and soil carried 59,000 of its 69,000 triangles (552 pebbles, each UV-seamed); a third of
   its vertices sit on UV seams, which the simplifier keeps, so a seam-aware collapse (as meshoptimizer does) could
   halve it again. Four porch plants stand on Maple Street; an LOD level would still help frame rate on phones.
+- 7b: in the training range, Space fires and also presses whichever range button has focus (Hold breath, Reload,
+  Stop); the live phase should keep focus off the buttons or ignore Space on them.
+- 6c's remaining work (meshopt for the plant and human GLBs) can't be done in the sandbox: no gltfpack, and neither
+  npm nor PyPI is reachable, so it waits for a CI-side compression job.
 - Downtown regulars (8a) have no story steps yet; a later chapter could send the player to Priya, Coach Dee
   or Captain Brooks (their `talked-priya` / `talked-dee` / `talked-brooks` events already reach the story).
 - Downtown regulars don't show on the minimap or the big map yet.
