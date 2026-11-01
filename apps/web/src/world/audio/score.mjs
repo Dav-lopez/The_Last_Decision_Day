@@ -108,4 +108,6 @@ export const CUES = Object.freeze({
   spray: [N(.32,.035,1600,0,'bandpass')],
   ding: [[1760,.45,.028,0],[2637,.3,.012,0]],
   reload: [N(.035,.03,4200,0,'highpass'), N(.04,.03,3200,.2,'highpass')],
+  // Tyre squeal is a continuous sound made while driving; the cue only carries its caption.
+  skid: [],
 });

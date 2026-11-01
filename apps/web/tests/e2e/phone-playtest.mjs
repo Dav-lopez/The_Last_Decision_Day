@@ -194,6 +194,14 @@ await step('drive a car by tapping', async () => {
   await page.locator('.world-viewport').scrollIntoViewIfNeeded();
   await checkLayout('driving');
   await shot('03c-driving');
+  // Driving feel (item 13): the HUD shows the gear, and the horn sounds while HORN is held.
+  const gear = await page.locator('.world-drive-gear').textContent({ timeout: 10000 });
+  if (!/^[123R]$/.test(gear?.trim() ?? '')) throw new Error(`drive HUD gear shows "${gear}"`);
+  const horn = page.getByRole('button', { name: 'Hold the horn' });
+  if (!(await holdTouch(horn, () => read().then(now => Boolean(now.car?.horn)), 30000))) throw new Error('the horn did not sound by touch');
+  await page.waitForFunction(() => !window.__tld.read().car?.horn, null, { timeout: 30000 });
+  await page.getByRole('button', { name: 'Hold the handbrake' }).waitFor({ timeout: 5000 });
+  notes.push(`driving in gear ${gear.trim()}, horn by touch ok`);
   await page.waitForFunction(() => Math.abs(window.__tld.read().car?.speed ?? 0) < 0.3, null, { timeout: 90000 });
   const getOut = actionButton(/^Get out of car/);
   for (let tries = 0; tries < 10 && (await read()).driving; tries++) {

@@ -108,6 +108,12 @@ above is done or blocked; any item may be split into slices.
         cross with the traffic that has green, and cars stop for anyone in the road.
 - [ ] **13. Driving feel**: body roll and pitch, tyre squeal and skid marks, engine sound by speed and gear,
       cosmetic dents and scratches, a horn; a police cruiser and a fire engine for those careers.
+  - [x] 13a (partial slice). Feel at the wheel: a three-speed gearbox whose revs drive a new engine note (sawtooth
+        and sub through a filter that opens with the gas, dipping on each up-shift) and a gear badge in the drive HUD;
+        tyres squeal and lay fading skid marks behind the rear wheels in hard corners, hard stops and handbrake turns
+        (Space, or HANDBRAKE on touch: the car slows and the tail swings round); a held horn (H, or HORN on touch); a
+        thud when you hit something. Body roll and pitch were already in. The police siren moved from H to L.
+        Still to do: dents and scratches, a police cruiser and a fire engine.
 - [ ] **14. Phone**: an in-game phone (Esc-free, key P) with messages from Mom and friends, contacts you've
       met, the map, your career, and a camera / photo mode.
 - [ ] **15. Car radio**: three or four original procedural stations with DJ-style station idents.
@@ -129,6 +135,10 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- Skid marks are drawn at road height 0.022 m on flat ground; if roads ever get slopes or kerbs, they need the
+  ground height under each wheel. The skid-mark pool shrinks (240 → 150 → 80) as adaptive quality lowers resolution.
+- The police siren (careersScene `createSiren`) makes its own AudioContext, so it ignores the volume sliders and mute;
+  it should move into the audio director like the horn did.
 - Downtown regulars (8a) have no story steps yet; a later chapter could send the player to Priya, Coach Dee
   or Captain Brooks (their `talked-priya` / `talked-dee` / `talked-brooks` events already reach the story).
 - Downtown regulars don't show on the minimap or the big map yet.

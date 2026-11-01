@@ -17,6 +17,8 @@ export const VEHICLE = Object.freeze({
   maxSteerAngle: 0.78,     // tight enough to turn round on a residential street
   parkedSpeed: 0.4,        // at or below this the driver may get out
   exitClearance: 0.62,
+  handbrakeDeceleration: 6.5, // rear wheels locked: slows you, and the back steps out
+  handbrakeYaw: 1.55,
 });
 
 const SAMPLE_X = [-1, 0, 1];
@@ -33,12 +35,14 @@ export function carLocalToWorld(car, localX, localZ) {
   return { x: car.x + localX * cos + localZ * sin, z: car.z - localX * sin + localZ * cos };
 }
 
-/** Keyboard and touch pad share one key set: W/S throttle and brake, A/D steer. */
+/** Keyboard and touch pad share one key set: W/S throttle and brake, A/D steer, Space handbrake, H horn. */
 export function driveInput(keys) {
   const has = (...names) => names.some(name => keys.has(name));
   return {
     throttle: Number(has('w', 'ArrowUp')) - Number(has('s', 'ArrowDown')),
     steer: Number(has('d', 'ArrowRight')) - Number(has('a', 'ArrowLeft')),
+    handbrake: has(' ', 'handbrake'),
+    horn: has('h', 'horn'),
   };
 }
 
@@ -102,8 +106,16 @@ export function stepVehicle(car, input, seconds, otherCars = [], people = [], bl
   const dt = Math.min(seconds, 0.05);
   const throttle = Math.max(-1, Math.min(1, Number(input?.throttle) || 0));
   const steer = Math.max(-1, Math.min(1, Number(input?.steer) || 0));
-  const speed = nextSpeed(car.speed ?? 0, throttle, dt);
-  const yawRate = speed * Math.tan(steer * VEHICLE.maxSteerAngle) / VEHICLE.wheelbase;
+  const handbrake = Boolean(input?.handbrake);
+  let speed;
+  if (handbrake) {
+    // The handbrake overrides the gas: the car slows and, if you steer, the back slides round.
+    const before = car.speed ?? 0;
+    const drop = VEHICLE.handbrakeDeceleration * dt;
+    speed = Math.abs(before) <= drop ? 0 : before - Math.sign(before) * drop;
+  } else speed = nextSpeed(car.speed ?? 0, throttle, dt);
+  const slide = handbrake && Math.abs(speed) > 2 ? VEHICLE.handbrakeYaw : 1;
+  const yawRate = speed * Math.tan(steer * VEHICLE.maxSteerAngle) / VEHICLE.wheelbase * slide;
   const steps = Math.max(1, Math.ceil(Math.abs(speed) * dt / 0.1));
   const slice = dt / steps;
   let state = { x: car.x, z: car.z, rotation: car.rotation, speed };

@@ -1,0 +1,21 @@
+import type { CarState } from './vehicleDrive.mjs';
+export type Gear = 1 | 2 | 3 | 'R';
+export type GearboxState = { gear: Gear; rpm: number; shiftTimer: number };
+export declare const GEARS: ReadonlyArray<Readonly<{ gear: 1 | 2 | 3; from: number; to: number }>>;
+export declare const GEARBOX: Readonly<{ idle: number; downshiftMargin: number; shiftLift: number }>;
+export declare function createGearbox(): GearboxState;
+export declare function stepGearbox(state: GearboxState, speed: number, throttle: number, seconds: number): GearboxState & { shifted: boolean };
+export declare function engineFrequency(rpm: number, gear: Gear): number;
+export declare const SLIP: Readonly<{ lateralStart: number; lateralFull: number; brakeSpeed: number; brakeSlip: number; handbrakeSlip: number; marksAbove: number }>;
+export declare function tyreSlip(input?: { speed?: number; yawRate?: number; acceleration?: number; handbrake?: boolean }): number;
+export declare const REAR_WHEELS: ReadonlyArray<Readonly<{ x: number; z: number }>>;
+export declare const SKID: Readonly<{ spacing: number; maxSegments: number; lifetime: number; width: number }>;
+export type SkidSegment = { x: number; z: number; length: number; rotation: number; born: number; strength: number };
+export type SkidMarks = {
+  readonly segments: ReadonlyArray<SkidSegment>; readonly version: number; readonly capacity: number;
+  lay(car: CarState, slip: number, now: number): number;
+  opacity(segment: SkidSegment, now: number): number;
+  setCapacity(value: number): void; clear(): void; breakTrail(): void;
+};
+export declare function createSkidMarks(options?: { maxSegments?: number; lifetime?: number }): SkidMarks;
+export declare function skidCapacityFor(quality: { scale?: number; base?: number } | null | undefined): number;
