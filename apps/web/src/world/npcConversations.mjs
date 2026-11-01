@@ -4,6 +4,7 @@
  * The game owns consequences and relationship data, not the dialogue renderer.
  */
 import { NEIGHBORS, isOut } from './npcLayout.mjs';
+import { DOWNTOWN_REGULARS } from './downtownPeople.mjs';
 
 const option = (id, label, reply, trust, mood = 'neutral') => Object.freeze({ id, label, reply, trust, mood });
 
@@ -105,6 +106,43 @@ export const NPC_DIALOGUES = Object.freeze({
       option('dismiss', 'Tell her to mind her own business', "Well! Some of us are only being friendly.", -2, 'sad'),
     ]),
   }),
+  // Downtown regulars (see downtownPeople.mjs): always at the same spot during the day.
+  priya: Object.freeze({
+    name: 'Priya', speaker: 'priya', resident: 'downtown-guide', place: 'city',
+    persona: 'Cheerful volunteer city guide at the downtown bus stop. Practical directions, never pushy, never invents places.',
+    first: "Welcome downtown! I'm Priya, I volunteer as a guide here. First time off the bus?",
+    again: "Back again! Where are you headed today?",
+    wary: "Hi. Need directions, or just passing?",
+    choices: Object.freeze([
+      option('sights', 'Ask what there is to do downtown', "Central Park has a caged five-a-side pitch, and the police station, fire station and army recruiting office are all hiring. Press N, tap a spot on the map and follow the GPS line.", 2, 'happy'),
+      option('around', 'Ask how to get around safely', "Stay on the pavements and cross at the lights when the traffic has stopped. Taxis run from the map, and the bus home leaves right here.", 1, 'happy'),
+      option('dismiss', "Tell her you don't need a guide", "Fair enough! I'm here all day if you change your mind.", -1, 'sad'),
+    ]),
+  }),
+  dee: Object.freeze({
+    name: 'Coach Dee', speaker: 'dee', resident: 'downtown-coach', place: 'city',
+    persona: 'Loud, big-hearted youth football coach who runs the Central Park five-a-side. Praises effort, teaches simple habits.',
+    first: "Hey, new face! Coach Dee. I run the five-a-side here. You play?",
+    again: "There they are! Come for a game?",
+    wary: "Oh, it's you. Still welcome on my pitch, mind.",
+    choices: Object.freeze([
+      option('tips', 'Ask for football tips', "Pass early, move into space, and shoot low across the keeper. Keepers come off their line now, so a chip over them works if they rush you.", 2, 'happy'),
+      option('league', 'Ask about the season league', "Step onto the pitch and start a match. Every result goes in the league table, and the top of the table gets bragging rights all season.", 1, 'happy'),
+      option('dismiss', 'Say football is boring', "Boring? Come lose five-nil to the AI and say that again!", -2, 'sad'),
+    ]),
+  }),
+  brooks: Object.freeze({
+    name: 'Captain Brooks', speaker: 'brooks', resident: 'downtown-captain', place: 'city',
+    persona: 'Calm, steady fire captain outside the fire station. Gives real fire-safety basics and honest advice about the job.',
+    first: "Afternoon. Captain Brooks, from the station here. Something I can help you with?",
+    again: "Good to see you again. All well?",
+    wary: "Hm. What can I do for you?",
+    choices: Object.freeze([
+      option('job', 'Ask what it takes to be a firefighter', "Fitness, teamwork and turning up for every shift. Sign on at the station door, then practise the hose on the flame boards at the training range.", 2, 'happy'),
+      option('safety', 'Ask for fire-safety advice', "Test your smoke alarm every month, keep your way out clear, and if there's ever a fire: get out, stay out and call for help.", 1, 'happy'),
+      option('dismiss', 'Say firefighters just sit around', "We train when it's quiet so we're ready when it isn't. You'll be glad of that one day.", -1, 'sad'),
+    ]),
+  }),
 });
 
 const IDS = Object.freeze(Object.keys(NPC_DIALOGUES));
@@ -149,7 +187,9 @@ export function writeNpcRelations(characterId, relations, storage = globalThis.l
  * (`live`: resident id → position). Never speaks through walls.
  */
 export function nearbyNpc(position, location, minute, live = null) {
-  if (location !== 'street' || !Number.isFinite(position?.x) || !Number.isFinite(position?.z)) return null;
+  if (!Number.isFinite(position?.x) || !Number.isFinite(position?.z)) return null;
+  if (location === 'city') return nearbyRegular(position, minute, live);
+  if (location !== 'street') return null;
   let best = Infinity;
   let match = null;
   for (const id of ['maya', 'jordan', ...WALKERS]) {
@@ -161,6 +201,20 @@ export function nearbyNpc(position, location, minute, live = null) {
     const distance = Math.hypot(position.x - at.x, position.z - at.z);
     const range = resident.route.kind === 'stand' ? TALK_RANGE : WALKER_RANGE;
     if (distance <= range && distance < best) { best = distance; match = id; }
+  }
+  return match;
+}
+
+/** Downtown: a regular who is out now, standing within 1.8 m of where the scene placed them. */
+function nearbyRegular(position, minute, live) {
+  let best = Infinity;
+  let match = null;
+  for (const regular of DOWNTOWN_REGULARS) {
+    if (!Number.isFinite(minute) || minute < regular.from || minute >= regular.until) continue;
+    const at = live?.[regular.resident];
+    if (!at || !Number.isFinite(at.x) || !Number.isFinite(at.z)) continue;
+    const distance = Math.hypot(position.x - at.x, position.z - at.z);
+    if (distance <= TALK_RANGE && distance < best) { best = distance; match = regular.npc; }
   }
   return match;
 }
