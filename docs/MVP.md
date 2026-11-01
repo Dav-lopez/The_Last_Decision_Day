@@ -140,7 +140,12 @@ above is done or blocked; any item may be split into slices.
         work texts (welcome, today's shift hours, promotions); a buzz, a caption and a peek under the objective when
         one arrives; threads, unread badges, contacts with trust, a career summary and a map shortcut; arrow keys
         between apps, P / Esc to put it away. Both playtests open it. Still to do: 14b, camera / photo mode.
-- [ ] **15. Car radio**: three or four original procedural stations with DJ-style station idents.
+- [x] **15. Car radio**: three or four original procedural stations with DJ-style station idents.
+  - Four stations, all original and generated in the browser: Maple 98.1 (indie pop), Low Tide 88.4 (lo-fi),
+    Downtown 101.3 (late-night jazz) and Pulse 94.7 (synthwave), two songs each with intro, verse, chorus and
+    outro. Between songs a station jingle plays and the DJ reads a rotating ident (browser speech where available,
+    and the line is always shown on the dial). R / Shift+R or the ‹ › buttons tune; stations keep playing while
+    you're out of the car, so you tune in mid-song; the choice is remembered.
 - [ ] **16. Career missions**: police patrol calls (traffic stop, lost child, noise complaint), fire calls with
       the hose, army route march with checkpoints; timed, scored, and paid better than a plain shift.
 - [ ] **17. Seamless road**: drive from Maple Street to downtown and back without a fade (streamed world).

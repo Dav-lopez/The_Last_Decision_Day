@@ -31,7 +31,10 @@ import { Wardrobe } from './Wardrobe';
 import { WorldMap, type MapMarker, type MapSnapshot, type TravelTarget, type WaypointControl } from './WorldMap';
 import type { RangeOutcome } from './TrainingRange';
 // The training range (its drawing code and styles) downloads the first time you train.
+// The car radio's dial and songs load on the first drive.
+const RadioHud = lazy(() => import('./audio/RadioHud').then(module => ({ default: module.RadioHud })));
 const TrainingRange = lazy(() => import('./TrainingRange').then(module => ({ default: module.TrainingRange })));
+import { nextStation, readRadioStation, writeRadioStation } from './audio/radioDial.mjs';
 import { RANGE_DRILLS, TRAINING_MINUTES, canTrain, finishTraining } from './trainingRange.mjs';
 import { AudioPanel } from './audio/AudioPanel';
 import { loadCityTraffic, type CityTraffic } from './cityTrafficScene';
@@ -559,6 +562,13 @@ export default function WorldScene({
   const [driving, setDriving] = useState(false);
   const [driveSpeed, setDriveSpeed] = useState(0);
   const [driveNotice, setDriveNotice] = useState('');
+  // Car radio station persists across drives.
+  const [radioStation, setRadioStation] = useState(readRadioStation);
+  const radioRef = useRef(radioStation);
+  const tuneRadio = useCallback((dir: 1 | -1) => {
+    const next = nextStation(radioRef.current, dir);
+    radioRef.current = next; writeRadioStation(next); setRadioStation(next);
+  }, []);
   const [nearCar, setNearCar] = useState(false);
   const [propCredit, setPropCredit] = useState(false);
   const [busPrompt, setBusPrompt] = useState<'downtown' | 'home' | null>(null);
@@ -1823,6 +1833,9 @@ export default function WorldScene({
         } else if (key === 'p' && !event.repeat) {
           event.preventDefault();
           phoneActionsRef.current.open();
+        } else if (key === 'r' && !event.repeat && interaction.mode === 'driving') {
+          event.preventDefault();
+          tuneRadio(event.shiftKey ? -1 : 1);
         } else if (key === 'n' && !event.repeat) {
           event.preventDefault();
           setMapOpen(open => !open);
@@ -1905,6 +1918,7 @@ export default function WorldScene({
         lastAudioPosition = { ...position };
         const audioCar = drivenIndex();
         const atPitch = locationRef.current === 'city' && (Boolean(match) || Math.hypot(position.x - PITCH.x, position.z - PITCH.z) < PITCH.halfLength + 8);
+        audioRef.current?.setRadio(radioRef.current);
         audioRef.current?.update({ location: atPitch ? 'pitch' : locationRef.current,
           match: Boolean(match && match.phase !== 'fulltime'),
           speed: delta>0 && audioDistance<1 ? audioDistance/delta : 0,
@@ -2606,6 +2620,8 @@ export default function WorldScene({
           <strong>{driveSpeed}</strong>km/h<span className="world-drive-help"> · W/S gas, brake, reverse · A/D steer · E to get out when stopped</span>
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
         </div>}
+        {driving && <Suspense fallback={null}><RadioHud placement="panel" station={radioStation} onTune={tuneRadio} onFocusWorld={() => canvasRef.current?.focus({ preventScroll: true })} /></Suspense>}
+      {driving && <Suspense fallback={null}><RadioHud placement="overlay" station={radioStation} onTune={tuneRadio} onFocusWorld={() => canvasRef.current?.focus({ preventScroll: true })} /></Suspense>}
         {!driving && driveNotice && <div className="world-notice" role="status" aria-live="polite">{driveNotice}</div>}
         {workPrompt && inCity && career.career === workPrompt && !rangeOpen && <button type="button" className="world-car-action world-range-start"
           onClick={event => { rangeRef.current.open(); focusWorld(event); }}>{RANGE_DRILLS[workPrompt].title} (T)</button>}
