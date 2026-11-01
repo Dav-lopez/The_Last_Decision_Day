@@ -3,7 +3,8 @@
 These models come from [Poly Haven](https://polyhaven.com) and are released under
 [CC0](https://creativecommons.org/publicdomain/zero/1.0/): free for commercial use, no attribution
 required. We credit Poly Haven in-game anyway. Converted with gltf-transform (quantized
-geometry, WebP textures); regenerate with `python tools/assets/polyhaven_fetch.py`.
+geometry, WebP textures) and slimmed by `scripts/slim_props.py` (simplified plant, 8-bit
+normals); regenerate with `python tools/assets/polyhaven_fetch.py`.
 
 | Slot | Model | Authors |
 |---|---|---|

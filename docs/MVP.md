@@ -72,6 +72,12 @@ A new player can:
     - [x] 6c-1 (partial slice). Action clips (talk, sit, drive, jump, dance…) slimmed from 711 KB to 255 KB per body
           (278 KB → 75 KB gzipped) by `scripts/slim_clips.py`: redundant keys dropped (≤0.02°, 0.1 mm), rotations
           stored as 16-bit, shared buffer views; Babylon import checked in CI. Still to do: the plant and human GLBs.
+    - [x] 6c-2 (partial slice). Poly Haven props slimmed by `scripts/slim_props.py` (numpy + Pillow, runs inside
+          `polyhaven_fetch.py`): the porch plant simplified from 69,345 to 37,907 triangles (quadric half-edge
+          collapses that never move a vertex, touch a UV seam or flip a face; ≤3 mm, sub-pixel from the street) with
+          512 px textures, 1.68 MB → 0.78 MB (1.20 MB → 0.49 MB gzipped); every prop's normals packed to 8 bits;
+          all ten props 5.37 MB → 4.27 MB. Checked by `polyhaven-slim.test.mjs`. Still to do: the human GLBs
+          (facial-asset pipeline) and meshopt with a self-hosted decoder.
 - [ ] **7. Accessibility**: full keyboard flow, visible focus, reduced-motion option, readable contrast,
       captions for story audio cues.
   - [x] 7a. Accessibility settings in the menu: motion (follow the device / reduced / full), sound captions that
@@ -123,6 +129,9 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- The porch plant's pot and soil carried 59,000 of its 69,000 triangles (552 pebbles, each UV-seamed); a third of
+  its vertices sit on UV seams, which the simplifier keeps, so a seam-aware collapse (as meshoptimizer does) could
+  halve it again. Porch plants are drawn 16 times on Maple Street; an LOD level or thin instances would help frame rate.
 - The action-clip GLBs were 40 % JSON (one bufferView per accessor, 1,474 of them) and repeated identical key
   times for every bone; `scripts/slim_clips.py` fixes both and runs inside `build-actions.py`. The same repacking
   would shrink the three locomotion clips inside `human.glb`, but that file belongs to the facial-asset pipeline.
