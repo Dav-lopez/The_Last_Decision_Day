@@ -5,6 +5,8 @@ import OnlineRoomPanel from './world/multiplayer/OnlineRoomPanel';
 import type { RoomClient } from './world/multiplayer/roomClient.mjs';
 import { canStartSchoolActivity, millisecondsUntilReset, type SchoolTimeBalance } from './schoolTime';
 import { createSchoolActionGate } from './schoolActionGate.mjs';
+import { GameErrorBoundary, PlaytestCrash, PrivacyNote, WhatsNew } from './ReleaseInfo';
+import { GAME_TAGLINE, GAME_TITLE, LATEST_RELEASE, markSeen, readLastSeen, unseenNotes } from './releaseInfo.mjs';
 
 type Profile = { id: string; displayName: string; gameAge: number; attributes: Record<string, number>; coins: number };
 type SchoolActivity = { id: string; title: string; description: string; timeCost: number; changes: { attribute: string; delta: number }[] };
@@ -96,6 +98,35 @@ function GameDownloading() {
     <p>Downloading the game…</p>
     <div className="hero-loading-bar" aria-hidden="true"><span /></div>
   </div>;
+}
+
+/** localStorage, or null where the browser blocks it (some private windows). */
+function safeStorage(): Storage | null {
+  try { return window.localStorage; } catch { return null; }
+}
+
+/** `?playtest&crash`: the playtest checks the error screen by making the game throw on purpose. */
+const PLAYTEST_CRASH = (() => {
+  try { const params = new URLSearchParams(window.location.search); return params.has('playtest') && params.has('crash'); }
+  catch { return false; }
+})();
+
+/** Below the sign-in panel: the latest changes and the privacy note, so players can read both before starting. */
+function SiteFooter() {
+  const [fresh] = useState(() => new Set(unseenNotes(readLastSeen(safeStorage())).map(note => note.id)));
+  const returning = readLastSeen(safeStorage()) !== null;
+  return <footer className="site-footer">
+    <details onToggle={event => { if ((event.currentTarget as HTMLDetailsElement).open) markSeen(safeStorage(), LATEST_RELEASE); }}>
+      <summary>What's new{returning && fresh.size > 0 && <span className="whats-new-tag">{fresh.size} new</span>}</summary>
+      <WhatsNew fresh={returning ? fresh : undefined} limit={2} />
+      <p><small>The full list is in the game menu (Esc → What's new).</small></p>
+    </details>
+    <details>
+      <summary>Privacy</summary>
+      <PrivacyNote />
+    </details>
+    <small>{GAME_TITLE} · an original game · map data © OpenStreetMap contributors</small>
+  </footer>;
 }
 
 function App() {
@@ -292,8 +323,9 @@ function App() {
   }
 
   return <main className="page">
-    <header><h1>The Last Decision</h1><p>Your life. Your choices. Your consequences.</p></header>
-    {(profile || guestDemo) ? <Suspense fallback={<GameDownloading />}>
+    <header><h1>{GAME_TITLE}</h1><p>{GAME_TAGLINE}</p></header>
+    {(profile || guestDemo) ? <GameErrorBoundary onBack={profile ? undefined : () => setGuestDemo(false)}><Suspense fallback={<GameDownloading />}>
+      {PLAYTEST_CRASH && <PlaytestCrash />}
       <WorldScene online={profile ? onlineRef : undefined} key={profile?.id ?? 'guest-demo'} characterId={profile?.id ?? 'guest-demo'}
         displayName={profile?.displayName ?? 'Guest explorer'} demoMode={!profile}
         onSchoolEnter={() => schoolSection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
@@ -303,8 +335,8 @@ function App() {
         onExecuteActivity={id => void executeActivity(id)}
         preview={preview} lifeSync={profile ? accountLifeSync : undefined}
         progressSync={profile ? accountProgressSync : undefined} />
-    </Suspense> :
-      <Suspense fallback={<div className="hero hero-placeholder" role="status">Preparing your neighborhood…</div>}><LandingWorld /></Suspense>}
+    </Suspense></GameErrorBoundary> :
+      <GameErrorBoundary><Suspense fallback={<div className="hero hero-placeholder" role="status">Preparing your neighborhood…</div>}><LandingWorld /></Suspense></GameErrorBoundary>}
     {profile && <OnlineRoomPanel key={profile.id} clientRef={onlineRef} />}
     <section className="panel" aria-live="polite">
       {loading ? <p>Loading your account…</p> : guestDemo && !session ? <>
@@ -383,6 +415,7 @@ function App() {
       </>}
       {message && <p className="error" role="alert">{message}</p>}
     </section>
+    <SiteFooter />
   </main>;
 }
 

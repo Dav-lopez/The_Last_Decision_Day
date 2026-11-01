@@ -9,7 +9,7 @@ import { planarSkinUV, skinMicroNormalMap } from './skinMicroNormalMap.mjs';
 import { stepBlink } from './blinkCycle.mjs';
 import { initialEmotionBlink, stepEmotionBlink, combineBlinkFrames } from './emotionBlink.mjs';
 import { advanceSharedFacialMorph } from './facialMorphSync.mjs';
-import { idleGazeTarget } from './gazeDynamics.mjs';
+import { avatarGazeTarget } from './conversationalGaze.mjs';
 import { emotionHeadTarget, stepEmotionHeadPose } from './emotionalHeadPose.mjs';
 import { createEmotionalHeadRig } from './emotionalHeadRig.mjs';
 import { actionFacialWeight } from './actionFacial.mjs';
@@ -369,7 +369,8 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
                 speechCues.length
                    ? remoteCuedSpeechWeight(morph.name, speechCues, speechCueElapsed, speechOverlay.weight)
                    : actionFacialWeight(morph.name, speechAction, speechOverlay.weight),
-                idleGazeTarget(morph.name, effectTime, emotion, movementSpeed)),
+                avatarGazeTarget(morph.name, effectTime, emotion, movementSpeed,
+                   speaking, speechOverlay.elapsed, speechOverlay.weight)),
               frameSeconds, eyelids, expressionInfluences, frameExpressionWeights,
             );
           }

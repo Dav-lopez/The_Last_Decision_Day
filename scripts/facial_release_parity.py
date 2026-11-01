@@ -7,6 +7,7 @@ freshly generated files, not the existing main-branch artifacts.
 """
 import hashlib
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -68,6 +69,51 @@ def validate_hairstyles(mesh_names, body):
     require(detail == EXPECTED_HAIR, f"{body}: hairstyle detail overlays missing or unexpected: {detail}")
     return hair
 
+def verify_morph_shading(doc, binary, mesh_name, expressive_names):
+    """Validate the *exported* glTF NORMAL deltas, not just generator arrays.
+
+    A face with valid POSITION morphs but omitted NORMAL targets animates in
+    silhouette while its highlights remain frozen. Check every named target
+    and require genuine lighting changes on smile/frown expressions.
+    """
+    mesh = next((mesh for mesh in doc["meshes"] if mesh["name"] == mesh_name), None)
+    require(mesh is not None, f"{mesh_name}: missing mesh")
+    require(len(mesh["primitives"]) == 1, f"{mesh_name}: unexpected primitive count")
+    primitive = mesh["primitives"][0]
+    names = mesh.get("extras", {}).get("targetNames", [])
+    targets = primitive.get("targets", [])
+    require(len(names) == len(targets) and set(expressive_names) <= set(names),
+            f"{mesh_name}: missing required shading morphs")
+    positions = vectors(doc, binary, primitive["attributes"]["POSITION"])
+    normals = vectors(doc, binary, primitive["attributes"]["NORMAL"])
+    require(len(positions) == len(normals), f"{mesh_name}: base normal count mismatch")
+    require(all(all(math.isfinite(v) for v in normal) and
+                abs(math.hypot(*normal) - 1.0) < 0.035 for normal in normals),
+            f"{mesh_name}: invalid base surface normals")
+
+    for name, target in zip(names, targets):
+        require("NORMAL" in target, f"{mesh_name}: {name} missing NORMAL morph")
+        accessor = doc["accessors"][target["NORMAL"]]
+        require(accessor["componentType"] == 5126 and accessor["type"] == "VEC3",
+                f"{mesh_name}: {name} NORMAL must be float VEC3")
+        deltas = vectors(doc, binary, target["NORMAL"])
+        require(len(deltas) == len(normals),
+                f"{mesh_name}: {name} normal delta count mismatch")
+        require(all(all(math.isfinite(v) for v in delta) and
+                    abs(math.hypot(*(a + b for a, b in zip(base, delta))) - 1.0) < 0.035
+                    for base, delta in zip(normals, deltas)),
+                f"{mesh_name}: {name} produces invalid surface normals")
+        if name in expressive_names:
+            require(any(math.hypot(*delta) > 0.005 for delta in deltas),
+                    f"{mesh_name}: {name} has no expression-responsive shading")
+        if mesh_name == "Student nasolabial folds" and name.endswith(("Left", "Right")):
+            side = -1 if name.endswith("Left") else 1
+            require(all(all(abs(v) < 1e-5 for v in delta)
+                        for pos, delta in zip(positions, deltas) if pos[0] * side < 0),
+                    f"{mesh_name}: {name} changes the opposite cheek")
+    return len(names)
+
+
 def inspect_variant(folder, body):
     filename, manifest_name = VARIANTS[body]
     raw = (folder / filename).read_bytes()
@@ -127,6 +173,12 @@ def inspect_variant(folder, body):
             f"{body}: nasolabial fold morph geometry missing")
     require(len(vectors(doc, binary, fold_primitive["attributes"]["POSITION"])) == 44,
             f"{body}: unexpected smile-fold vertex budget")
+
+    # Ensure the checked-in release carries the rounded lip and smile-fold
+    # NORMAL morphs, not only their silhouette-changing POSITION deltas.
+    expressive = {"mouthSmileLeft", "mouthSmileRight", "mouthFrownLeft", "mouthFrownRight"}
+    verify_morph_shading(doc, binary, "Student expressive lips", expressive)
+    verify_morph_shading(doc, binary, "Student nasolabial folds", expressive)
 
     # Eyelid rims and lashes must follow eye-wide/squint as well as blink.
     # Checking the *specific mesh* prevents an unrelated eye morph from

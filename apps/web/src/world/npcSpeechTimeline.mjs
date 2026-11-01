@@ -1,4 +1,5 @@
 import { buildNpcSpeechCues } from './npcSpeechCues.mjs';
+import { classifyNpcSpeechProsody } from './npcSpeechProsody.mjs';
 
 /**
  * A dialogue line owns a finite mouth-animation window. The conversation can
@@ -22,6 +23,7 @@ export function beginNpcSpeech(id, mood = 'neutral', line = '') {
     mood: mood === 'happy' || mood === 'sad' ? mood : 'neutral',
     elapsed: 0,
     duration,
+    prosody: resident ? classifyNpcSpeechProsody(line) : 'none',
     cues: resident ? buildNpcSpeechCues(line, duration) : [],
   };
 }

@@ -60,6 +60,17 @@ const dismissDialogue = async () => {
 
 await step('loads the start page', async () => {
   await page.goto(`${base}/?playtest`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  const title = await page.title();
+  if (title !== 'The Last Decision Day') throw new Error(`page title is "${title}"`);
+  // Release basics: icons, share image and manifest are served; What's new and the privacy note are on the page.
+  for (const path of ['/icon.svg', '/icon-192.png', '/apple-touch-icon.png', '/share.png', '/manifest.webmanifest']) {
+    const response = await page.request.get(`${base}${path}`);
+    if (!response.ok()) throw new Error(`${path} returned ${response.status()}`);
+  }
+  await page.locator('.site-footer summary', { hasText: 'Privacy' }).click({ timeout: 10000 });
+  if (!(await page.locator('.site-footer .privacy-note li').count())) throw new Error('privacy note is empty');
+  await page.locator('.site-footer summary', { hasText: "What's new" }).click();
+  if (!(await page.locator('.site-footer .whats-new li').count())) throw new Error("What's new is empty");
   await page.getByRole('button', { name: /try the 3d demo/i }).click({ timeout: 20000 });
 });
 await step('loading screen shows progress and gets out of the way', async () => {
@@ -153,11 +164,12 @@ await step('menu opens with Esc, shows every tab, and closes', async () => {
   await page.keyboard.press('Escape');
   await page.waitForSelector('.game-menu-backdrop:not([hidden])', { timeout: 10000 });
   try {
-    for (const tab of ['Settings', 'Story', 'Credits']) {
+    for (const tab of ['Settings', 'Story', "What's new", 'Credits']) {
       await page.getByRole('tab', { name: tab }).click();
       await page.waitForTimeout(200);
     }
     if (!(await page.locator('.game-menu-credits').getByText('OpenStreetMap contributors').count())) throw new Error('credits missing OpenStreetMap');
+    if (!(await page.locator('.game-menu-credits .privacy-note li').count())) throw new Error('credits missing the privacy note');
     await shot('04b-menu');
   } finally {
     // Never leave the world paused for the steps after this one.
@@ -271,6 +283,36 @@ await step('minimap shows, and a map waypoint gives a GPS route', async () => {
   notes.push(`GPS route ${Math.round(await page.evaluate(() => window.__tld.route()))} m`);
   await shot('05d-minimap-route');
 });
+await step('career duty: a fire call downtown, paid on sign-off (MVP 8b)', async () => {
+  if (!(await page.evaluate(() => window.__tld.place('firefighter')))) throw new Error('fire station sign not found downtown');
+  const apply = page.locator('.world-car-action', { hasText: /Apply: Firefighter/ });
+  await waitFor('apply button at the fire station', timeout => apply.waitFor({ timeout }));
+  await apply.click();
+  await waitFor('joined the fire service', timeout => page.waitForFunction(() => window.__tld.read().career.id === 'firefighter', null, { timeout }));
+  await dismissDialogue();
+  const start = page.locator('.world-car-action', { hasText: /Start duty: Fire call/ });
+  await waitFor('start-duty button', timeout => start.waitFor({ timeout }));
+  await start.click();
+  await waitFor('duty starts', timeout => page.waitForFunction(() => Boolean(window.__tld.read().duty), null, { timeout }));
+  await waitFor('duty card shows', timeout => page.waitForSelector('.world-duty', { timeout }));
+  const { duty, career } = await read();
+  notes.push(`fire call: ${duty.stops} stops, par ${duty.par}s`);
+  await page.waitForTimeout(1500);
+  await shot('05e-duty');
+  // Stand at each stop in turn (walking the route at 2 fps software rendering would take far too long).
+  for (let i = 0; i < duty.stops; i++) {
+    const at = (await read()).duty?.next;
+    if (at === undefined) break;
+    if (!(await page.evaluate(() => window.__tld.place('duty')))) throw new Error(`could not stand at duty stop ${at + 1}`);
+    await waitFor(`duty stop ${at + 1} counts`, timeout => page.waitForFunction(n => window.__tld.read().duty?.next !== n, at, { timeout }));
+  }
+  await waitFor('shift signed off and paid', timeout => page.waitForFunction(shifts => { const s = window.__tld.read(); return !s.duty && !s.busy && s.career.shifts > shifts; }, career.shifts, { timeout }));
+  const after = (await read()).career;
+  if (!(after.money > career.money)) throw new Error(`no pay for the duty (savings ${career.money} → ${after.money})`);
+  if (await page.locator('.world-duty').count()) throw new Error('the duty card stayed up after signing off');
+  notes.push(`duty paid $${after.money - career.money}`);
+  await dismissDialogue();
+});
 await step('quick travel to the pitch and back home', async () => {
   await page.evaluate(() => window.__tld.travel('pitch'));
   // Already downtown, so wait for the taxi ride itself to finish: a new trip is refused while one is under way.
@@ -281,6 +323,25 @@ await step('quick travel to the pitch and back home', async () => {
   await page.waitForFunction(() => window.__tld.read().location === 'street', null, { timeout: 180000 });
   await dismissDialogue();
   await shot('07-home');
+});
+
+await step('a crash shows the error screen with a working reload button', async () => {
+  // A separate tab, so the deliberate crash is not mistaken for a real one in the main run.
+  const crashPage = await browser.newPage({ viewport: { width: 640, height: 360 } });
+  try {
+    crashPage.on('pageerror', error => { if (!/Playtest crash/.test(error.message)) problems.push(`page error (crash check): ${error.message}`); });
+    await crashPage.goto(`${base}/?playtest&crash`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await crashPage.getByRole('button', { name: /try the 3d demo/i }).click({ timeout: 20000 });
+    const screen = crashPage.locator('.error-screen');
+    await screen.waitFor({ timeout: 20000 });
+    if (!(await screen.getByText('Something went wrong').count())) throw new Error('error screen has no title');
+    await crashPage.screenshot({ path: `${out}/08-error-screen.png` });
+    await screen.getByRole('button', { name: 'Back to the start page' }).click();
+    await crashPage.getByRole('button', { name: /try the 3d demo/i }).click({ timeout: 20000 });
+    await screen.waitFor({ timeout: 20000 });
+    await Promise.all([crashPage.waitForEvent('load', { timeout: 60000 }), screen.getByRole('button', { name: 'Reload the game' }).click()]);
+    await crashPage.getByRole('button', { name: /try the 3d demo/i }).waitFor({ timeout: 30000 });
+  } finally { await crashPage.close(); }
 });
 
 await browser.close();

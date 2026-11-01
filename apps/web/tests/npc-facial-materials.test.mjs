@@ -10,7 +10,8 @@ function fixture(look = DEFAULT_LOOK, index = 0) {
   const names = ['skin', 'eyes', 'hair', 'lips', 'cheek blush', 'tear Left', 'tear Right', 'sweat Left', 'sweat Right'];
   const materials = names.map(name => new PBRMaterial(`npc ${index} Student ${name}`, scene));
   const by = name => materials.find(material => material.name.endsWith(`Student ${name}`));
-  const tracks = ['tearTrackLeft', 'tearTrackRight', 'sweatTrackLeft', 'sweatTrackRight'].map(name => ({ name, influence: 0 }));
+  const tracks = ['tearTrackLeft', 'tearTrackRight', 'sweatTrackLeft', 'sweatTrackRight',
+    'eyeBlinkLeft', 'eyeBlinkRight', 'jawOpen', 'mouthOpen'].map(name => ({ name, influence: 0 }));
   const meshes = [{ morphTargetManager: { numTargets: tracks.length, getTarget: i => tracks[i] } }];
   const controller = createNpcFacialMaterials(materials, meshes, look, index);
   return { engine, scene, materials, by, tracks, controller, close() { scene.dispose(); engine.dispose(); } };
@@ -119,4 +120,32 @@ test('reset and invalid frame durations cannot resurrect stale NPC droplet track
   f.controller.update(0.1, 'sad');
   assert.ok(f.tracks.find(track => track.name === 'tearTrackLeft').influence < 0.07);
   assert.equal(f.tracks.find(track => track.name === 'tearTrackRight').influence, 0);
+});
+
+test('real NPC PBR materials respond to mouth opening and both eyelids, not a single wink', t => {
+  const f = fixture(DEFAULT_LOOK, 10);
+  const other = fixture(DEFAULT_LOOK, 11);
+  t.after(() => { f.close(); other.close(); });
+  const morph = name => f.tracks.find(track => track.name === name);
+  f.controller.update(0.1, 'sad');
+  const wetIntensity = f.by('eyes').clearCoat.intensity;
+  const wetRoughness = f.by('eyes').clearCoat.roughness;
+  assert.ok(wetIntensity > 0.55 && wetRoughness < 0.12);
+  morph('jawOpen').influence = 0.8;
+  morph('eyeBlinkLeft').influence = 1;
+  morph('eyeBlinkRight').influence = 0;
+  f.controller.update(0, 'sad');
+  assert.equal(f.by('eyes').clearCoat.intensity, wetIntensity,
+    'one closed eyelid cannot darken a shared material on the open eye');
+  assert.ok(f.by('lips').roughness < 0.65, 'moving lips gain a restrained highlight');
+  morph('eyeBlinkRight').influence = 1;
+  f.controller.update(0, 'sad');
+  assert.ok(f.by('eyes').clearCoat.intensity < wetIntensity);
+  assert.ok(f.by('eyes').clearCoat.roughness > wetRoughness);
+  assert.equal(other.by('eyes').clearCoat.intensity, 0.55, 'other NPC eyes are independent');
+  assert.equal(other.by('lips').roughness, 0.65, 'other NPC lips are independent');
+  f.controller.reset();
+  assert.equal(f.by('eyes').clearCoat.intensity, 0.55);
+  assert.equal(f.by('eyes').clearCoat.roughness, 0.12);
+  assert.equal(f.by('lips').roughness, 0.65);
 });
