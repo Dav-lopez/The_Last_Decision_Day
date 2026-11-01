@@ -14,7 +14,9 @@ const smoothstep = value => {
 
 /** Smooth attention strength for a visible player, including straight ahead. */
 export function npcListeningAttention(npc, player, heading) {
-  if (![npc?.x, npc?.z, player?.x, player?.z, heading].every(Number.isFinite)) return 0;
+  if (!Number.isFinite(npc?.x) || !Number.isFinite(npc?.z) ||
+      !Number.isFinite(player?.x) || !Number.isFinite(player?.z) ||
+      !Number.isFinite(heading)) return 0;
   const dx = player.x - npc.x, dz = player.z - npc.z;
   const distance = Math.hypot(dx, dz);
   if (distance <= 0.45 || distance >= 2.5) return 0;
