@@ -1357,7 +1357,7 @@ export default function WorldScene({
               const stop = activeTask && where === 'city' ? activeTask.task.stops[activeTask.task.next] : null;
               to = stop ? toWorld([stop.x, stop.z]) : null;
             }
-            else if (where === 'city') to = workDoors.get(spot) ?? null;
+            else if (where === 'city') to = workDoors.get(spot as CareerId) ?? null;
             if (!to) return false;
             placePlayer({ x: to.x, z: to.z, rotation: avatar.rotation.y });
             return true;
