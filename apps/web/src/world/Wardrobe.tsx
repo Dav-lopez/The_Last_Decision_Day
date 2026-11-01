@@ -1,5 +1,6 @@
 import { useState, type CSSProperties } from 'react';
 import './wardrobe.css';
+import { tabListKeys } from './dialogFocus';
 import { LOOKS, STYLES, withBody, type ColourPart, type Look, type StylePart } from './appearance.mjs';
 
 type Tab = 'you' | 'top' | 'bottom' | 'shoes';
@@ -37,11 +38,12 @@ export function Wardrobe({ look, setLook, note }: { look: Look; setLook: (update
 
   return <section className="world-customize wardrobe" aria-label="Customize character appearance">
     <h3>Wardrobe</h3>
-    <div className="wardrobe-tabs" role="tablist">
+    <div className="wardrobe-tabs" role="tablist" aria-label="Wardrobe sections" onKeyDown={event => tabListKeys(event)}>
       {TABS.map(item => <button key={item.id} type="button" role="tab" aria-selected={tab === item.id}
+        id={`wardrobe-tab-${item.id}`} aria-controls="wardrobe-panel" tabIndex={tab === item.id ? 0 : -1}
         className="wardrobe-tab" onClick={() => setTab(item.id)}>{item.label}</button>)}
     </div>
-    <div className="wardrobe-panel" role="tabpanel">
+    <div className="wardrobe-panel" role="tabpanel" id="wardrobe-panel" aria-labelledby={`wardrobe-tab-${tab}`}>
       {tab === 'you' && <>
         {styles('body', 'Body')}
         {colours('skin', 'Skin tone')}

@@ -104,12 +104,49 @@ await step('player walks', async () => {
   if (!(moved >= 1)) throw new Error(`player did not move (moved ${moved.toFixed(2)} m)`);
   await shot('03-walked');
 });
+const focusIn = selector => page.evaluate(sel => Boolean(document.activeElement?.closest(sel)), selector);
+const canvasFocused = () => page.evaluate(() => document.activeElement?.tagName === 'CANVAS');
 await step('map opens and closes (N)', async () => {
   await page.keyboard.press('n');
   await page.waitForSelector('.world-map', { timeout: 5000 });
   await shot('04-map');
+  // Keyboard flow (MVP 7b): focus starts in the map, on the selected tab, and Tab stays in the map.
+  await waitFor('map takes focus', timeout => page.waitForFunction(() => document.activeElement?.closest('.world-map')
+    && document.activeElement.getAttribute('aria-selected') === 'true', null, { timeout }), 15000);
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Shift+Tab');
+  if (!(await focusIn('.world-map'))) throw new Error('Shift+Tab left the map');
+  for (let i = 0; i < 8; i++) await page.keyboard.press('Tab');
+  if (!(await focusIn('.world-map'))) throw new Error('Tab left the map');
   await page.keyboard.press('n');
   await page.waitForSelector('.world-map', { state: 'detached', timeout: 5000 });
+  await waitFor('focus back on the 3D view after the map', timeout => page.waitForFunction(() => document.activeElement?.tagName === 'CANVAS', null, { timeout }), 10000);
+});
+await step('talk to a neighbour with the keyboard only', async () => {
+  if (!(await page.evaluate(() => window.__tld.place('neighbour')))) throw new Error('nobody out to talk to on Maple Street');
+  await waitFor('talk prompt', timeout => page.locator('.world-car-action', { hasText: /^Talk to / }).first().waitFor({ timeout }));
+  await page.locator('canvas').first().click({ position: { x: 320, y: 120 } });
+  for (let tries = 0; tries < 10 && !(await page.locator('.npc-chat-card').count()); tries++) {
+    await page.keyboard.press('e');
+    await page.waitForTimeout(1000);
+  }
+  await waitFor('conversation opens', timeout => page.waitForSelector('.npc-chat-card', { timeout }), 15000);
+  await waitFor('first answer focused', timeout => page.waitForFunction(() =>
+    document.activeElement === document.querySelector('.npc-chat-choices button'), null, { timeout }), 15000);
+  await page.keyboard.press('ArrowDown');
+  if (!(await page.evaluate(() => document.activeElement === document.querySelectorAll('.npc-chat-choices button')[1]))) throw new Error('ArrowDown did not move to the second answer');
+  for (let i = 0; i < 6; i++) await page.keyboard.press('Tab');
+  if (!(await focusIn('.npc-chat-card'))) throw new Error('Tab left the conversation');
+  await page.locator('.npc-chat-choices button').first().focus();
+  await page.keyboard.press('Enter');
+  await waitFor('reply shows', timeout => page.locator('.npc-chat-result').waitFor({ timeout }), 15000);
+  await waitFor('Continue focused', timeout => page.waitForFunction(() => document.activeElement?.textContent === 'Continue story', null, { timeout }), 15000);
+  await shot('04a-talk-keyboard');
+  await page.keyboard.press('Enter');
+  await waitFor('conversation closes', timeout => page.waitForSelector('.npc-chat-card', { state: 'detached', timeout }), 15000);
+  await dismissDialogue();
+  if (!(await page.locator('.story-scene').count()) && !(await canvasFocused())) {
+    await waitFor('focus back on the 3D view after talking', timeout => page.waitForFunction(() => document.activeElement?.tagName === 'CANVAS', null, { timeout }), 10000);
+  }
 });
 await step('menu opens with Esc, shows every tab, and closes', async () => {
   await page.locator('canvas').first().click({ position: { x: 320, y: 120 } });
@@ -221,6 +258,13 @@ await step('minimap shows, and a map waypoint gives a GPS route', async () => {
   await map.click({ position: { x: box.width * 0.75, y: box.height * 0.35 } });
   await waitFor('waypoint set', timeout => page.waitForFunction(() => Boolean(window.__tld.waypoint()), null, { timeout }));
   await shot('05c-gps-map');
+  // Keyboard GPS (MVP 7b): a place button sets the waypoint without the mouse.
+  const clicked = JSON.stringify(await page.evaluate(() => window.__tld.waypoint()));
+  const place = page.locator('.world-map-gps-place').first();
+  await waitFor('keyboard GPS places listed', timeout => place.waitFor({ timeout }));
+  await place.focus();
+  await page.keyboard.press('Enter');
+  await waitFor('keyboard waypoint set', timeout => page.waitForFunction(before => JSON.stringify(window.__tld.waypoint()) !== before, clicked, { timeout }));
   await page.keyboard.press('n');
   await waitFor('big map closes', timeout => page.waitForSelector('.world-map', { state: 'detached', timeout }));
   await waitFor('GPS route appears', timeout => page.waitForFunction(() => window.__tld.route() > 0, null, { timeout }), 120000);

@@ -7,3 +7,6 @@
 .world-map-travel { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 0.82rem; }
 .world-map-travel button { padding: 5px 10px; font-size: 0.8rem; }
 .world-map-travel button:disabled { opacity: 0.45; }
+/* Keyboard GPS (MVP 7b): the same waypoints as clicking the map, reachable with Tab. */
+.world-map-gps-places { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex-basis: 100%; }
+.world-map-gps-place { border: 1px solid #b44dff; }

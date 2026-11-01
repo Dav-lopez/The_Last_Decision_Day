@@ -11,7 +11,7 @@ const CONTROLS: ReadonlyArray<readonly [string, string]> = [
   ['Space', 'Jump (on foot)'],
   ['Drag · scroll · pinch', 'Orbit and zoom the camera'],
   ['E', 'Interact: doors, desks, bed, stove, cars, signs, talk to people'],
-  ['1 – 3', 'Pick an answer in a conversation'],
+  ['1 – 3 · ↑ ↓ and Enter', 'Pick an answer in a conversation'],
   ['N', 'Map and quick travel'],
   ['W / S · A / D', 'In a car: accelerate, brake, reverse · steer'],
   ['Space · H', 'In a car: handbrake (slide round corners) · horn'],
