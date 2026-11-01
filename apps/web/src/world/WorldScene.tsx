@@ -28,16 +28,22 @@ import { ScanImport } from './ScanImport';
 import { readHouseStyle } from './photoPalette.mjs';
 import { colorFor, modelFor, readLook, writeLook, type Look } from './appearance.mjs';
 import { Wardrobe } from './Wardrobe';
-import { WorldMap, type MapMarker, type MapSnapshot, type TravelTarget, type WaypointControl } from './WorldMap';
+import type { MapMarker, MapSnapshot, TravelTarget, WaypointControl } from './WorldMap';
 import type { RangeOutcome } from './TrainingRange';
 // The training range (its drawing code and styles) downloads the first time you train.
 // The car radio's dial and songs load on the first drive.
 const RadioHud = lazy(() => import('./audio/RadioHud').then(module => ({ default: module.RadioHud })));
+// Downtown's 3D builders and the football match load on demand (see downtownKit.ts and footballMatchKit.ts).
+type DowntownKit = typeof import('./downtownKit');
+type MatchKit = typeof import('./footballMatchKit');
+// The big map loads once the world is up (prefetched), and mounts the first time it opens.
+const loadWorldMap = () => import('./WorldMap');
+const WorldMap = lazy(() => loadWorldMap().then(module => ({ default: module.WorldMap })));
 const TrainingRange = lazy(() => import('./TrainingRange').then(module => ({ default: module.TrainingRange })));
 import { nextStation, readRadioStation, writeRadioStation } from './audio/radioDial.mjs';
 import { RANGE_DRILLS, TRAINING_MINUTES, canTrain, finishTraining } from './trainingRange.mjs';
 import { AudioPanel } from './audio/AudioPanel';
-import { loadCityTraffic, type CityTraffic } from './cityTrafficScene';
+import type { CityTraffic } from './cityTrafficScene';
 import { buildRoadGraph, type RoadGraph } from './cityTraffic.mjs';
 import { nearestOnRoads, routeBetween } from './gps.mjs';
 import { Minimap } from './Minimap';
@@ -50,10 +56,10 @@ const NO_MESSAGES: PhoneMessage[] = [];
 import { graphicsMode, readSettings, reducedMotion, resetProgress, writeSettings, type PlayerSettings } from './gameSettings.mjs';
 import type { GameAudio } from './audio/director.mjs';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
-import { buildFootballPitch } from './footballScene';
-import { createMatch, formatClock as formatMatchClock, saveMessage, stepMatch, type MatchState } from './footballMatch.mjs';
+import type { buildFootballPitch } from './footballScene';
+import type { MatchState } from './footballMatch.mjs';
 import { ROUNDS as LEAGUE_ROUNDS, YOU as LEAGUE_YOU, clubName, clubShort, readLeague, recordResult, standings, upcomingFixture, writeLeague, yourPosition, type ClubId, type League } from './footballLeague.mjs';
-import { loadFootballPlayers } from './footballPlayers';
+import type { loadFootballPlayers } from './footballPlayers';
 import { CAREERS, SHIFT_HOURS, joinCareer, workplaceDoors, quitCareer, rankOf, readCareer, workShift, writeCareer, type CareerId, type CareerState } from './careers.mjs';
 import { buildWorkplaces, createLightBar, createSiren, createTaskMarker } from './careersScene';
 import { TASKS, formatClock as formatDutyClock, planTask, stepTask, taskResult, taskStatus, type CareerTask } from './careerTasks.mjs';
@@ -76,9 +82,9 @@ import { NPC_DIALOGUES, nearbyNpc, talkSpot, beginNpcConversation, chooseNpcRepl
   type NpcId, type NpcConversation, type NpcReply, type NpcRelations } from './npcConversations.mjs';
 import { buildSchoolScene } from './schoolScene';
 import { BUS_RIDE_MINUTES, MAPLE_BUS_STOP, atBusStop, cameraClearance, createCityCollider, findBusStop, readCity, stepCityLocomotion, toLocal, toWorld, type City } from './cityLayout.mjs';
-import { buildBusStop, buildCityScene } from './cityScene';
+import { buildBusStop } from './busStopScene';
 import { placeDowntownRegulars, downtownTalkSpot, offTraffic, type PlacedRegular } from './downtownPeople.mjs';
-import { buildCityLights } from './cityLights';
+import type { buildCityLights } from './cityLights';
 import { CLASSROOM, CLASSROOM_SPAWN, SCHOOL_ORIGIN, atClassroomExit, deskInReach, nearTeacher, stepClassroomLocomotion } from './schoolInterior.mjs';
 import { attendLesson, currentEntry, isSchoolOpen, joinableLesson, schoolStatus } from './schoolSchedule.mjs';
 import { advanceLife, canSleep, eat, FOOD, lifeTotalMinutes, chooseStartingLife, formatClock, isEvening, isExhausted, nearBed, normalizeLife, readLife,
@@ -451,6 +457,8 @@ export default function WorldScene({
   const [mapOpen, setMapOpenState] = useState(false);
   // The ref lets key handlers see the map's state; focus may be on the map, not the game.
   const mapOpenRef = useRef(false);
+  const [mapMounted, setMapMounted] = useState(false);
+  useEffect(() => { if (mapOpen) setMapMounted(true); }, [mapOpen]);
   const setMapOpen = useCallback((next: boolean | ((open: boolean) => boolean)) => {
     setMapOpenState(open => {
       const value = typeof next === 'function' ? next(open) : next;
@@ -923,7 +931,11 @@ export default function WorldScene({
       let route: { points: [number, number][]; length: number } | null = null;
       let routeTimer = 0;
       let viewHeading = 0;
+      let downtownKit: DowntownKit | null = null;
       const loadDowntown = async () => {
+        // The 3D builders download alongside the map data; downtownSite (and so the bus, taxi and road) waits for both.
+        const kitLoading = import('./downtownKit');
+        kitLoading.catch(() => {});
         const index = await fetch('/city/index.json').then(response => response.ok ? response.json() : null);
         const entry = Array.isArray(index?.cities) ? index.cities[0] : null;
         if (!entry?.file) return;
@@ -934,6 +946,8 @@ export default function WorldScene({
         if (!local) return;
         const world = toWorld([local.x, local.z]);
         workDoors = workplaceDoors(city, collider);
+        downtownKit = await kitLoading;
+        if (disposed) return;
         // The GPS works from the map data, before the 3D city is built.
         roadGraph = buildRoadGraph(city.roads);
         downtownSite = {
@@ -945,8 +959,9 @@ export default function WorldScene({
       };
       /** Builds the 3D downtown the first time it's needed; afterwards (or with no map data yet) returns what there is. */
       const ensureDowntown = () => {
-        if (downtown || !downtownSite || disposed || scene.isDisposed) return downtown;
+        if (downtown || !downtownSite || !downtownKit || disposed || scene.isDisposed) return downtown;
         const { city, collider, stop, heading } = downtownSite;
+        const { buildCityScene, buildCityLights, buildFootballPitch, loadCityTraffic } = downtownKit;
         const builtAt = performance.now();
         const disposeCity = buildCityScene(scene, city);
         // Street lamps on every downtown street (clustered lights at night).
@@ -1740,6 +1755,7 @@ export default function WorldScene({
       // Five-a-side match: you up front for Blue with four AI teammates against five AI Reds.
       let match: MatchState | null = null;
       let matchPlayers: Awaited<ReturnType<typeof loadFootballPlayers>> = null;
+      let matchKit: MatchKit | null = null;
       let matchLoading = false;
       let matchActions: { shoot?: boolean; chip?: boolean; pass?: boolean } = {};
       let matchEndsIn = 0;
@@ -1759,13 +1775,18 @@ export default function WorldScene({
           if (match || matchLoading || !football || locationRef.current !== 'city') return;
           matchLoading = true;
           notify('Picking teams…');
-          const fresh = createMatch();
           const next = upcomingFixture(leagueRef.current);
           opponent = next.opponent ?? 'creek';
           setLeagueOpen(false);
-          void loadFootballPlayers(scene, fresh.players, shadows).then(bodies => {
+          let fresh: MatchState | null = null;
+          void (matchKit ? Promise.resolve(matchKit) : import('./footballMatchKit')).then(kit => {
+            if (disposed || scene.isDisposed) return null;
+            matchKit = kit;
+            fresh = kit.createMatch();
+            return kit.loadFootballPlayers(scene, fresh.players, shadows);
+          }, () => null).then(bodies => {
             matchLoading = false;
-            if (!bodies || locationRef.current !== 'city') { bodies?.dispose(); notify("Couldn't get the teams together. Try again."); return; }
+            if (!bodies || !fresh || locationRef.current !== 'city') { bodies?.dispose(); notify("Couldn't get the teams together. Try again."); return; }
             matchPlayers = bodies;
             match = fresh;
             lastPhase = '';
@@ -2249,7 +2270,7 @@ export default function WorldScene({
         if (city && football && match) {
           const velocity = delta > 0 ? { x: (next.x - position.x) / delta, z: (next.z - position.z) / delta } : { x: 0, z: 0 };
           const heading = Math.hypot(velocity.x, velocity.z) > 0.2 ? Math.atan2(velocity.x, velocity.z) : avatar.rotation.y;
-          match = stepMatch(match, delta, { x: next.x, z: next.z, vx: velocity.x, vz: velocity.z, heading }, matchActions);
+          match = matchKit!.stepMatch(match, delta, { x: next.x, z: next.z, vx: velocity.x, vz: velocity.z, heading }, matchActions);
           matchActions = {};
           football.ball = match.ball;
           football.pitch.show(match.ball);
@@ -2261,7 +2282,7 @@ export default function WorldScene({
             if (event.type === 'goal') {
               notify(event.team === 'home' ? `GOAL for Blue! ${match.score.home}–${match.score.away}` : `${clubShort(opponent)} score. ${match.score.home}–${match.score.away}`);
               if (event.team === 'home') riggedRef.current?.playAction('Dance');
-            } else if (event.type === 'save') notify(saveMessage(event, clubShort(opponent)));
+            } else if (event.type === 'save') notify(matchKit!.saveMessage(event, clubShort(opponent)));
             else if (event.type === 'fulltime') {
               const { home, away } = match.score;
               const table = recordResult(leagueRef.current, home, away);
@@ -2331,7 +2352,7 @@ export default function WorldScene({
             const canStart = onPitchNow && !match;
             setMatchPrompt(previous => previous === canStart ? previous : canStart);
             if (match && toPitch > 45) matchRef.current.leave();
-            const board = match ? `Blue ${match.score.home} – ${match.score.away} ${clubShort(opponent)} · ${match.phase === 'fulltime' ? 'Full time' : formatMatchClock(match.clock)}` : null;
+            const board = match ? `Blue ${match.score.home} – ${match.score.away} ${clubShort(opponent)} · ${match.phase === 'fulltime' ? 'Full time' : matchKit!.formatMatchClock(match.clock)}` : null;
             setScoreboard(previous => previous === board ? previous : board);
             setBallPrompt(previous => previous === nearBall ? previous : nearBall);
             const work = workplaceAt(position);
@@ -2556,7 +2577,7 @@ export default function WorldScene({
     <div className="world-viewport" ref={viewportRef}>
       {!error && <canvas ref={canvasRef} tabIndex={0} aria-label={`3D world for ${displayName}; click to focus, use WASD or arrow keys to move`} />}
       {error ? <p className="world-fallback" role="status">{error}</p> : <>
-        <LoadingScreen tracker={loadTracker} onReady={() => { worldReadyRef.current = true; }} />
+        <LoadingScreen tracker={loadTracker} onReady={() => { worldReadyRef.current = true; void loadWorldMap().catch(() => {}); }} />
         <div className="world-life" role="status" aria-label={`Day ${lifeView.day}, ${formatClock(lifeView.minute)}, energy ${Math.round(lifeView.energy)} percent`}>
           <span>Day {lifeView.day} · {formatClock(lifeView.minute)}{lifeSync && syncStatus !== 'idle' &&
             <small className="world-sync"> · {syncStatus === 'offline' ? 'Saved in this browser' : syncStatus === 'saving' ? 'Saving…' : 'Saved to your account'}</small>}</span>
@@ -2578,7 +2599,7 @@ export default function WorldScene({
         <div className="world-caption"><button type="button" className="world-menu-button" aria-label="Open the game menu (Escape)" aria-expanded={menuOpen}
           onClick={() => openMenu()}>☰ Menu</button> <strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : inCity ? inCity : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
-        <WorldMap open={mapOpen} onClose={() => setMapOpen(false)} read={readMap} travel={travelTo} waypoint={waypointControl} />
+        {(mapOpen || mapMounted) && <Suspense fallback={null}><WorldMap open={mapOpen} onClose={() => setMapOpen(false)} read={readMap} travel={travelTo} waypoint={waypointControl} /></Suspense>}
         <Minimap read={readMap} hidden={mapOpen || menuOpen || phoneOpen || Boolean(rangeOpen) || inHome || atSchool} />
         {phoneOpen && <Suspense fallback={null}><Phone open={!menuOpen && !mapOpen} onClose={closePhone} phone={phone} messages={messages} onRead={readMessages}
           relations={npcRelations} career={career} clock={formatClock(lifeView.minute)} day={lifeView.day} energy={lifeView.energy}

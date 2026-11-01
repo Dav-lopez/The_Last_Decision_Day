@@ -68,6 +68,11 @@ A new player can:
   - [x] 6b. Downtown and the training range loaded only when you first go there: the 3D city, street lamps, pitch,
         workplace signs and traffic are built behind the first ride's fade (the map, taxi and workplace pins work
         from the street data at once), and the range is its own download; the playtest checks both halves.
+  - [x] 6d. Downtown's code loads on demand too: the 3D city, street-lamp, pitch, traffic, traffic-light and
+        pedestrian builders (`downtownKit.ts`) download with the downtown map data, the five-a-side match rules and
+        players (`footballMatchKit.ts`) when you start a match, and the big map after Maple Street is up. WorldScene
+        went from 125.7 KB to about 113 KB gzipped (main had gone over its 124 KB budget once the radio, phone and
+        driving feel all landed); `lazy-chunks.test.mjs` keeps those modules out of WorldScene's static imports.
   - [ ] 6c. Compressed models (meshopt/Draco or texture-size cuts for the 1.6 MB human and plant GLBs).
     - [x] 6c-1 (partial slice). Action clips (talk, sit, drive, jump, dance…) slimmed from 711 KB to 255 KB per body
           (278 KB → 75 KB gzipped) by `scripts/slim_clips.py`: redundant keys dropped (≤0.02°, 0.1 mm), rotations
@@ -170,6 +175,9 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- WorldScene's next big lazy-load candidates: the game menu (7 KB, but it hosts the audio panel that creates the
+  sound director, so the director needs a new home first) and the story/conversation data (24 KB, shared with the
+  phone).
 - Skid marks are drawn at road height 0.022 m on flat ground; if roads ever get slopes or kerbs, they need the
   ground height under each wheel. The skid-mark pool shrinks (240 → 150 → 80) as adaptive quality lowers resolution.
 - The police siren (careersScene `createSiren`) makes its own AudioContext, so it ignores the volume sliders and mute;
