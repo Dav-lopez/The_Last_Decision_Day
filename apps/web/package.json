@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
     "test:progress": "node --test tests/progress-sync.test.mjs",
-    "test:loading": "node --test tests/loading-progress.test.mjs tests/bundle-budget.test.mjs",
+    "test:loading": "node --test tests/loading-progress.test.mjs tests/bundle-budget.test.mjs tests/release-info.test.mjs",
     "check:bundle": "node scripts/check-bundle-size.mjs dist bundle-budget.json",
     "test:online": "node --test tests/online-room.test.mjs tests/remote-pose.test.mjs",
     "test:movement": "node --test tests/phone-layout.test.mjs tests/3d-movement.test.mjs tests/3d-controls.test.mjs tests/camera-follow.test.mjs tests/playable-controls.test.mjs tests/world-interactions.test.mjs tests/vehicle-drive.test.mjs tests/surroundings-layout.test.mjs",

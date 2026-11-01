@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { CHAPTERS, DECISIONS, currentStep, storyComplete, type StoryState } from './storyChapters.mjs';
 import { GRAPHICS_MODES, MOTION_MODES, TEXT_SIZES, type GraphicsMode, type PlayerSettings } from './gameSettings.mjs';
+import { PrivacyNote, WhatsNew } from '../ReleaseInfo';
+import { LATEST_RELEASE, markSeen, readLastSeen, unseenNotes } from '../releaseInfo.mjs';
 import './gameMenu.css';
 
-export type MenuTab = 'controls' | 'settings' | 'story' | 'credits';
+export type MenuTab = 'controls' | 'settings' | 'story' | 'news' | 'credits';
 
 const CONTROLS: ReadonlyArray<readonly [string, string]> = [
   ['W A S D / arrow keys', 'Walk (the camera decides which way is forward)'],
@@ -49,6 +51,14 @@ export function GameMenu({ open, tab, setTab, onClose, story, graphics, setGraph
   const resumeRef = useRef<HTMLButtonElement | null>(null);
   const dialogRef = useRef<HTMLElement | null>(null);
   const tabRefs = useRef(new Map<MenuTab, HTMLButtonElement>());
+  // "What's new": notes newer than this browser last saw keep a "New" tag for this visit; the tab dot clears once opened.
+  const [fresh] = useState(() => {
+    const lastSeen = readLastSeen(safeStorage());
+    // On a first visit everything is new, so nothing is singled out.
+    return new Set(lastSeen ? unseenNotes(lastSeen).map(note => note.id) : []);
+  });
+  const [seen, setSeen] = useState(() => readLastSeen(safeStorage()) === LATEST_RELEASE);
+  useEffect(() => { if (open && tab === 'news' && !seen) { markSeen(safeStorage()); setSeen(true); } }, [open, tab, seen]);
   useEffect(() => { if (open) resumeRef.current?.focus(); else setConfirmReset(false); }, [open]);
   // Keyboard: Tab stays inside the menu while it is open.
   const trapFocus = (event: KeyboardEvent) => {
@@ -63,7 +73,7 @@ export function GameMenu({ open, tab, setTab, onClose, story, graphics, setGraph
   const done = storyComplete(story);
   const chapterIndex = CHAPTERS.indexOf(chapter);
   const decision = story.decision ? Object.values(DECISIONS).find(d => d.id === story.decision) : null;
-  const tabs: ReadonlyArray<readonly [MenuTab, string]> = [['controls', 'Controls'], ['settings', 'Settings'], ['story', 'Story'], ['credits', 'Credits']];
+  const tabs: ReadonlyArray<readonly [MenuTab, string]> = [['controls', 'Controls'], ['settings', 'Settings'], ['story', 'Story'], ['news', "What's new"], ['credits', 'Credits']];
   // Arrow keys, Home and End move between tabs (the usual tab-list pattern).
   const tabKeys = (event: KeyboardEvent, index: number) => {
     const next = event.key === 'ArrowRight' ? index + 1 : event.key === 'ArrowLeft' ? index - 1
@@ -83,7 +93,8 @@ export function GameMenu({ open, tab, setTab, onClose, story, graphics, setGraph
       <nav className="game-menu-tabs" role="tablist" aria-label="Menu sections">
         {tabs.map(([id, label], index) => <button key={id} ref={el => { if (el) tabRefs.current.set(id, el); else tabRefs.current.delete(id); }}
           type="button" role="tab" id={`game-menu-tab-${id}`} aria-selected={tab === id} aria-controls="game-menu-panel" tabIndex={tab === id ? 0 : -1}
-          onClick={() => setTab(id)} onKeyDown={event => tabKeys(event, index)}>{label}</button>)}
+          onClick={() => setTab(id)} onKeyDown={event => tabKeys(event, index)}>{label}
+          {id === 'news' && !seen && <span className="game-menu-dot" aria-label="(new)" />}</button>)}
       </nav>
       <div className="game-menu-body" id="game-menu-panel" role="tabpanel" aria-labelledby={`game-menu-tab-${tab}`}>
         {tab === 'controls' && <>
@@ -133,6 +144,7 @@ export function GameMenu({ open, tab, setTab, onClose, story, graphics, setGraph
             </li>)}
           </ol>
         </>}
+        {tab === 'news' && <WhatsNew fresh={fresh} />}
         {tab === 'credits' && <div className="game-menu-credits">
           <p>An original game. Built with <a href="https://www.babylonjs.com" target="_blank" rel="noreferrer">Babylon.js</a> (Apache 2.0)
             and <a href="https://react.dev" target="_blank" rel="noreferrer">React</a> (MIT).</p>
@@ -143,8 +155,15 @@ export function GameMenu({ open, tab, setTab, onClose, story, graphics, setGraph
             <li>Houses, trees, cars, music and sound: original to this game (CC0).</li>
           </ul>
           <p className="game-menu-note">Boulder is a real place; every resident, business and event in the game is fictional.</p>
+          <h3>Privacy</h3>
+          <PrivacyNote />
         </div>}
       </div>
     </section>
   </div>;
+}
+
+/** localStorage, or null where the browser blocks it (some private windows). */
+function safeStorage(): Storage | null {
+  try { return window.localStorage; } catch { return null; }
 }

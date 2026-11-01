@@ -60,6 +60,17 @@ const dismissDialogue = async () => {
 
 await step('loads the start page', async () => {
   await page.goto(`${base}/?playtest`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  const title = await page.title();
+  if (title !== 'The Last Decision Day') throw new Error(`page title is "${title}"`);
+  // Release basics: icons, share image and manifest are served; What's new and the privacy note are on the page.
+  for (const path of ['/icon.svg', '/icon-192.png', '/apple-touch-icon.png', '/share.png', '/manifest.webmanifest']) {
+    const response = await page.request.get(`${base}${path}`);
+    if (!response.ok()) throw new Error(`${path} returned ${response.status()}`);
+  }
+  await page.locator('.site-footer summary', { hasText: 'Privacy' }).click({ timeout: 10000 });
+  if (!(await page.locator('.site-footer .privacy-note li').count())) throw new Error('privacy note is empty');
+  await page.locator('.site-footer summary', { hasText: "What's new" }).click();
+  if (!(await page.locator('.site-footer .whats-new li').count())) throw new Error("What's new is empty");
   await page.getByRole('button', { name: /try the 3d demo/i }).click({ timeout: 20000 });
 });
 await step('loading screen shows progress and gets out of the way', async () => {
@@ -116,11 +127,12 @@ await step('menu opens with Esc, shows every tab, and closes', async () => {
   await page.keyboard.press('Escape');
   await page.waitForSelector('.game-menu-backdrop:not([hidden])', { timeout: 10000 });
   try {
-    for (const tab of ['Settings', 'Story', 'Credits']) {
+    for (const tab of ['Settings', 'Story', "What's new", 'Credits']) {
       await page.getByRole('tab', { name: tab }).click();
       await page.waitForTimeout(200);
     }
     if (!(await page.locator('.game-menu-credits').getByText('OpenStreetMap contributors').count())) throw new Error('credits missing OpenStreetMap');
+    if (!(await page.locator('.game-menu-credits .privacy-note li').count())) throw new Error('credits missing the privacy note');
     await shot('04b-menu');
   } finally {
     // Never leave the world paused for the steps after this one.
@@ -219,6 +231,25 @@ await step('quick travel to the pitch and back home', async () => {
   await page.waitForFunction(() => window.__tld.read().location === 'street', null, { timeout: 180000 });
   await dismissDialogue();
   await shot('07-home');
+});
+
+await step('a crash shows the error screen with a working reload button', async () => {
+  // A separate tab, so the deliberate crash is not mistaken for a real one in the main run.
+  const crashPage = await browser.newPage({ viewport: { width: 640, height: 360 } });
+  try {
+    crashPage.on('pageerror', error => { if (!/Playtest crash/.test(error.message)) problems.push(`page error (crash check): ${error.message}`); });
+    await crashPage.goto(`${base}/?playtest&crash`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await crashPage.getByRole('button', { name: /try the 3d demo/i }).click({ timeout: 20000 });
+    const screen = crashPage.locator('.error-screen');
+    await screen.waitFor({ timeout: 20000 });
+    if (!(await screen.getByText('Something went wrong').count())) throw new Error('error screen has no title');
+    await crashPage.screenshot({ path: `${out}/08-error-screen.png` });
+    await screen.getByRole('button', { name: 'Back to the start page' }).click();
+    await crashPage.getByRole('button', { name: /try the 3d demo/i }).click({ timeout: 20000 });
+    await screen.waitFor({ timeout: 20000 });
+    await Promise.all([crashPage.waitForEvent('load', { timeout: 60000 }), screen.getByRole('button', { name: 'Reload the game' }).click()]);
+    await crashPage.getByRole('button', { name: /try the 3d demo/i }).waitFor({ timeout: 30000 });
+  } finally { await crashPage.close(); }
 });
 
 await browser.close();

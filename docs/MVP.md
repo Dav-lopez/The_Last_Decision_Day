@@ -84,6 +84,11 @@ A new player can:
       (patrol route, fire call, route march) instead of a fade-to-black shift.
 - [ ] **9. Release checklist**: page title, icons and share image, an error screen with a reload button,
       a privacy note, a "what's new" list, and a final full playthrough of all three endings in the playtest.
+  - [x] 9a. Page title "The Last Decision Day", description, SVG and PNG icons (home-screen icon, web manifest), a
+        1200×630 link-share image (`scripts/render-icons.mjs` renders them), an error screen with Reload and Back buttons
+        for crashes and stale builds, a plain-language privacy note and a "What's new" list (start page and menu, with
+        "new since your last visit" tags). The playtest checks all of it and crashes a second tab on purpose.
+  - [ ] 9b. A final full playthrough of all three endings in the playtest.
 
 ## After MVP: open-world track ("GTA standard")
 
@@ -123,6 +128,14 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- The share image's `og:image` URL points at `https://the-last-decision-day.pages.dev/`; update `index.html` if the
+  game moves to its own domain. Link previews need an absolute URL, so it can't be relative.
+- React logs a crash it caught with `console.error` even when the error screen handles it; the playtest's crash check
+  runs in its own tab so that log doesn't fail the main run.
+- The privacy note (`src/releaseInfo.mjs`) must change whenever the game starts storing or sending something new
+  (for example if analytics, a TURN server for voice or cloud photo uploads are ever added).
+- The web manifest makes the game installable to a home screen, but there is no service worker, so it still needs a
+  connection; an offline shell could come with the release work.
 - The action-clip GLBs were 40 % JSON (one bufferView per accessor, 1,474 of them) and repeated identical key
   times for every bone; `scripts/slim_clips.py` fixes both and runs inside `build-actions.py`. The same repacking
   would shrink the three locomotion clips inside `human.glb`, but that file belongs to the facial-asset pipeline.
