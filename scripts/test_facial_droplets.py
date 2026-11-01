@@ -22,14 +22,38 @@ class DropletGeometryTests(unittest.TestCase):
                     self.assertTrue(all((x < 0 if side == 'Left' else x > 0) for x, _, _ in g['positions']))
                     self.assertTrue(all(1.61 < y < 1.73 and .07 < z < .10 for _, y, z in g['positions']))
                     self.assertTrue(all(d[1] < -.02 for d in g['targets'][0]))
-                    self.assertTrue(all(d[0] == d[2] == 0 for d in g['targets'][0]))
+                    self.assertTrue(all(d[0] * (-1 if side == 'Left' else 1) > 0\n                                        and d[2] < 0 for d in g['targets'][0]))
                     for i in range(0, len(g['indices']), 3):
                         a, b, c = (g['positions'][g['indices'][j][0]] for j in range(i, i+3))
                         cross_z = (b[0]-a[0])*(c[1]-a[1]) - (b[1]-a[1])*(c[0]-a[0])
                         self.assertGreater(cross_z, 0)
 
+
+    def test_convex_beads_have_curved_unit_normals_and_no_backfaces(self):
+        for kind in ('tear', 'sweat'):
+            for side in ('Left', 'Right'):
+                g = build_droplet_geometry(42, kind, side)
+                self.assertGreater(g['positions'][0][2] - g['positions'][1][2], .002)
+                self.assertTrue(any(abs(nx) > .05 for nx, _, _ in g['normals'][1:]))
+                self.assertTrue(any(abs(ny) > .05 for _, ny, _ in g['normals'][1:]))
+                for normal in g['normals']:
+                    self.assertTrue(all(math.isfinite(v) for v in normal))
+                    self.assertAlmostEqual(math.sqrt(sum(v*v for v in normal)), 1, places=6)
+                    self.assertGreater(normal[2], .1)
+
+    def test_track_offsets_are_mirrored_and_preserve_bead_shape(self):
+        for kind in ('tear', 'sweat'):
+            left = build_droplet_geometry(42, kind, 'Left')
+            right = build_droplet_geometry(42, kind, 'Right')
+            for a, b in zip(left['targets'][0], right['targets'][0]):
+                self.assertAlmostEqual(a[0], -b[0])
+                self.assertAlmostEqual(a[1], b[1])
+                self.assertAlmostEqual(a[2], b[2])
+            for delta in (left['targets'][0], right['targets'][0]):
+                self.assertTrue(all(v == delta[0] for v in delta))
+
     def test_invalid_arguments_rejected(self):
-        for head in (-1, 256, 1.5, 'Head'):
+        for head in (-1, 256, True, 1.5, 'Head'):
             with self.assertRaises(ValueError):
                 build_droplet_geometry(head, 'tear', 'Left')
         for kind, side in [('rain', 'Left'), ('tear', 'center')]:
