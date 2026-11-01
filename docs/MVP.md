@@ -135,6 +135,11 @@ above is done or blocked; any item may be split into slices.
       cosmetic dents and scratches, a horn; a police cruiser and a fire engine for those careers.
 - [ ] **14. Phone**: an in-game phone (Esc-free, key P) with messages from Mom and friends, contacts you've
       met, the map, your career, and a camera / photo mode.
+  - [x] 14a (partial slice). The phone (P, or the Phone button): texts from Mom every morning (and a nudge home
+        after dark), the story's own texts, friends who text once you get on well (and a cool note if you don't),
+        work texts (welcome, today's shift hours, promotions); a buzz, a caption and a peek under the objective when
+        one arrives; threads, unread badges, contacts with trust, a career summary and a map shortcut; arrow keys
+        between apps, P / Esc to put it away. Both playtests open it. Still to do: 14b, camera / photo mode.
 - [ ] **15. Car radio**: three or four original procedural stations with DJ-style station idents.
 - [ ] **16. Career missions**: police patrol calls (traffic stop, lost child, noise complaint), fire calls with
       the hose, army route march with checkpoints; timed, scored, and paid better than a plain shift.
@@ -210,3 +215,9 @@ above is done or blocked; any item may be split into slices.
   with `?playtest`), so touch flows don't depend on walking there in 2 fps software rendering.
 - On phones in landscape (640×360) the view and pad still don't fit together; a true overlay pad on the view
   would cover that case (worth doing with item 7's layout work).
+- Fixed: on narrow phones a two-line notice while driving made the drive HUD grow into the "Get out of car" button
+  (the phone playtest caught it once); the HUD drops its key help on phones, where the pad and button explain driving.
+- The phone's inbox (`tld-phone-v1:`) is kept in the browser only; it could join the account progress document.
+  Story texts already seen before the phone existed all arrive at once, stamped with the time you next play.
+- Friends' texts are fixed lines per person; a later pass could tie them to the day (match invites on match
+  days, Ms. Rivera's quiz on a school day) and let you reply with the same 1–3 choices as conversations.

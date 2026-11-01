@@ -111,4 +111,6 @@ export const CUES = Object.freeze({
   spray: [N(.32,.035,1600,0,'bandpass')],
   ding: [[1760,.45,.028,0],[2637,.3,.012,0]],
   reload: [N(.035,.03,4200,0,'highpass'), N(.04,.03,3200,.2,'highpass')],
+  // The phone sliding up: a soft two-note tap.
+  phone: [[740,.05,.022,0],[988,.08,.018,.05]],
 });
