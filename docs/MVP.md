@@ -92,13 +92,21 @@ A new player can:
           conversation answers; Escape closes the league table; and the downtown map lists "GPS to" place buttons so
           a waypoint can be set without a mouse. The playtest walks the map and a whole conversation by keyboard
           and sets a GPS waypoint with Enter. Still to do: the HUD contrast audit and story-scene captions.
-- [ ] **8. Content polish**: two or three downtown characters to talk to; short playable career tasks
+- [x] **8. Content polish**: two or three downtown characters to talk to; short playable career tasks
       (patrol route, fire call, route march) instead of a fade-to-black shift.
   - [x] 8a. Three downtown regulars to talk to: Priya, a volunteer guide by the bus stop; Coach Dee at the
         Central Park pitch; Captain Brooks outside the fire station. Placed from the real street data (off the
         roads, clear of the bus, workplace and match prompts), out during the day, with relationships saved like
         the neighbours'. The playtest stands beside one, presses E and has a conversation.
-  - [ ] 8b. Short playable career tasks (patrol route, fire call, route march) instead of a fade-to-black shift.
+  - [x] 8b. Short playable career tasks instead of the fade: pressing E at your workplace starts a duty — a police
+        patrol route (four stops), a fire call (three), an army route march (five checkpoints, on foot only) — planned
+        on the real downtown streets (`careerTasks.mjs`), with a glowing beam at the next stop, the GPS routed to it,
+        a duty card (stops, par clock, Give up) and a sign-off back at the door on foot. Beating par pays a bonus
+        (+50 % inside three quarters of par, +25 % on time). The playtest runs a fire call and checks the pay.
+- Career duties (8b) are the groundwork for item 16: the stops are walk-to markers with a line of text; real
+  mission beats (the hose at a fire, a lost child to find) can hang off the same stop events.
+- Leaving downtown (bus, taxi) mid-duty abandons it without pay; the life clock keeps running during a duty and
+  then jumps the rest of the four-hour shift at sign-off.
 - [ ] **9. Release checklist**: page title, icons and share image, an error screen with a reload button,
       a privacy note, a "what's new" list, and a final full playthrough of all three endings in the playtest.
 

@@ -97,3 +97,43 @@ export function createSiren() {
     dispose() { this.stop(); void context?.close(); context = null; },
   };
 }
+
+const TASK_COLOURS: Record<CareerId, string> = { police: '#4f8dff', soldier: '#c9d36a', firefighter: '#ff7a3d' };
+
+/**
+ * The next duty stop: a glowing ring on the pavement and a soft beam that can be seen down the street, gently
+ * pulsing. One marker that moves from stop to stop, so a duty adds two meshes and no lights.
+ */
+export function createTaskMarker(scene: Scene) {
+  const ring = MeshBuilder.CreateTorus('duty stop ring', { diameter: 3.2, thickness: 0.16, tessellation: 40 }, scene);
+  const beam = MeshBuilder.CreateCylinder('duty stop beam', { height: 14, diameterTop: 0.9, diameterBottom: 1.6, tessellation: 18, cap: Mesh.NO_CAP }, scene);
+  const ringMaterial = new StandardMaterial('duty stop ring', scene);
+  const beamMaterial = new StandardMaterial('duty stop beam', scene);
+  ringMaterial.disableLighting = true; beamMaterial.disableLighting = true;
+  beamMaterial.alpha = 0.22; beamMaterial.backFaceCulling = false;
+  ring.material = ringMaterial; beam.material = beamMaterial;
+  for (const mesh of [ring, beam]) { mesh.isPickable = false; mesh.setEnabled(false); }
+  let time = 0;
+  let final = false;
+  return {
+    show(at: PlanarPosition | null, career: CareerId | null, isFinal = false) {
+      const on = Boolean(at && career);
+      ring.setEnabled(on); beam.setEnabled(on);
+      if (!at || !career) return;
+      final = isFinal;
+      const colour = Color3.FromHexString(isFinal ? '#7ee08a' : TASK_COLOURS[career]);
+      ringMaterial.emissiveColor = colour; beamMaterial.emissiveColor = colour;
+      ring.position.set(at.x, 0.12, at.z);
+      beam.position.set(at.x, 7, at.z);
+    },
+    update(seconds: number) {
+      if (!ring.isEnabled()) return;
+      time += seconds;
+      const pulse = 1 + Math.sin(time * 3.2) * 0.08;
+      ring.scaling.set(pulse, 1, pulse);
+      ring.rotation.y = time * (final ? 0.4 : 0.8);
+      beamMaterial.alpha = 0.16 + 0.08 * (0.5 + 0.5 * Math.sin(time * 2.1));
+    },
+    dispose() { ring.dispose(); beam.dispose(); ringMaterial.dispose(); beamMaterial.dispose(); },
+  };
+}
