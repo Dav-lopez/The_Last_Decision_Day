@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGameAudio } from '../src/world/audio/director.mjs';
+import { createCarSynth } from '../src/world/audio/carAudio.mjs';
 import { AUDIO_DEFAULTS, normalizeAudioSettings, readAudioSettings, writeAudioSettings } from '../src/world/audio/settings.mjs';
 import { LOCATIONS, musicStep } from '../src/world/audio/score.mjs';
 
@@ -105,5 +106,29 @@ test('noise cues and instrument notes play through the graph without leaking voi
   context.advance(10); audio.update({ location: 'pitch', match: true });
   const live = context.sources.filter(s => !s.disconnected).length;
   assert.ok(live <= 80, `${live} live voices`);
+  audio.dispose();
+});
+
+test('driving: revs set the engine note, sliding tyres squeal (with a caption) and the horn holds while pressed',async()=>{
+  const context=audioContext();const cues=[];const audio=createGameAudio({createContext:()=>context,onCue:c=>cues.push(c)});
+  audio.setSettings(effectsOnly);await audio.enable();
+  audio.useCarSynth(createCarSynth);
+  audio.update({drivingSpeed:3,car:{rpm:.2,frequency:60,throttle:1,slip:0}});
+  const engine=context.sources.find(s=>s.kind==='oscillator');assert.equal(engine.frequency.value,60);
+  audio.update({drivingSpeed:5,car:{rpm:.9,frequency:110,throttle:1,slip:0}});assert.equal(engine.frequency.value,110);
+  const before=context.sources.length;
+  audio.update({drivingSpeed:8,car:{rpm:.9,frequency:110,throttle:0,slip:.8}});
+  const squeal=context.sources.slice(before).find(s=>s.kind==='buffer');assert.ok(squeal,'a looped squeal starts');
+  assert.ok(cues.includes('skid'));
+  for(let i=0;i<10;i++)audio.update({drivingSpeed:8,car:{slip:.8}});
+  assert.equal(context.sources.filter(s=>s.kind==='buffer').length,1,'one squeal voice reused');
+  audio.update({drivingSpeed:8,car:{slip:0}});assert.ok(squeal.disconnected,'stops when the tyres grip');
+  audio.horn(true);audio.update({drivingSpeed:0,car:{}});assert.ok(cues.includes('horn'));
+  const horns=context.sources.filter(s=>s.kind==='oscillator'&&s.frequency.value===349);assert.equal(horns.length,1);
+  audio.horn(true);audio.update({drivingSpeed:0,car:{}});
+  assert.equal(context.sources.filter(s=>s.kind==='oscillator'&&s.frequency.value===349).length,1,'held, not retriggered');
+  audio.horn(false);audio.update({drivingSpeed:0,car:{}});assert.ok(horns[0].disconnected);
+  audio.horn(true);audio.update({speed:0});
+  assert.equal(context.sources.filter(s=>s.kind==='oscillator'&&s.frequency.value===349&&!s.disconnected).length,0,'no horn on foot');
   audio.dispose();
 });

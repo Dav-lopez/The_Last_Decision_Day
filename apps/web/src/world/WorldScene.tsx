@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent, type CSSProperties } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent, type CSSProperties } from 'react';
 import {
   ArcRotateCamera, Color3, Color4, DirectionalLight, DynamicTexture, Engine, HemisphericLight,
   MeshBuilder, Scene, ShadowGenerator, StandardMaterial, TransformNode, Vector3,
@@ -31,7 +31,10 @@ import { Wardrobe } from './Wardrobe';
 import { WorldMap, type MapMarker, type MapSnapshot, type TravelTarget, type WaypointControl } from './WorldMap';
 import type { RangeOutcome } from './TrainingRange';
 // The training range (its drawing code and styles) downloads the first time you train.
+// The car radio's dial and songs load on the first drive.
+const RadioHud = lazy(() => import('./audio/RadioHud').then(module => ({ default: module.RadioHud })));
 const TrainingRange = lazy(() => import('./TrainingRange').then(module => ({ default: module.TrainingRange })));
+import { nextStation, readRadioStation, writeRadioStation } from './audio/radioDial.mjs';
 import { RANGE_DRILLS, TRAINING_MINUTES, canTrain, finishTraining } from './trainingRange.mjs';
 import { AudioPanel } from './audio/AudioPanel';
 import { loadCityTraffic, type CityTraffic } from './cityTrafficScene';
@@ -39,6 +42,11 @@ import { buildRoadGraph, type RoadGraph } from './cityTraffic.mjs';
 import { nearestOnRoads, routeBetween } from './gps.mjs';
 import { Minimap } from './Minimap';
 import { GameMenu, type MenuTab } from './GameMenu';
+import type { PhoneMessage, PhoneState } from './phone.mjs';
+// The phone and its messages are their own small download, fetched just after the world starts.
+const Phone = lazy(() => import('./Phone').then(module => ({ default: module.Phone })));
+type PhoneLib = typeof import('./phone.mjs');
+const NO_MESSAGES: PhoneMessage[] = [];
 import { graphicsMode, readSettings, reducedMotion, resetProgress, writeSettings, type PlayerSettings } from './gameSettings.mjs';
 import type { AudioCue, GameAudio } from './audio/director.mjs';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
@@ -87,6 +95,8 @@ export type ProgressSync = {
   save: (progress: ServerProgress) => Promise<{ status: 'saved' | 'rejected'; progress: ServerProgressResponse }>;
 };
 import { BED_SIDE, FRONT_DOORS, HOME_SPAWN, atHomeExit, nearFridge, nearStove, wallsToFadeFor, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade } from './homeInterior.mjs';
+import type { Gear } from './carFeel.mjs';
+import type { DriveFeel } from './driveFeel';
 import { TOWN_EXIT, canExitVehicle, chaseCameraAlpha, driveInput, footprintPoints, leavingTown, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
 import { activeCaptions, captionLabel, CAPTION_SECONDS, chapterCaption, pushCaption, storyLineCaption, storyLineCue, type SoundCaption } from './soundCaptions.mjs';
@@ -565,7 +575,15 @@ export default function WorldScene({
   const [evening, setEvening] = useState(false);
   const [driving, setDriving] = useState(false);
   const [driveSpeed, setDriveSpeed] = useState(0);
+  const [driveGear, setDriveGear] = useState<Gear>(1);
   const [driveNotice, setDriveNotice] = useState('');
+  // Car radio station persists across drives.
+  const [radioStation, setRadioStation] = useState(readRadioStation);
+  const radioRef = useRef(radioStation);
+  const tuneRadio = useCallback((dir: 1 | -1) => {
+    const next = nextStation(radioRef.current, dir);
+    radioRef.current = next; writeRadioStation(next); setRadioStation(next);
+  }, []);
   const [nearCar, setNearCar] = useState(false);
   const [propCredit, setPropCredit] = useState(false);
   const [busPrompt, setBusPrompt] = useState<'downtown' | 'home' | null>(null);
@@ -684,6 +702,68 @@ export default function WorldScene({
       if (progressTimerRef.current) { clearTimeout(progressTimerRef.current); progressTimerRef.current = null; uploadProgress(); }
     };
   }, [characterId, uploadProgress]);
+  // The phone (P): texts from Mom, friends and work, contacts, career and the map. The world keeps running.
+  const [phoneOpen, setPhoneOpen] = useState(false);
+  const phoneOpenRef = useRef(false);
+  const [phoneLib, setPhoneLib] = useState<PhoneLib | null>(null);
+  const [phone, setPhone] = useState<PhoneState>({ version: 1, arrived: {}, read: [] });
+  useEffect(() => {
+    let cancelled = false;
+    import('./phone.mjs').then(lib => {
+      if (cancelled) return;
+      setPhone(lib.readPhone(characterId));
+      setPhoneLib(lib);
+      void import('./Phone');
+    }).catch(() => { /* Offline mid-session: the phone stays empty; the game carries on. */ });
+    return () => { cancelled = true; };
+  }, [characterId]);
+  const [phonePeek, setPhonePeek] = useState<{ name: string; text: string } | null>(null);
+  const phoneLocation = inHome ? 'home' : atSchool ? 'school' : inCity ? 'city' : 'street';
+  const lifeHour = Math.floor(lifeView.minute / 60);
+  const lifeTired = lifeView.energy <= TIRED_ENERGY;
+  const messages = useMemo(() => !phoneLib ? NO_MESSAGES : phoneLib.phoneMessages({ story, relations: npcRelations, career, location: phoneLocation,
+    now: { day: lifeView.day, minute: lifeHour * 60 + (lifeView.minute % 60 >= 30 ? 30 : 0), energy: lifeTired ? 0 : 100 } }),
+  // Re-derived when the story, people, job, place, day or half hour changes; not every clock tick.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [phoneLib, story, npcRelations, career, phoneLocation, lifeView.day, lifeHour, lifeView.minute % 60 >= 30, lifeTired]);
+  useEffect(() => {
+    if (!phoneLib) return;
+    const { phone: next, fresh } = phoneLib.receiveMessages(phone, messages, lifeView);
+    if (next === phone) return;
+    setPhone(next);
+    phoneLib.writePhone(characterId, next);
+    if (!fresh.length) return;
+    const latest = messages.find(message => message.id === fresh[fresh.length - 1]);
+    audioRef.current?.cue('message');
+    if (latest && !phoneOpenRef.current) setPhonePeek({ name: latest.name, text: latest.text });
+    // Only new messages matter here; the clock is read at the moment they arrive.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, characterId]);
+  useEffect(() => {
+    if (!phonePeek) return;
+    const timer = window.setTimeout(() => setPhonePeek(null), 7000);
+    return () => window.clearTimeout(timer);
+  }, [phonePeek]);
+  const readMessages = useCallback((ids: string[]) => {
+    if (!phoneLib) return;
+    setPhone(current => { const next = phoneLib.markRead(current, ids); if (next !== current) phoneLib.writePhone(characterId, next); return next; });
+  }, [characterId, phoneLib]);
+  const openPhone = useCallback(() => {
+    if (menuOpenRef.current || dialogueRef.current || npcActiveRef.current || rangeOpenRef.current) return;
+    phoneOpenRef.current = true;
+    inputRef.current.clear();
+    setPhonePeek(null);
+    setPhoneOpen(true);
+    audioRef.current?.cue('phone');
+  }, []);
+  const closePhone = useCallback(() => {
+    phoneOpenRef.current = false;
+    setPhoneOpen(false);
+    canvasRef.current?.focus({ preventScroll: true });
+  }, []);
+  const phoneActionsRef = useRef({ open: openPhone, close: closePhone });
+  phoneActionsRef.current = { open: openPhone, close: closePhone };
+  const phoneUnread = phoneLib ? phoneLib.unreadCount(phone, messages) : 0;
   const [npcChat, setNpcChat] = useState<NpcChat | null>(null);
   const npcChatRef = useRef<NpcChat | null>(null);
   const npcActiveRef = useRef(false);
@@ -963,6 +1043,16 @@ export default function WorldScene({
         avatar.rotation.y = car.rotation;
       };
       const lightBar = createLightBar(scene);
+      // Driving feel (gearbox revs, tyre squeal, skid marks) loads the first time you get in a car.
+      let driveFeel: DriveFeel | null = null;
+      let driveFeelLoading = false;
+      const loadDriveFeel = () => {
+        if (driveFeelLoading) return;
+        driveFeelLoading = true;
+        void import('./driveFeel').then(module => { if (disposed) return; driveFeel = module.createDriveFeel(scene); audioRef.current?.useCarSynth(module.createCarSynth); }).catch(() => { driveFeelLoading = false; });
+      };
+      let bumpCooldown = 0;
+      let carHorn = false;
       const siren = createSiren();
       sirenRef.current = siren;
       const streetLighting = createStreetLighting(scene, directional, sun);
@@ -1251,7 +1341,7 @@ export default function WorldScene({
             taxi: Boolean(pendingTaxi) || Boolean(pendingDrive),
             travelling: pendingTaxi !== null,
             match: match ? { phase: match.phase, clock: match.clock, score: match.score, keepers: match.players.filter(p => p.role === 'keeper').map(p => ({ team: p.team, x: p.x - PITCH.x, z: p.z - PITCH.z })) } : null,
-            car: drivenIndex() >= 0 ? { x: cars[drivenIndex()].x, z: cars[drivenIndex()].z, speed: cars[drivenIndex()].speed } : null,
+            car: drivenIndex() >= 0 ? { x: cars[drivenIndex()].x, z: cars[drivenIndex()].z, speed: cars[drivenIndex()].speed, gear: driveFeel?.gear ?? null, rpm: driveFeel?.rpm ?? null, slip: driveFeel?.slip ?? 0, horn: carHorn, skidMarks: driveFeel?.marks ?? 0 } : null,
             loading: !worldReadyRef.current,
             downtownBuilt: downtown !== null, downtownBuildMs,
             career: { id: careerRef.current.career, shifts: careerRef.current.shifts, money: careerRef.current.money },
@@ -1624,6 +1714,9 @@ export default function WorldScene({
           setNearCar(false);
           setDriveNotice('');
           setDriveSpeed(0);
+          loadDriveFeel();
+          driveFeel?.reset();
+          setDriveGear(1);
           setDriving(true);
           return;
         }
@@ -1644,6 +1737,9 @@ export default function WorldScene({
         tiltCar(index, 0, 0, 10);
         lightBar.update(0, false);
         siren.stop();
+        audioRef.current?.horn(false);
+        carHorn = false;
+        driveFeel?.reset();
         avatar.setEnabled(true);
         setDriveNotice('');
         setDriving(false);
@@ -1734,6 +1830,12 @@ export default function WorldScene({
           return;
         }
         if (rangeOpenRef.current) return;
+        // P or Esc puts the phone away, wherever focus is inside it.
+        if (phoneOpenRef.current && (event.key === 'p' || event.key === 'P' || event.key === 'Escape') && !event.repeat) {
+          event.preventDefault();
+          phoneActionsRef.current.close();
+          return;
+        }
         // N or Esc closes the big map even after you clicked on it (focus is then on the map).
         if (mapOpenRef.current && (event.key === 'n' || event.key === 'N' || event.key === 'Escape') && !event.repeat) {
           event.preventDefault();
@@ -1760,9 +1862,19 @@ export default function WorldScene({
           // E, Enter or Space moves the story scene on.
           event.preventDefault();
           storyActionsRef.current.advanceDialogue();
-        } else if (key === 'h' && !event.repeat && interaction.mode === 'driving' && careerRef.current.career === 'police') {
+        } else if ((key === 'h' || key === ' ') && interaction.mode === 'driving') {
+          // In a car, H holds the horn and Space holds the handbrake.
           event.preventDefault();
-          notify(siren.toggle() ? 'Siren on (H to switch off).' : 'Siren off.');
+          inputRef.current.press(`keyboard:${key}`, key);
+        } else if (key === 'l' && !event.repeat && interaction.mode === 'driving' && careerRef.current.career === 'police') {
+          event.preventDefault();
+          notify(siren.toggle() ? 'Siren on (L to switch off).' : 'Siren off.');
+        } else if (key === 'p' && !event.repeat) {
+          event.preventDefault();
+          phoneActionsRef.current.open();
+        } else if (key === 'r' && !event.repeat && interaction.mode === 'driving') {
+          event.preventDefault();
+          tuneRadio(event.shiftKey ? -1 : 1);
         } else if (key === 'n' && !event.repeat) {
           event.preventDefault();
           setMapOpen(open => !open);
@@ -1794,7 +1906,7 @@ export default function WorldScene({
       };
       const onKeyUp = (event: KeyboardEvent) => {
         const key = normalizeKey(event.key);
-        if (MOVE_KEYS.has(key)) inputRef.current.release(`keyboard:${key}`);
+        if (MOVE_KEYS.has(key) || key === 'h' || key === ' ') inputRef.current.release(`keyboard:${key}`);
       };
       const clear = () => {
         inputRef.current.clear();
@@ -1845,10 +1957,12 @@ export default function WorldScene({
         lastAudioPosition = { ...position };
         const audioCar = drivenIndex();
         const atPitch = locationRef.current === 'city' && (Boolean(match) || Math.hypot(position.x - PITCH.x, position.z - PITCH.z) < PITCH.halfLength + 8);
+        audioRef.current?.setRadio(radioRef.current);
         audioRef.current?.update({ location: atPitch ? 'pitch' : locationRef.current,
           match: Boolean(match && match.phase !== 'fulltime'),
           speed: delta>0 && audioDistance<1 ? audioDistance/delta : 0,
           drivingSpeed: audioCar>=0 ? cars[audioCar].speed : null,
+          car: audioCar>=0 ? driveFeel?.sound() ?? null : null,
           reading: schoolOpenRef.current || dialogueRef.current || npcActiveRef.current || Boolean(rangeOpenRef.current) || menuOpenRef.current,
           paused: Boolean(pendingRide || pendingFood || pendingShift || pendingTaxi || pendingDrive || interaction.mode==='sleeping' || interaction.mode==='sitting'),
           evening: isEvening(life.minute) });
@@ -1858,6 +1972,7 @@ export default function WorldScene({
         }
         // The training range covers the screen: freeze the world (and its clock) underneath.
         if (rangeOpenRef.current || menuOpenRef.current) return;
+        driveFeel?.update(delta, clock);
         // Downtown traffic: drives around you, stops for you and your car.
         if (cityTraffic) {
           const inCityNow = locationRef.current === 'city';
@@ -2072,7 +2187,8 @@ export default function WorldScene({
             ? (candidate: CarState) => footprintPoints(candidate).some(point => downtown!.collider.blockedLocal(...toLocal(point)))
             : undefined;
           // Downtown, the other cars are the traffic around you.
-          const next = stepVehicle(before, driveInput(keys), delta, locationRef.current === 'city' ? cityTraffic?.cars() ?? [] : others, locationRef.current === 'city' ? cityTraffic?.people() ?? [] : peopleOut, cityBlock);
+          const controls = driveInput(keys);
+          const next = stepVehicle(before, controls, delta, locationRef.current === 'city' ? cityTraffic?.cars() ?? [] : others, locationRef.current === 'city' ? cityTraffic?.people() ?? [] : peopleOut, cityBlock);
           cars[driven] = { x: next.x, z: next.z, rotation: next.rotation, speed: next.speed };
           if (locationRef.current === 'street') {
             setGate(Math.hypot(next.x, next.z - TOWN_EXIT.beyond) < TOWN_EXIT.gateRange);
@@ -2086,7 +2202,14 @@ export default function WorldScene({
           const tilt = bodyLean({ kind: 'car', speed: next.speed, yawRate: delta > 0 ? headingDelta(before.rotation, next.rotation) / delta : 0,
             acceleration: delta > 0 ? (next.speed - before.speed) / delta : 0 });
           tiltCar(driven, tilt.pitch, tilt.roll, delta);
-          // Police: a light bar on the car you drive (H toggles the siren).
+          // Revs, tyres, horn and skid marks.
+          const yawRate = delta > 0 ? headingDelta(before.rotation, next.rotation) / delta : 0;
+          driveFeel?.step(before, next, controls, yawRate, delta, clock, quality);
+          carHorn = Boolean(controls.horn);
+          audioRef.current?.horn(carHorn);
+          bumpCooldown = Math.max(0, bumpCooldown - delta);
+          if (next.collided && Math.abs(before.speed) > 2 && bumpCooldown === 0) { bumpCooldown = 0.6; audioRef.current?.cue('land'); }
+          // Police: a light bar on the car you drive (L toggles the siren).
           const cop = careerRef.current.career === 'police';
           if (cop) {
             lightBar.bar.position.set(next.x - Math.sin(next.rotation) * 0.1, 1.48, next.z - Math.cos(next.rotation) * 0.1);
@@ -2104,6 +2227,8 @@ export default function WorldScene({
             hudTimer = 0;
             const kmh = speedKmh(next.speed);
             setDriveSpeed(previous => previous === kmh ? previous : kmh);
+            const gear = driveFeel?.gear ?? 1;
+            setDriveGear(previous => previous === gear ? previous : gear);
             if (next.collided) notify(peopleOut.some(person => Math.hypot(person.x - next.x, person.z - next.z) < 2.6)
               ? 'Careful, someone is in the way! Give them a moment to step aside.'
               : 'Bump! Reverse with S to back away.');
@@ -2321,6 +2446,7 @@ export default function WorldScene({
         disposed = true;
         remotePlayers.dispose();
         lightBar.dispose();
+        driveFeel?.dispose();
         taskMarker.dispose();
         siren.dispose();
         sirenRef.current = null;
@@ -2470,7 +2596,11 @@ export default function WorldScene({
           onClick={() => openMenu()}>☰ Menu</button> <strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : inCity ? inCity : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
         <WorldMap open={mapOpen} onClose={() => setMapOpen(false)} read={readMap} travel={travelTo} waypoint={waypointControl} />
-        <Minimap read={readMap} hidden={mapOpen || menuOpen || Boolean(rangeOpen) || inHome || atSchool} />
+        <Minimap read={readMap} hidden={mapOpen || menuOpen || phoneOpen || Boolean(rangeOpen) || inHome || atSchool} />
+        {phoneOpen && <Suspense fallback={null}><Phone open={!menuOpen && !mapOpen} onClose={closePhone} phone={phone} messages={messages} onRead={readMessages}
+          relations={npcRelations} career={career} clock={formatClock(lifeView.minute)} day={lifeView.day} energy={lifeView.energy}
+          objective={currentStep(story).step.objective}
+          onOpenMap={() => { closePhone(); setMapOpen(true); audioRef.current?.cue('map'); }} /></Suspense>}
         {scoreboard && <div className="world-scoreboard" role="status" aria-live="polite"><strong>{scoreboard}</strong><small>F shoot · Shift+F chip · Q pass</small>
           <span className="world-scoreboard-actions">
             <button type="button" onClick={event => { kickRef.current(false); focusWorld(event); }}>Shoot (F)</button>
@@ -2480,7 +2610,8 @@ export default function WorldScene({
         {/* The duty card takes the objective's corner while a duty runs; the objective comes back when it ends. */}
         {!(duty && inCity) && (() => {
           const { chapter, step } = currentStep(story);
-          return <div className="story-objective" aria-live="polite"><small>{chapter.title}</small><strong>{step.objective}</strong></div>;
+          return <div className="story-objective" aria-live="polite"><small>{chapter.title}</small><strong>{step.objective}</strong>
+            {phonePeek && !phoneOpen && <span className="world-phone-peek">📱 {phonePeek.name}: {phonePeek.text} · P to read</span>}</div>;
         })()}
         {storyBanner && <div className="story-banner" role="status">{storyBanner}</div>}
         {dialogue && (() => {
@@ -2498,7 +2629,7 @@ export default function WorldScene({
         })()}
         {!playerSettings.hintDismissed && !dialogue && <div className="world-first-hint" role="note">
           <strong>How to play</strong>
-          <span><kbd>W A S D</kbd> walk · <kbd>Shift</kbd> run · <kbd>E</kbd> interact and talk · <kbd>N</kbd> map · <kbd>Esc</kbd> menu</span>
+          <span><kbd>W A S D</kbd> walk · <kbd>Shift</kbd> run · <kbd>E</kbd> interact and talk · <kbd>N</kbd> map · <kbd>P</kbd> phone · <kbd>Esc</kbd> menu</span>
           <span className="world-first-hint-actions">
             <button type="button" onClick={() => openMenu('controls')}>All controls</button>
             <button type="button" onClick={() => { updateSettings({ ...playerSettings, hintDismissed: true }); canvasRef.current?.focus({ preventScroll: true }); }}>Got it</button>
@@ -2538,10 +2669,12 @@ export default function WorldScene({
             </div>}
           </section>
         </div>}
-        {driving && <div className="world-drive-hud" role="status" aria-live="polite">
-          <strong>{driveSpeed}</strong>km/h · W/S gas, brake, reverse · A/D steer · E to get out when stopped
+          {driving && <Suspense fallback={null}><RadioHud placement="panel" station={radioStation} onTune={tuneRadio} onFocusWorld={() => canvasRef.current?.focus({ preventScroll: true })} /></Suspense>}
+      {driving && <div className="world-drive-hud" role="status" aria-live="polite">
+          <strong>{driveSpeed}</strong>km/h <span className="world-drive-gear" aria-label={driveGear === 'R' ? 'Reverse gear' : `Gear ${driveGear}`}>{driveGear}</span><span className="world-drive-help"> · W/S gas, brake, reverse · A/D steer · Space handbrake · H horn · E to get out when stopped</span>
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
         </div>}
+      {driving && <Suspense fallback={null}><RadioHud placement="overlay" station={radioStation} onTune={tuneRadio} onFocusWorld={() => canvasRef.current?.focus({ preventScroll: true })} /></Suspense>}
         {!driving && driveNotice && <div className="world-notice" role="status" aria-live="polite">{driveNotice}</div>}
         {workPrompt && inCity && career.career === workPrompt && !rangeOpen && <button type="button" className="world-car-action world-range-start"
           onClick={event => { rangeRef.current.open(); focusWorld(event); }}>{RANGE_DRILLS[workPrompt].title} (T)</button>}
@@ -2605,7 +2738,7 @@ export default function WorldScene({
       </>}
     </div>
     {!error && <div className="world-controls">
-      <p>Click the world, then move with WASD or the arrow pad; hold Shift or switch RUN on to run. Press <strong>E</strong> to interact and talk, <strong>N</strong> for the map, and <strong>Esc</strong> (or ☰ Menu) for every control, settings, your story so far and credits.</p>
+      <p>Click the world, then move with WASD or the arrow pad; hold Shift or switch RUN on to run. Press <strong>E</strong> to interact and talk, <strong>N</strong> for the map, <strong>P</strong> for your phone, and <strong>Esc</strong> (or ☰ Menu) for every control, settings, your story so far and credits.</p>
       <div className="world-control-buttons">
         <div className="world-pad" aria-label="Touch movement controls">
           <div className="world-pad-top">{directionButton('▲', 'ArrowUp', 'Move forward')}</div>
@@ -2615,11 +2748,14 @@ export default function WorldScene({
             {directionButton('▶', 'ArrowRight', 'Move right')}
           </div>
         </div>
-        <div className="world-run"><button type="button" className="world-pad-key" aria-label="Toggle running" aria-pressed={sprintEnabled} onClick={event => {
+        {driving ? <div className="world-run world-drive-touch" aria-label="Car controls">
+          {directionButton('HORN', 'horn', 'Hold the horn')}
+          {directionButton('HANDBRAKE', 'handbrake', 'Hold the handbrake')}
+        </div> : <div className="world-run"><button type="button" className="world-pad-key" aria-label="Toggle running" aria-pressed={sprintEnabled} onClick={event => {
           sprintEnabledRef.current = !sprintEnabledRef.current;
           setSprintEnabled(sprintEnabledRef.current);
           if (event.detail > 0) canvasRef.current?.focus({ preventScroll: true });
-        }}>{sprintEnabled ? 'RUN: ON' : 'RUN: OFF'}</button></div>
+        }}>{sprintEnabled ? 'RUN: ON' : 'RUN: OFF'}</button></div>}
       </div>
     </div>}
     {!error && <HousePhotoPaint characterId={characterId} painterRef={housePainterRef} />}
@@ -2632,6 +2768,9 @@ export default function WorldScene({
       <button type="button" aria-label="Zoom out" onClick={event => { cameraControlsRef.current?.zoom('out'); focusWorld(event); }}>Zoom −</button>
       <button type="button" onClick={event => { cameraControlsRef.current?.reset(); focusWorld(event); }}>Reset view</button>
       <button type="button" onClick={event => { setMapOpen(open => !open); focusWorld(event); }}>Map (N)</button>
+      <button type="button" className="world-phone-button" aria-label={`Phone (P)${phoneUnread ? `, ${phoneUnread} unread` : ''}`} aria-expanded={phoneOpen}
+        onClick={() => { if (phoneOpenRef.current) closePhone(); else openPhone(); }}>
+        Phone (P){phoneUnread > 0 && <span className="world-phone-button-badge" aria-hidden="true">{phoneUnread}</span>}</button>
       <button type="button" onClick={event => { emoteRef.current('jump'); focusWorld(event); }}>Jump (Space)</button>
       <button type="button" onClick={event => { emoteRef.current('dance'); focusWorld(event); }}>Dance (G)</button>
       <button type="button" onClick={event => { toggleCamera(); focusWorld(event); }} aria-label="Switch camera view">

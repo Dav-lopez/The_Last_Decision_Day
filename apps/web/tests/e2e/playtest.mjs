@@ -181,6 +181,28 @@ await step('talk to a neighbour with the keyboard only', async () => {
     await waitFor('focus back on the 3D view after talking', timeout => page.waitForFunction(() => document.activeElement?.tagName === 'CANVAS', null, { timeout }), 10000);
   }
 });
+await step('phone opens with P: Mom\'s texts, apps by arrow keys, closes with P', async () => {
+  await page.locator('canvas').first().click({ position: { x: 320, y: 120 } });
+  await page.keyboard.press('p');
+  await waitFor('phone opens', timeout => page.waitForSelector('.world-phone', { timeout }), 30000);
+  try {
+    if (!(await page.evaluate(() => Boolean(document.activeElement?.closest('.world-phone'))))) throw new Error('phone did not take keyboard focus');
+    // The opening scene's text from Mom is in the inbox.
+    await page.locator('.world-phone-row', { hasText: 'Mom' }).first().click();
+    await waitFor('Mom\'s thread', timeout => page.waitForSelector('.world-phone-thread li', { timeout }), 30000);
+    notes.push(`phone: ${await page.locator('.world-phone-thread li').count()} message(s) from Mom`);
+    await shot('04e-phone');
+    const tabs = page.locator('.world-phone [role=tab]');
+    await tabs.filter({ hasText: 'Messages' }).focus();
+    await page.keyboard.press('ArrowRight');
+    if (!/^Contacts/.test((await page.locator('.world-phone [role=tab][aria-selected=true]').textContent()) ?? '')) throw new Error('ArrowRight did not open Contacts');
+    if (!(await page.locator('.world-phone-contact', { hasText: 'Mom' }).count())) throw new Error('Mom missing from contacts');
+  } finally {
+    await page.keyboard.press('p');
+  }
+  await waitFor('phone closes', timeout => page.waitForSelector('.world-phone', { state: 'detached', timeout }), 15000);
+  if (!(await page.evaluate(() => document.activeElement?.tagName === 'CANVAS'))) throw new Error('focus did not return to the world');
+});
 await step('menu opens with Esc, shows every tab, and closes', async () => {
   await page.locator('canvas').first().click({ position: { x: 320, y: 120 } });
   await page.keyboard.press('Escape');

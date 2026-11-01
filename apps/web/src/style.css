@@ -91,6 +91,9 @@
 .world-car-action{position:absolute;bottom:62px;left:50%;transform:translateX(-50%);background:#a8d8ff;color:#10233a;box-shadow:0 4px 18px #0007;white-space:nowrap}
 .world-drive-hud{position:absolute;bottom:14px;left:194px;max-width:calc(100% - 206px);padding:8px 12px;border-radius:8px;background:#11243ae6;color:#fff;font-size:.85rem;pointer-events:none;box-shadow:0 2px 10px #0005}
 .world-drive-hud strong{font-size:1.25rem;margin-right:6px}
+.world-drive-gear{display:inline-block;min-width:1.4em;margin:0 4px 0 2px;padding:1px 6px;border-radius:5px;background:#ffd166;color:#11243a;font-weight:800;text-align:center}
+.world-drive-touch{display:flex;flex-direction:column;gap:6px}.world-run.world-drive-touch .world-pad-key{min-height:40px;padding:0 10px;font-size:.72rem;font-weight:700;border-radius:12px}
+@media(max-width:640px){.world-run.world-drive-touch .world-pad-key{min-width:76px;min-height:44px}}
 .world-drive-notice{display:block;margin-top:4px;color:#ffd38a}
 @media(max-width:640px){.world-drive-hud{bottom:60px;font-size:.78rem}.world-car-action{bottom:110px}}
 .world-notice{position:absolute;bottom:110px;left:50%;transform:translateX(-50%);padding:8px 14px;border-radius:8px;background:#11243ae6;color:#ffd38a;font-size:.88rem;pointer-events:none;white-space:nowrap;box-shadow:0 2px 10px #0005}
@@ -163,6 +166,8 @@
   .world-root .world-car-action.world-league-open{top:auto;bottom:200px;left:calc(50% + 4px);right:8px}
   .world-root .world-notice{bottom:8px;left:8px;right:8px;transform:none;max-width:none;white-space:normal;text-align:center;font-size:.78rem;padding:6px 10px}
   .world-root .world-drive-hud{bottom:8px;left:8px;right:8px;font-size:.74rem}
+  /* The pad and the action button say how to drive on a phone; keeping the HUD short leaves room for notices under the button. */
+  .world-root .world-drive-help{display:none}
   .world-root .world-scoreboard{top:auto;bottom:150px;left:8px;right:8px;transform:none;flex-wrap:wrap;justify-content:center;gap:6px;padding:6px 8px}
   .world-root .world-scoreboard small{display:none}
   .world-root .world-camera-toggle{padding:10px 8px;gap:6px}

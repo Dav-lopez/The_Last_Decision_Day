@@ -31,6 +31,7 @@ export const SOUND_CAPTIONS = Object.freeze({
   spray: 'Hose spraying',
   ding: 'Steel plate rings: hit',
   reload: 'Reloading',
+  skid: 'Tyres screech',
 });
 
 export const CAPTION_SECONDS = 3.5;

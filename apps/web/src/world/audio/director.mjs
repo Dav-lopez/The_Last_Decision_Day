@@ -1,13 +1,19 @@
 import { CUES, LOCATIONS, beatSeconds, musicStep } from './score.mjs';
 import { normalizeAudioSettings } from './settings.mjs';
+import { isStation } from './radioDial.mjs';
 
 /** Web Audio is created only by enable(), called directly from a user gesture. */
-export function createGameAudio({ createContext, onStatus = () => {}, onCue = () => {} } = {}) {
+export function createGameAudio({ createContext, onStatus = () => {}, onCue = () => {}, speech } = {}) {
+  // Car radio: the chosen station plays instead of the place's music while you drive.
+  // The songs (radio.mjs) load on the first drive with the radio on, keeping them out of the start-up download.
+  let radio = null, announced = -1, radioLib = null, radioLoading = null;
+  const dj = speech ?? browserSpeech();
+  const hush = () => { announced = -1; try { dj.cancel(); } catch {} };
   let context = null, buses = null, master = null, compressor = null;
   let disposed = false, enabled = false, hidden = false, resumeVersion = 0;
   let settings = normalizeAudioSettings(null);
   let nextBeat = 0, beat = 0, nextFootstep = 0, nextAmbient = 0, lastLocation = '';
-  let engine = null;
+  let engine = null, hornWanted = false, carSynthFactory = null, carSynth = null;
   let reverb = null, reverbSend = null, intensity = 0;
   const voices = new Set(), lastCue = new Map();
   const targets = new WeakMap();
@@ -28,7 +34,7 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
       try { voice.source.stop(); } catch {}
       release(voice);
     }
-    if (!category || category === 'effects') engine = null;
+    if (!category || category === 'effects') { engine = null; carSynth?.reset(); }
   }
   function register(source, gain, category, extra = []) {
     if (voices.size >= 80) return false;
@@ -89,18 +95,29 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
     register(o, gain, 'music'); o.start(start); o.stop(start + .25);
   }
   let noiseBuffer = null;
+  function ensureNoise() {
+    if (noiseBuffer) return;
+    noiseBuffer = context.createBuffer(1,Math.ceil(context.sampleRate*.5),context.sampleRate);
+    const channel = noiseBuffer.getChannelData(0); let seed = 4181;
+    for (let i=0;i<channel.length;i++) { seed=(seed*16807)%2147483647; channel[i]=(seed/2147483647)*2-1; }
+  }
   function noise(duration, volume, cutoff, category = 'effects', filterType = 'lowpass', start = now()) {
     if (!playable() || voices.size >= 80) return;
-    if (!noiseBuffer) {
-      noiseBuffer = context.createBuffer(1,Math.ceil(context.sampleRate*.5),context.sampleRate);
-      const channel = noiseBuffer.getChannelData(0); let seed = 4181;
-      for (let i=0;i<channel.length;i++) { seed=(seed*16807)%2147483647; channel[i]=(seed/2147483647)*2-1; }
-    }
+    ensureNoise();
     const source=context.createBufferSource(), gain=context.createGain(), filter=context.createBiquadFilter();
     source.buffer=noiseBuffer; filter.type=filterType; filter.frequency.setValueAtTime(cutoff,start);
     gain.gain.setValueAtTime(volume,start); gain.gain.exponentialRampToValueAtTime(.0001,start+duration);
     source.connect(filter); filter.connect(gain); gain.connect(buses[category]);
     register(source,gain,category,[filter]); source.start(start); source.stop(start+duration);
+  }
+  /** The DJ reads the station ident over the jingle (browser speech, when the device has it). */
+  function announce(station, step) {
+    const now = radioLib?.programAt(station, step);
+    if (!now || now.kind !== 'ident' || now.identStep !== 2 || announced === step) return;
+    announced = step;
+    const volume = Math.max(0, Math.min(1, settings.master * settings.music * 1.8));
+    if (volume <= 0) return;
+    try { dj.speak(now.line, { volume, pitch: station === 'pulse' ? .8 : station === 'lowtide' ? .95 : 1.05, rate: station === 'lowtide' ? .92 : 1.05 }); } catch {}
   }
   function applySettings() {
     if (!master || !buses) return;
@@ -152,13 +169,19 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
       } catch { enabled=false; if(!disposed && version===resumeVersion) onStatus('unavailable'); return false; }
     },
     disable() {
-      ++resumeVersion; enabled=false;stopVoices();
+      ++resumeVersion; enabled=false;stopVoices();hush();
       if (context) void context.suspend().catch(()=>{});
       report();
     },
-    setSettings(value) { settings=normalizeAudioSettings(value); applySettings(); if(settings.muted) stopVoices(); },
+    setSettings(value) { settings=normalizeAudioSettings(value); applySettings(); if(settings.muted) { stopVoices(); hush(); } },
+    /** The car radio station (an id from radio.mjs, or null for off). Heard only while driving. */
+    setRadio(id) {
+      radio = isStation(id) ? id : null;
+      if (radio && !radioLib && !radioLoading) radioLoading = import('./radio.mjs').then(lib => { radioLib = lib; }).catch(() => { radioLoading = null; });
+      return radioLoading ?? Promise.resolve();
+    },
     setHidden(value) {
-      hidden=Boolean(value);++resumeVersion;stopVoices();
+      hidden=Boolean(value);++resumeVersion;stopVoices();hush();
       if (!context || !enabled || disposed) return;
       const version=resumeVersion;
       void (hidden ? context.suspend() : context.resume()).then(()=>{
@@ -179,11 +202,22 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
         else noise(part.duration,part.gain,part.cutoff,'effects',part.filter,time+part.offset);
       }
     },
-    update({ location='street', speed=0, drivingSpeed=null, reading=false, paused=false, evening=false, match=false } = {}) {
+    /** Hold the car horn (true) or let go (false). Sounds only while driving. */
+    horn(on) { const want=Boolean(on); if(want && !hornWanted) { try { onCue('horn'); } catch {} } hornWanted=want; },
+    /** Plug in the car's engine, squeal and horn voices (loaded with the driving code). */
+    useCarSynth(factory) { carSynthFactory=typeof factory==='function' ? factory : null; carSynth=null; },
+    update({ location='street', speed=0, drivingSpeed=null, car=null, reading=false, paused=false, evening=false, match=false } = {}) {
       if(!playable()) return;
       const time=now();
       location=LOCATIONS.includes(location) ? location : 'street';
-      if(location!==lastLocation) { stopVoices('music');nextBeat=time;beat=0;lastLocation=location; }
+      const lib=radioLib, station=lib && radio && drivingSpeed!==null && Number.isFinite(drivingSpeed) ? radio : null;
+      const musicKey=station ? `radio:${station}` : location;
+      if(musicKey!==lastLocation) {
+        stopVoices('music');hush();nextBeat=time;lastLocation=musicKey;
+        // Tune in mid-programme, with a short burst of dial static.
+        beat=station ? lib.tuneInStep(station,Date.now()) : 0;
+        if(station && settings.music>0) noise(.22,.02,1800,'music','bandpass');
+      }
       ramp(buses.music.gain, settings.music*(reading ? .25 : paused ? .45 : 1));
       // At most one short look-ahead window: background tabs never schedule a backlog.
       if(nextBeat<time-.2) nextBeat=time;
@@ -191,15 +225,24 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
       const want = match ? 1 : drivingSpeed !== null && Number.isFinite(drivingSpeed) ? Math.min(1, Math.abs(drivingSpeed) / 9) : Math.min(1, Math.max(0, (Number(speed) || 0) - 1.8) / 2.2);
       intensity += (want - intensity) * .08;
       for(let i=0;i<3 && nextBeat<time+.12;i++) {
-        if(settings.music>0) for(const note of musicStep(location,beat,{ evening, intensity })) play(note,nextBeat);
-        nextBeat+=beatSeconds(location);beat++;
+        if(settings.music>0) {
+          for(const note of station ? lib.radioStep(station,beat,{ intensity }) : musicStep(location,beat,{ evening, intensity })) play(note,nextBeat);
+          if(station && !reading) announce(station,beat);
+        }
+        nextBeat+=station ? lib.radioStepSeconds(station) : beatSeconds(location);beat++;
       }
       const moving=Number.isFinite(speed)&&speed>.1&&!paused&&!reading&&drivingSpeed===null;
       if(moving && time>=nextFootstep && settings.effects>0) {
         noise(.075,location==='home' ? .024 : .04,location==='home' ? 550 : 1250);
         nextFootstep=time+(speed>2.8 ? .25 : .43);
       } else if(!moving) nextFootstep=time;
-      if(drivingSpeed!==null && Number.isFinite(drivingSpeed) && !paused && !reading && settings.effects>0) {
+      const drivingNow=drivingSpeed!==null && Number.isFinite(drivingSpeed) && !paused && !reading && settings.effects>0;
+      if(carSynthFactory && !carSynth) carSynth=carSynthFactory({ context, output: buses.effects, register: (...args)=>voices.size<78 && register(...args), release, ramp, noise: ()=>{ ensureNoise(); return noiseBuffer; } });
+      if(carSynth) {
+        if(engine) { try {engine.source.stop();}catch{} release(engine);engine=null; }
+        if(carSynth.update({ time, driving: drivingNow, speed: drivingSpeed, car, horn: hornWanted })) { try { onCue('skid'); } catch {} }
+      } else if(drivingNow) {
+        // Until the car's own sounds load: a plain engine hum that follows the speed.
         if(!engine && voices.size<80) {
           const source=context.createOscillator(),gain=context.createGain();
           source.type='triangle';gain.gain.setValueAtTime(.012,time);source.connect(gain);gain.connect(buses.effects);
@@ -223,11 +266,26 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
     },
     dispose() {
       if(disposed) return;
-      disposed=true;enabled=false;++resumeVersion;stopVoices();
+      disposed=true;enabled=false;++resumeVersion;stopVoices();hush();carSynth?.reset();
       if(context) { context.onstatechange=null; void context.close().catch(()=>{}); }
       for(const bus of Object.values(buses??{})) bus.disconnect();
       reverb?.disconnect(); reverbSend?.disconnect();
       master?.disconnect();compressor?.disconnect();noiseBuffer=null;
     },
+  };
+}
+
+/** Web Speech for DJ idents; silent where the browser has none. */
+function browserSpeech() {
+  return {
+    speak(line, { volume = 1, pitch = 1, rate = 1 } = {}) {
+      const synth = globalThis.speechSynthesis, Utterance = globalThis.SpeechSynthesisUtterance;
+      if (!synth || !Utterance) return;
+      synth.cancel();
+      const utterance = new Utterance(line);
+      utterance.volume = volume; utterance.pitch = pitch; utterance.rate = rate; utterance.lang = 'en-US';
+      synth.speak(utterance);
+    },
+    cancel() { globalThis.speechSynthesis?.cancel(); },
   };
 }
