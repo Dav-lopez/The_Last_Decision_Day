@@ -70,6 +70,10 @@ import { PARKED_CARS } from './streetLayout.mjs';
 import { addWorldProps } from './polyHavenProps';
 import { buildHomeScene } from './homeScene';
 import './story.css';
+// Styles of the on-demand map and match stay in the main stylesheet: as separate files they'd cost more in gzip
+// overhead than they save, and the map/scoreboard never flash unstyled while their code loads.
+import './worldMap.css';
+import './football.css';
 import { buildDecisionDecor } from './storyDecor';
 import { CAST, advanceStory, currentStep, markSceneSeen, pendingScene, readStory, storyComplete, writeStory,
   type StoryEvent, type StoryLine, type StoryState } from './storyChapters.mjs';
