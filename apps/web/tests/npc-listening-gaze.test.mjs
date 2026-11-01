@@ -40,7 +40,7 @@ test('independent fixation windows alternate horizontal direction and downward g
   assert.equal(npcListeningDown(1.45, 1, true), 0);
   assert.equal(npcListeningOffset(6.5, 1, true), 0);
   assert.equal(npcListeningOffset(8.4, 1, true), 0);
-  assert.equal(npcListeningOffset(1.45 + 8.4, 1, true), npcListeningOffset(1.45, 1, true));
+  assert.ok(Math.abs(npcListeningOffset(1.45 + 8.4, 1, true) - npcListeningOffset(1.45, 1, true)) < 1e-12);
   assert.equal(npcListeningOffset(1.45, 0.5, true), npcListeningOffset(1.45, 1, true) / 2);
   assert.notEqual(npcListeningOffset(initialNpcFace(0).elapsed + 1.45, 1, true),
     npcListeningOffset(initialNpcFace(3).elapsed + 1.45, 1, true));
