@@ -349,6 +349,9 @@ await step('quick travel to the pitch and back home', async () => {
 
 await step('a crash shows the error screen with a working reload button', async () => {
   // A separate tab, so the deliberate crash is not mistaken for a real one in the main run.
+  // The main run is over: stop its software-rendered 3D world first. Two tabs rendering Babylon on the CPU at
+  // once can starve this tab so its start-page button never settles long enough to click (seen since #229).
+  await page.goto('about:blank').catch(() => {});
   const crashPage = await browser.newPage({ viewport: { width: 640, height: 360 } });
   try {
     crashPage.on('pageerror', error => { if (!/Playtest crash/.test(error.message)) problems.push(`page error (crash check): ${error.message}`); });
