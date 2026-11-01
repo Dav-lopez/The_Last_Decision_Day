@@ -109,6 +109,11 @@ A new player can:
   then jumps the rest of the four-hour shift at sign-off.
 - [ ] **9. Release checklist**: page title, icons and share image, an error screen with a reload button,
       a privacy note, a "what's new" list, and a final full playthrough of all three endings in the playtest.
+  - [x] 9a. Page title "The Last Decision Day", description, SVG and PNG icons (home-screen icon, web manifest), a
+        1200×630 link-share image (`scripts/render-icons.mjs` renders them), an error screen with Reload and Back buttons
+        for crashes and stale builds, a plain-language privacy note and a "What's new" list (start page and menu, with
+        "new since your last visit" tags). The playtest checks all of it and crashes a second tab on purpose.
+  - [ ] 9b. A final full playthrough of all three endings in the playtest.
 
 ## After MVP: open-world track ("GTA standard")
 
@@ -149,6 +154,14 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- The share image's `og:image` URL points at `https://the-last-decision-day.pages.dev/`; update `index.html` if the
+  game moves to its own domain. Link previews need an absolute URL, so it can't be relative.
+- React logs a crash it caught with `console.error` even when the error screen handles it; the playtest's crash check
+  runs in its own tab so that log doesn't fail the main run.
+- The privacy note (`src/releaseInfo.mjs`) must change whenever the game starts storing or sending something new
+  (for example if analytics, a TURN server for voice or cloud photo uploads are ever added).
+- The web manifest makes the game installable to a home screen, but there is no service worker, so it still needs a
+  connection; an offline shell could come with the release work.
 - The porch plant's pot and soil carried 59,000 of its 69,000 triangles (552 pebbles, each UV-seamed); a third of
   its vertices sit on UV seams, which the simplifier keeps, so a seam-aware collapse (as meshoptimizer does) could
   halve it again. Four porch plants stand on Maple Street; an LOD level would still help frame rate on phones.
