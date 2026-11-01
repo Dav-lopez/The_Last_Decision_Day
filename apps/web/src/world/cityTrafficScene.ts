@@ -3,6 +3,7 @@ import '@babylonjs/loaders/glTF';
 import { CITY_ORIGIN, type City } from './cityLayout.mjs';
 import { buildRoadGraph, createTraffic, stepTraffic, trafficPoses, type TrafficObstacle } from './cityTraffic.mjs';
 import { buildTrafficLights } from './trafficLightsScene';
+import { loadCityPedestrians, type CityPedestrians } from './cityPedestriansScene';
 
 /** Paint colours for traffic: the authored sedan is repainted, one shared material per colour. */
 const PAINTS = ['#b3261e', '#e8e6e1', '#1f3b63', '#2b2d31', '#8a9399', '#2f6b45'];
@@ -14,6 +15,8 @@ export type CityTraffic = {
   update: (seconds: number, focus: { x: number; z: number }, obstacles: ReadonlyArray<TrafficObstacle>) => void;
   /** Traffic cars in world coordinates, for your car's collisions. */
   cars: () => TrafficCarState[];
+  /** People walking downtown (world), for your car's collisions. */
+  people: () => Array<{ x: number; z: number; radius: number }>;
   setVisible: (visible: boolean) => void;
   dispose: () => void;
 };
@@ -22,7 +25,8 @@ export type CityTraffic = {
  * Living downtown: AI cars on the real street network. One template per paint
  * colour, cloned for every car; cars far from the player are hidden. Resolves null if the car model can't load (downtown stays as it was).
  */
-export async function loadCityTraffic(scene: Scene, city: City, count: number, shadows?: ShadowGenerator): Promise<CityTraffic | null> {
+export async function loadCityTraffic(scene: Scene, city: City, count: number, shadows?: ShadowGenerator,
+  isInside: (x: number, z: number) => boolean = () => false): Promise<CityTraffic | null> {
   const graph = buildRoadGraph(city.roads);
   if (!graph.edges.length) return null;
   const container = await SceneLoader.LoadAssetContainerAsync('/models/environment/', 'sedan.glb', scene).catch(() => null);
@@ -62,14 +66,24 @@ export async function loadCityTraffic(scene: Scene, city: City, count: number, s
   // Traffic lights at the main junctions; the cars obey the same signals.
   const lights = traffic.signals ? buildTrafficLights(scene, graph, traffic.signals) : null;
   lights?.setVisible(false);
+  // People on the pavements, crossing with the lights; they load in the background.
+  let walkers: CityPedestrians | null = null;
+  let disposed = false;
+  void loadCityPedestrians(scene, graph, 18, isInside, shadows).then(crowd => {
+    if (disposed || scene.isDisposed) { crowd?.dispose(); return; }
+    walkers = crowd;
+    walkers?.setVisible(visible);
+  }).catch(() => { /* No walkers: traffic still runs. */ });
   let visible = false;
   let world: TrafficCarState[] = [];
 
   return {
     update(seconds, focus, obstacles) {
       if (!visible) return;
-      const local = obstacles.map(o => ({ x: o.x - CITY_ORIGIN.x, z: o.z - CITY_ORIGIN.z, radius: o.radius }));
+      // Cars stop for you, your car, and anyone walking in the road.
+      const local = [...obstacles, ...(walkers?.people() ?? [])].map(o => ({ x: o.x - CITY_ORIGIN.x, z: o.z - CITY_ORIGIN.z, radius: o.radius }));
       traffic = stepTraffic(graph, traffic, seconds, local);
+      walkers?.update(seconds, focus, traffic.signals ?? null, traffic.time ?? 0);
       lights?.update(traffic.time ?? 0);
       const poses = trafficPoses(graph, traffic);
       world = poses.map(pose => ({ x: CITY_ORIGIN.x + pose.x, z: CITY_ORIGIN.z + pose.z, rotation: pose.rotation, speed: pose.speed }));
@@ -83,13 +97,17 @@ export async function loadCityTraffic(scene: Scene, city: City, count: number, s
       });
     },
     cars: () => world,
+    people: () => walkers?.people() ?? [],
     setVisible(next) {
       visible = next;
       lights?.setVisible(next);
+      walkers?.setVisible(next);
       if (!next) for (const root of roots) root.setEnabled(false);
     },
     dispose() {
       lights?.dispose();
+      disposed = true;
+      walkers?.dispose();
       for (const root of roots) root.dispose();
       for (const template of templates) template.dispose(false, true);
       container.dispose();
