@@ -5,7 +5,7 @@ import { dressCharacter } from './riggedAvatar';
 import { bindActions, loadActionClips, type BoundAction } from './characterActions';
 import { startAction, stepAction, type ActionState } from './actionMixer.mjs';
 import { smoothHumanHeading, HUMAN_WALK_SPEED } from './humanMotion.mjs';
-import { NEIGHBORS, PERSON_RADIUS, carAhead, carComing, crossingPace, dodgeFrom, isOut, personHeading, routePose, shouldYield } from './npcLayout.mjs';
+import { NEIGHBORS, type Neighbor, PERSON_RADIUS, carAhead, carComing, crossingPace, dodgeFrom, isOut, personHeading, routePose, shouldYield } from './npcLayout.mjs';
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 import { initialNpcBlink, collectNpcEyelids, advanceNpcBlink } from './npcBlink.mjs';
 import { collectNpcFaceTargets, initialNpcFace, advanceNpcFace, resetNpcFace } from './npcFace.mjs';
@@ -33,15 +33,18 @@ export type Neighbors = {
 };
 
 const CROSSFADE = 0.25;
+/** People standing in a group chat among themselves (Talk replaces Idle); a `solo` stander just waits. */
+const chatting = (npc: Neighbor) => npc.route.kind === 'stand' && !(npc as { solo?: boolean }).solo;
 
 /**
  * Neighbours share the player's rigged human model: one download, one copy per
  * person with its own materials (skin, hair, outfit) and walk/idle clips.
  * Resolves null if the model can't load; the street simply stays empty.
+ * `residents` defaults to Maple Street's; downtown passes its own regulars.
  */
-export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Promise<Neighbors | null> {
+export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator, residents: ReadonlyArray<Neighbor> = NEIGHBORS): Promise<Neighbors | null> {
   // One download per body type; each neighbour is a copy of theirs.
-  const models = [...new Set(NEIGHBORS.map(npc => modelFor(npc.look)))];
+  const models = [...new Set(residents.map(npc => modelFor(npc.look)))];
   const loaded = await Promise.all(models.map(model => SceneLoader.LoadAssetContainerAsync('/models/', model, scene).catch(() => null)));
   const containers = new Map(models.map((model, i) => [model, loaded[i]]));
   if (scene.isDisposed || !resolveNpcBody('human.glb', containers)) {
@@ -49,7 +52,7 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
     return null;
   }
 
-  const people = NEIGHBORS.flatMap((npc, index) => {
+  const people = residents.flatMap((npc, index) => {
     // Select clips from the body we actually instantiated, not the male model's
     // animation indices. Fall back to male when a requested body is unusable.
     const chosen = resolveNpcBody(modelFor(npc.look), containers);
@@ -102,7 +105,7 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
         name => name.startsWith(prefix) ? name.slice(prefix.length) : name);
       for (const [name, clip] of bound) person.actions.set(name, clip);
       const talk = bound.get('Talk');
-      if (person.npc.route.kind === 'stand' && talk) {
+      if (chatting(person.npc) && talk) {
         // Standing in a group: Talk replaces Idle (offset so the pair don't gesture in unison).
         person.idle.stop();
         person.idle = talk.group;
@@ -202,7 +205,7 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator): Pr
         // Conversations move jaw/lips, nearby stationary residents acknowledge
         // the player, and Hit actions briefly override those poses with surprise.
         person.face = advanceNpcFace(person.face, dt, person.faceTargets, {
-          talking: npcShouldArticulate(speaker, person.npc.id, person.npc.route.kind === 'stand' && person.actions.has('Talk')),
+          talking: npcShouldArticulate(speaker, person.npc.id, chatting(person.npc) && person.actions.has('Talk')),
           // A new displayed reply restarts lip motion; an open dialog does not
           // make the NPC mouth loop forever. Ambient Talk clips are unchanged.
           speechElapsed: speaking ? speaker.elapsed : undefined,

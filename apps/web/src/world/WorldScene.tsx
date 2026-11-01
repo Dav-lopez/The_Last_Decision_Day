@@ -68,6 +68,7 @@ import { NPC_DIALOGUES, nearbyNpc, talkSpot, beginNpcConversation, chooseNpcRepl
 import { buildSchoolScene } from './schoolScene';
 import { BUS_RIDE_MINUTES, MAPLE_BUS_STOP, atBusStop, cameraClearance, createCityCollider, findBusStop, readCity, stepCityLocomotion, toLocal, toWorld, type City } from './cityLayout.mjs';
 import { buildBusStop, buildCityScene } from './cityScene';
+import { placeDowntownRegulars, downtownTalkSpot, offTraffic, type PlacedRegular } from './downtownPeople.mjs';
 import { buildCityLights } from './cityLights';
 import { CLASSROOM, CLASSROOM_SPAWN, SCHOOL_ORIGIN, atClassroomExit, deskInReach, nearTeacher, stepClassroomLocomotion } from './schoolInterior.mjs';
 import { attendLesson, currentEntry, isSchoolOpen, joinableLesson, schoolStatus } from './schoolSchedule.mjs';
@@ -425,7 +426,8 @@ export default function WorldScene({
   const [nearSchool, setNearSchool] = useState(false);
   const [nearNpc, setNearNpc] = useState<NpcId | null>(null);
   const nearNpcRef = useRef<NpcId | null>(null);
-  const npcSceneRef = useRef<Neighbors | null>(null);
+  // Whoever renders the person you're talking to: Maple Street's neighbours and downtown's regulars.
+  const npcSceneRef = useRef<Pick<Neighbors, 'setConversation'> | null>(null);
   const [wayfinding, setWayfinding] = useState('');
   const [schoolOpen, setSchoolOpen] = useState(false);
   const [look, setLook] = useState<Look>(() => readLook(characterId));
@@ -791,6 +793,9 @@ export default function WorldScene({
       // Downtown traffic loads after the city itself; it's optional.
       let cityTraffic: CityTraffic | null = null;
       let trafficShown = false;
+      // Downtown regulars you can talk to (a guide at the bus stop, a coach at the pitch, a fire captain); built with the city.
+      let regulars: Neighbors | null = null;
+      let regularSpots: PlacedRegular[] = [];
       // GPS: the road network, your waypoint (manual from the map, or the story objective) and the route to it.
       let roadGraph: RoadGraph | null = null;
       let waypoint: { x: number; z: number; label: string; manual: boolean } | null = null;
@@ -836,9 +841,18 @@ export default function WorldScene({
           if (disposed || scene.isDisposed) traffic?.dispose();
           else cityTraffic = traffic;
         }).catch(() => { /* No traffic: downtown still works. */ });
+        // Three regulars at real downtown landmarks; they share the neighbours' rigged people.
+        regularSpots = placeDowntownRegulars({
+          stop, pitch: PITCH, doors: workDoors,
+          isFree: (x, z) => { const [lx, lz] = toLocal({ x, z }); return !collider.blockedLocal(lx, lz) && offTraffic(city.roads, lx, lz); },
+        });
+        void loadNeighbors(scene, shadows, regularSpots).then(loaded => {
+          if (disposed || scene.isDisposed) loaded?.dispose();
+          else regulars = loaded;
+        }).catch(error => console.warn('Downtown regulars unavailable', error));
         pitch.show(football.ball);
         const disposeStop = buildBusStop(scene, stop.x + stop.awayX * 0.9, stop.z + stop.awayZ * 0.9, heading);
-        downtown = { city, collider, stop, dispose: () => { disposeCity(); disposeStop(); lights.dispose(); pitch.dispose(); workplaces.dispose(); cityTraffic?.dispose(); cityTraffic = null; } };
+        downtown = { city, collider, stop, dispose: () => { disposeCity(); disposeStop(); lights.dispose(); pitch.dispose(); workplaces.dispose(); cityTraffic?.dispose(); cityTraffic = null; regulars?.dispose(); regulars = null; } };
         downtownBuildMs = Math.round(performance.now() - builtAt);
         return downtown;
       };
@@ -919,9 +933,14 @@ export default function WorldScene({
       // Neighbours walking the sidewalks; the street stays empty if the shared human model fails.
       let neighbors: Neighbors | null = null;
       let peopleOut: Person[] = [];
+      npcSceneRef.current = {
+        setConversation: (id, mood, line) => { neighbors?.setConversation(id, mood, line); regulars?.setConversation(id, mood, line); },
+      };
+      /** Where everyone you could talk to stands right now (resident id → position). */
+      const talkablePositions = () => regulars ? { ...neighbors?.positions(), ...regulars.positions() } : neighbors?.positions();
       void loadNeighbors(scene, shadows).then(loaded => {
         if (environmentLoad.cancelled || scene.isDisposed) loaded?.dispose();
-        else { neighbors = loaded; npcSceneRef.current = loaded; }
+        else neighbors = loaded;
         loadTracker.finish('neighbours');
       }).catch(error => { loadTracker.fail('neighbours'); console.warn('Neighbours unavailable', error); });
       void addWorldProps(scene, environmentLoad, shadows)
@@ -1186,7 +1205,8 @@ export default function WorldScene({
             if (interaction.mode !== 'walking' || pendingTaxi || pendingDrive || pendingRide) return false;
             const where = locationRef.current;
             let to: PlanarPosition | null = null;
-            if (spot === 'neighbour') to = talkSpot(where, life.minute, neighbors?.positions(), position);
+            if (spot === 'neighbour') to = where === 'city' ? downtownTalkSpot(regulars ? regularSpots : [], life.minute, position)
+              : talkSpot(where, life.minute, neighbors?.positions(), position);
             else if (spot === 'car') to = where === 'street' ? vehicleExitPosition(cars[0], cars) : null;
             else if (where === 'city') to = workDoors.get(spot) ?? null;
             if (!to) return false;
@@ -1510,6 +1530,8 @@ export default function WorldScene({
         if (index < 0 && locationRef.current === 'city') {
           if (downtown && atBusStop(position, downtown.stop)) boardBus('home');
           else if (workplaceAt(position)) startShift(workplaceAt(position)!);
+          // Talk to a downtown regular, unless the ball is at your feet.
+          else if (nearNpcRef.current && !(football && Math.hypot(football.ball.x - position.x, football.ball.z - position.z) <= KICK.reach)) npcActionsRef.current.open(nearNpcRef.current);
           else kick(false);
           return;
         }
@@ -1786,7 +1808,7 @@ export default function WorldScene({
         markerTime += delta;
         clock += delta;
         const conversationalNeighbor = interaction.mode === 'walking'
-          ? nearbyNpc(position, locationRef.current, life.minute, neighbors?.positions()) : null;
+          ? nearbyNpc(position, locationRef.current, life.minute, talkablePositions()) : null;
         if (conversationalNeighbor !== nearNpcRef.current) {
           nearNpcRef.current = conversationalNeighbor;
           setNearNpc(conversationalNeighbor);
@@ -1937,6 +1959,12 @@ export default function WorldScene({
         peopleOut = neighbors
           ? neighbors.update(delta, life.minute, driven < 0 && locationRef.current !== 'home' ? position : null, cars)
           : [];
+        // Downtown regulars only show while you're downtown (minute -1 = nobody out).
+        if (regulars) {
+          const inCityNow = locationRef.current === 'city';
+          const near = inCityNow ? [...(cityTraffic?.cars() ?? []), ...(driven >= 0 ? [cars[driven]] : [])] : [];
+          regulars.update(delta, inCityNow ? life.minute : -1, inCityNow && driven < 0 ? position : null, near);
+        }
         if (driven >= 0) {
           tickLife(delta, 'drive');
           // Car-relative controls: W/S accelerate, brake and reverse; A/D steer.

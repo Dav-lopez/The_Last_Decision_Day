@@ -79,6 +79,11 @@ A new player can:
         a contrast audit of HUD text, and captions for the story scenes' own audio cues where they differ.
 - [ ] **8. Content polish**: two or three downtown characters to talk to; short playable career tasks
       (patrol route, fire call, route march) instead of a fade-to-black shift.
+  - [x] 8a. Three downtown regulars to talk to: Priya, a volunteer guide by the bus stop; Coach Dee at the
+        Central Park pitch; Captain Brooks outside the fire station. Placed from the real street data (off the
+        roads, clear of the bus, workplace and match prompts), out during the day, with relationships saved like
+        the neighbours'. The playtest stands beside one, presses E and has a conversation.
+  - [ ] 8b. Short playable career tasks (patrol route, fire call, route march) instead of a fade-to-black shift.
 - [ ] **9. Release checklist**: page title, icons and share image, an error screen with a reload button,
       a privacy note, a "what's new" list, and a final full playthrough of all three endings in the playtest.
 
@@ -120,6 +125,9 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- Downtown regulars (8a) have no story steps yet; a later chapter could send the player to Priya, Coach Dee
+  or Captain Brooks (their `talked-priya` / `talked-dee` / `talked-brooks` events already reach the story).
+- Downtown regulars don't show on the minimap or the big map yet.
 - 6c note: the Poly Haven props already use 1024 px WebP textures and quantized meshes; the bulk is geometry
   (the plant is 1.3 MB of vertices, the human GLBs carry facial morph targets), so the real win needs meshopt with
   a self-hosted decoder (Babylon fetches it from its CDN by default). Leave the facial GLBs to the facial-asset

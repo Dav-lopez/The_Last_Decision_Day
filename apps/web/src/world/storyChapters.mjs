@@ -14,6 +14,7 @@ export const STORY_EVENTS = Object.freeze([
   'talked-teacher', 'talked-maya', 'talked-jordan', 'talked-neighbour', 'ate', 'entered-home', 'slept', 'drove',
   'talked-ruth', 'talked-okafor', 'talked-marcus', 'talked-elena', 'talked-tess',
   'went-downtown', 'joined-career', 'worked-shift', 'played-match',
+  'talked-priya', 'talked-dee', 'talked-brooks',
 ]);
 
 export const CAST = Object.freeze({
