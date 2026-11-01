@@ -13,7 +13,8 @@ import { emotionHeadTarget, stepEmotionHeadPose } from './emotionalHeadPose.mjs'
 import { createEmotionalHeadRig } from './emotionalHeadRig.mjs';
 import { actionFacialWeight } from './actionFacial.mjs';
 import { composeFacialLayer } from './facialLayerBlend.mjs';
-import { stepSpeechOverlay } from './speechOverlay.mjs';
+import { stepSpeechOverlay, remoteCuedSpeechWeight } from './speechOverlay.mjs';
+import type { SpeechCue } from './npcSpeechCues.mjs';
 import { blendHumanWeights, classifyHumanMotion, HUMAN_WALK_SPEED, HUMAN_RUN_SPEED } from './humanMotion.mjs';
 import { normalizeRiggedVisual } from './riggedPresentation.mjs';
 import { startAction, stepAction, stopAction, type ActionState } from './actionMixer.mjs';
@@ -24,7 +25,7 @@ export type RiggedAvatar = {
   applyLook: (look: Look) => void;
   setEmotion: (emotion: Emotion) => void;
   /** Drive remote chat mouth morphs without requiring a body animation clip. */
-  setSpeaking: (speaking: boolean) => void;
+  setSpeaking: (speaking: boolean, cues?: ReadonlyArray<SpeechCue>, elapsed?: number) => void;
   /** Clips from characterActions, bound to this character's bones. */
   setActions: (actions: Map<string, BoundAction>) => void;
   /** Play an action over locomotion (one at a time); false if it isn't available. */
@@ -220,6 +221,8 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
     let emotion: Emotion = 'neutral';
     let speaking = false;
     let speechOverlay = { elapsed: 0, weight: 0 };
+    let speechCues: ReadonlyArray<SpeechCue> = [];
+    let speechCueElapsed = 0;
     const facialTargets = container.meshes.flatMap(mesh => {
       const manager = mesh.morphTargetManager;
       return manager ? Array.from({ length: manager.numTargets }, (_, i) => manager.getTarget(i)) : [];
@@ -254,7 +257,20 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
     return {
       root,
       setEmotion(next) { emotion = next; },
-      setSpeaking(next) { speaking = next === true; },
+      setSpeaking(next, cues, elapsed) {
+        speaking = next === true;
+        if (speaking && Array.isArray(cues) && cues.length && Number.isFinite(elapsed) && elapsed! >= 0) {
+          speechCues = cues;
+          speechCueElapsed = elapsed!;
+        } else if (!speaking && speechCues.length) {
+          // Hold a closed mouth through the release fade, including emote interruption.
+          speechCueElapsed = speechCues[speechCues.length - 1].end;
+        } else if (speaking) {
+          // Legacy callers with no text track retain generic Talk articulation.
+          speechCues = [];
+          speechCueElapsed = 0;
+        }
+      },
       setActions(next) {
         for (const { group } of actions.values()) group.dispose();
         actions = next;
@@ -318,8 +334,9 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
         );
         headRig.setPose(headPose);
         speechOverlay = stepSpeechOverlay(speechOverlay, speaking, frameSeconds);
-        // Remote chat uses only facial articulation; body clips remain free to walk.
-        const speechAction: ActionState | null = speechOverlay.weight > 0.001
+        if (!speaking && speechOverlay.weight === 0) speechCues = [];
+        // Remote chat uses only facial morphs; body clips keep walking/running.
+        const speechAction: ActionState | null = speechOverlay.weight > 0.001 && !speechCues.length
           ? { name: 'Talk', elapsed: speechOverlay.elapsed, loop: true, duration: 1, stopAt: null } : null;
         frameExpressionWeights.clear();
         for (const morph of facialTargets) {
@@ -343,7 +360,9 @@ export async function loadRiggedAvatar(scene: Scene, parent: TransformNode, mode
               composeFacialLayer(morph.name, emotion,
                 faceTarget(emotion, morph.name),
                 actionFacialWeight(morph.name, step.state, step.weight),
-                actionFacialWeight(morph.name, speechAction, speechOverlay.weight),
+                speechCues.length
+                   ? remoteCuedSpeechWeight(morph.name, speechCues, speechCueElapsed, speechOverlay.weight)
+                   : actionFacialWeight(morph.name, speechAction, speechOverlay.weight),
                 idleGazeTarget(morph.name, effectTime, emotion, movementSpeed)),
               frameSeconds, blinkState, expressionInfluences, frameExpressionWeights,
             );
