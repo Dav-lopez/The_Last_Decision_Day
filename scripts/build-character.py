@@ -451,7 +451,11 @@ def build(files, variant):
             "attributes": mouth_attrs,
             "indices": b.accessor(mouth["indices"], "SCALAR", 5123),
             "material": lip_material,
-            "targets": [{"POSITION": b.accessor(deltas, "VEC3")} for deltas in mouth["targets"]],
+            "targets": [
+                {"POSITION": b.accessor(deltas, "VEC3"),
+                 "NORMAL": b.accessor(normal_deltas, "VEC3")}
+                for deltas, normal_deltas in zip(mouth["targets"], mouth["normal_targets"])
+            ],
         }],
         "extras": {"targetNames": list(mouth["names"])},
     })

@@ -13,14 +13,14 @@ class OralGeometryTests(unittest.TestCase):
 
     def test_lips_are_two_disconnected_front_facing_ribbons(self):
         g = self.lips
-        self.assertEqual(len(g['positions']), 20)
-        self.assertEqual(len(g['indices']), 48)
-        self.assertFalse(any({index[0] // 10 for index in g['indices'][i:i+3]} == {0, 1}
+        self.assertEqual(len(g['positions']), 30)
+        self.assertEqual(len(g['indices']), 96)
+        self.assertFalse(any({index[0] // 15 for index in g['indices'][i:i+3]} == {0, 1}
                              for i in range(0, len(g['indices']), 3)))
         for i in range(0, len(g['indices']), 3):
             a, b, c = (g['positions'][g['indices'][i+k][0]] for k in range(3))
             self.assertGreater((b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]), 0)
-        self.assertGreater(g['positions'][7][1], g['positions'][12][1])
+        self.assertGreater(g['positions'][12][1], g['positions'][17][1])
 
     def test_mouth_morphs_preserve_bilateral_and_lower_only_articulation(self):
         g = self.lips
@@ -33,8 +33,8 @@ class OralGeometryTests(unittest.TestCase):
                     self.assertEqual(delta, (0.0, 0.0, 0.0))
         for name in ORAL_TARGETS:
             deltas = g['targets'][MOUTH_TARGETS.index(name)]
-            self.assertTrue(all(d == (0.0, 0.0, 0.0) for d in deltas[:10]))
-            self.assertTrue(all(d[1] < 0 for d in deltas[10:]))
+            self.assertTrue(all(d == (0.0, 0.0, 0.0) for d in deltas[:15]))
+            self.assertTrue(all(d[1] < 0 for d in deltas[15:]))
 
     def test_oral_surfaces_have_depth_and_follow_head(self):
         lips = self.lips['positions']

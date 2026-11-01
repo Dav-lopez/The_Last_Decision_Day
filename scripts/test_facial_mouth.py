@@ -10,13 +10,13 @@ class MouthGeometryTests(unittest.TestCase):
 
     def test_skinned_mesh_is_well_formed(self):
         g = self.geo
-        self.assertEqual(len(g["positions"]), 20)
-        self.assertEqual(len(g["indices"]), 48)
-        self.assertTrue(all(0 <= index[0] < 20 for index in g["indices"]))
+        self.assertEqual(len(g["positions"]), 30)
+        self.assertEqual(len(g["indices"]), 96)
+        self.assertTrue(all(0 <= index[0] < 30 for index in g["indices"]))
         self.assertTrue(all(j == (42, 0, 0, 0) for j in g["joints"]))
         self.assertTrue(all(sum(w) == 1 for w in g["weights"]))
         self.assertEqual(len(g["names"]), len(g["targets"]))
-        self.assertTrue(all(len(t) == 20 for t in g["targets"]))
+        self.assertTrue(all(len(t) == 30 for t in g["targets"]))
         self.assertEqual(len(set(g["names"])), len(g["names"]))
 
     def test_lips_follow_pinned_face_contour(self):
@@ -27,7 +27,7 @@ class MouthGeometryTests(unittest.TestCase):
         self.assertGreater(min(front_depths), 0.08)
         self.assertLess(max(front_depths), 0.104)
         self.assertGreater(front_depths[2], front_depths[0])
-        self.assertGreater(front_depths[2], front_depths[7])
+        self.assertGreater(front_depths[7], front_depths[2])
 
     def test_smile_and_frown_are_side_specific(self):
         g = self.geo
@@ -42,8 +42,47 @@ class MouthGeometryTests(unittest.TestCase):
         g = self.geo
         for name in ("jawOpen", "mouthOpen"):
             deltas = g["targets"][MOUTH_TARGETS.index(name)]
-            self.assertTrue(all(d == (0.0, 0.0, 0.0) for d in deltas[:10]))
-            self.assertTrue(all(d[1] < 0 for d in deltas[10:]))
+            self.assertTrue(all(d == (0.0, 0.0, 0.0) for d in deltas[:15]))
+            self.assertTrue(all(d[1] < 0 for d in deltas[15:]))
+
+
+    def test_curved_ridges_have_independent_normalized_surface_normals(self):
+        import math
+        g = self.geo
+        self.assertGreater(g["positions"][7][2], g["positions"][2][2])
+        self.assertGreater(g["positions"][22][2], g["positions"][17][2])
+        self.assertEqual(len(g["normals"]), 30)
+        self.assertTrue(all(math.isfinite(c) for n in g["normals"] for c in n))
+        for n in g["normals"]:
+            self.assertAlmostEqual(sum(c*c for c in n), 1.0, places=8)
+            self.assertGreater(n[2], 0.3)
+        for i in range(0, len(g["indices"]), 3):
+            vertices = [g["indices"][i+j][0] for j in range(3)]
+            self.assertEqual(len({v // 15 for v in vertices}), 1, "lip gap must stay open")
+
+    def test_expression_normal_deltas_are_finite_and_jaw_translation_is_rigid(self):
+        import math
+        g = self.geo
+        self.assertEqual(len(g["normal_targets"]), len(MOUTH_TARGETS))
+        for name, deltas in zip(g["names"], g["normal_targets"]):
+            self.assertEqual(len(deltas), 30)
+            self.assertTrue(all(math.isfinite(v) and abs(v) < 1.5
+                                for row in deltas for v in row))
+            if name in ("jawOpen", "mouthOpen"):
+                self.assertTrue(all(abs(v) < 1e-8 for row in deltas for v in row))
+            elif name.startswith(("mouthSmile", "mouthFrown")):
+                self.assertTrue(any(abs(v) > 1e-4 for row in deltas for v in row))
+
+    def test_pressed_lips_do_not_intersect_at_full_weight(self):
+        g = self.geo
+        press = g["targets"][MOUTH_TARGETS.index("mouthPressLeft")]
+        # Compare the inner upper/lower edges across all five columns.
+        for col in range(5):
+            upper = 10 + col
+            lower = 15 + col
+            upper_y = g["positions"][upper][1] + press[upper][1]
+            lower_y = g["positions"][lower][1] + press[lower][1]
+            self.assertGreater(upper_y - lower_y, 0.0009)
 
     def test_invalid_joint_index_rejected(self):
         for index in (-1, 256, 1.5):
