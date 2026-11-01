@@ -72,18 +72,19 @@
     {
       "file": "human-actions.glb",
       "body": "body.gltf",
-      "bytes": 710980,
-      "sha256": "bc7fda530ad7d4500f4c87de9897205c77ccbb2c0fe988941e48a9f176120b70"
+      "bytes": 255880,
+      "sha256": "82a0204022621e2a87001924000121edf4735fa38eac69fb8aa6ba57c6180240"
     },
     {
       "file": "human-female-actions.glb",
       "body": "female.gltf",
-      "bytes": 710876,
-      "sha256": "549735465252121dbcab28b3ddd2d5b401cab01795a1ab72aef686e03b68539b"
+      "bytes": 253932,
+      "sha256": "b1b81ee41382031e5ccadf6004f8353617744ee857d198423385860d52e67529"
     }
   ],
   "modifications": [
     "Retarget rotations onto each body's rest pose; keep only root/pelvis translation; remove horizontal root travel.",
-    "Skeleton nodes only: the browser binds clips to a loaded character by bone name."
+    "Skeleton nodes only: the browser binds clips to a loaded character by bone name.",
+    "Slimmed by scripts/slim_clips.py: keys a straight line reproduces are dropped (within 2e-4 per quaternion component, 0.1 mm), rotations stored as normalized 16-bit integers."
   ]
 }

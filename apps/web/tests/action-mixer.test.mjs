@@ -56,6 +56,41 @@ test('the action clips are built for both bodies, credited CC0', () => {
   }
 });
 
+test('the action clips are slimmed: 16-bit rotations, shared buffer views, unit quaternions', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../public/models/human-actions.source.json', import.meta.url)));
+  for (const file of ['human-actions.glb', 'human-female-actions.glb']) {
+    const bytes = readFileSync(new URL(`../public/models/${file}`, import.meta.url));
+    const jsonLength = bytes.readUInt32LE(12);
+    const gltf = JSON.parse(bytes.subarray(20, 20 + jsonLength).toString());
+    const bin = bytes.subarray(28 + jsonLength);
+    assert.ok(bytes.length < 400_000, `${file} is ${bytes.length} bytes`);
+    assert.equal(manifest.outputs.find(o => o.file === file).bytes, bytes.length, 'manifest records the shipped size');
+    assert.ok(gltf.extras.slimmed, 'built through scripts/slim_clips.py');
+    assert.ok(gltf.bufferViews.length <= 4, 'one buffer view per data layout');
+    let checked = 0;
+    for (const clip of gltf.animations) {
+      for (const channel of clip.channels) {
+        const sampler = clip.samplers[channel.sampler];
+        const input = gltf.accessors[sampler.input];
+        assert.ok(input.count >= 2 && input.min && input.max, 'key times carry bounds');
+        if (channel.target.path !== 'rotation') continue;
+        const output = gltf.accessors[sampler.output];
+        assert.equal(output.componentType, 5122);
+        assert.equal(output.normalized, true);
+        assert.equal(output.count, input.count);
+        const start = (gltf.bufferViews[output.bufferView].byteOffset ?? 0) + (output.byteOffset ?? 0);
+        for (let k = 0; k < output.count; k++) {
+          let length = 0;
+          for (let c = 0; c < 4; c++) length += Math.max(bin.readInt16LE(start + (k * 4 + c) * 2) / 32767, -1) ** 2;
+          assert.ok(Math.abs(Math.sqrt(length) - 1) < 2e-3);
+          checked++;
+        }
+      }
+    }
+    assert.ok(checked > 1000);
+  }
+});
+
 test('jumps vary: running jumps go higher and longer, tired ones barely leave the ground', async () => {
   const { jumpFor, jumpHeight } = await import('../src/world/actionMixer.mjs');
   const stand = jumpFor({ speed: 0, energy: 100 });
