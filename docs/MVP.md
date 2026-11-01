@@ -110,7 +110,12 @@ above is done or blocked; any item may be split into slices.
       cosmetic dents and scratches, a horn; a police cruiser and a fire engine for those careers.
 - [ ] **14. Phone**: an in-game phone (Esc-free, key P) with messages from Mom and friends, contacts you've
       met, the map, your career, and a camera / photo mode.
-- [ ] **15. Car radio**: three or four original procedural stations with DJ-style station idents.
+- [x] **15. Car radio**: three or four original procedural stations with DJ-style station idents.
+  - Four stations, all original and generated in the browser: Maple 98.1 (indie pop), Low Tide 88.4 (lo-fi),
+    Downtown 101.3 (late-night jazz) and Pulse 94.7 (synthwave), two songs each with intro, verse, chorus and
+    outro. Between songs a station jingle plays and the DJ reads a rotating ident (browser speech where available,
+    and the line is always shown on the dial). R / Shift+R or the ‹ › buttons tune; stations keep playing while
+    you're out of the car, so you tune in mid-song; the choice is remembered.
 - [ ] **16. Career missions**: police patrol calls (traffic stop, lost child, noise complaint), fire calls with
       the hose, army route march with checkpoints; timed, scored, and paid better than a plain shift.
 - [ ] **17. Seamless road**: drive from Maple Street to downtown and back without a fade (streamed world).
@@ -129,6 +134,9 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- Car radio: DJ idents use the browser's speech voice, whose volume follows Master × Music but not the
+  compressor; a recorded or synthesised CC0 voice per station would sound more like real radio. Radio and
+  location music share the music slider; a separate "Radio" slider could follow.
 - Downtown regulars (8a) have no story steps yet; a later chapter could send the player to Priya, Coach Dee
   or Captain Brooks (their `talked-priya` / `talked-dee` / `talked-brooks` events already reach the story).
 - Downtown regulars don't show on the minimap or the big map yet.

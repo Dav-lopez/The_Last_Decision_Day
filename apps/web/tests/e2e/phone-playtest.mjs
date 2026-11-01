@@ -185,6 +185,14 @@ await step('drive a car by tapping', async () => {
   await getIn.waitFor({ timeout: 60000 });
   await getIn.tap();
   await page.waitForFunction(() => window.__tld.read().driving, null, { timeout: 15000 });
+  // Car radio: on phones the dial sits under the touch pad; tapping › tunes to the next station.
+  const radio = page.locator('.world-radio-panel');
+  await radio.waitFor({ timeout: 10000 });
+  const stationBefore = (await radio.locator('strong').textContent())?.trim();
+  await radio.getByRole('button', { name: 'Next station' }).tap();
+  await page.waitForFunction(before => document.querySelector('.world-radio-panel strong')?.textContent?.trim() !== before, stationBefore, { timeout: 5000 });
+  if (await page.locator('.world-radio-overlay').isVisible()) throw new Error('the radio overlay should not cover the phone view');
+  notes.push(`radio: ${stationBefore} -> ${(await radio.locator('strong').textContent())?.trim()}`);
   const start = (await read()).car;
   const drove = () => read().then(now => now.car && Math.hypot(now.car.x - start.x, now.car.z - start.z) >= 1);
   // Forward first; a car parked nose-in to a kerb backs out instead.

@@ -34,6 +34,8 @@ import type { RangeOutcome } from './TrainingRange';
 const TrainingRange = lazy(() => import('./TrainingRange').then(module => ({ default: module.TrainingRange })));
 import { RANGE_DRILLS, TRAINING_MINUTES, canTrain, finishTraining } from './trainingRange.mjs';
 import { AudioPanel } from './audio/AudioPanel';
+import { RadioHud } from './audio/RadioHud';
+import { nextStation, readRadioStation, writeRadioStation } from './audio/radio.mjs';
 import { loadCityTraffic, type CityTraffic } from './cityTrafficScene';
 import { buildRoadGraph, type RoadGraph } from './cityTraffic.mjs';
 import { nearestOnRoads, routeBetween } from './gps.mjs';
@@ -552,6 +554,13 @@ export default function WorldScene({
   const [driving, setDriving] = useState(false);
   const [driveSpeed, setDriveSpeed] = useState(0);
   const [driveNotice, setDriveNotice] = useState('');
+  // Car radio: the station survives getting out and reloads (R / Shift+R or the dial buttons while driving).
+  const [radioStation, setRadioStation] = useState(readRadioStation);
+  const radioRef = useRef(radioStation);
+  const tuneRadio = useCallback((dir: 1 | -1) => {
+    const next = nextStation(radioRef.current, dir);
+    radioRef.current = next; writeRadioStation(next); setRadioStation(next);
+  }, []);
   const [nearCar, setNearCar] = useState(false);
   const [propCredit, setPropCredit] = useState(false);
   const [busPrompt, setBusPrompt] = useState<'downtown' | 'home' | null>(null);
@@ -1699,6 +1708,9 @@ export default function WorldScene({
         } else if (key === 'h' && !event.repeat && interaction.mode === 'driving' && careerRef.current.career === 'police') {
           event.preventDefault();
           notify(siren.toggle() ? 'Siren on (H to switch off).' : 'Siren off.');
+        } else if (key === 'r' && !event.repeat && interaction.mode === 'driving') {
+          event.preventDefault();
+          tuneRadio(event.shiftKey ? -1 : 1);
         } else if (key === 'n' && !event.repeat) {
           event.preventDefault();
           setMapOpen(open => !open);
@@ -1781,6 +1793,7 @@ export default function WorldScene({
         lastAudioPosition = { ...position };
         const audioCar = drivenIndex();
         const atPitch = locationRef.current === 'city' && (Boolean(match) || Math.hypot(position.x - PITCH.x, position.z - PITCH.z) < PITCH.halfLength + 8);
+        audioRef.current?.setRadio(radioRef.current);
         audioRef.current?.update({ location: atPitch ? 'pitch' : locationRef.current,
           match: Boolean(match && match.phase !== 'fulltime'),
           speed: delta>0 && audioDistance<1 ? audioDistance/delta : 0,
@@ -2436,6 +2449,7 @@ export default function WorldScene({
           <strong>{driveSpeed}</strong>km/h · W/S gas, brake, reverse · A/D steer · E to get out when stopped
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
         </div>}
+        {driving && <RadioHud placement="overlay" station={radioStation} onTune={tuneRadio} onFocusWorld={() => canvasRef.current?.focus({ preventScroll: true })} />}
         {!driving && driveNotice && <div className="world-notice" role="status" aria-live="polite">{driveNotice}</div>}
         {workPrompt && inCity && career.career === workPrompt && !rangeOpen && <button type="button" className="world-car-action world-range-start"
           onClick={event => { rangeRef.current.open(); focusWorld(event); }}>{RANGE_DRILLS[workPrompt].title} (T)</button>}
@@ -2498,6 +2512,7 @@ export default function WorldScene({
       </>}
     </div>
     {!error && <div className="world-controls">
+      {driving && <RadioHud placement="panel" station={radioStation} onTune={tuneRadio} onFocusWorld={() => canvasRef.current?.focus({ preventScroll: true })} />}
       <p>Click the world, then move with WASD or the arrow pad; hold Shift or switch RUN on to run. Press <strong>E</strong> to interact and talk, <strong>N</strong> for the map, and <strong>Esc</strong> (or ☰ Menu) for every control, settings, your story so far and credits.</p>
       <div className="world-control-buttons">
         <div className="world-pad" aria-label="Touch movement controls">
