@@ -19,12 +19,13 @@ test('graphics presets: automatic by default, unknown values fall back to it', (
 
 test('settings save and load, and survive junk or blocked storage', () => {
   const storage = memory();
-  assert.deepEqual(readSettings(storage), { graphics: 'auto', hintDismissed: false });
+  const defaults = { motion: 'system', captions: false, textSize: 'normal' };
+  assert.deepEqual(readSettings(storage), { graphics: 'auto', hintDismissed: false, ...defaults });
   writeSettings({ graphics: 'performance', hintDismissed: true }, storage);
-  assert.deepEqual(readSettings(storage), { graphics: 'performance', hintDismissed: true });
+  assert.deepEqual(readSettings(storage), { graphics: 'performance', hintDismissed: true, ...defaults });
   storage.setItem('tld-settings-v1', '{oops');
-  assert.deepEqual(readSettings(storage), { graphics: 'auto', hintDismissed: false });
-  assert.deepEqual(readSettings({ getItem() { throw new Error('blocked'); } }), { graphics: 'auto', hintDismissed: false });
+  assert.deepEqual(readSettings(storage), { graphics: 'auto', hintDismissed: false, ...defaults });
+  assert.deepEqual(readSettings({ getItem() { throw new Error('blocked'); } }), { graphics: 'auto', hintDismissed: false, ...defaults });
   assert.equal(writeSettings({ graphics: 'quality' }, { setItem() { throw new Error('blocked'); } }), false);
 });
 

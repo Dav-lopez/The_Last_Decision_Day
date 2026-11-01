@@ -99,7 +99,7 @@ test('pose publication includes current body and rejects arbitrary model names',
   client.dispose();
 });
 
-import { initialRemoteFacialReaction, remoteMessageReaction, remoteEmoteReaction, remoteFacialPose } from '../src/world/multiplayer/remoteFacialReactions.mjs';
+import { initialRemoteFacialReaction, remoteMessageReaction, remoteEmoteReaction, remoteFacialPose, remoteSpeechTrack } from '../src/world/multiplayer/remoteFacialReactions.mjs';
 
 test('remote chat animates the peer mouth temporarily without needing voice audio', () => {
   const reaction = remoteMessageReaction(initialRemoteFacialReaction(), 'Hello, meet me at school', 10);
@@ -141,4 +141,50 @@ test('invalid clock values cannot create permanent peer facial reactions', () =>
     assert.equal(remoteEmoteReaction(initial, 'laugh', now), initial);
     assert.deepEqual(remoteFacialPose(initial, now, true), { emotion: 'neutral', speaking: false });
   }
+});
+
+import { npcSpeechCueWeight } from '../src/world/npcSpeechCues.mjs';
+
+test('remote chat caches text-specific vowel, lip-closure and punctuation cues', () => {
+  const first = remoteMessageReaction(initialRemoteFacialReaction(), 'Papa, no!', 10);
+  const second = remoteMessageReaction(initialRemoteFacialReaction(), 'Hello, yes!', 10);
+  assert.ok(first.speechCues.length > 0 && first.speechCues.length <= 96);
+  assert.notDeepEqual(first.speechCues, second.speechCues);
+  const track = remoteSpeechTrack(first, 10.4, true);
+  assert.equal(track.cues, first.speechCues, 'cue array must be reused each frame');
+  assert.ok(Math.abs(track.elapsed - 0.4) < 1e-9);
+  const open = first.speechCues.find(c => c.open > 0);
+  const press = first.speechCues.find(c => c.press > 0);
+  const pause = first.speechCues.find(c => c.open === 0 && c.press === 0);
+  assert.ok(open && press && pause);
+  const mid = c => (c.start + c.end) / 2;
+  assert.ok(npcSpeechCueWeight('jawOpen', mid(open), first.speechCues) > 0);
+  assert.equal(npcSpeechCueWeight('jawOpen', mid(press), first.speechCues), 0);
+  assert.equal(npcSpeechCueWeight('mouthOpen', mid(pause), first.speechCues), 0);
+});
+
+test('remote chat closes at the line end, and emotes/hidden peers stop articulation', () => {
+  const line = remoteMessageReaction(initialRemoteFacialReaction(), 'Mama!', 5);
+  assert.equal(remoteFacialPose(line, 5.1, true).speaking, true);
+  const ended = remoteSpeechTrack(line, 30, true);
+  assert.equal(ended.cues, line.speechCues);
+  assert.equal(ended.elapsed, line.speakingUntil - line.startedAt);
+  assert.equal(npcSpeechCueWeight('mouthOpen', ended.elapsed, ended.cues), 0);
+  assert.equal(remoteFacialPose(line, 30, true).speaking, false);
+  assert.equal(remoteSpeechTrack(line, 5.5, false).cues.length, 0);
+  const emote = remoteEmoteReaction(line, 'wave', 5.5);
+  assert.equal(remoteSpeechTrack(emote, 5.6, true).cues.length, 0);
+  assert.equal(remoteFacialPose(emote, 5.6, true).speaking, false);
+  const punctuation = remoteMessageReaction(line, '!!!', 6);
+  assert.equal(punctuation.speechCues.length, 0);
+  assert.equal(remoteFacialPose(punctuation, 6.1, true).speaking, false);
+});
+
+test('malformed remote timestamps cannot create unbounded speech tracks', () => {
+  const base = initialRemoteFacialReaction();
+  for (const now of [NaN, Infinity, -Infinity, Number.MAX_VALUE]) {
+    assert.equal(remoteMessageReaction(base, 'hello', now), base);
+    assert.equal(remoteEmoteReaction(base, 'wave', now), base);
+  }
+  assert.equal(remoteSpeechTrack(base, NaN, true).cues.length, 0);
 });

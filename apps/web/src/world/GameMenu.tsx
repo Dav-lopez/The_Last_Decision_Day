@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { CHAPTERS, DECISIONS, currentStep, storyComplete, type StoryState } from './storyChapters.mjs';
-import { GRAPHICS_MODES, type GraphicsMode } from './gameSettings.mjs';
+import { GRAPHICS_MODES, MOTION_MODES, TEXT_SIZES, type GraphicsMode, type PlayerSettings } from './gameSettings.mjs';
 import './gameMenu.css';
 
 export type MenuTab = 'controls' | 'settings' | 'story' | 'credits';
@@ -22,6 +22,7 @@ const CONTROLS: ReadonlyArray<readonly [string, string]> = [
   ['G', 'Dance'],
   ['C', 'Change the camera'],
   ['Esc', 'Open or close this menu, or close a panel'],
+  ['Tab · Shift + Tab', 'Move between buttons in menus and panels; ← → switch menu tabs'],
 ];
 
 type Props = {
@@ -32,31 +33,59 @@ type Props = {
   story: StoryState;
   graphics: GraphicsMode;
   setGraphics: (mode: GraphicsMode) => void;
+  /** Accessibility options: motion, captions for sounds, text size. */
+  access: Pick<PlayerSettings, 'motion' | 'captions' | 'textSize'>;
+  setAccess: (next: Partial<Pick<PlayerSettings, 'motion' | 'captions' | 'textSize'>>) => void;
   onReset: () => void;
   /** The sound settings (kept mounted so audio keeps working while the menu is closed). */
   audio: ReactNode;
 };
 
 /** The in-game menu: pauses the world while open. */
-export function GameMenu({ open, tab, setTab, onClose, story, graphics, setGraphics, onReset, audio }: Props) {
+const FOCUSABLE = 'button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+export function GameMenu({ open, tab, setTab, onClose, story, graphics, setGraphics, access, setAccess, onReset, audio }: Props) {
   const [confirmReset, setConfirmReset] = useState(false);
   const resumeRef = useRef<HTMLButtonElement | null>(null);
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const tabRefs = useRef(new Map<MenuTab, HTMLButtonElement>());
   useEffect(() => { if (open) resumeRef.current?.focus(); else setConfirmReset(false); }, [open]);
+  // Keyboard: Tab stays inside the menu while it is open.
+  const trapFocus = (event: KeyboardEvent) => {
+    if (event.key !== 'Tab' || !dialogRef.current) return;
+    const items = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(el => el.offsetParent !== null);
+    if (!items.length) return;
+    const first = items[0], last = items[items.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  };
   const { chapter, step } = currentStep(story);
   const done = storyComplete(story);
   const chapterIndex = CHAPTERS.indexOf(chapter);
   const decision = story.decision ? Object.values(DECISIONS).find(d => d.id === story.decision) : null;
   const tabs: ReadonlyArray<readonly [MenuTab, string]> = [['controls', 'Controls'], ['settings', 'Settings'], ['story', 'Story'], ['credits', 'Credits']];
+  // Arrow keys, Home and End move between tabs (the usual tab-list pattern).
+  const tabKeys = (event: KeyboardEvent, index: number) => {
+    const next = event.key === 'ArrowRight' ? index + 1 : event.key === 'ArrowLeft' ? index - 1
+      : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : null;
+    if (next === null) return;
+    event.preventDefault();
+    const id = tabs[(next + tabs.length) % tabs.length][0];
+    setTab(id);
+    tabRefs.current.get(id)?.focus();
+  };
   return <div className="game-menu-backdrop" hidden={!open} onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className="game-menu" role="dialog" aria-modal="true" aria-label="Game menu">
+    <section ref={dialogRef} className="game-menu" role="dialog" aria-modal="true" aria-label="Game menu" onKeyDown={trapFocus}>
       <header className="game-menu-head">
         <div><p className="game-menu-kicker">Paused</p><h2>The Last Decision Day</h2></div>
         <button ref={resumeRef} type="button" className="game-menu-resume" onClick={onClose}>Resume (Esc)</button>
       </header>
-      <nav className="game-menu-tabs" role="tablist">
-        {tabs.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{label}</button>)}
+      <nav className="game-menu-tabs" role="tablist" aria-label="Menu sections">
+        {tabs.map(([id, label], index) => <button key={id} ref={el => { if (el) tabRefs.current.set(id, el); else tabRefs.current.delete(id); }}
+          type="button" role="tab" id={`game-menu-tab-${id}`} aria-selected={tab === id} aria-controls="game-menu-panel" tabIndex={tab === id ? 0 : -1}
+          onClick={() => setTab(id)} onKeyDown={event => tabKeys(event, index)}>{label}</button>)}
       </nav>
-      <div className="game-menu-body">
+      <div className="game-menu-body" id="game-menu-panel" role="tabpanel" aria-labelledby={`game-menu-tab-${tab}`}>
         {tab === 'controls' && <>
           <table className="game-menu-keys"><tbody>
             {CONTROLS.map(([keys, action]) => <tr key={keys}><th scope="row"><kbd>{keys}</kbd></th><td>{action}</td></tr>)}
@@ -71,6 +100,20 @@ export function GameMenu({ open, tab, setTab, onClose, story, graphics, setGraph
               <input type="radio" name="graphics" value={mode.id} checked={graphics === mode.id} onChange={() => setGraphics(mode.id)} />
               <span><strong>{mode.title}</strong> · {mode.description}</span>
             </label>)}
+          </div>
+          <h3>Accessibility</h3>
+          <div className="game-menu-choice" role="radiogroup" aria-label="Motion">
+            {MOTION_MODES.map(mode => <label key={mode.id}>
+              <input type="radio" name="motion" value={mode.id} checked={access.motion === mode.id} onChange={() => setAccess({ motion: mode.id })} />
+              <span><strong>Motion: {mode.title}</strong> · {mode.description}</span>
+            </label>)}
+          </div>
+          <div className="game-menu-choice game-menu-toggles">
+            <label><input type="checkbox" name="captions" checked={access.captions} onChange={event => setAccess({ captions: event.target.checked })} />
+              <span><strong>Sound captions</strong> · describe sounds in text: the school bell, messages, doors, the referee's whistle</span></label>
+            <label><input type="checkbox" name="large-text" checked={access.textSize === TEXT_SIZES[1].id}
+              onChange={event => setAccess({ textSize: event.target.checked ? TEXT_SIZES[1].id : TEXT_SIZES[0].id })} />
+              <span><strong>Large text</strong> · bigger menus, captions and on-screen labels</span></label>
           </div>
           {audio}
           <h3>Progress</h3>
