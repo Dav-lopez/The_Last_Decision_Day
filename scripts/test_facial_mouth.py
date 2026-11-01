@@ -73,6 +73,17 @@ class MouthGeometryTests(unittest.TestCase):
             elif name.startswith(("mouthSmile", "mouthFrown")):
                 self.assertTrue(any(abs(v) > 1e-4 for row in deltas for v in row))
 
+    def test_pressed_lips_do_not_intersect_at_full_weight(self):
+        g = self.geo
+        press = g["targets"][MOUTH_TARGETS.index("mouthPressLeft")]
+        # Compare the inner upper/lower edges across all five columns.
+        for col in range(5):
+            upper = 10 + col
+            lower = 15 + col
+            upper_y = g["positions"][upper][1] + press[upper][1]
+            lower_y = g["positions"][lower][1] + press[lower][1]
+            self.assertGreater(upper_y - lower_y, 0.0009)
+
     def test_invalid_joint_index_rejected(self):
         for index in (-1, 256, 1.5):
             with self.assertRaises(ValueError):
