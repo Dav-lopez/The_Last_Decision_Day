@@ -1,10 +1,10 @@
 import type { PlanarPosition } from './movement.mjs';
 export type CarState = { x: number; z: number; rotation: number; speed: number };
-export type DriveInput = { throttle: number; steer: number };
+export type DriveInput = { throttle: number; steer: number; handbrake?: boolean; horn?: boolean };
 export declare const VEHICLE: Readonly<{
   maxForwardSpeed: number; maxReverseSpeed: number; acceleration: number; reverseAcceleration: number;
   brakeDeceleration: number; coastDeceleration: number; wheelbase: number; maxSteerAngle: number;
-  parkedSpeed: number; exitClearance: number;
+  parkedSpeed: number; exitClearance: number; handbrakeDeceleration: number; handbrakeYaw: number;
 }>;
 export declare function vehicleForward(rotation: number): PlanarPosition;
 export declare function carLocalToWorld(car: CarState, localX: number, localZ: number): PlanarPosition;

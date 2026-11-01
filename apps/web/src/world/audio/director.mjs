@@ -13,7 +13,7 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
   let disposed = false, enabled = false, hidden = false, resumeVersion = 0;
   let settings = normalizeAudioSettings(null);
   let nextBeat = 0, beat = 0, nextFootstep = 0, nextAmbient = 0, lastLocation = '';
-  let engine = null;
+  let engine = null, hornWanted = false, carSynthFactory = null, carSynth = null;
   let reverb = null, reverbSend = null, intensity = 0;
   const voices = new Set(), lastCue = new Map();
   const targets = new WeakMap();
@@ -34,7 +34,7 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
       try { voice.source.stop(); } catch {}
       release(voice);
     }
-    if (!category || category === 'effects') engine = null;
+    if (!category || category === 'effects') { engine = null; carSynth?.reset(); }
   }
   function register(source, gain, category, extra = []) {
     if (voices.size >= 80) return false;
@@ -95,13 +95,15 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
     register(o, gain, 'music'); o.start(start); o.stop(start + .25);
   }
   let noiseBuffer = null;
+  function ensureNoise() {
+    if (noiseBuffer) return;
+    noiseBuffer = context.createBuffer(1,Math.ceil(context.sampleRate*.5),context.sampleRate);
+    const channel = noiseBuffer.getChannelData(0); let seed = 4181;
+    for (let i=0;i<channel.length;i++) { seed=(seed*16807)%2147483647; channel[i]=(seed/2147483647)*2-1; }
+  }
   function noise(duration, volume, cutoff, category = 'effects', filterType = 'lowpass', start = now()) {
     if (!playable() || voices.size >= 80) return;
-    if (!noiseBuffer) {
-      noiseBuffer = context.createBuffer(1,Math.ceil(context.sampleRate*.5),context.sampleRate);
-      const channel = noiseBuffer.getChannelData(0); let seed = 4181;
-      for (let i=0;i<channel.length;i++) { seed=(seed*16807)%2147483647; channel[i]=(seed/2147483647)*2-1; }
-    }
+    ensureNoise();
     const source=context.createBufferSource(), gain=context.createGain(), filter=context.createBiquadFilter();
     source.buffer=noiseBuffer; filter.type=filterType; filter.frequency.setValueAtTime(cutoff,start);
     gain.gain.setValueAtTime(volume,start); gain.gain.exponentialRampToValueAtTime(.0001,start+duration);
@@ -200,7 +202,11 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
         else noise(part.duration,part.gain,part.cutoff,'effects',part.filter,time+part.offset);
       }
     },
-    update({ location='street', speed=0, drivingSpeed=null, reading=false, paused=false, evening=false, match=false } = {}) {
+    /** Hold the car horn (true) or let go (false). Sounds only while driving. */
+    horn(on) { const want=Boolean(on); if(want && !hornWanted) { try { onCue('horn'); } catch {} } hornWanted=want; },
+    /** Plug in the car's engine, squeal and horn voices (loaded with the driving code). */
+    useCarSynth(factory) { carSynthFactory=typeof factory==='function' ? factory : null; carSynth=null; },
+    update({ location='street', speed=0, drivingSpeed=null, car=null, reading=false, paused=false, evening=false, match=false } = {}) {
       if(!playable()) return;
       const time=now();
       location=LOCATIONS.includes(location) ? location : 'street';
@@ -230,7 +236,13 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
         noise(.075,location==='home' ? .024 : .04,location==='home' ? 550 : 1250);
         nextFootstep=time+(speed>2.8 ? .25 : .43);
       } else if(!moving) nextFootstep=time;
-      if(drivingSpeed!==null && Number.isFinite(drivingSpeed) && !paused && !reading && settings.effects>0) {
+      const drivingNow=drivingSpeed!==null && Number.isFinite(drivingSpeed) && !paused && !reading && settings.effects>0;
+      if(carSynthFactory && !carSynth) carSynth=carSynthFactory({ context, output: buses.effects, register: (...args)=>voices.size<78 && register(...args), release, ramp, noise: ()=>{ ensureNoise(); return noiseBuffer; } });
+      if(carSynth) {
+        if(engine) { try {engine.source.stop();}catch{} release(engine);engine=null; }
+        if(carSynth.update({ time, driving: drivingNow, speed: drivingSpeed, car, horn: hornWanted })) { try { onCue('skid'); } catch {} }
+      } else if(drivingNow) {
+        // Until the car's own sounds load: a plain engine hum that follows the speed.
         if(!engine && voices.size<80) {
           const source=context.createOscillator(),gain=context.createGain();
           source.type='triangle';gain.gain.setValueAtTime(.012,time);source.connect(gain);gain.connect(buses.effects);
@@ -254,7 +266,7 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
     },
     dispose() {
       if(disposed) return;
-      disposed=true;enabled=false;++resumeVersion;stopVoices();hush();
+      disposed=true;enabled=false;++resumeVersion;stopVoices();hush();carSynth?.reset();
       if(context) { context.onstatechange=null; void context.close().catch(()=>{}); }
       for(const bus of Object.values(buses??{})) bus.disconnect();
       reverb?.disconnect(); reverbSend?.disconnect();

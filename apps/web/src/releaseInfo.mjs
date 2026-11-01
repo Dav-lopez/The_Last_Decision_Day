@@ -10,6 +10,14 @@ export const GAME_TAGLINE = 'Your life. Your choices. Your consequences.';
  */
 export const RELEASE_NOTES = Object.freeze([
   Object.freeze({
+    id: '2026-11-01c', title: 'Feel the road',
+    items: Object.freeze([
+      'Cars have gears you can hear: the engine climbs, drops on each shift and climbs again.',
+      'Tyres squeal and leave skid marks in hard corners and hard stops.',
+      'Hold Space (or HANDBRAKE) for handbrake turns and H (or HORN) for the horn. The police siren is now L.',
+    ]),
+  }),
+  Object.freeze({
     id: '2026-11-01b', title: 'Polish and a proper front door',
     items: Object.freeze([
       'The game has a name in your browser tab, an icon for your home screen and a picture when you share a link.',

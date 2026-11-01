@@ -95,6 +95,8 @@ export type ProgressSync = {
   save: (progress: ServerProgress) => Promise<{ status: 'saved' | 'rejected'; progress: ServerProgressResponse }>;
 };
 import { BED_SIDE, FRONT_DOORS, HOME_SPAWN, atHomeExit, nearFridge, nearStove, wallsToFadeFor, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade } from './homeInterior.mjs';
+import type { Gear } from './carFeel.mjs';
+import type { DriveFeel } from './driveFeel';
 import { TOWN_EXIT, canExitVehicle, chaseCameraAlpha, driveInput, footprintPoints, leavingTown, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
 import { activeCaptions, captionLabel, CAPTION_SECONDS, pushCaption, type SoundCaption } from './soundCaptions.mjs';
@@ -561,6 +563,7 @@ export default function WorldScene({
   const [evening, setEvening] = useState(false);
   const [driving, setDriving] = useState(false);
   const [driveSpeed, setDriveSpeed] = useState(0);
+  const [driveGear, setDriveGear] = useState<Gear>(1);
   const [driveNotice, setDriveNotice] = useState('');
   // Car radio station persists across drives.
   const [radioStation, setRadioStation] = useState(readRadioStation);
@@ -1024,6 +1027,16 @@ export default function WorldScene({
         avatar.rotation.y = car.rotation;
       };
       const lightBar = createLightBar(scene);
+      // Driving feel (gearbox revs, tyre squeal, skid marks) loads the first time you get in a car.
+      let driveFeel: DriveFeel | null = null;
+      let driveFeelLoading = false;
+      const loadDriveFeel = () => {
+        if (driveFeelLoading) return;
+        driveFeelLoading = true;
+        void import('./driveFeel').then(module => { if (disposed) return; driveFeel = module.createDriveFeel(scene); audioRef.current?.useCarSynth(module.createCarSynth); }).catch(() => { driveFeelLoading = false; });
+      };
+      let bumpCooldown = 0;
+      let carHorn = false;
       const siren = createSiren();
       sirenRef.current = siren;
       const streetLighting = createStreetLighting(scene, directional, sun);
@@ -1312,7 +1325,7 @@ export default function WorldScene({
             taxi: Boolean(pendingTaxi) || Boolean(pendingDrive),
             travelling: pendingTaxi !== null,
             match: match ? { phase: match.phase, clock: match.clock, score: match.score, keepers: match.players.filter(p => p.role === 'keeper').map(p => ({ team: p.team, x: p.x - PITCH.x, z: p.z - PITCH.z })) } : null,
-            car: drivenIndex() >= 0 ? { x: cars[drivenIndex()].x, z: cars[drivenIndex()].z, speed: cars[drivenIndex()].speed } : null,
+            car: drivenIndex() >= 0 ? { x: cars[drivenIndex()].x, z: cars[drivenIndex()].z, speed: cars[drivenIndex()].speed, gear: driveFeel?.gear ?? null, rpm: driveFeel?.rpm ?? null, slip: driveFeel?.slip ?? 0, horn: carHorn, skidMarks: driveFeel?.marks ?? 0 } : null,
             loading: !worldReadyRef.current,
             downtownBuilt: downtown !== null, downtownBuildMs,
             career: { id: careerRef.current.career, shifts: careerRef.current.shifts, money: careerRef.current.money },
@@ -1685,6 +1698,9 @@ export default function WorldScene({
           setNearCar(false);
           setDriveNotice('');
           setDriveSpeed(0);
+          loadDriveFeel();
+          driveFeel?.reset();
+          setDriveGear(1);
           setDriving(true);
           return;
         }
@@ -1705,6 +1721,9 @@ export default function WorldScene({
         tiltCar(index, 0, 0, 10);
         lightBar.update(0, false);
         siren.stop();
+        audioRef.current?.horn(false);
+        carHorn = false;
+        driveFeel?.reset();
         avatar.setEnabled(true);
         setDriveNotice('');
         setDriving(false);
@@ -1827,9 +1846,13 @@ export default function WorldScene({
           // E, Enter or Space moves the story scene on.
           event.preventDefault();
           storyActionsRef.current.advanceDialogue();
-        } else if (key === 'h' && !event.repeat && interaction.mode === 'driving' && careerRef.current.career === 'police') {
+        } else if ((key === 'h' || key === ' ') && interaction.mode === 'driving') {
+          // In a car, H holds the horn and Space holds the handbrake.
           event.preventDefault();
-          notify(siren.toggle() ? 'Siren on (H to switch off).' : 'Siren off.');
+          inputRef.current.press(`keyboard:${key}`, key);
+        } else if (key === 'l' && !event.repeat && interaction.mode === 'driving' && careerRef.current.career === 'police') {
+          event.preventDefault();
+          notify(siren.toggle() ? 'Siren on (L to switch off).' : 'Siren off.');
         } else if (key === 'p' && !event.repeat) {
           event.preventDefault();
           phoneActionsRef.current.open();
@@ -1867,7 +1890,7 @@ export default function WorldScene({
       };
       const onKeyUp = (event: KeyboardEvent) => {
         const key = normalizeKey(event.key);
-        if (MOVE_KEYS.has(key)) inputRef.current.release(`keyboard:${key}`);
+        if (MOVE_KEYS.has(key) || key === 'h' || key === ' ') inputRef.current.release(`keyboard:${key}`);
       };
       const clear = () => {
         inputRef.current.clear();
@@ -1923,6 +1946,7 @@ export default function WorldScene({
           match: Boolean(match && match.phase !== 'fulltime'),
           speed: delta>0 && audioDistance<1 ? audioDistance/delta : 0,
           drivingSpeed: audioCar>=0 ? cars[audioCar].speed : null,
+          car: audioCar>=0 ? driveFeel?.sound() ?? null : null,
           reading: schoolOpenRef.current || dialogueRef.current || npcActiveRef.current || Boolean(rangeOpenRef.current) || menuOpenRef.current,
           paused: Boolean(pendingRide || pendingFood || pendingShift || pendingTaxi || pendingDrive || interaction.mode==='sleeping' || interaction.mode==='sitting'),
           evening: isEvening(life.minute) });
@@ -1932,6 +1956,7 @@ export default function WorldScene({
         }
         // The training range covers the screen: freeze the world (and its clock) underneath.
         if (rangeOpenRef.current || menuOpenRef.current) return;
+        driveFeel?.update(delta, clock);
         // Downtown traffic: drives around you, stops for you and your car.
         if (cityTraffic) {
           const inCityNow = locationRef.current === 'city';
@@ -2146,7 +2171,8 @@ export default function WorldScene({
             ? (candidate: CarState) => footprintPoints(candidate).some(point => downtown!.collider.blockedLocal(...toLocal(point)))
             : undefined;
           // Downtown, the other cars are the traffic around you.
-          const next = stepVehicle(before, driveInput(keys), delta, locationRef.current === 'city' ? cityTraffic?.cars() ?? [] : others, locationRef.current === 'city' ? cityTraffic?.people() ?? [] : peopleOut, cityBlock);
+          const controls = driveInput(keys);
+          const next = stepVehicle(before, controls, delta, locationRef.current === 'city' ? cityTraffic?.cars() ?? [] : others, locationRef.current === 'city' ? cityTraffic?.people() ?? [] : peopleOut, cityBlock);
           cars[driven] = { x: next.x, z: next.z, rotation: next.rotation, speed: next.speed };
           if (locationRef.current === 'street') {
             setGate(Math.hypot(next.x, next.z - TOWN_EXIT.beyond) < TOWN_EXIT.gateRange);
@@ -2160,7 +2186,14 @@ export default function WorldScene({
           const tilt = bodyLean({ kind: 'car', speed: next.speed, yawRate: delta > 0 ? headingDelta(before.rotation, next.rotation) / delta : 0,
             acceleration: delta > 0 ? (next.speed - before.speed) / delta : 0 });
           tiltCar(driven, tilt.pitch, tilt.roll, delta);
-          // Police: a light bar on the car you drive (H toggles the siren).
+          // Revs, tyres, horn and skid marks.
+          const yawRate = delta > 0 ? headingDelta(before.rotation, next.rotation) / delta : 0;
+          driveFeel?.step(before, next, controls, yawRate, delta, clock, quality);
+          carHorn = Boolean(controls.horn);
+          audioRef.current?.horn(carHorn);
+          bumpCooldown = Math.max(0, bumpCooldown - delta);
+          if (next.collided && Math.abs(before.speed) > 2 && bumpCooldown === 0) { bumpCooldown = 0.6; audioRef.current?.cue('land'); }
+          // Police: a light bar on the car you drive (L toggles the siren).
           const cop = careerRef.current.career === 'police';
           if (cop) {
             lightBar.bar.position.set(next.x - Math.sin(next.rotation) * 0.1, 1.48, next.z - Math.cos(next.rotation) * 0.1);
@@ -2178,6 +2211,8 @@ export default function WorldScene({
             hudTimer = 0;
             const kmh = speedKmh(next.speed);
             setDriveSpeed(previous => previous === kmh ? previous : kmh);
+            const gear = driveFeel?.gear ?? 1;
+            setDriveGear(previous => previous === gear ? previous : gear);
             if (next.collided) notify(peopleOut.some(person => Math.hypot(person.x - next.x, person.z - next.z) < 2.6)
               ? 'Careful, someone is in the way! Give them a moment to step aside.'
               : 'Bump! Reverse with S to back away.');
@@ -2395,6 +2430,7 @@ export default function WorldScene({
         disposed = true;
         remotePlayers.dispose();
         lightBar.dispose();
+        driveFeel?.dispose();
         taskMarker.dispose();
         siren.dispose();
         sirenRef.current = null;
@@ -2616,11 +2652,11 @@ export default function WorldScene({
             </div>}
           </section>
         </div>}
-        {driving && <div className="world-drive-hud" role="status" aria-live="polite">
-          <strong>{driveSpeed}</strong>km/h<span className="world-drive-help"> · W/S gas, brake, reverse · A/D steer · E to get out when stopped</span>
+          {driving && <Suspense fallback={null}><RadioHud placement="panel" station={radioStation} onTune={tuneRadio} onFocusWorld={() => canvasRef.current?.focus({ preventScroll: true })} /></Suspense>}
+      {driving && <div className="world-drive-hud" role="status" aria-live="polite">
+          <strong>{driveSpeed}</strong>km/h <span className="world-drive-gear" aria-label={driveGear === 'R' ? 'Reverse gear' : `Gear ${driveGear}`}>{driveGear}</span><span className="world-drive-help"> · W/S gas, brake, reverse · A/D steer · Space handbrake · H horn · E to get out when stopped</span>
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
         </div>}
-        {driving && <Suspense fallback={null}><RadioHud placement="panel" station={radioStation} onTune={tuneRadio} onFocusWorld={() => canvasRef.current?.focus({ preventScroll: true })} /></Suspense>}
       {driving && <Suspense fallback={null}><RadioHud placement="overlay" station={radioStation} onTune={tuneRadio} onFocusWorld={() => canvasRef.current?.focus({ preventScroll: true })} /></Suspense>}
         {!driving && driveNotice && <div className="world-notice" role="status" aria-live="polite">{driveNotice}</div>}
         {workPrompt && inCity && career.career === workPrompt && !rangeOpen && <button type="button" className="world-car-action world-range-start"
@@ -2695,11 +2731,14 @@ export default function WorldScene({
             {directionButton('▶', 'ArrowRight', 'Move right')}
           </div>
         </div>
-        <div className="world-run"><button type="button" className="world-pad-key" aria-label="Toggle running" aria-pressed={sprintEnabled} onClick={event => {
+        {driving ? <div className="world-run world-drive-touch" aria-label="Car controls">
+          {directionButton('HORN', 'horn', 'Hold the horn')}
+          {directionButton('HANDBRAKE', 'handbrake', 'Hold the handbrake')}
+        </div> : <div className="world-run"><button type="button" className="world-pad-key" aria-label="Toggle running" aria-pressed={sprintEnabled} onClick={event => {
           sprintEnabledRef.current = !sprintEnabledRef.current;
           setSprintEnabled(sprintEnabledRef.current);
           if (event.detail > 0) canvasRef.current?.focus({ preventScroll: true });
-        }}>{sprintEnabled ? 'RUN: ON' : 'RUN: OFF'}</button></div>
+        }}>{sprintEnabled ? 'RUN: ON' : 'RUN: OFF'}</button></div>}
       </div>
     </div>}
     {!error && <HousePhotoPaint characterId={characterId} painterRef={housePainterRef} />}
