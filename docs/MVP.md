@@ -80,9 +80,12 @@ A new player can:
         tabs with the arrow keys. The playtest drives the menu by keyboard and checks a caption appears.
   - [ ] 7b. Keyboard flow through the other overlays (map, conversations, training range, wardrobe, league table),
         a contrast audit of HUD text, and captions for the story scenes' own audio cues where they differ.
-- [ ] **8. Content polish**: two or three downtown characters to talk to; short playable career tasks
+- [x] **8. Content polish**: two or three downtown characters to talk to; short playable career tasks
       (patrol route, fire call, route march) instead of a fade-to-black shift.
-  - [ ] 8a. Downtown characters to talk to (in review as #218).
+  - [x] 8a. Three downtown regulars to talk to: Priya, a volunteer guide by the bus stop; Coach Dee at the
+        Central Park pitch; Captain Brooks outside the fire station. Placed from the real street data (off the
+        roads, clear of the bus, workplace and match prompts), out during the day, with relationships saved like
+        the neighbours'. The playtest stands beside one, presses E and has a conversation.
   - [x] 8b. Short playable career tasks instead of the fade: pressing E at your workplace starts a duty — a police
         patrol route (four stops), a fire call (three), an army route march (five checkpoints, on foot only) — planned
         on the real downtown streets (`careerTasks.mjs`), with a glowing beam at the next stop, the GPS routed to it,
@@ -101,11 +104,12 @@ above is done or blocked; any item may be split into slices.
       following each other, yielding to you, and solid to your car.
 - [x] **11. Minimap and GPS**: a corner minimap that rotates with you, a waypoint you set on the big map, and a
       route line along the roads to it (story objectives set it automatically).
-- [ ] **12. Traffic lights and pedestrians downtown**: signal-controlled junctions the traffic obeys; people
+- [x] **12. Traffic lights and pedestrians downtown**: signal-controlled junctions the traffic obeys; people
       walking downtown sidewalks who cross at lights.
   - [x] 12a. Traffic lights: 22 signalised junctions (wherever a main road meets others), two-way phases with
         yellow and all-red, offsets per junction; traffic stops at the line on red, and on yellow when it can.
-  - [ ] 12b. Pedestrians walking downtown sidewalks, crossing at the lights.
+  - [x] 12b. Pedestrians: 18 people (male and female, varied outfits) walk the pavements, wait at the kerb on red,
+        cross with the traffic that has green, and cars stop for anyone in the road.
 - [ ] **13. Driving feel**: body roll and pitch, tyre squeal and skid marks, engine sound by speed and gear,
       cosmetic dents and scratches, a horn; a police cruiser and a fire engine for those careers.
 - [ ] **14. Phone**: an in-game phone (Esc-free, key P) with messages from Mom and friends, contacts you've
@@ -133,6 +137,9 @@ above is done or blocked; any item may be split into slices.
   mission beats (the hose at a fire, a lost child to find) can hang off the same stop events.
 - Leaving downtown (bus, taxi) mid-duty abandons it without pay; the life clock keeps running during a duty and
   then jumps the rest of the four-hour shift at sign-off.
+- Downtown regulars (8a) have no story steps yet; a later chapter could send the player to Priya, Coach Dee
+  or Captain Brooks (their `talked-priya` / `talked-dee` / `talked-brooks` events already reach the story).
+- Downtown regulars don't show on the minimap or the big map yet.
 - The action-clip GLBs were 40 % JSON (one bufferView per accessor, 1,474 of them) and repeated identical key
   times for every bone; `scripts/slim_clips.py` fixes both and runs inside `build-actions.py`. The same repacking
   would shrink the three locomotion clips inside `human.glb`, but that file belongs to the facial-asset pipeline.

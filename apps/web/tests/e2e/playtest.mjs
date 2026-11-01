@@ -188,7 +188,25 @@ await step('downtown traffic drives', async () => {
   // Give the (slow, software-rendered) world some frames to move the cars.
   await page.waitForFunction(first => window.__tld.read().traffic.some((car, i) => first[i] && Math.hypot(car.x - first[i].x, car.z - first[i].z) > 1), before, { timeout: 120000 });
   notes.push(`${before.length} traffic cars downtown`);
+  await waitFor('people walking downtown', timeout => page.waitForFunction(() => window.__tld.read().walkers > 0, null, { timeout }), 120000);
+  notes.push(`${(await read()).walkers} people walking downtown`);
   await shot('05b-traffic');
+});
+await step('talk to a downtown regular (guide, coach or fire captain)', async () => {
+  // The regulars load just after the city; stand beside whoever is out now.
+  await waitFor('a downtown regular to talk to', timeout => page.waitForFunction(() => window.__tld.place('neighbour'), null, { timeout, polling: 1000 }), 120000);
+  const talk = page.locator('.world-car-action', { hasText: /^Talk to / }).first();
+  await waitFor('talk prompt downtown', timeout => talk.waitFor({ timeout }));
+  const label = (await talk.textContent())?.trim();
+  await page.locator('canvas').first().click({ position: { x: 320, y: 120 } });
+  await page.keyboard.press('e');
+  await waitFor('conversation opens', timeout => page.waitForSelector('.npc-chat-card', { timeout }), 30000);
+  await shot('05bb-downtown-talk');
+  await page.locator('.npc-chat-choices button').first().click();
+  await waitFor('reply shows', timeout => page.locator('.npc-chat-result').waitFor({ timeout }), 15000);
+  await page.getByRole('button', { name: 'Continue story' }).click();
+  await waitFor('conversation closes', timeout => page.waitForSelector('.npc-chat-card', { state: 'detached', timeout }), 15000);
+  notes.push(`downtown: ${label}`);
 });
 await step('minimap shows, and a map waypoint gives a GPS route', async () => {
   await waitFor('minimap visible', timeout => page.waitForSelector('.world-minimap canvas', { timeout }));

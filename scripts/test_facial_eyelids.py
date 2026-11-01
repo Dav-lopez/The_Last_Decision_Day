@@ -11,8 +11,8 @@ class EyelidGeometryTests(unittest.TestCase):
 
     def test_two_eyes_are_skinned_and_have_front_facing_triangles(self):
         g = self.geo
-        self.assertEqual(len(g["positions"]), 2 * (4 * SAMPLES + 12))
-        self.assertEqual(len(g["indices"]), 2 * (2 * (SAMPLES - 1) * 6 + 4 * 3))
+        self.assertEqual(len(g["positions"]), 2 * (4 * SAMPLES + 4 * 5))
+        self.assertEqual(len(g["indices"]), 2 * (2 * (SAMPLES - 1) * 6 + 4 * 9))
         self.assertTrue(all(j == (42, 0, 0, 0) for j in g["joints"]))
         self.assertTrue(all(w == (1.0, 0.0, 0.0, 0.0) for w in g["weights"]))
         for i in range(0, len(g["indices"]), 3):
@@ -36,7 +36,7 @@ class EyelidGeometryTests(unittest.TestCase):
 
     def test_wide_and_squint_open_and_close_both_rims_independently(self):
         g = self.geo
-        per_eye = 4 * SAMPLES + 12
+        per_eye = 4 * SAMPLES + 4 * 5
         for side, base, label in ((-1, 0, "Left"), (1, per_eye, "Right")):
             upper = base + SAMPLES
             lower = base + 2 * SAMPLES
@@ -53,6 +53,33 @@ class EyelidGeometryTests(unittest.TestCase):
                 # Outer lashes are attached to the upper lid in each expression.
                 lashes = range(base + 4 * SAMPLES, base + per_eye)
                 self.assertTrue(all(upper_direction * deltas[i][1] > 0 for i in lashes))
+
+    def test_curved_lashes_taper_and_follow_all_lid_expressions(self):
+        g = self.geo
+        per_eye = 4 * SAMPLES + 4 * 5
+        for eye, label in enumerate(("Left", "Right")):
+            start = eye * per_eye + 4 * SAMPLES
+            for strand in range(4):
+                base = start + strand * 5
+                a, b, c, d, tip = g["positions"][base:base + 5]
+                # The ridge is narrower than the root; the tip has no width.
+                self.assertLess(c[0], d[0])
+                self.assertLess(d[0] - c[0], b[0] - a[0])
+                self.assertGreater(c[1], a[1])
+                self.assertGreater(tip[1], c[1])
+                self.assertGreater(c[2], a[2])
+                self.assertGreater(tip[2], c[2])
+                # All five points move as one lid-attached strand.
+                for expression in ("eyeBlink", "eyeWide", "eyeSquint"):
+                    deltas = g["targets"][g["names"].index(expression + label)]
+                    self.assertEqual(len(set(deltas[base:base + 5])), 1)
+                    self.assertNotEqual(deltas[base], (0.0, 0.0, 0.0))
+                for n in g["normals"][base:base + 5]:
+                    self.assertAlmostEqual(math.sqrt(sum(v * v for v in n)), 1.0, places=6)
+            # The opposite eye must not move when only this eye blinks.
+            other = range(per_eye, 2 * per_eye) if eye == 0 else range(per_eye)
+            blink = g["targets"][g["names"].index("eyeBlink" + label)]
+            self.assertTrue(all(blink[i] == (0.0, 0.0, 0.0) for i in other))
 
     def test_all_expression_targets_are_finite_and_have_matching_vertices(self):
         g = self.geo

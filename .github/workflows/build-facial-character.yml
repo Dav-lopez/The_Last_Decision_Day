@@ -72,6 +72,7 @@ jobs:
           python - <<'PY'
           import json, struct
           from pathlib import Path
+          from scripts.facial_brows import STROKES_PER_ROW, ROWS, VERTICES_PER_FIBRE
           raw = Path('apps/web/public/models/human.glb').read_bytes()
           n = struct.unpack_from('<I', raw, 12)[0]
           d = json.loads(raw[20:20+n])
@@ -107,7 +108,7 @@ jobs:
           bp = brows['primitives'][0]
           assert brows['extras']['targetNames'] == ['browInnerUp', 'browDownLeft', 'browDownRight']
           assert len(bp['targets']) == 3 and bp['material'] == 4
-          assert d['accessors'][bp['attributes']['POSITION']]['count'] == 168
+          assert d['accessors'][bp['attributes']['POSITION']]['count'] == 2 * ROWS * STROKES_PER_ROW * VERTICES_PER_FIBRE
           assert any(n.get('mesh') == d['meshes'].index(brows) and n.get('skin') == 0 for n in d['nodes'])
           folds = next(mesh for mesh in d['meshes'] if mesh['name'] == 'Student nasolabial folds')
           fp = folds['primitives'][0]
