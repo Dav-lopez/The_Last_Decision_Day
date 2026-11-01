@@ -78,13 +78,13 @@ A new player can:
           512 px textures, 1.68 MB → 0.78 MB (1.20 MB → 0.49 MB gzipped); every prop's normals packed to 8 bits;
           all ten props 5.37 MB → 4.27 MB. Checked by `polyhaven-slim.test.mjs`. Still to do: the human GLBs
           (facial-asset pipeline) and meshopt with a self-hosted decoder.
-- [ ] **7. Accessibility**: full keyboard flow, visible focus, reduced-motion option, readable contrast,
+- [x] **7. Accessibility**: full keyboard flow, visible focus, reduced-motion option, readable contrast,
       captions for story audio cues.
   - [x] 7a. Accessibility settings in the menu: motion (follow the device / reduced / full), sound captions that
         describe every important sound (bell, messages, doors, whistle, horn…) even with the sound muted, and large
         text; visible keyboard focus on every in-game control; the game menu keeps Tab inside it and switches
         tabs with the arrow keys. The playtest drives the menu by keyboard and checks a caption appears.
-  - [ ] 7b. Keyboard flow through the other overlays (map, conversations, training range, wardrobe, league table),
+  - [x] 7b. Keyboard flow through the other overlays (map, conversations, training range, wardrobe, league table),
         a contrast audit of HUD text, and captions for the story scenes' own audio cues where they differ.
     - [x] 7b-1 (partial slice). Keyboard flow through the overlays: the map, conversations, the training range and
           the league table take focus when they open and give it back to the 3D view when they close; Tab stays
@@ -92,6 +92,13 @@ A new player can:
           conversation answers; Escape closes the league table; and the downtown map lists "GPS to" place buttons so
           a waypoint can be set without a mouse. The playtest walks the map and a whole conversation by keyboard
           and sets a GPS waypoint with Enter. Still to do: the HUD contrast audit and story-scene captions.
+    - [x] 7b-2. HUD contrast audit and story-scene captions: `contrast.mjs` judges text by WCAG AA (4.5:1, 3:1 for
+          large text) over both a black and a white backdrop, because the HUD floats over the live 3D scene; the
+          playtest samples every visible piece of HUD text in eight states (street, story scene, conversation, big
+          map, menu, captions, downtown, a career duty) and fails on anything below AA. Story lines now caption the
+          speaker ("[Maya speaks]", "[Phone buzzes: text from Mom]", "[Story chime]" for narration) instead of a
+          generic "Someone speaks", Elena's texts buzz like texts, and chapter fanfares say which chapter ended (and
+          when the story ends). The playtest checks a speaker caption appears.
 - [x] **8. Content polish**: two or three downtown characters to talk to; short playable career tasks
       (patrol route, fire call, route march) instead of a fade-to-black shift.
   - [x] 8a. Three downtown regulars to talk to: Priya, a volunteer guide by the bus stop; Coach Dee at the
@@ -154,6 +161,9 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- The contrast audit only sees an element's own ancestors' backgrounds; text drawn over a sibling panel (absolutely
+  positioned on top of another) is judged as if over the 3D scene, which is the stricter case. The phone playtest
+  could run the same audit at 360×640.
 - The share image's `og:image` URL points at `https://the-last-decision-day.pages.dev/`; update `index.html` if the
   game moves to its own domain. Link previews need an absolute URL, so it can't be relative.
 - React logs a crash it caught with `console.error` even when the error screen handles it; the playtest's crash check

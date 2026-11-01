@@ -354,17 +354,19 @@ await step('quick travel to the pitch and back home', async () => {
 
 await step('a crash shows the error screen with a working reload button', async () => {
   // A separate tab, so the deliberate crash is not mistaken for a real one in the main run.
+  // The main run is over: park its tab so its software-rendered 3D world stops competing for the CPU.
+  await page.goto('about:blank').catch(() => {});
   const crashPage = await browser.newPage({ viewport: { width: 640, height: 360 } });
   try {
     crashPage.on('pageerror', error => { if (!/Playtest crash/.test(error.message)) problems.push(`page error (crash check): ${error.message}`); });
     await crashPage.goto(`${base}/?playtest&crash`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await crashPage.getByRole('button', { name: /try the 3d demo/i }).click({ timeout: 20000 });
+    await crashPage.getByRole('button', { name: /try the 3d demo/i }).click({ timeout: 45000 });
     const screen = crashPage.locator('.error-screen');
     await screen.waitFor({ timeout: 20000 });
     if (!(await screen.getByText('Something went wrong').count())) throw new Error('error screen has no title');
     await crashPage.screenshot({ path: `${out}/08-error-screen.png` });
     await screen.getByRole('button', { name: 'Back to the start page' }).click();
-    await crashPage.getByRole('button', { name: /try the 3d demo/i }).click({ timeout: 20000 });
+    await crashPage.getByRole('button', { name: /try the 3d demo/i }).click({ timeout: 45000 });
     await screen.waitFor({ timeout: 20000 });
     await Promise.all([crashPage.waitForEvent('load', { timeout: 60000 }), screen.getByRole('button', { name: 'Reload the game' }).click()]);
     await crashPage.getByRole('button', { name: /try the 3d demo/i }).waitFor({ timeout: 30000 });
