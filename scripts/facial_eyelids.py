@@ -60,9 +60,11 @@ def build_eyelid_geometry(head_joint):
                 else:
                     # The lower rim is extruded downward, so reverse winding.
                     indices.extend(((a,), (c,), (b,), (b,), (c,), (d,)))
-        # Sparse, tapered outer lashes (one triangle each), attached to the
-        # upper rim. Their bases move with the same blink target.
-        for fraction in (0.22, 0.43, 0.64, 0.82):
+        # Each lash is a shallow, curved two-segment ribbon, not a flat
+        # triangle. The root sits on the upper lid, the middle catches light
+        # ahead of the lid and the tip tapers to a point. All five vertices
+        # inherit the same bilateral lid morph, preventing floating lashes.
+        for strand, fraction in enumerate((0.22, 0.43, 0.64, 0.82)):
             u = fraction if side == 1 else -fraction
             x = side * 0.052 + 0.024 * u
             arch = 1.0 - u * u
@@ -70,17 +72,39 @@ def build_eyelid_geometry(head_joint):
             influence = 0.55 + 0.45 * arch
             blink, wide, squint = (-0.0115 * influence, 0.0045 * influence,
                                    -0.0050 * influence)
-            direction = side
-            a = vertex(x - 0.0011, y, 0.093, side, blink, wide, squint)
-            b = vertex(x + 0.0011, y, 0.093, side, blink, wide, squint)
-            tip = vertex(x + direction * 0.003, y + 0.0035, 0.094, side,
-                         blink, wide, squint)
-            # Choose winding based on triangle orientation in the XY plane.
-            cross = (positions[b][0] - positions[a][0]) * (positions[tip][1] - positions[a][1])
-            if cross > 0:
-                indices.extend(((a,), (b,), (tip,)))
-            else:
-                indices.extend(((b,), (a,), (tip,)))
+            # Stagger length and bend without randomness or extra animation.
+            reach = 0.0030 + 0.00055 * math.sin(strand * 1.7 + 0.4)
+            lift = 0.0035 + 0.00045 * math.cos(strand * 1.3)
+            root_width = 0.00105
+            ridge_width = root_width * 0.50
+            base_z, ridge_z, tip_z = 0.093, 0.09375, 0.09425
+            ridge_y = y + lift * 0.52
+            tip_y = y + lift
+            ridge_x = x + side * reach * 0.50
+            tip_x = x + side * reach
+            lower_slope = (ridge_z - base_z) / (ridge_y - y)
+            upper_slope = (tip_z - ridge_z) / (tip_y - ridge_y)
+
+            def normal(slope):
+                length = math.hypot(1.0, slope)
+                return (0.0, -slope / length, 1.0 / length)
+
+            start = len(positions)
+            for px, py, pz, n in (
+                (x - root_width, y, base_z, normal(lower_slope)),
+                (x + root_width, y, base_z, normal(lower_slope)),
+                (ridge_x - ridge_width, ridge_y, ridge_z, normal(lower_slope)),
+                (ridge_x + ridge_width, ridge_y, ridge_z, normal(lower_slope)),
+                (tip_x, tip_y, tip_z, normal(upper_slope)),
+            ):
+                positions.append((px, py, pz))
+                normals.append(n)
+                side_by_vertex.append(side)
+                motion.append((blink, wide, squint))
+            # Winding is +Z on both eyes, including the leftward lashes.
+            indices.extend(((start,), (start + 1,), (start + 2,),
+                            (start + 1,), (start + 3,), (start + 2,),
+                            (start + 2,), (start + 3,), (start + 4,)))
 
     targets = []
     for name in EYELID_TARGETS:
