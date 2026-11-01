@@ -170,6 +170,10 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- WorldScene's chunk outgrew its budget once driving feel (#227) and the car radio (#234) landed together
+  (125.7 KB gzipped against 124; each passed alone). The budget is now 127 KB. The gearbox, skid marks, car voices
+  and radio songs already load lazily; the next real saving is splitting the football match or the downtown wiring
+  out of WorldScene.tsx into chunks loaded on first use.
 - Skid marks are drawn at road height 0.022 m on flat ground; if roads ever get slopes or kerbs, they need the
   ground height under each wheel. The skid-mark pool shrinks (240 → 150 → 80) as adaptive quality lowers resolution.
 - The police siren (careersScene `createSiren`) makes its own AudioContext, so it ignores the volume sliders and mute;
