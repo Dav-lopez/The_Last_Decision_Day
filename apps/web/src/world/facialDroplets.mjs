@@ -8,7 +8,11 @@ export function dropletCycle(seconds, kind, side) {
   // A phase offset made the right drop appear halfway down the face when
   // crying began. Delay its first emergence instead; both start at the duct.
   const delay = side === 'Right' ? duration * 0.28 : 0;
-  const phase = (Math.max(0, elapsed - delay) / duration) % 1;
+  const progress = (Math.max(0, elapsed - delay) / duration) % 1;
+  // Droplets gather near the duct/temple before gravity accelerates their
+  // descent. Sweat moves more slowly than tears. Opacity fades before reset,
+  // avoiding a visible teleport at the end of each bead's track.
+  const phase = progress ** (kind === 'tear' ? 1.5 : 1.85);
   const opacity = Math.max(0, Math.min(1, phase / 0.14, (1 - phase) / 0.23));
   return { phase, opacity };
 }
