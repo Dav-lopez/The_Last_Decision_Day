@@ -1,11 +1,12 @@
 import { CUES, LOCATIONS, beatSeconds, musicStep } from './score.mjs';
 import { normalizeAudioSettings } from './settings.mjs';
-import { programAt, radioStep, radioStepSeconds, stationById, tuneInStep } from './radio.mjs';
+import { isStation } from './radioDial.mjs';
 
 /** Web Audio is created only by enable(), called directly from a user gesture. */
 export function createGameAudio({ createContext, onStatus = () => {}, onCue = () => {}, speech } = {}) {
   // Car radio: the chosen station plays instead of the place's music while you drive.
-  let radio = null, announced = -1;
+  // The songs (radio.mjs) load on the first drive with the radio on, keeping them out of the start-up download.
+  let radio = null, announced = -1, radioLib = null, radioLoading = null;
   const dj = speech ?? browserSpeech();
   const hush = () => { announced = -1; try { dj.cancel(); } catch {} };
   let context = null, buses = null, master = null, compressor = null;
@@ -109,7 +110,7 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
   }
   /** The DJ reads the station ident over the jingle (browser speech, when the device has it). */
   function announce(station, step) {
-    const now = programAt(station, step);
+    const now = radioLib?.programAt(station, step);
     if (!now || now.kind !== 'ident' || now.identStep !== 2 || announced === step) return;
     announced = step;
     const volume = Math.max(0, Math.min(1, settings.master * settings.music * 1.8));
@@ -172,7 +173,11 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
     },
     setSettings(value) { settings=normalizeAudioSettings(value); applySettings(); if(settings.muted) { stopVoices(); hush(); } },
     /** The car radio station (an id from radio.mjs, or null for off). Heard only while driving. */
-    setRadio(id) { radio = stationById(id) ? id : null; },
+    setRadio(id) {
+      radio = isStation(id) ? id : null;
+      if (radio && !radioLib && !radioLoading) radioLoading = import('./radio.mjs').then(lib => { radioLib = lib; }).catch(() => { radioLoading = null; });
+      return radioLoading ?? Promise.resolve();
+    },
     setHidden(value) {
       hidden=Boolean(value);++resumeVersion;stopVoices();hush();
       if (!context || !enabled || disposed) return;
@@ -199,12 +204,12 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
       if(!playable()) return;
       const time=now();
       location=LOCATIONS.includes(location) ? location : 'street';
-      const station=radio && drivingSpeed!==null && Number.isFinite(drivingSpeed) ? radio : null;
+      const lib=radioLib, station=lib && radio && drivingSpeed!==null && Number.isFinite(drivingSpeed) ? radio : null;
       const musicKey=station ? `radio:${station}` : location;
       if(musicKey!==lastLocation) {
         stopVoices('music');hush();nextBeat=time;lastLocation=musicKey;
         // Tune in mid-programme, with a short burst of dial static.
-        beat=station ? tuneInStep(station,Date.now()) : 0;
+        beat=station ? lib.tuneInStep(station,Date.now()) : 0;
         if(station && settings.music>0) noise(.22,.02,1800,'music','bandpass');
       }
       ramp(buses.music.gain, settings.music*(reading ? .25 : paused ? .45 : 1));
@@ -215,10 +220,10 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
       intensity += (want - intensity) * .08;
       for(let i=0;i<3 && nextBeat<time+.12;i++) {
         if(settings.music>0) {
-          for(const note of station ? radioStep(station,beat,{ intensity }) : musicStep(location,beat,{ evening, intensity })) play(note,nextBeat);
+          for(const note of station ? lib.radioStep(station,beat,{ intensity }) : musicStep(location,beat,{ evening, intensity })) play(note,nextBeat);
           if(station && !reading) announce(station,beat);
         }
-        nextBeat+=station ? radioStepSeconds(station) : beatSeconds(location);beat++;
+        nextBeat+=station ? lib.radioStepSeconds(station) : beatSeconds(location);beat++;
       }
       const moving=Number.isFinite(speed)&&speed>.1&&!paused&&!reading&&drivingSpeed===null;
       if(moving && time>=nextFootstep && settings.effects>0) {

@@ -96,7 +96,7 @@ test('the radio replaces place music only while driving, and the DJ speaks ident
   const audio = createGameAudio({ createContext: () => context, speech });
   audio.setSettings({ ...AUDIO_DEFAULTS, effects: 0, ambience: 0, music: .5 });
   await audio.enable();
-  audio.setRadio('pulse');
+  await audio.setRadio('pulse');
   const realNow = Date.now;
   try {
     // Park the wall clock just before Pulse's first ident, then drive through it.
@@ -123,7 +123,7 @@ test('the DJ stays quiet with music at zero and during dialogue', async () => {
   const context = audioContext();
   const audio = createGameAudio({ createContext: () => context, speech: { speak: line => spoken.push(line), cancel() {} } });
   audio.setSettings({ ...AUDIO_DEFAULTS, music: .5 });
-  await audio.enable(); audio.setRadio('maple');
+  await audio.enable(); await audio.setRadio('maple');
   const realNow = Date.now;
   try {
     Date.now = () => (24 * 8 - 1) * radioStepSeconds('maple') * 1000 + 1;
@@ -131,4 +131,13 @@ test('the DJ stays quiet with music at zero and during dialogue', async () => {
   } finally { Date.now = realNow; }
   assert.equal(spoken.length, 0);
   audio.dispose();
+});
+
+test('the songs stay out of the start-up download: only the dial is imported eagerly', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const director = await readFile(new URL('../src/world/audio/director.mjs', import.meta.url), 'utf8');
+  const scene = await readFile(new URL('../src/world/WorldScene.tsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(director, /^import .*'\.\/radio\.mjs'/m);
+  assert.doesNotMatch(scene, /^import .*audio\/(radio\.mjs|RadioHud)'/m);
+  assert.match(scene, /lazy\(\(\) => import\('\.\/audio\/RadioHud'\)/);
 });

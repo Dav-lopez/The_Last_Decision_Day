@@ -5,7 +5,8 @@ export type AudioWorld = { location?: 'street'|'home'|'school'|'city'|'pitch'; m
 export type RadioSpeech = { speak(line: string, voice?: { volume?: number; pitch?: number; rate?: number }): void; cancel(): void };
 export declare function createGameAudio(options?: { createContext?: () => AudioContext; onStatus?: (status: AudioStatus) => void; onCue?: (cue: AudioCue) => void; speech?: RadioSpeech }): {
   enable(): Promise<boolean>; disable(): void; setSettings(value: AudioSettings): void; setHidden(hidden: boolean): void;
-  setRadio(station: string | null): void;
+  /** Resolves once the station's songs have loaded (they load on first use). */
+  setRadio(station: string | null): Promise<void>;
   cue(name: AudioCue): void;
   update(world: AudioWorld): void; dispose(): void;
 };

@@ -15,6 +15,8 @@
  * step, in the same { frequency, duration, gain, instrument } shape as the
  * score, so the audio director plays them on the music bus.
  */
+import { STATION_IDS } from './radioDial.mjs';
+
 export const frequency = midi => 440 * 2 ** ((midi - 69) / 12);
 
 const SONG_BARS = 24;
@@ -96,7 +98,7 @@ export const STATIONS = Object.freeze([
   },
 ]);
 
-export const STATION_IDS = Object.freeze(STATIONS.map(station => station.id));
+export { STATION_IDS, nextStation, readRadioStation, writeRadioStation } from './radioDial.mjs';
 export const stationById = id => STATIONS.find(station => station.id === id) ?? null;
 
 /** Seconds per eighth note on a station. */
@@ -189,23 +191,4 @@ export function radioStep(id, step, mood = {}) {
   return notes.slice(0, 5);
 }
 
-/** The next station in the dial, wrapping through "off". dir is +1 or -1. */
-export function nextStation(current, dir = 1) {
-  const dial = [null, ...STATION_IDS];
-  const at = Math.max(0, dial.indexOf(stationById(current)?.id ?? null));
-  return dial[(at + (dir < 0 ? -1 : 1) + dial.length) % dial.length];
-}
-
-const KEY = 'tld-radio-v1';
-/** The last station the player chose (default Maple 98.1; null means off). */
-export function readRadioStation(storage) {
-  try {
-    const raw = (storage ?? globalThis.localStorage)?.getItem(KEY);
-    if (raw === null || raw === undefined) return STATION_IDS[0];
-    if (raw === 'off') return null;
-    return stationById(raw) ? raw : STATION_IDS[0];
-  } catch { return STATION_IDS[0]; }
-}
-export function writeRadioStation(id, storage) {
-  try { (storage ?? globalThis.localStorage)?.setItem(KEY, stationById(id) ? id : 'off'); return true; } catch { return false; }
-}
+if (STATIONS.some((station, index) => station.id !== STATION_IDS[index])) throw new Error('radio stations and dial disagree');
