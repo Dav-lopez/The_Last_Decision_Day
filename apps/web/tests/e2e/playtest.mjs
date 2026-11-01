@@ -8,6 +8,7 @@
  */
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
+import { CAST, DECISIONS, NEW_STORY, advanceStory, currentStep, markSceneSeen, pendingScene, storyComplete } from '../../src/world/storyChapters.mjs';
 import { auditContrast, formatFinding } from './contrastAudit.mjs';
 
 const base = process.argv[2] ?? 'http://localhost:4173';
@@ -373,6 +374,93 @@ await step('quick travel to the pitch and back home', async () => {
   await dismissDialogue();
   await shot('07-home');
 });
+
+// MVP 9b: the whole story, chapter 1 to the epilogue, once for each of the three endings. Every step's gameplay
+// event goes through the game's own story code (the systems that raise them — school, sleep, downtown, careers,
+// the match — are played for real above), every scene is clicked through and checked line by line, the last
+// decision is made in a real conversation with the neighbour you choose, and Maple Street must show its change.
+/** Clicks through the open story scene in the page and returns the lines it showed. */
+const playScene = () => page.evaluate(async () => {
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const seen = [];
+  for (let i = 0; i < 60; i++) {
+    const scene = document.querySelector('.story-scene');
+    if (!scene) break;
+    const text = scene.querySelector('.story-box p')?.textContent ?? '';
+    if (seen.at(-1) !== text) seen.push(text);
+    scene.click();
+    for (let wait = 0; wait < 60; wait++) {
+      await sleep(50);
+      const now = document.querySelector('.story-scene');
+      if (!now || (now.querySelector('.story-box p')?.textContent ?? '') !== text) break;
+    }
+  }
+  return seen;
+});
+/** Makes the last decision by talking to that neighbour; false if they aren't out on Maple Street right now. */
+const decideInPerson = async who => {
+  const name = CAST[who].name;
+  for (let tries = 0; tries < 8; tries++) {
+    if (!(await page.evaluate(id => window.__tld.place(`talk:${id}`), who))) return false;
+    const prompt = page.locator('.world-car-action', { hasText: `Talk to ${name}` }).first();
+    if (!(await prompt.waitFor({ timeout: 8000 }).then(() => true, () => false))) continue;
+    await prompt.click({ timeout: 5000 }).catch(() => {});
+    const card = page.locator('.npc-chat-card');
+    if (!(await card.waitFor({ timeout: 15000 }).then(() => true, () => false))) continue;
+    if (!(await card.locator('.npc-chat-heading strong', { hasText: name }).count())) {
+      // Somebody else walked up first: leave without answering, so nothing is decided.
+      await card.getByRole('button', { name: 'Leave conversation' }).click();
+      await card.waitFor({ state: 'detached', timeout: 15000 });
+      continue;
+    }
+    await card.locator('.npc-chat-choices button').first().click();
+    await waitFor('reply shows', timeout => page.locator('.npc-chat-result').waitFor({ timeout }), 15000);
+    await page.getByRole('button', { name: 'Continue story' }).click();
+    await waitFor('conversation closes', timeout => card.waitFor({ state: 'detached', timeout }), 15000);
+    return true;
+  }
+  throw new Error(`could not get into a conversation with ${name}`);
+};
+const endingScenes = [];
+for (const [event, ending] of Object.entries(DECISIONS)) {
+  const who = event.slice('talked-'.length);
+  await step(`full story playthrough: ending "${ending.title}" (MVP 9b)`, async () => {
+    await playScene();
+    if (!(await page.evaluate(() => window.__tld.story.restart()))) throw new Error('could not restart the story');
+    let state = { ...NEW_STORY };
+    let scenes = 0, lines = 0, inPerson = false;
+    for (let guard = 0; guard < 80; guard++) {
+      const { chapter, step: current } = currentStep(state);
+      const expected = pendingScene(state);
+      if (expected) {
+        await waitFor(`scene "${chapter.title} · ${current.id}"`, timeout => page.waitForSelector('.story-scene', { timeout }), 30000);
+        const seen = await playScene();
+        const missing = expected.map(line => line.text).filter(text => !seen.includes(text));
+        if (missing.length) throw new Error(`${chapter.title} · ${current.id}: scene skipped "${missing[0]}" (showed ${seen.length} line(s))`);
+        scenes++; lines += seen.length;
+        state = markSceneSeen(state);
+      }
+      const live = (await read()).story;
+      if (live.chapter !== state.chapter || live.step !== state.step) throw new Error(`game is at chapter ${live.chapter + 1} step ${live.step + 1}, expected ${chapter.title} · ${current.id}`);
+      if (storyComplete(state)) break;
+      if (current.decide) {
+        inPerson = await decideInPerson(who);
+        if (!inPerson) await page.evaluate(e => window.__tld.story.report(e), event);
+      } else {
+        await page.evaluate(e => window.__tld.story.report(e), current.completeOn[0]);
+      }
+      state = advanceStory(state, current.decide ? event : current.completeOn[0]).state;
+    }
+    if (!storyComplete(state)) throw new Error('the story never reached its epilogue');
+    const final = (await read()).story;
+    if (final.decision !== ending.id) throw new Error(`decision saved as ${final.decision}, expected ${ending.id}`);
+    await waitFor(`Maple Street shows "${ending.title}"`, timeout => page.waitForFunction(id => window.__tld.read().decor === id, ending.id, { timeout }), 30000);
+    await page.waitForTimeout(1500);
+    await shot(`09-ending-${ending.id}`);
+    endingScenes.push(`${ending.id}: ${scenes} scenes, ${lines} lines, decided ${inPerson ? `in person with ${CAST[who].name}` : `by event (${CAST[who].name} was not out)`}`);
+  });
+}
+if (endingScenes.length) notes.push(`endings played: ${endingScenes.join(' · ')}`);
 
 await step('a crash shows the error screen with a working reload button', async () => {
   // A separate tab, so the deliberate crash is not mistaken for a real one in the main run.

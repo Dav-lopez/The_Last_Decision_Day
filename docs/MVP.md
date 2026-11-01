@@ -119,13 +119,19 @@ A new player can:
   mission beats (the hose at a fire, a lost child to find) can hang off the same stop events.
 - Leaving downtown (bus, taxi) mid-duty abandons it without pay; the life clock keeps running during a duty and
   then jumps the rest of the four-hour shift at sign-off.
-- [ ] **9. Release checklist**: page title, icons and share image, an error screen with a reload button,
+- [x] **9. Release checklist**: page title, icons and share image, an error screen with a reload button,
       a privacy note, a "what's new" list, and a final full playthrough of all three endings in the playtest.
   - [x] 9a. Page title "The Last Decision Day", description, SVG and PNG icons (home-screen icon, web manifest), a
         1200×630 link-share image (`scripts/render-icons.mjs` renders them), an error screen with Reload and Back buttons
         for crashes and stale builds, a plain-language privacy note and a "What's new" list (start page and menu, with
         "new since your last visit" tags). The playtest checks all of it and crashes a second tab on purpose.
-  - [ ] 9b. A final full playthrough of all three endings in the playtest.
+  - [x] 9b. A final full playthrough of all three endings in the playtest: after the rest of the run, the story is
+        restarted and played from Chapter 1 to the epilogue three times, once per ending. Every step's gameplay event
+        goes through the game's own story code, every scene is clicked through and checked line by line against
+        `storyChapters.mjs`, the last decision is made in a real conversation with Mr. Okafor, Marcus or Tess (the
+        playtest stands beside the one it wants; if they aren't out at that hour the event is reported instead and
+        the run says so), the saved decision must match, and Maple Street must show the garden, the crossing or the
+        football banner (screenshots `09-ending-*.png`).
 
 ## After MVP: open-world track ("GTA standard")
 
@@ -174,6 +180,10 @@ above is done or blocked; any item may be split into slices.
       facial work), screen-space reflections on wet roads where the device can afford it.
 
 ## Found along the way
+
+- 9b drives the story's events through a playtest hook (`__tld.story.report`), not by re-playing school, sleep,
+  downtown, a shift and a match three times over: at ~2 fps in CI's software renderer that would take hours. Those
+  systems are each played for real earlier in the same run.
 
 - Software rendering in CI runs at about 2 fps; the game clamps frames to 0.05 s of game time, so on very slow
   devices everything moves in slow motion. Worth a "low-end" check in item 6.

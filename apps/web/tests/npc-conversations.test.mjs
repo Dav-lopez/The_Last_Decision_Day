@@ -95,3 +95,13 @@ test('talkSpot stands you beside someone you can talk to right now', () => {
   assert.equal(talkSpot('city', 9 * 60, live), null);
   assert.equal(talkSpot('street', 7 * 60, null), null);
 });
+
+test('talkSpot can look for one person (the playtest picks who hears the last decision)', () => {
+  const live = { 'jogger-west': { x: -2.45, z: 3 }, 'neighbor-east': { x: 2.45, z: 1 }, 'walker-east': { x: 2.45, z: 8 } };
+  const okafor = talkSpot('street', 10 * 60, live, { x: -2.45, z: 3 }, 0.8, 'okafor');
+  assert.equal(okafor.id, 'okafor');
+  assert.equal(nearbyNpc(okafor, 'street', 10 * 60, live), 'okafor');
+  assert.equal(talkSpot('street', 10 * 60, live, null, 0.8, 'marcus').id, 'marcus');
+  // Mr. Okafor isn't out before 08:00, so there is no spot beside him even though Tess is jogging.
+  assert.equal(talkSpot('street', 7 * 60, live, null, 0.8, 'okafor'), null);
+});

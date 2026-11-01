@@ -75,7 +75,7 @@ import './story.css';
 import './worldMap.css';
 import './football.css';
 import { buildDecisionDecor } from './storyDecor';
-import { CAST, advanceStory, currentStep, markSceneSeen, pendingScene, readStory, storyComplete, writeStory,
+import { CAST, NEW_STORY, advanceStory, currentStep, markSceneSeen, pendingScene, readStory, storyComplete, writeStory,
   type StoryEvent, type StoryLine, type StoryState } from './storyChapters.mjs';
 import { buildSurroundings } from './worldSurroundings';
 import { createAtmosphere } from './sceneAtmosphere';
@@ -630,6 +630,7 @@ export default function WorldScene({
   const saveStory = (next: StoryState) => { storyRef.current = next; writeStory(characterId, next); setStory(next); decorRef.current(); progressChangedRef.current(); };
   // Once the story ends, Maple Street shows the change you chose.
   const decorRef = useRef<() => void>(() => {});
+  const decorShownRef = useRef<string | null>(null);
   const openPendingScene = () => {
     const scene = pendingScene(storyRef.current);
     if (!scene || dialogueRef.current) return;
@@ -874,6 +875,7 @@ export default function WorldScene({
         decor?.dispose();
         decor = want ? buildDecisionDecor(scene, want) : null;
         decorFor = want;
+        decorShownRef.current = want;
       };
       decorRef.current();
       let cityLights: ReturnType<typeof buildCityLights> | null = null;
@@ -1366,23 +1368,31 @@ export default function WorldScene({
             career: { id: careerRef.current.career, shifts: careerRef.current.shifts, money: careerRef.current.money },
             duty: activeTask ? { id: activeTask.task.id, next: activeTask.task.next, stops: activeTask.task.stops.length, elapsed: activeTask.task.elapsed, par: activeTask.task.par } : null,
             busy: pendingShift !== null,
+            decor: decorShownRef.current,
           }),
+          // The endings playthrough (MVP 9b) reports each step's gameplay event through the real story code,
+          // so every scene, the decision and Maple Street's change play exactly as they do for a player.
+          story: {
+            report: (event: StoryEvent) => storyActionsRef.current.reportStory(event),
+            restart: () => { if (dialogueRef.current) return false; saveStory({ ...NEW_STORY }); storyActionsRef.current.openPendingScene(); return true; },
+          },
           travel: (to: TravelTarget) => travelRef.current(to),
           route: () => mapReadRef.current().routeLength ?? 0,
           waypoint: () => mapReadRef.current().waypoint,
           // Stand the player beside something to try by touch: a neighbour, a parked car, or a workplace sign.
-          place: (spot: 'neighbour' | 'car' | 'duty' | CareerId) => {
+          place: (spot: 'neighbour' | 'car' | 'duty' | `talk:${NpcId}` | CareerId) => {
             if (interaction.mode !== 'walking' || pendingTaxi || pendingDrive || pendingRide) return false;
             const where = locationRef.current;
             let to: PlanarPosition | null = null;
-            if (spot === 'neighbour') to = where === 'city' ? downtownTalkSpot(regulars ? regularSpots : [], life.minute, position)
+            if (spot.startsWith('talk:')) to = talkSpot(where, life.minute, neighbors?.positions(), position, 0.8, spot.slice(5) as NpcId);
+            else if (spot === 'neighbour') to = where === 'city' ? downtownTalkSpot(regulars ? regularSpots : [], life.minute, position)
               : talkSpot(where, life.minute, neighbors?.positions(), position);
             else if (spot === 'car') to = where === 'street' ? vehicleExitPosition(cars[0], cars) : null;
             else if (spot === 'duty') {
               const stop = activeTask && where === 'city' ? activeTask.task.stops[activeTask.task.next] : null;
               to = stop ? toWorld([stop.x, stop.z]) : null;
             }
-            else if (where === 'city') to = workDoors.get(spot) ?? null;
+            else if (where === 'city') to = workDoors.get(spot as CareerId) ?? null;
             if (!to) return false;
             placePlayer({ x: to.x, z: to.z, rotation: avatar.rotation.y });
             return true;
