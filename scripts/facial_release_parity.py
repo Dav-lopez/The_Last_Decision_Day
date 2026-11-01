@@ -12,6 +12,7 @@ from pathlib import Path
 
 from facial_asset_contract import parse_glb, validate, vectors
 from facial_eyelids import EYELID_TARGETS
+from facial_brows import STROKES_PER_ROW, ROWS, VERTICES_PER_FIBRE
 
 VARIANTS = {"male": ("human.glb", "human.source.json"),
             "female": ("human-female.glb", "human-female.source.json")}
@@ -111,7 +112,7 @@ def inspect_variant(folder, body):
             f"{body}: eyebrow fibres must follow the existing expression morphs")
     require(len(brow.get("targets", [])) == 3,
             f"{body}: eyebrow fibre morph geometry missing")
-    require(len(vectors(doc, binary, brow["attributes"]["POSITION"])) == 168,
+    require(len(vectors(doc, binary, brow["attributes"]["POSITION"])) == 2 * ROWS * STROKES_PER_ROW * VERTICES_PER_FIBRE,
             f"{body}: unexpected eyebrow fibre vertex budget")
 
 

@@ -1,7 +1,8 @@
 export type StoryEvent = 'game-start' | 'left-home' | 'reached-school' | 'entered-school' | 'attended-class'
   | 'talked-teacher' | 'talked-maya' | 'talked-jordan' | 'talked-neighbour' | 'ate' | 'entered-home' | 'slept' | 'drove'
   | 'talked-ruth' | 'talked-okafor' | 'talked-marcus' | 'talked-elena' | 'talked-tess'
-  | 'went-downtown' | 'joined-career' | 'worked-shift' | 'played-match';
+  | 'went-downtown' | 'joined-career' | 'worked-shift' | 'played-match'
+  | 'talked-priya' | 'talked-dee' | 'talked-brooks';
 export type SpeakerId = 'narrator' | 'you' | 'mom' | 'maya' | 'jordan' | 'rivera' | 'stranger' | 'ruth' | 'okafor' | 'marcus' | 'elena' | 'tess';
 export type DecisionId = 'garden' | 'crossing' | 'football';
 export type StoryLine = Readonly<{ speaker: SpeakerId; text: string }>;
