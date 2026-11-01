@@ -175,6 +175,8 @@ above is done or blocked; any item may be split into slices.
   with `?playtest`), so touch flows don't depend on walking there in 2 fps software rendering.
 - On phones in landscape (640×360) the view and pad still don't fit together; a true overlay pad on the view
   would cover that case (worth doing with item 7's layout work).
+- Fixed: on narrow phones a two-line notice while driving made the drive HUD grow into the "Get out of car" button
+  (the phone playtest caught it once); the HUD drops its key help on phones, where the pad and button explain driving.
 - The phone's inbox (`tld-phone-v1:`) is kept in the browser only; it could join the account progress document.
   Story texts already seen before the phone existed all arrive at once, stamped with the time you next play.
 - Friends' texts are fixed lines per person; a later pass could tie them to the day (match invites on match

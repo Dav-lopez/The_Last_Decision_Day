@@ -163,6 +163,8 @@
   .world-root .world-car-action.world-league-open{top:auto;bottom:200px;left:calc(50% + 4px);right:8px}
   .world-root .world-notice{bottom:8px;left:8px;right:8px;transform:none;max-width:none;white-space:normal;text-align:center;font-size:.78rem;padding:6px 10px}
   .world-root .world-drive-hud{bottom:8px;left:8px;right:8px;font-size:.74rem}
+  /* The pad and the action button say how to drive on a phone; keeping the HUD short leaves room for notices under the button. */
+  .world-root .world-drive-help{display:none}
   .world-root .world-scoreboard{top:auto;bottom:150px;left:8px;right:8px;transform:none;flex-wrap:wrap;justify-content:center;gap:6px;padding:6px 8px}
   .world-root .world-scoreboard small{display:none}
   .world-root .world-camera-toggle{padding:10px 8px;gap:6px}

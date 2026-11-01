@@ -2514,7 +2514,7 @@ export default function WorldScene({
           </section>
         </div>}
         {driving && <div className="world-drive-hud" role="status" aria-live="polite">
-          <strong>{driveSpeed}</strong>km/h · W/S gas, brake, reverse · A/D steer · E to get out when stopped
+          <strong>{driveSpeed}</strong>km/h<span className="world-drive-help"> · W/S gas, brake, reverse · A/D steer · E to get out when stopped</span>
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
         </div>}
         {!driving && driveNotice && <div className="world-notice" role="status" aria-live="polite">{driveNotice}</div>}
