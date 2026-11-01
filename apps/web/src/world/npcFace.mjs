@@ -3,6 +3,7 @@ import { idleGazeTarget } from './gazeDynamics.mjs';
 import { npcSpeechWeight } from './npcSpeechDynamics.mjs';
 import { npcIdleMicroExpression } from './npcMicroExpression.mjs';
 import { npcSpeechProsodyWeight } from './npcSpeechProsody.mjs';
+import { npcListeningOffset, npcListeningDown } from './npcListeningGaze.mjs';
 
 const FACIAL_MORPH = /^(?:eye(?:Look(?:Up|Down|Left|Right)|Wide|Squint)(?:Left|Right)|brow(?:InnerUp|DownLeft|DownRight)|cheekSquint(?:Left|Right)|jawOpen|mouth(?:Open|SmileLeft|SmileRight|FrownLeft|FrownRight|PressLeft|PressRight))$/;
 
@@ -28,7 +29,7 @@ export function initialNpcFace(index) {
 
 /** Small, bounded poses layered over each resident's existing locomotion/action clips. */
 export function npcFaceTarget(name, elapsed, context = {}) {
-  const { talking = false, nearby = false, moving = false, flinch = 0, emotion = 'neutral', gaze = 0, vergence = 0, speechElapsed = undefined, speechDuration = 0, prosody = 'none', speechCues = undefined } = context;
+  const { talking = false, nearby = false, moving = false, flinch = 0, emotion = 'neutral', gaze = 0, vergence = 0, speechElapsed = undefined, speechDuration = 0, prosody = 'none', speechCues = undefined, attention = 0 } = context;
   if (!FACIAL_MORPH.test(name)) return 0;
   const startled = Number.isFinite(flinch) ? Math.min(1, Math.max(0, flinch)) : 0;
   const composure = 1 - startled;
@@ -43,6 +44,10 @@ export function npcFaceTarget(name, elapsed, context = {}) {
   // Idle micro-expressions are suppressed during player attention, speech,
   // movement, and emotional reactions; existing morph springs smooth the pose.
   const micro = npcIdleMicroExpression(name, time, context);
+  // Listening fixations use the same resident clock as micro-expressions, but
+  // only when the player is in the forward attention cone. Speech and distress
+  // take precedence, and the existing facial spring handles smooth release.
+  const listening = nearby && !talking && !moving && emotion === 'neutral' && startled < 0.1;
   // Sentence-ending eyebrow/eyelid inflection follows only an active line.
   // Sadness and startle take precedence; the existing spring and blink mask
   // still control transitions on every cloned facial surface.
@@ -78,7 +83,9 @@ export function npcFaceTarget(name, elapsed, context = {}) {
         // Each eye has its own small inward offset for near targets. Combine
         // before choosing a direction, so a single eye never receives both
         // opposing gaze morphs at the same time.
-        const aim = focus + (name.endsWith('Left') ? convergence : -convergence);
+        const aim = Math.max(-0.55, Math.min(0.55,
+          focus + npcListeningOffset(time, attention, listening) +
+          (name.endsWith('Left') ? convergence : -convergence)));
         pose = Math.max(0, name.startsWith('eyeLookRight') ? aim : -aim) * composure;
       } else if (!nearby && !talking && !moving && emotion === 'neutral' && startled < 0.1) {
         // Unattended residents also use the authored horizontal gaze morphs.
@@ -87,7 +94,8 @@ export function npcFaceTarget(name, elapsed, context = {}) {
         pose = idleGazeTarget(name, time, 'neutral', 0);
       }
     } else {
-      const down = name.startsWith('eyeLookDown') ? sad * (name.endsWith('Left') ? 0.24 : 0.21) : 0;
+      const down = name.startsWith('eyeLookDown')
+        ? sad * (name.endsWith('Left') ? 0.24 : 0.21) + npcListeningDown(time, attention, listening) : 0;
       pose = down + composure * idleGazeTarget(name, time, 'neutral',
         moving || talking || startled > 0.1 || emotion !== 'neutral' ? 1 : 0);
     }
