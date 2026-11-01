@@ -9,6 +9,8 @@ export type NpcFaceContext = {
   gaze?: number;
   /** Inward binocular offset in [0, 0.065] for nearby player focus. */
   vergence?: number;
+  /** Strength of the player's presence in the NPC's forward listening cone, in [0, 1]. */
+  attention?: number;
   /** Seconds since the currently displayed dialogue line began. */
   speechElapsed?: number;
   /** Duration of the active line, used for finite sentence-ending facial movement. */
