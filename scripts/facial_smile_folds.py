@@ -1,13 +1,13 @@
 """Head-skinned curved nasolabial relief driven by existing mouth-corner morphs.
 
-Three narrow rails per side create a rounded ridge instead of a flat decal.
+Two narrow rails per side create a sloped ridge instead of a flat decal.
 Each bilateral smile/frown target supplies POSITION and NORMAL deltas so the
 lighting follows the moving skin. Geometry stays deterministic and lightweight.
 """
 import math
 
 SAMPLES = 11
-RAILS = 3
+RAILS = 2
 FOLD_TARGETS = ("mouthSmileLeft", "mouthSmileRight", "mouthFrownLeft", "mouthFrownRight")
 
 
@@ -50,7 +50,7 @@ def build_smile_fold_geometry(head_joint):
             half_width = 0.0003 + 0.0011 * arch
             for rail in range(RAILS):
                 # Outer rails recede into the cheek; the centre forms a soft ridge.
-                across = rail - 1
+                across = -1 if rail == 0 else 1
                 positions.append((x, y + across * half_width,
                                   z + (0.0011 if rail == 1 else -0.0002) * arch))
                 owners.append(side)
