@@ -223,11 +223,13 @@ function nearbyRegular(position, minute, live) {
  * A spot right beside someone you can talk to on the street now (nearest to `from`
  * when given), for touch hints and automated playtests: { id, x, z } or null.
  * Stands `gap` metres from them, on the side towards the middle of the street.
+ * `only` limits it to one person (null when they're not out right now).
  */
-export function talkSpot(location, minute, live = null, from = null, gap = 0.8) {
+export function talkSpot(location, minute, live = null, from = null, gap = 0.8, only = null) {
   if (location !== 'street') return null;
   let best = null;
   for (const id of ['maya', 'jordan', ...WALKERS]) {
+    if (only && id !== only) continue;
     const npc = NPC_DIALOGUES[id];
     const resident = NEIGHBORS.find(person => person.id === npc.resident);
     if (!resident || !isOut(resident, minute)) continue;
