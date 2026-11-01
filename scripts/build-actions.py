@@ -24,6 +24,9 @@ ROOT = Path(__file__).resolve().parents[1]
 _spec = importlib.util.spec_from_file_location("build_character", ROOT / "scripts/build-character.py")
 bc = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(bc)
+_slim_spec = importlib.util.spec_from_file_location("slim_clips", ROOT / "scripts/slim_clips.py")
+slim_clips = importlib.util.module_from_spec(_slim_spec)
+_slim_spec.loader.exec_module(slim_clips)
 
 OUTPUT = ROOT / "apps/web/public/models"
 BASE = bc.BASE
@@ -120,6 +123,12 @@ def build(files, output, body_file):
     encoded = json.dumps(b.doc, separators=(",", ":")).encode()
     encoded += b" " * (-len(encoded) % 4)
     glb = struct.pack("<III", 0x46546C67, 2, 28+len(encoded)+len(b.binary)) + struct.pack("<II", len(encoded), 0x4E4F534A) + encoded + struct.pack("<II", len(b.binary), 0x004E4942) + b.binary
+    # Drop redundant keys, store rotations as 16-bit and share buffer views (about a third of the size).
+    slimmed = slim_clips.slim(glb)
+    worst = slim_clips.verify(glb, slimmed)
+    if worst["rotation"] > slim_clips.ROTATION_TOLERANCE or worst["translation"] > slim_clips.TRANSLATION_TOLERANCE:
+        raise ValueError(f"Slimming changed {output} too much: {worst}")
+    glb = slimmed
     (OUTPUT / output).write_bytes(glb)
     print(f"Built {output}: {len(glb):,} bytes, {len(CLIPS)} clips")
     return {"file": output, "body": body_file, "bytes": len(glb), "sha256": hashlib.sha256(glb).hexdigest()}
@@ -138,5 +147,5 @@ if __name__ == "__main__":
                 "sources": [{"file": n, "url": bc.MIRROR+urllib.parse.quote(p), "sha256": h} for n, (p, h) in SOURCES.items()],
                 "clips": {name: {"source": src, "loop": loop} for name, (src, loop) in CLIPS.items()},
                 "outputs": outputs,
-                "modifications": ["Retarget rotations onto each body's rest pose; keep only root/pelvis translation; remove horizontal root travel.", "Skeleton nodes only: the browser binds clips to a loaded character by bone name."]}
+                "modifications": ["Retarget rotations onto each body's rest pose; keep only root/pelvis translation; remove horizontal root travel.", "Slimmed by scripts/slim_clips.py: keys a straight line reproduces are dropped (within 2e-4 per quaternion component, 0.1 mm), rotations stored as normalized 16-bit integers.", "Skeleton nodes only: the browser binds clips to a loaded character by bone name."]}
     (OUTPUT / "human-actions.source.json").write_text(json.dumps(manifest, indent=2)+"\n")

@@ -69,6 +69,9 @@ A new player can:
         workplace signs and traffic are built behind the first ride's fade (the map, taxi and workplace pins work
         from the street data at once), and the range is its own download; the playtest checks both halves.
   - [ ] 6c. Compressed models (meshopt/Draco or texture-size cuts for the 1.6 MB human and plant GLBs).
+    - [x] 6c-1 (partial slice). Action clips (talk, sit, drive, jump, dance…) slimmed from 711 KB to 255 KB per body
+          (278 KB → 75 KB gzipped) by `scripts/slim_clips.py`: redundant keys dropped (≤0.02°, 0.1 mm), rotations
+          stored as 16-bit, shared buffer views; Babylon import checked in CI. Still to do: the plant and human GLBs.
 - [ ] **7. Accessibility**: full keyboard flow, visible focus, reduced-motion option, readable contrast,
       captions for story audio cues.
   - [x] 7a. Accessibility settings in the menu: motion (follow the device / reduced / full), sound captions that
@@ -120,6 +123,12 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- The action-clip GLBs were 40 % JSON (one bufferView per accessor, 1,474 of them) and repeated identical key
+  times for every bone; `scripts/slim_clips.py` fixes both and runs inside `build-actions.py`. The same repacking
+  would shrink the three locomotion clips inside `human.glb`, but that file belongs to the facial-asset pipeline.
+- The sandbox has no meshopt/gltfpack and no npm registry, so geometry compression for the plant and human GLBs
+  needs a CI job (like `propose-polyhaven-models.yml`) that runs `gltfpack -cc` and opens a PR with the result,
+  plus a self-hosted `meshopt_decoder` so Babylon doesn't fetch it from its CDN.
 - 6c note: the Poly Haven props already use 1024 px WebP textures and quantized meshes; the bulk is geometry
   (the plant is 1.3 MB of vertices, the human GLBs carry facial morph targets), so the real win needs meshopt with
   a self-hosted decoder (Babylon fetches it from its CDN by default). Leave the facial GLBs to the facial-asset
