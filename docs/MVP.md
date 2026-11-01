@@ -177,6 +177,9 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- `main` went over the WorldScene bundle budget (125.7 KB gzipped vs 124 KB) once driving feel, car radio and the
+  phone landed together; #237 raises it to 130 KB. WorldScene.tsx is ~2,700 lines: the downtown-only HUD (duty card,
+  GPS, radio) could move into lazy chunks to win that back.
 - The contrast audit only sees an element's own ancestors' backgrounds; text drawn over a sibling panel (absolutely
   positioned on top of another) is judged as if over the 3D scene, which is the stricter case. The phone playtest
   could run the same audit at 360×640.
