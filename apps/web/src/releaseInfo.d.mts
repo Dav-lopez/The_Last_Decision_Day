@@ -1,0 +1,12 @@
+export declare const GAME_TITLE: string;
+export declare const GAME_TAGLINE: string;
+export type ReleaseNote = { readonly id: string; readonly title: string; readonly items: readonly string[] };
+export declare const RELEASE_NOTES: readonly ReleaseNote[];
+export declare const LATEST_RELEASE: string;
+export declare function unseenNotes(lastSeen: string | null | undefined, notes?: readonly ReleaseNote[]): ReleaseNote[];
+type KeyStore = Pick<Storage, 'getItem' | 'setItem'>;
+export declare function readLastSeen(storage: KeyStore | null | undefined): string | null;
+export declare function markSeen(storage: KeyStore | null | undefined, id?: string): boolean;
+export declare const PRIVACY_POINTS: readonly string[];
+export declare function isStaleBuildError(error: unknown): boolean;
+export declare function describeCrash(error: unknown): { title: string; body: string; detail?: string };
