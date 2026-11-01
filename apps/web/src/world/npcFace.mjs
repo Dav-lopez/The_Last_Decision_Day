@@ -97,7 +97,7 @@ export function npcFaceTarget(name, elapsed, context = {}) {
       const down = name.startsWith('eyeLookDown')
         ? sad * (name.endsWith('Left') ? 0.24 : 0.21) + npcListeningDown(time, attention, listening) : 0;
       pose = down + composure * idleGazeTarget(name, time, 'neutral',
-        moving || talking || startled > 0.1 || emotion !== 'neutral' ? 1 : 0);
+        moving || talking || (nearby && attention > 0) || startled > 0.1 || emotion !== 'neutral' ? 1 : 0);
     }
   }
   return Math.min(1, Math.max(0, pose));
