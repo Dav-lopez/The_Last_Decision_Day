@@ -615,7 +615,11 @@ def build(files, variant):
             },
             "indices": b.accessor(folds["indices"], "SCALAR", 5123),
             "material": 0,
-            "targets": [{"POSITION": b.accessor(deltas, "VEC3")} for deltas in folds["targets"]],
+            "targets": [
+                {"POSITION": b.accessor(deltas, "VEC3"),
+                 "NORMAL": b.accessor(normal_deltas, "VEC3")}
+                for deltas, normal_deltas in zip(folds["targets"], folds["normal_targets"])
+            ],
         }],
         "extras": {"targetNames": list(folds["names"])},
     })
