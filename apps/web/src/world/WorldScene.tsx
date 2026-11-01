@@ -28,19 +28,22 @@ import { ScanImport } from './ScanImport';
 import { readHouseStyle } from './photoPalette.mjs';
 import { colorFor, modelFor, readLook, writeLook, type Look } from './appearance.mjs';
 import { Wardrobe } from './Wardrobe';
-import { WorldMap, type MapMarker, type MapSnapshot, type TravelTarget } from './WorldMap';
+import { WorldMap, type MapMarker, type MapSnapshot, type TravelTarget, type WaypointControl } from './WorldMap';
 import type { RangeOutcome } from './TrainingRange';
 // The training range (its drawing code and styles) downloads the first time you train.
 const TrainingRange = lazy(() => import('./TrainingRange').then(module => ({ default: module.TrainingRange })));
 import { RANGE_DRILLS, TRAINING_MINUTES, canTrain, finishTraining } from './trainingRange.mjs';
 import { AudioPanel } from './audio/AudioPanel';
 import { loadCityTraffic, type CityTraffic } from './cityTrafficScene';
+import { buildRoadGraph, type RoadGraph } from './cityTraffic.mjs';
+import { nearestOnRoads, routeBetween } from './gps.mjs';
+import { Minimap } from './Minimap';
 import { GameMenu, type MenuTab } from './GameMenu';
 import { graphicsMode, readSettings, reducedMotion, resetProgress, writeSettings, type PlayerSettings } from './gameSettings.mjs';
 import type { GameAudio } from './audio/director.mjs';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
 import { buildFootballPitch } from './footballScene';
-import { createMatch, formatClock as formatMatchClock, stepMatch, type MatchState } from './footballMatch.mjs';
+import { createMatch, formatClock as formatMatchClock, saveMessage, stepMatch, type MatchState } from './footballMatch.mjs';
 import { ROUNDS as LEAGUE_ROUNDS, YOU as LEAGUE_YOU, clubName, clubShort, readLeague, recordResult, standings, upcomingFixture, writeLeague, yourPosition, type ClubId, type League } from './footballLeague.mjs';
 import { loadFootballPlayers } from './footballPlayers';
 import { CAREERS, SHIFT_HOURS, joinCareer, workplaceDoors, quitCareer, rankOf, readCareer, workShift, writeCareer, type CareerId, type CareerState } from './careers.mjs';
@@ -60,7 +63,7 @@ import { createAtmosphere } from './sceneAtmosphere';
 import { createCameraOcclusionGuard, createRenderPipeline, pickRenderQuality } from './renderQuality';
 import { createQuality, stepQuality } from './adaptiveQuality.mjs';
 import { loadNeighbors, type Neighbors, type Person } from './npcPeople';
-import { NPC_DIALOGUES, nearbyNpc, beginNpcConversation, chooseNpcReply, readNpcRelations, writeNpcRelations,
+import { NPC_DIALOGUES, nearbyNpc, talkSpot, beginNpcConversation, chooseNpcReply, readNpcRelations, writeNpcRelations,
   type NpcId, type NpcConversation, type NpcReply, type NpcRelations } from './npcConversations.mjs';
 import { buildSchoolScene } from './schoolScene';
 import { BUS_RIDE_MINUTES, MAPLE_BUS_STOP, atBusStop, cameraClearance, createCityCollider, findBusStop, readCity, stepCityLocomotion, toLocal, toWorld, type City } from './cityLayout.mjs';
@@ -404,6 +407,14 @@ export default function WorldScene({
   canExecuteActivity, onPreviewActivity, onExecuteActivity, preview, lifeSync, progressSync, online,
 }: WorldProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  // On a phone, bring the 3D view to the top of the screen once, so the view and the touch pad under it
+  // are both on screen without scrolling between them.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia?.('(max-width: 640px)').matches) return;
+    const timer = window.setTimeout(() => viewportRef.current?.scrollIntoView({ block: 'start', behavior: 'auto' }), 150);
+    return () => window.clearTimeout(timer);
+  }, []);
   const inputRef = useRef(createMovementInput());
   const audioRef = useRef<GameAudio | null>(null);
   const [sprintEnabled, setSprintEnabled] = useState(false);
@@ -423,9 +434,20 @@ export default function WorldScene({
   const riggedRef = useRef<RiggedAvatar | null>(null);
   const swapBodyRef = useRef<((model: string) => void) | null>(null);
   // The map (N) reads a live snapshot; quick travel goes through the scene.
-  const [mapOpen, setMapOpen] = useState(false);
-  const mapReadRef = useRef<() => MapSnapshot>(() => ({ location: 'street', you: null, city: null, street: [], downtown: [], canTravel: false }));
+  const [mapOpen, setMapOpenState] = useState(false);
+  // The ref lets key handlers see the map's state; focus may be on the map, not the game.
+  const mapOpenRef = useRef(false);
+  const setMapOpen = useCallback((next: boolean | ((open: boolean) => boolean)) => {
+    setMapOpenState(open => {
+      const value = typeof next === 'function' ? next(open) : next;
+      mapOpenRef.current = value;
+      return value;
+    });
+  }, []);
+  const mapReadRef = useRef<() => MapSnapshot>(() => ({ location: 'street', you: null, city: null, street: [], downtown: [], canTravel: false, view: 0, traffic: [], waypoint: null, waypointLabel: null, route: null, routeLength: null }));
   const travelRef = useRef<(to: TravelTarget) => void>(() => {});
+  const waypointRef = useRef<WaypointControl>({ set: () => {}, clear: () => {} });
+  const waypointControl = useRef<WaypointControl>({ set: (x, z) => waypointRef.current.set(x, z), clear: () => waypointRef.current.clear() }).current;
   // In-game menu (Esc): pauses the world. Settings are browser-local.
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuTab, setMenuTab] = useState<MenuTab>('controls');
@@ -769,6 +791,12 @@ export default function WorldScene({
       // Downtown traffic loads after the city itself; it's optional.
       let cityTraffic: CityTraffic | null = null;
       let trafficShown = false;
+      // GPS: the road network, your waypoint (manual from the map, or the story objective) and the route to it.
+      let roadGraph: RoadGraph | null = null;
+      let waypoint: { x: number; z: number; label: string; manual: boolean } | null = null;
+      let route: { points: [number, number][]; length: number } | null = null;
+      let routeTimer = 0;
+      let viewHeading = 0;
       const loadDowntown = async () => {
         const index = await fetch('/city/index.json').then(response => response.ok ? response.json() : null);
         const entry = Array.isArray(index?.cities) ? index.cities[0] : null;
@@ -780,6 +808,8 @@ export default function WorldScene({
         if (!local) return;
         const world = toWorld([local.x, local.z]);
         workDoors = workplaceDoors(city, collider);
+        // The GPS works from the map data, before the 3D city is built.
+        roadGraph = buildRoadGraph(city.roads);
         downtownSite = {
           city, collider, heading: local.heading,
           stop: { ...world, rotation: movementHeading(local.dx, local.dz), dx: local.dx, dz: local.dz, awayX: local.awayX, awayZ: local.awayZ, street: local.street },
@@ -1143,10 +1173,26 @@ export default function WorldScene({
             traffic: cityTraffic?.cars().slice(0, 30).map(car => ({ x: car.x, z: car.z, speed: car.speed })) ?? [],
             taxi: Boolean(pendingTaxi) || Boolean(pendingDrive),
             travelling: pendingTaxi !== null,
+            match: match ? { phase: match.phase, clock: match.clock, score: match.score, keepers: match.players.filter(p => p.role === 'keeper').map(p => ({ team: p.team, x: p.x - PITCH.x, z: p.z - PITCH.z })) } : null,
+            car: drivenIndex() >= 0 ? { x: cars[drivenIndex()].x, z: cars[drivenIndex()].z, speed: cars[drivenIndex()].speed } : null,
             loading: !worldReadyRef.current,
             downtownBuilt: downtown !== null, downtownBuildMs,
           }),
           travel: (to: TravelTarget) => travelRef.current(to),
+          route: () => mapReadRef.current().routeLength ?? 0,
+          waypoint: () => mapReadRef.current().waypoint,
+          // Stand the player beside something to try by touch: a neighbour, a parked car, or a workplace sign.
+          place: (spot: 'neighbour' | 'car' | CareerId) => {
+            if (interaction.mode !== 'walking' || pendingTaxi || pendingDrive || pendingRide) return false;
+            const where = locationRef.current;
+            let to: PlanarPosition | null = null;
+            if (spot === 'neighbour') to = talkSpot(where, life.minute, neighbors?.positions(), position);
+            else if (spot === 'car') to = where === 'street' ? vehicleExitPosition(cars[0], cars) : null;
+            else if (where === 'city') to = workDoors.get(spot) ?? null;
+            if (!to) return false;
+            placePlayer({ x: to.x, z: to.z, rotation: avatar.rotation.y });
+            return true;
+          },
         };
       }
       travelRef.current = (to) => {
@@ -1189,9 +1235,40 @@ export default function WorldScene({
         applyFog();
         saveToAccount();
       };
+      /** Story objectives that happen downtown point the GPS at the right place. */
+      const objectiveWaypoint = (): { x: number; z: number; label: string } | null => {
+        if (!downtown) return null;
+        const stepId = currentStep(storyRef.current).step.id;
+        const local = (p: PlanarPosition, label: string) => { const [x, z] = toLocal(p); return { x, z, label }; };
+        if (stepId === 'the-match') return local(PITCH, 'Football pitch');
+        const mine = careerRef.current.career ? workDoors.get(careerRef.current.career) : undefined;
+        if (stepId === 'first-shift' && mine) return local(mine, CAREERS[careerRef.current.career!].workplace);
+        if (stepId === 'find-work' || (stepId === 'first-shift' && !mine)) {
+          const here = drivenIndex() >= 0 ? cars[drivenIndex()] : position;
+          let best: { door: PlanarPosition; id: CareerId } | null = null;
+          for (const [id, door] of workDoors) if (!best || Math.hypot(door.x - here.x, door.z - here.z) < Math.hypot(best.door.x - here.x, best.door.z - here.z)) best = { door, id };
+          return best ? local(best.door, CAREERS[best.id].workplace) : null;
+        }
+        return null;
+      };
+      waypointRef.current = {
+        // Snap the waypoint onto the nearest street (a click can land in a park, a block or the map's margin).
+        set: (x, z) => {
+          const half = downtown?.city.halfSize ?? [Infinity, Infinity];
+          const cx = Math.max(-half[0], Math.min(half[0], x)), cz = Math.max(-half[1], Math.min(half[1], z));
+          const snapped = roadGraph ? nearestOnRoads(roadGraph, cx, cz) : null;
+          waypoint = { x: snapped?.x ?? cx, z: snapped?.z ?? cz, label: 'Waypoint', manual: true };
+          routeTimer = Infinity;
+        },
+        clear: () => { waypoint = null; route = null; },
+      };
       mapReadRef.current = () => {
         const inCityNow = locationRef.current === 'city';
-        const local = inCityNow ? toLocal(position) : [position.x, position.z];
+        // You: on foot, or your car while driving. Heading is the direction of travel (0 = north/+z, clockwise).
+        const driven = drivenIndex();
+        const at = driven >= 0 ? cars[driven] : position;
+        const heading = driven >= 0 ? cars[driven].rotation : avatar.rotation.y + Math.PI;
+        const local = inCityNow ? toLocal(at) : [at.x, at.z];
         const street: MapMarker[] = [
           { id: 'home', label: 'Home', x: -8.4, z: -5.05, kind: 'home' },
           { id: 'school', label: 'School', x: SCHOOL_DOOR.x, z: SCHOOL_DOOR.z, kind: 'school' },
@@ -1212,10 +1289,16 @@ export default function WorldScene({
         }
         return {
           location: locationRef.current,
-          you: { x: local[0], z: local[1], heading: avatar.rotation.y },
+          you: { x: local[0], z: local[1], heading },
           city: downtownSite?.city ?? null,
           street, downtown: downtownPins,
           canTravel: interaction.mode === 'walking' && (locationRef.current === 'street' || locationRef.current === 'city'),
+          view: viewHeading,
+          traffic: inCityNow ? (cityTraffic?.cars() ?? []).map(car => { const [x, z] = toLocal(car); return { x, z }; }) : [],
+          waypoint: inCityNow && waypoint ? { x: waypoint.x, z: waypoint.z } : null,
+          waypointLabel: waypoint?.label ?? null,
+          route: inCityNow ? route?.points ?? null : null,
+          routeLength: inCityNow && route ? route.length : null,
         };
       };
       const finishDrive = () => {
@@ -1564,6 +1647,13 @@ export default function WorldScene({
           return;
         }
         if (rangeOpenRef.current) return;
+        // N or Esc closes the big map even after you clicked on it (focus is then on the map).
+        if (mapOpenRef.current && (event.key === 'n' || event.key === 'N' || event.key === 'Escape') && !event.repeat) {
+          event.preventDefault();
+          setMapOpen(false);
+          canvas.focus({ preventScroll: true });
+          return;
+        }
         if (event.key === 'Escape' && !event.repeat) {
           event.preventDefault();
           if (menuOpenRef.current) menuActionsRef.current.close();
@@ -1703,6 +1793,27 @@ export default function WorldScene({
         }
         schoolMarker.position.y = 4.6 + Math.sin(markerTime * 2.5) * 0.12;
         const cameraForward = { x: cameraDirection.x, z: cameraDirection.z };
+        viewHeading = Math.atan2(cameraForward.x, cameraForward.z);
+        routeTimer += delta;
+        if (routeTimer >= 0.5) {
+          routeTimer = 0;
+          if (locationRef.current === 'city' && roadGraph && downtown) {
+            // With no waypoint of your own, the GPS follows the story objective.
+            if (!waypoint?.manual) {
+              const target = objectiveWaypoint();
+              waypoint = target ? { ...target, manual: false } : null;
+            }
+            const driven = drivenIndex();
+            const [lx, lz] = toLocal(driven >= 0 ? cars[driven] : position);
+            if (waypoint && Math.hypot(lx - waypoint.x, lz - waypoint.z) < 14) {
+              if (waypoint.manual) { notify('You have arrived.'); audioRef.current?.cue('notice'); waypoint = null; }
+              route = null;
+            } else if (waypoint) {
+              const found = routeBetween(roadGraph, { x: lx, z: lz }, waypoint, 400);
+              route = found ? { points: found.points as [number, number][], length: found.length } : null;
+            } else route = null;
+          } else if (locationRef.current !== 'city') route = null;
+        }
         remotePlayers.update(online?.current?.read(), locationRef.current, delta);
         onlineElapsed += delta;
         if (onlineElapsed >= 0.2) {
@@ -1917,7 +2028,7 @@ export default function WorldScene({
             if (event.type === 'goal') {
               notify(event.team === 'home' ? `GOAL for Blue! ${match.score.home}–${match.score.away}` : `${clubShort(opponent)} score. ${match.score.home}–${match.score.away}`);
               if (event.team === 'home') riggedRef.current?.playAction('Dance');
-            } else if (event.type === 'save' && event.team === 'away') notify(`Saved by the ${clubShort(opponent)} keeper!`);
+            } else if (event.type === 'save') notify(saveMessage(event, clubShort(opponent)));
             else if (event.type === 'fulltime') {
               const { home, away } = match.score;
               const table = recordResult(leagueRef.current, home, away);
@@ -2207,7 +2318,7 @@ export default function WorldScene({
         : doorPrompt === 'locked' ? "Neighbors' house (E)"
           : nearCar && !inHome && !atSchool ? 'Get in car (E)' : '';
   return <div className="world-root" aria-label="Playable 3D neighborhood">
-    <div className="world-viewport">
+    <div className="world-viewport" ref={viewportRef}>
       {!error && <canvas ref={canvasRef} tabIndex={0} aria-label={`3D world for ${displayName}; click to focus, use WASD or arrow keys to move`} />}
       {error ? <p className="world-fallback" role="status">{error}</p> : <>
         <LoadingScreen tracker={loadTracker} onReady={() => { worldReadyRef.current = true; }} />
@@ -2224,7 +2335,8 @@ export default function WorldScene({
         <div className="world-caption"><button type="button" className="world-menu-button" aria-label="Open the game menu (Escape)" aria-expanded={menuOpen}
           onClick={() => openMenu()}>☰ Menu</button> <strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : inCity ? inCity : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
-        <WorldMap open={mapOpen} onClose={() => setMapOpen(false)} read={readMap} travel={travelTo} />
+        <WorldMap open={mapOpen} onClose={() => setMapOpen(false)} read={readMap} travel={travelTo} waypoint={waypointControl} />
+        <Minimap read={readMap} hidden={mapOpen || menuOpen || Boolean(rangeOpen) || inHome || atSchool} />
         {scoreboard && <div className="world-scoreboard" role="status" aria-live="polite"><strong>{scoreboard}</strong><small>F shoot · Shift+F chip · Q pass</small>
           <span className="world-scoreboard-actions">
             <button type="button" onClick={event => { kickRef.current(false); focusWorld(event); }}>Shoot (F)</button>

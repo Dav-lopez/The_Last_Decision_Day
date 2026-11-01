@@ -27,6 +27,19 @@ page.on('console', message => {
 });
 const shot = name => page.screenshot({ path: `${out}/${name}.png` });
 const read = () => page.evaluate(() => window.__tld?.read() ?? null);
+/** A named wait: on timeout, says what it was waiting for and what the page looked like. */
+const waitFor = async (label, fn, timeout = 60000) => {
+  try { await fn(timeout); }
+  catch (error) {
+    const state = await page.evaluate(() => ({
+      tld: window.__tld?.read ? (({ x, z, location, dialogue, npcChat, taxi }) => ({ x, z, location, dialogue, npcChat, taxi }))(window.__tld.read()) : null,
+      minimap: Boolean(document.querySelector('.world-minimap')), map: Boolean(document.querySelector('.world-map')),
+      menu: Boolean(document.querySelector('.game-menu-backdrop:not([hidden])')), focus: document.activeElement?.tagName,
+      dialogs: [...document.querySelectorAll('[role=dialog]')].map(d => d.getAttribute('aria-label')).slice(0, 4),
+    })).catch(() => null);
+    throw new Error(`${label}: ${error.message.split('\n')[0]} · page ${JSON.stringify(state)}`);
+  }
+};
 const step = async (name, fn) => {
   const started = Date.now();
   try { await fn(); notes.push(`${name}: ok (${((Date.now() - started) / 1000).toFixed(1)}s)`); }
@@ -176,6 +189,25 @@ await step('downtown traffic drives', async () => {
   await page.waitForFunction(first => window.__tld.read().traffic.some((car, i) => first[i] && Math.hypot(car.x - first[i].x, car.z - first[i].z) > 1), before, { timeout: 120000 });
   notes.push(`${before.length} traffic cars downtown`);
   await shot('05b-traffic');
+});
+await step('minimap shows, and a map waypoint gives a GPS route', async () => {
+  await waitFor('minimap visible', timeout => page.waitForSelector('.world-minimap canvas', { timeout }));
+  await page.locator('canvas').first().click({ position: { x: 320, y: 120 } });
+  await page.keyboard.press('n');
+  // The main thread is busy rendering in software, so UI updates can take a while.
+  await waitFor('big map opens on the downtown tab', timeout => page.waitForSelector('.world-map-gps', { timeout }));
+  const map = page.locator('.world-map-gps');
+  const box = await map.boundingBox();
+  notes.push(`big map ${Math.round(box.width)}×${Math.round(box.height)} px`);
+  // Locator clicks scroll the map into view first.
+  await map.click({ position: { x: box.width * 0.75, y: box.height * 0.35 } });
+  await waitFor('waypoint set', timeout => page.waitForFunction(() => Boolean(window.__tld.waypoint()), null, { timeout }));
+  await shot('05c-gps-map');
+  await page.keyboard.press('n');
+  await waitFor('big map closes', timeout => page.waitForSelector('.world-map', { state: 'detached', timeout }));
+  await waitFor('GPS route appears', timeout => page.waitForFunction(() => window.__tld.route() > 0, null, { timeout }), 120000);
+  notes.push(`GPS route ${Math.round(await page.evaluate(() => window.__tld.route()))} m`);
+  await shot('05d-minimap-route');
 });
 await step('quick travel to the pitch and back home', async () => {
   await page.evaluate(() => window.__tld.travel('pitch'));

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { collectNpcFaceTargets, initialNpcFace, npcFaceTarget, advanceNpcFace, resetNpcFace } from '../src/world/npcFace.mjs';
 import { npcAttentionGaze } from '../src/world/npcAttentionGaze.mjs';
 import { npcIdleMicroExpression } from '../src/world/npcMicroExpression.mjs';
+import { npcConversationHeadTarget, stepNpcConversationHead } from '../src/world/npcConversationHead.mjs';
 
 const weight = (name, emotion, extra = {}) => npcFaceTarget(name, 0.23, { emotion, talking: true, nearby: true, ...extra });
 const morph = name => ({ name, influence: 0 });
@@ -307,4 +308,70 @@ test('resident offsets desynchronize micro-expressions and shared mesh morphs st
   state = resetNpcFace(state, [brow, duplicate]);
   assert.equal(brow.influence, 0);
   assert.equal(state.motions.size, 0);
+});
+
+test('dialogue head nod begins and ends at rest, following only the active line', () => {
+  const ctx = { talking: true, speaking: true, duration: 2, mood: 'neutral' };
+  const start = npcConversationHeadTarget({ ...ctx, elapsed: 0 });
+  const middle = npcConversationHeadTarget({ ...ctx, elapsed: 0.25 });
+  const end = npcConversationHeadTarget({ ...ctx, elapsed: 2 });
+  assert.deepEqual(start, { pitch: 0, roll: 0 });
+  assert.ok(Math.abs(middle.pitch) > 0.02 && Math.abs(middle.roll) > 0.004);
+  assert.deepEqual(end, { pitch: 0, roll: 0 }, 'a finished line must not keep nodding');
+  assert.ok(Math.abs(npcConversationHeadTarget({ ...ctx, elapsed: 1.99 }).pitch) < 0.001);
+});
+
+test('happy and sad conversation poses persist without a looping speech nod', () => {
+  const sad = npcConversationHeadTarget({ talking: true, speaking: false, mood: 'sad' });
+  const happy = npcConversationHeadTarget({ talking: true, speaking: false, mood: 'happy' });
+  assert.ok(sad.pitch > 0 && happy.pitch < 0);
+  assert.ok(sad.roll > 0 && happy.roll < 0);
+  assert.deepEqual(npcConversationHeadTarget({ talking: true, speaking: false, mood: 'neutral' }),
+    { pitch: 0, roll: 0 });
+  assert.deepEqual(npcConversationHeadTarget({ talking: false, speaking: true, elapsed: 0.25, duration: 2 }),
+    { pitch: 0, roll: 0 });
+});
+
+test('movement and flinches override conversational head motion without corrupting yaw', () => {
+  const ctx = { talking: true, speaking: true, elapsed: 0.25, duration: 2, mood: 'happy' };
+  assert.deepEqual(npcConversationHeadTarget({ ...ctx, moving: true }), { pitch: 0, roll: 0 });
+  assert.deepEqual(npcConversationHeadTarget({ ...ctx, flinch: 0.9 }), { pitch: 0, roll: 0 });
+  assert.deepEqual(npcConversationHeadTarget({ ...ctx, flinch: NaN }), { pitch: 0, roll: 0 });
+  // Yaw belongs to the separate NPC attention controller.
+  assert.equal(Object.hasOwn(npcConversationHeadTarget(ctx), 'yaw'), false);
+});
+
+test('conversation head smoothing bounds speed and remains frame-rate independent', () => {
+  const target = { pitch: 0.06, roll: 0.025 };
+  let fine = { pitch: 0, roll: 0 }, coarse = { pitch: 0, roll: 0 };
+  for (let i = 0; i < 60; i++) fine = stepNpcConversationHead(fine, target, 1 / 60);
+  for (let i = 0; i < 30; i++) coarse = stepNpcConversationHead(coarse, target, 1 / 30);
+  assert.ok(Math.abs(fine.pitch - coarse.pitch) < 0.002);
+  assert.ok(Math.abs(fine.roll - coarse.roll) < 0.002);
+  const first = stepNpcConversationHead({ pitch: 0, roll: 0 }, target, 1 / 60);
+  assert.ok(first.pitch <= 0.24 / 60 + 1e-12);
+  assert.ok(first.roll <= 0.14 / 60 + 1e-12);
+});
+
+test('malformed speech clocks and background frames never produce invalid head poses', () => {
+  for (const bad of [NaN, Infinity, -Infinity, -1]) {
+    const target = npcConversationHeadTarget({
+      talking: true, speaking: true, elapsed: bad, duration: 2, mood: 'sad',
+    });
+    assert.ok(Number.isFinite(target.pitch) && Number.isFinite(target.roll));
+    const next = stepNpcConversationHead({ pitch: bad, roll: bad },
+      { pitch: bad, roll: bad }, bad);
+    assert.ok(Number.isFinite(next.pitch) && Math.abs(next.pitch) <= 0.085);
+    assert.ok(Number.isFinite(next.roll) && Math.abs(next.roll) <= 0.04);
+    if (!Number.isFinite(bad)) assert.deepEqual(next, { pitch: 0, roll: 0 });
+  }
+  let state = { pitch: 0, roll: 0 };
+  for (let i = 0; i < 100; i++) {
+    const t = npcConversationHeadTarget({
+      talking: true, speaking: true, elapsed: i / 60, duration: 2, mood: 'sad',
+    });
+    state = stepNpcConversationHead(state, t, 1 / 60);
+    assert.ok(Number.isFinite(state.pitch) && Math.abs(state.pitch) <= 0.085);
+    assert.ok(Number.isFinite(state.roll) && Math.abs(state.roll) <= 0.04);
+  }
 });

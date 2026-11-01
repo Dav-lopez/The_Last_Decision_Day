@@ -2,7 +2,7 @@ import { Color3, DynamicTexture, Mesh, MeshBuilder, Scene, ShadowGenerator, Stan
 import { loadRiggedAvatar, type RiggedAvatar } from '../riggedAvatar';
 import { visibleRemotePose, stepRemotePose } from './remotePosePresentation.mjs';
 import { remoteAvatarPresentation } from './remoteAvatarPresentation.mjs';
-import { initialRemoteFacialReaction, remoteMessageReaction, remoteEmoteReaction, remoteFacialPose, type RemoteFacialReaction } from './remoteFacialReactions.mjs';
+import { initialRemoteFacialReaction, remoteMessageReaction, remoteEmoteReaction, remoteFacialPose, remoteSpeechTrack, type RemoteFacialReaction } from './remoteFacialReactions.mjs';
 import { EMOTE_LABELS, type RoomState } from './roomClient.mjs';
 
 /** Remote bodies are presentation only: never obstacles or sources of rewards. */
@@ -86,7 +86,8 @@ export function createRemotePlayers(scene: Scene, shadows: ShadowGenerator) {
       entry.placed = true;
       const face = remoteFacialPose(entry.reaction, clock, target.showBody);
       entry.rig?.setEmotion(face.emotion);
-      entry.rig?.setSpeaking(face.speaking);
+      const speech = remoteSpeechTrack(entry.reaction, clock, target.showBody);
+      entry.rig?.setSpeaking(face.speaking, speech.cues, speech.elapsed);
       entry.rig?.root.setEnabled(target.showBody);
       entry.body.setEnabled(target.showBody && !entry.rig);
       entry.rig?.update(target.speed, dt);
