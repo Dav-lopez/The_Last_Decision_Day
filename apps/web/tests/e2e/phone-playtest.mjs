@@ -179,6 +179,21 @@ await step('talk to a neighbour by tapping', async () => {
   await tapAway();
   if ((await read()).npcChat) throw new Error('conversation still open');
 });
+await step('phone by tapping: contacts include who you just met, then put away', async () => {
+  await page.locator('.world-camera-toggle .world-phone-button').tap();
+  await page.waitForSelector('.world-phone', { timeout: 30000 });
+  await page.locator('.world-viewport').scrollIntoViewIfNeeded();
+  await checkLayout('phone');
+  const { documentWidth } = await measure();
+  if (documentWidth > 361) throw new Error(`the phone makes the page ${documentWidth}px wide`);
+  await page.locator('.world-phone [role=tab]', { hasText: 'Contacts' }).tap();
+  const people = await page.locator('.world-phone-contact').count();
+  notes.push(`phone: ${people} contact(s) after one conversation`);
+  if (people < 2) throw new Error('the neighbour you talked to is not in the phone contacts');
+  await shot('03bb-phone');
+  await page.getByRole('button', { name: 'Put away (P)' }).tap();
+  await page.waitForSelector('.world-phone', { state: 'detached', timeout: 15000 });
+});
 await step('drive a car by tapping', async () => {
   if (!(await page.evaluate(() => window.__tld.place('car')))) throw new Error('no parked car to get into');
   const getIn = actionButton(/^Get in car/);

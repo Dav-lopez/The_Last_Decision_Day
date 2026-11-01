@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent, type CSSProperties } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent, type CSSProperties } from 'react';
 import {
   ArcRotateCamera, Color3, Color4, DirectionalLight, DynamicTexture, Engine, HemisphericLight,
   MeshBuilder, Scene, ShadowGenerator, StandardMaterial, TransformNode, Vector3,
@@ -39,6 +39,8 @@ import { buildRoadGraph, type RoadGraph } from './cityTraffic.mjs';
 import { nearestOnRoads, routeBetween } from './gps.mjs';
 import { Minimap } from './Minimap';
 import { GameMenu, type MenuTab } from './GameMenu';
+import { Phone } from './Phone';
+import { markRead, phoneMessages, readPhone, receiveMessages, unreadCount, writePhone, type PhoneState } from './phone.mjs';
 import { graphicsMode, readSettings, reducedMotion, resetProgress, writeSettings, type PlayerSettings } from './gameSettings.mjs';
 import type { GameAudio } from './audio/director.mjs';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
@@ -663,6 +665,55 @@ export default function WorldScene({
       if (progressTimerRef.current) { clearTimeout(progressTimerRef.current); progressTimerRef.current = null; uploadProgress(); }
     };
   }, [characterId, uploadProgress]);
+  // The phone (P): texts from Mom, friends and work, contacts, career and the map. The world keeps running.
+  const [phoneOpen, setPhoneOpen] = useState(false);
+  const phoneOpenRef = useRef(false);
+  const [phone, setPhone] = useState<PhoneState>(() => readPhone(characterId));
+  const [phonePeek, setPhonePeek] = useState<{ name: string; text: string } | null>(null);
+  const phoneLocation = inHome ? 'home' : atSchool ? 'school' : inCity ? 'city' : 'street';
+  const lifeHour = Math.floor(lifeView.minute / 60);
+  const lifeTired = lifeView.energy <= TIRED_ENERGY;
+  const messages = useMemo(() => phoneMessages({ story, relations: npcRelations, career, location: phoneLocation,
+    now: { day: lifeView.day, minute: lifeHour * 60 + (lifeView.minute % 60 >= 30 ? 30 : 0), energy: lifeTired ? 0 : 100 } }),
+  // Re-derived when the story, people, job, place, day or half hour changes; not every clock tick.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [story, npcRelations, career, phoneLocation, lifeView.day, lifeHour, lifeView.minute % 60 >= 30, lifeTired]);
+  useEffect(() => {
+    const { phone: next, fresh } = receiveMessages(phone, messages, lifeView);
+    if (next === phone) return;
+    setPhone(next);
+    writePhone(characterId, next);
+    if (!fresh.length) return;
+    const latest = messages.find(message => message.id === fresh[fresh.length - 1]);
+    audioRef.current?.cue('message');
+    if (latest && !phoneOpenRef.current) setPhonePeek({ name: latest.name, text: latest.text });
+    // Only new messages matter here; the clock is read at the moment they arrive.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, characterId]);
+  useEffect(() => {
+    if (!phonePeek) return;
+    const timer = window.setTimeout(() => setPhonePeek(null), 7000);
+    return () => window.clearTimeout(timer);
+  }, [phonePeek]);
+  const readMessages = useCallback((ids: string[]) => {
+    setPhone(current => { const next = markRead(current, ids); if (next !== current) writePhone(characterId, next); return next; });
+  }, [characterId]);
+  const openPhone = useCallback(() => {
+    if (menuOpenRef.current || dialogueRef.current || npcActiveRef.current || rangeOpenRef.current) return;
+    phoneOpenRef.current = true;
+    inputRef.current.clear();
+    setPhonePeek(null);
+    setPhoneOpen(true);
+    audioRef.current?.cue('phone');
+  }, []);
+  const closePhone = useCallback(() => {
+    phoneOpenRef.current = false;
+    setPhoneOpen(false);
+    canvasRef.current?.focus({ preventScroll: true });
+  }, []);
+  const phoneActionsRef = useRef({ open: openPhone, close: closePhone });
+  phoneActionsRef.current = { open: openPhone, close: closePhone };
+  const phoneUnread = unreadCount(phone, messages);
   const [npcChat, setNpcChat] = useState<NpcChat | null>(null);
   const npcChatRef = useRef<NpcChat | null>(null);
   const npcActiveRef = useRef(false);
@@ -1670,6 +1721,12 @@ export default function WorldScene({
           return;
         }
         if (rangeOpenRef.current) return;
+        // P or Esc puts the phone away, wherever focus is inside it.
+        if (phoneOpenRef.current && (event.key === 'p' || event.key === 'P' || event.key === 'Escape') && !event.repeat) {
+          event.preventDefault();
+          phoneActionsRef.current.close();
+          return;
+        }
         // N or Esc closes the big map even after you clicked on it (focus is then on the map).
         if (mapOpenRef.current && (event.key === 'n' || event.key === 'N' || event.key === 'Escape') && !event.repeat) {
           event.preventDefault();
@@ -1699,6 +1756,9 @@ export default function WorldScene({
         } else if (key === 'h' && !event.repeat && interaction.mode === 'driving' && careerRef.current.career === 'police') {
           event.preventDefault();
           notify(siren.toggle() ? 'Siren on (H to switch off).' : 'Siren off.');
+        } else if (key === 'p' && !event.repeat) {
+          event.preventDefault();
+          phoneActionsRef.current.open();
         } else if (key === 'n' && !event.repeat) {
           event.preventDefault();
           setMapOpen(open => !open);
@@ -2365,7 +2425,11 @@ export default function WorldScene({
           onClick={() => openMenu()}>☰ Menu</button> <strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : inCity ? inCity : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
         <WorldMap open={mapOpen} onClose={() => setMapOpen(false)} read={readMap} travel={travelTo} waypoint={waypointControl} />
-        <Minimap read={readMap} hidden={mapOpen || menuOpen || Boolean(rangeOpen) || inHome || atSchool} />
+        <Minimap read={readMap} hidden={mapOpen || menuOpen || phoneOpen || Boolean(rangeOpen) || inHome || atSchool} />
+        <Phone open={phoneOpen && !menuOpen && !mapOpen} onClose={closePhone} phone={phone} messages={messages} onRead={readMessages}
+          relations={npcRelations} career={career} clock={formatClock(lifeView.minute)} day={lifeView.day} energy={lifeView.energy}
+          objective={currentStep(story).step.objective}
+          onOpenMap={() => { closePhone(); setMapOpen(true); audioRef.current?.cue('map'); }} />
         {scoreboard && <div className="world-scoreboard" role="status" aria-live="polite"><strong>{scoreboard}</strong><small>F shoot · Shift+F chip · Q pass</small>
           <span className="world-scoreboard-actions">
             <button type="button" onClick={event => { kickRef.current(false); focusWorld(event); }}>Shoot (F)</button>
@@ -2374,7 +2438,8 @@ export default function WorldScene({
           </span></div>}
         {(() => {
           const { chapter, step } = currentStep(story);
-          return <div className="story-objective" aria-live="polite"><small>{chapter.title}</small><strong>{step.objective}</strong></div>;
+          return <div className="story-objective" aria-live="polite"><small>{chapter.title}</small><strong>{step.objective}</strong>
+            {phonePeek && !phoneOpen && <span className="world-phone-peek">📱 {phonePeek.name}: {phonePeek.text} · P to read</span>}</div>;
         })()}
         {storyBanner && <div className="story-banner" role="status">{storyBanner}</div>}
         {dialogue && (() => {
@@ -2392,7 +2457,7 @@ export default function WorldScene({
         })()}
         {!playerSettings.hintDismissed && !dialogue && <div className="world-first-hint" role="note">
           <strong>How to play</strong>
-          <span><kbd>W A S D</kbd> walk · <kbd>Shift</kbd> run · <kbd>E</kbd> interact and talk · <kbd>N</kbd> map · <kbd>Esc</kbd> menu</span>
+          <span><kbd>W A S D</kbd> walk · <kbd>Shift</kbd> run · <kbd>E</kbd> interact and talk · <kbd>N</kbd> map · <kbd>P</kbd> phone · <kbd>Esc</kbd> menu</span>
           <span className="world-first-hint-actions">
             <button type="button" onClick={() => openMenu('controls')}>All controls</button>
             <button type="button" onClick={() => { updateSettings({ ...playerSettings, hintDismissed: true }); canvasRef.current?.focus({ preventScroll: true }); }}>Got it</button>
@@ -2498,7 +2563,7 @@ export default function WorldScene({
       </>}
     </div>
     {!error && <div className="world-controls">
-      <p>Click the world, then move with WASD or the arrow pad; hold Shift or switch RUN on to run. Press <strong>E</strong> to interact and talk, <strong>N</strong> for the map, and <strong>Esc</strong> (or ☰ Menu) for every control, settings, your story so far and credits.</p>
+      <p>Click the world, then move with WASD or the arrow pad; hold Shift or switch RUN on to run. Press <strong>E</strong> to interact and talk, <strong>N</strong> for the map, <strong>P</strong> for your phone, and <strong>Esc</strong> (or ☰ Menu) for every control, settings, your story so far and credits.</p>
       <div className="world-control-buttons">
         <div className="world-pad" aria-label="Touch movement controls">
           <div className="world-pad-top">{directionButton('▲', 'ArrowUp', 'Move forward')}</div>
@@ -2525,6 +2590,9 @@ export default function WorldScene({
       <button type="button" aria-label="Zoom out" onClick={event => { cameraControlsRef.current?.zoom('out'); focusWorld(event); }}>Zoom −</button>
       <button type="button" onClick={event => { cameraControlsRef.current?.reset(); focusWorld(event); }}>Reset view</button>
       <button type="button" onClick={event => { setMapOpen(open => !open); focusWorld(event); }}>Map (N)</button>
+      <button type="button" className="world-phone-button" aria-label={`Phone (P)${phoneUnread ? `, ${phoneUnread} unread` : ''}`} aria-expanded={phoneOpen}
+        onClick={() => { if (phoneOpenRef.current) closePhone(); else openPhone(); }}>
+        Phone (P){phoneUnread > 0 && <span className="world-phone-button-badge" aria-hidden="true">{phoneUnread}</span>}</button>
       <button type="button" onClick={event => { emoteRef.current('jump'); focusWorld(event); }}>Jump (Space)</button>
       <button type="button" onClick={event => { emoteRef.current('dance'); focusWorld(event); }}>Dance (G)</button>
       <button type="button" onClick={event => { toggleCamera(); focusWorld(event); }} aria-label="Switch camera view">
