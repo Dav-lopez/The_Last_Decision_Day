@@ -141,3 +141,13 @@ test('the songs stay out of the start-up download: only the dial is imported eag
   assert.doesNotMatch(scene, /^import .*audio\/(radio\.mjs|RadioHud)'/m);
   assert.match(scene, /lazy\(\(\) => import\('\.\/audio\/RadioHud'\)/);
 });
+
+test('the phone dial sits in the controls panel and the big-screen dial over the view', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const scene = await readFile(new URL('../src/world/WorldScene.tsx', import.meta.url), 'utf8');
+  const controls = scene.indexOf('className="world-controls"');
+  const panel = scene.indexOf('<RadioHud placement="panel"'), overlay = scene.indexOf('<RadioHud placement="overlay"');
+  assert.ok(controls > 0 && panel > controls, 'panel dial is inside .world-controls');
+  assert.ok(overlay > 0 && overlay < controls, 'overlay dial is inside the 3D view');
+  assert.equal(scene.split('<RadioHud ').length - 1, 2);
+});
