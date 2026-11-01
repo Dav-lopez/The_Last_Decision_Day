@@ -188,6 +188,8 @@ await step('downtown traffic drives', async () => {
   // Give the (slow, software-rendered) world some frames to move the cars.
   await page.waitForFunction(first => window.__tld.read().traffic.some((car, i) => first[i] && Math.hypot(car.x - first[i].x, car.z - first[i].z) > 1), before, { timeout: 120000 });
   notes.push(`${before.length} traffic cars downtown`);
+  await waitFor('people walking downtown', timeout => page.waitForFunction(() => window.__tld.read().walkers > 0, null, { timeout }), 120000);
+  notes.push(`${(await read()).walkers} people walking downtown`);
   await shot('05b-traffic');
 });
 await step('minimap shows, and a map waypoint gives a GPS route', async () => {
