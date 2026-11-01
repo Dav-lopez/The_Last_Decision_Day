@@ -86,8 +86,8 @@ export type ProgressSync = {
   save: (progress: ServerProgress) => Promise<{ status: 'saved' | 'rejected'; progress: ServerProgressResponse }>;
 };
 import { BED_SIDE, FRONT_DOORS, HOME_SPAWN, atHomeExit, nearFridge, nearStove, wallsToFadeFor, stepHomeLocomotion, streetDoorAt, streetSpawnFor, wallsToFade } from './homeInterior.mjs';
-import { createGearbox, createSkidMarks, engineFrequency, skidCapacityFor, stepGearbox, tyreSlip, type Gear } from './carFeel.mjs';
-import { createSkidMarksMesh } from './skidMarksScene';
+import type { Gear } from './carFeel.mjs';
+import type { DriveFeel } from './driveFeel';
 import { TOWN_EXIT, canExitVehicle, chaseCameraAlpha, driveInput, footprintPoints, leavingTown, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
 import { activeCaptions, captionLabel, CAPTION_SECONDS, pushCaption, type SoundCaption } from './soundCaptions.mjs';
@@ -909,14 +909,16 @@ export default function WorldScene({
         avatar.rotation.y = car.rotation;
       };
       const lightBar = createLightBar(scene);
-      // Driving feel: gearbox revs for the engine note, tyre slip for the squeal and skid marks.
-      let gearbox = createGearbox();
-      let carSlip = 0;
-      let carThrottle = 0;
+      // Driving feel (gearbox revs, tyre squeal, skid marks) loads the first time you get in a car.
+      let driveFeel: DriveFeel | null = null;
+      let driveFeelLoading = false;
+      const loadDriveFeel = () => {
+        if (driveFeelLoading) return;
+        driveFeelLoading = true;
+        void import('./driveFeel').then(module => { if (!disposed) driveFeel = module.createDriveFeel(scene); }).catch(() => { driveFeelLoading = false; });
+      };
       let bumpCooldown = 0;
       let carHorn = false;
-      const skidMarks = createSkidMarks();
-      const skidMesh = createSkidMarksMesh(scene, skidMarks);
       const siren = createSiren();
       sirenRef.current = siren;
       const streetLighting = createStreetLighting(scene, directional, sun);
@@ -1205,7 +1207,7 @@ export default function WorldScene({
             taxi: Boolean(pendingTaxi) || Boolean(pendingDrive),
             travelling: pendingTaxi !== null,
             match: match ? { phase: match.phase, clock: match.clock, score: match.score, keepers: match.players.filter(p => p.role === 'keeper').map(p => ({ team: p.team, x: p.x - PITCH.x, z: p.z - PITCH.z })) } : null,
-            car: drivenIndex() >= 0 ? { x: cars[drivenIndex()].x, z: cars[drivenIndex()].z, speed: cars[drivenIndex()].speed, gear: gearbox.gear, rpm: gearbox.rpm, slip: carSlip, horn: carHorn, skidMarks: skidMarks.segments.length } : null,
+            car: drivenIndex() >= 0 ? { x: cars[drivenIndex()].x, z: cars[drivenIndex()].z, speed: cars[drivenIndex()].speed, gear: driveFeel?.gear ?? null, rpm: driveFeel?.rpm ?? null, slip: driveFeel?.slip ?? 0, horn: carHorn, skidMarks: driveFeel?.marks ?? 0 } : null,
             loading: !worldReadyRef.current,
             downtownBuilt: downtown !== null, downtownBuildMs,
           }),
@@ -1571,9 +1573,9 @@ export default function WorldScene({
           setNearCar(false);
           setDriveNotice('');
           setDriveSpeed(0);
-          gearbox = createGearbox();
+          loadDriveFeel();
+          driveFeel?.reset();
           setDriveGear(1);
-          skidMarks.breakTrail();
           setDriving(true);
           return;
         }
@@ -1596,8 +1598,7 @@ export default function WorldScene({
         siren.stop();
         audioRef.current?.horn(false);
         carHorn = false;
-        carSlip = 0;
-        carThrottle = 0;
+        driveFeel?.reset();
         avatar.setEnabled(true);
         setDriveNotice('');
         setDriving(false);
@@ -1807,7 +1808,7 @@ export default function WorldScene({
           match: Boolean(match && match.phase !== 'fulltime'),
           speed: delta>0 && audioDistance<1 ? audioDistance/delta : 0,
           drivingSpeed: audioCar>=0 ? cars[audioCar].speed : null,
-          car: audioCar>=0 ? { rpm: gearbox.rpm, frequency: engineFrequency(gearbox.rpm, gearbox.gear), throttle: carThrottle, slip: carSlip } : null,
+          car: audioCar>=0 ? driveFeel?.sound() ?? null : null,
           reading: schoolOpenRef.current || dialogueRef.current || npcActiveRef.current || Boolean(rangeOpenRef.current) || menuOpenRef.current,
           paused: Boolean(pendingRide || pendingFood || pendingShift || pendingTaxi || pendingDrive || interaction.mode==='sleeping' || interaction.mode==='sitting'),
           evening: isEvening(life.minute) });
@@ -1817,7 +1818,7 @@ export default function WorldScene({
         }
         // The training range covers the screen: freeze the world (and its clock) underneath.
         if (rangeOpenRef.current || menuOpenRef.current) return;
-        skidMesh.update(delta, clock);
+        driveFeel?.update(delta, clock);
         // Downtown traffic: drives around you, stops for you and your car.
         if (cityTraffic) {
           const inCityNow = locationRef.current === 'city';
@@ -2018,12 +2019,7 @@ export default function WorldScene({
           tiltCar(driven, tilt.pitch, tilt.roll, delta);
           // Revs, tyres, horn and skid marks.
           const yawRate = delta > 0 ? headingDelta(before.rotation, next.rotation) / delta : 0;
-          const shifted = stepGearbox(gearbox, next.speed, controls.throttle, delta);
-          gearbox = { gear: shifted.gear, rpm: shifted.rpm, shiftTimer: shifted.shiftTimer };
-          carThrottle = Math.abs(controls.throttle) > 0 && !controls.handbrake ? 1 : 0;
-          carSlip = next.collided ? 0 : tyreSlip({ speed: next.speed, yawRate, acceleration: delta > 0 ? (next.speed - before.speed) / delta : 0, handbrake: controls.handbrake });
-          skidMarks.setCapacity(skidCapacityFor(quality));
-          skidMarks.lay(next, carSlip, clock);
+          driveFeel?.step(before, next, controls, yawRate, delta, clock, quality);
           carHorn = Boolean(controls.horn);
           audioRef.current?.horn(carHorn);
           bumpCooldown = Math.max(0, bumpCooldown - delta);
@@ -2046,7 +2042,8 @@ export default function WorldScene({
             hudTimer = 0;
             const kmh = speedKmh(next.speed);
             setDriveSpeed(previous => previous === kmh ? previous : kmh);
-            setDriveGear(previous => previous === gearbox.gear ? previous : gearbox.gear);
+            const gear = driveFeel?.gear ?? 1;
+            setDriveGear(previous => previous === gear ? previous : gear);
             if (next.collided) notify(peopleOut.some(person => Math.hypot(person.x - next.x, person.z - next.z) < 2.6)
               ? 'Careful, someone is in the way! Give them a moment to step aside.'
               : 'Bump! Reverse with S to back away.');
@@ -2264,7 +2261,7 @@ export default function WorldScene({
         disposed = true;
         remotePlayers.dispose();
         lightBar.dispose();
-        skidMesh.dispose();
+        driveFeel?.dispose();
         siren.dispose();
         sirenRef.current = null;
         disposeMapleStop();
@@ -2472,7 +2469,7 @@ export default function WorldScene({
           </section>
         </div>}
         {driving && <div className="world-drive-hud" role="status" aria-live="polite">
-          <strong>{driveSpeed}</strong>km/h <span className="world-drive-gear" aria-label={driveGear === 'R' ? 'Reverse gear' : `Gear ${driveGear}`}>{driveGear}</span> · W/S gas, brake, reverse · A/D steer · Space handbrake · H horn · E to get out when stopped
+          <strong>{driveSpeed}</strong>km/h <span className="world-drive-gear" aria-label={driveGear === 'R' ? 'Reverse gear' : `Gear ${driveGear}`}>{driveGear}</span> <span className="world-drive-keys">· W/S gas, brake, reverse · A/D steer · Space handbrake · H horn · E to get out when stopped</span>
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
         </div>}
         {!driving && driveNotice && <div className="world-notice" role="status" aria-live="polite">{driveNotice}</div>}
@@ -2547,15 +2544,14 @@ export default function WorldScene({
             {directionButton('▶', 'ArrowRight', 'Move right')}
           </div>
         </div>
-        {driving && <div className="world-run world-drive-touch" aria-label="Car controls">
+        {driving ? <div className="world-run world-drive-touch" aria-label="Car controls">
           {directionButton('HORN', 'horn', 'Hold the horn')}
           {directionButton('HANDBRAKE', 'handbrake', 'Hold the handbrake')}
-        </div>}
-        <div className="world-run"><button type="button" className="world-pad-key" aria-label="Toggle running" aria-pressed={sprintEnabled} onClick={event => {
+        </div> : <div className="world-run"><button type="button" className="world-pad-key" aria-label="Toggle running" aria-pressed={sprintEnabled} onClick={event => {
           sprintEnabledRef.current = !sprintEnabledRef.current;
           setSprintEnabled(sprintEnabledRef.current);
           if (event.detail > 0) canvasRef.current?.focus({ preventScroll: true });
-        }}>{sprintEnabled ? 'RUN: ON' : 'RUN: OFF'}</button></div>
+        }}>{sprintEnabled ? 'RUN: ON' : 'RUN: OFF'}</button></div>}
       </div>
     </div>}
     {!error && <HousePhotoPaint characterId={characterId} painterRef={housePainterRef} />}
