@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { tabListKeys, trapTab, useDialogFocus } from './dialogFocus';
+import { gpsDestinations } from './focusNav.mjs';
 import './worldMap.css';
 import type { City } from './cityLayout.mjs';
 
@@ -43,6 +45,9 @@ function Pins({ markers, size }: { markers: MapMarker[]; size: number }) {
 export function WorldMap({ open, onClose, read, travel, waypoint }: { open: boolean; onClose: () => void; read: () => MapSnapshot; travel: (to: TravelTarget) => void; waypoint?: WaypointControl }) {
   const [snap, setSnap] = useState<MapSnapshot | null>(null);
   const [tab, setTab] = useState<'street' | 'downtown'>('street');
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  // Keyboard: focus starts on the selected tab, Tab stays in the map, and closing returns to the game.
+  useDialogFocus(dialogRef, open && snap !== null);
   useEffect(() => {
     if (!open) return;
     const first = read();
@@ -55,15 +60,23 @@ export function WorldMap({ open, onClose, read, travel, waypoint }: { open: bool
   const city = snap.city;
   const go = (to: TravelTarget) => { travel(to); onClose(); };
 
-  return <div className="world-map" role="dialog" aria-label="Map" onKeyDown={event => { if (event.key === 'Escape') onClose(); }}>
+  const tabProps = (id: 'street' | 'downtown') => ({
+    type: 'button' as const, role: 'tab', className: 'wardrobe-tab', id: `world-map-tab-${id}`, 'aria-controls': 'world-map-view',
+    'aria-selected': tab === id, tabIndex: tab === id ? 0 : -1, 'data-autofocus': tab === id ? '' : undefined, onClick: () => setTab(id),
+  });
+  // Keyboard GPS: the downtown places you can route to without clicking the map, nearest first.
+  const destinations = tab === 'downtown' && city && waypoint && snap.location === 'city' ? gpsDestinations(snap.downtown, snap.you).slice(0, 6) : [];
+
+  return <div ref={dialogRef} className="world-map" role="dialog" aria-modal="true" aria-label="Map"
+    onKeyDown={event => { if (event.key === 'Escape') onClose(); else trapTab(event, dialogRef.current); }}>
     <div className="world-map-head">
-      <div className="wardrobe-tabs" role="tablist">
-        <button type="button" role="tab" className="wardrobe-tab" aria-selected={tab === 'street'} onClick={() => setTab('street')}>Maple Street</button>
-        <button type="button" role="tab" className="wardrobe-tab" aria-selected={tab === 'downtown'} onClick={() => setTab('downtown')} disabled={!city}>Downtown Boulder</button>
+      <div className="wardrobe-tabs" role="tablist" aria-label="Map area" onKeyDown={event => tabListKeys(event)}>
+        <button {...tabProps('street')}>Maple Street</button>
+        <button {...tabProps('downtown')} disabled={!city}>Downtown Boulder</button>
       </div>
       <button type="button" onClick={onClose} aria-label="Close map">Close (N)</button>
     </div>
-    {tab === 'street' ? <svg className="world-map-svg" viewBox="-13 -13 26 26" role="img" aria-label="Map of Maple Street">
+    {tab === 'street' ? <svg id="world-map-view" className="world-map-svg" viewBox="-13 -13 26 26" role="img" aria-label="Map of Maple Street">
       <rect x="-13" y="-13" width="26" height="26" fill="#3f6b3a" />
       <rect x="-2.1" y="-30" width="4.2" height="60" fill="#55595c" />
       <line x1="0" y1="-12" x2="0" y2="12" stroke="#e9e7e0" strokeWidth="0.1" strokeDasharray="0.8 0.8" />
@@ -73,7 +86,7 @@ export function WorldMap({ open, onClose, read, travel, waypoint }: { open: bool
       <rect x="-2.6" y="-12.2" width="5.2" height="0.5" fill="#ff9f43" />
       <Pins markers={snap.street} size={0.7} />
       {snap.location !== 'city' && snap.you && <You x={snap.you.x} y={-snap.you.z} heading={snap.you.heading} size={0.8} />}
-    </svg> : city ? <svg className="world-map-svg world-map-gps" viewBox={`${-city.halfSize[0]} ${-city.halfSize[1]} ${city.halfSize[0] * 2} ${city.halfSize[1] * 2}`} role="img"
+    </svg> : city ? <svg id="world-map-view" className="world-map-svg world-map-gps" viewBox={`${-city.halfSize[0]} ${-city.halfSize[1]} ${city.halfSize[0] * 2} ${city.halfSize[1] * 2}`} role="img"
       aria-label="Map of downtown Boulder. Click a street to set a GPS waypoint."
       onClick={event => {
         // Click to drop a waypoint; the GPS draws the road route to it.
@@ -104,6 +117,11 @@ export function WorldMap({ open, onClose, read, travel, waypoint }: { open: bool
       {tab === 'downtown' && <span className="world-map-gps-hint">{snap.waypoint
         ? <>GPS to {snap.waypointLabel ?? 'your waypoint'}{snap.routeLength != null ? ` · ${Math.round(snap.routeLength)} m` : ''} <button type="button" onClick={() => { waypoint?.clear(); setSnap(read()); }}>Clear waypoint</button></>
         : 'Click a street to set a GPS waypoint.'}</span>}
+      {destinations.length > 0 && <div className="world-map-gps-places" role="group" aria-label="Set the GPS to a place">
+        <span>GPS to:</span>
+        {destinations.map(place => <button key={place.id} type="button" className="world-map-gps-place"
+          onClick={() => { waypoint?.set(place.x, place.z); setSnap(read()); }}>{place.label}</button>)}
+      </div>}
     </div>
   </div>;
 }
