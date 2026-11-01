@@ -2652,12 +2652,11 @@ export default function WorldScene({
             </div>}
           </section>
         </div>}
-          {driving && <Suspense fallback={null}><RadioHud placement="panel" station={radioStation} onTune={tuneRadio} onFocusWorld={() => canvasRef.current?.focus({ preventScroll: true })} /></Suspense>}
-      {driving && <div className="world-drive-hud" role="status" aria-live="polite">
+        {driving && <div className="world-drive-hud" role="status" aria-live="polite">
           <strong>{driveSpeed}</strong>km/h <span className="world-drive-gear" aria-label={driveGear === 'R' ? 'Reverse gear' : `Gear ${driveGear}`}>{driveGear}</span><span className="world-drive-help"> · W/S gas, brake, reverse · A/D steer · Space handbrake · H horn · E to get out when stopped</span>
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
         </div>}
-      {driving && <Suspense fallback={null}><RadioHud placement="overlay" station={radioStation} onTune={tuneRadio} onFocusWorld={() => canvasRef.current?.focus({ preventScroll: true })} /></Suspense>}
+        {driving && <Suspense fallback={null}><RadioHud placement="overlay" station={radioStation} onTune={tuneRadio} onFocusWorld={() => canvasRef.current?.focus({ preventScroll: true })} /></Suspense>}
         {!driving && driveNotice && <div className="world-notice" role="status" aria-live="polite">{driveNotice}</div>}
         {workPrompt && inCity && career.career === workPrompt && !rangeOpen && <button type="button" className="world-car-action world-range-start"
           onClick={event => { rangeRef.current.open(); focusWorld(event); }}>{RANGE_DRILLS[workPrompt].title} (T)</button>}
@@ -2721,6 +2720,7 @@ export default function WorldScene({
       </>}
     </div>
     {!error && <div className="world-controls">
+      {driving && <Suspense fallback={null}><RadioHud placement="panel" station={radioStation} onTune={tuneRadio} onFocusWorld={() => canvasRef.current?.focus({ preventScroll: true })} /></Suspense>}
       <p>Click the world, then move with WASD or the arrow pad; hold Shift or switch RUN on to run. Press <strong>E</strong> to interact and talk, <strong>N</strong> for the map, <strong>P</strong> for your phone, and <strong>Esc</strong> (or ☰ Menu) for every control, settings, your story so far and credits.</p>
       <div className="world-control-buttons">
         <div className="world-pad" aria-label="Touch movement controls">
