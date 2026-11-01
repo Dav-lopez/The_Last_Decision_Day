@@ -39,8 +39,11 @@ import { buildRoadGraph, type RoadGraph } from './cityTraffic.mjs';
 import { nearestOnRoads, routeBetween } from './gps.mjs';
 import { Minimap } from './Minimap';
 import { GameMenu, type MenuTab } from './GameMenu';
-import { Phone } from './Phone';
-import { markRead, phoneMessages, readPhone, receiveMessages, unreadCount, writePhone, type PhoneState } from './phone.mjs';
+import type { PhoneMessage, PhoneState } from './phone.mjs';
+// The phone and its messages are their own small download, fetched just after the world starts.
+const Phone = lazy(() => import('./Phone').then(module => ({ default: module.Phone })));
+type PhoneLib = typeof import('./phone.mjs');
+const NO_MESSAGES: PhoneMessage[] = [];
 import { graphicsMode, readSettings, reducedMotion, resetProgress, writeSettings, type PlayerSettings } from './gameSettings.mjs';
 import type { GameAudio } from './audio/director.mjs';
 import { KICK, PITCH, facingOf, kickBall, newBall, stepBall, touchBall, type Ball } from './football.mjs';
@@ -668,21 +671,33 @@ export default function WorldScene({
   // The phone (P): texts from Mom, friends and work, contacts, career and the map. The world keeps running.
   const [phoneOpen, setPhoneOpen] = useState(false);
   const phoneOpenRef = useRef(false);
-  const [phone, setPhone] = useState<PhoneState>(() => readPhone(characterId));
+  const [phoneLib, setPhoneLib] = useState<PhoneLib | null>(null);
+  const [phone, setPhone] = useState<PhoneState>({ version: 1, arrived: {}, read: [] });
+  useEffect(() => {
+    let cancelled = false;
+    import('./phone.mjs').then(lib => {
+      if (cancelled) return;
+      setPhone(lib.readPhone(characterId));
+      setPhoneLib(lib);
+      void import('./Phone');
+    }).catch(() => { /* Offline mid-session: the phone stays empty; the game carries on. */ });
+    return () => { cancelled = true; };
+  }, [characterId]);
   const [phonePeek, setPhonePeek] = useState<{ name: string; text: string } | null>(null);
   const phoneLocation = inHome ? 'home' : atSchool ? 'school' : inCity ? 'city' : 'street';
   const lifeHour = Math.floor(lifeView.minute / 60);
   const lifeTired = lifeView.energy <= TIRED_ENERGY;
-  const messages = useMemo(() => phoneMessages({ story, relations: npcRelations, career, location: phoneLocation,
+  const messages = useMemo(() => !phoneLib ? NO_MESSAGES : phoneLib.phoneMessages({ story, relations: npcRelations, career, location: phoneLocation,
     now: { day: lifeView.day, minute: lifeHour * 60 + (lifeView.minute % 60 >= 30 ? 30 : 0), energy: lifeTired ? 0 : 100 } }),
   // Re-derived when the story, people, job, place, day or half hour changes; not every clock tick.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  [story, npcRelations, career, phoneLocation, lifeView.day, lifeHour, lifeView.minute % 60 >= 30, lifeTired]);
+  [phoneLib, story, npcRelations, career, phoneLocation, lifeView.day, lifeHour, lifeView.minute % 60 >= 30, lifeTired]);
   useEffect(() => {
-    const { phone: next, fresh } = receiveMessages(phone, messages, lifeView);
+    if (!phoneLib) return;
+    const { phone: next, fresh } = phoneLib.receiveMessages(phone, messages, lifeView);
     if (next === phone) return;
     setPhone(next);
-    writePhone(characterId, next);
+    phoneLib.writePhone(characterId, next);
     if (!fresh.length) return;
     const latest = messages.find(message => message.id === fresh[fresh.length - 1]);
     audioRef.current?.cue('message');
@@ -696,8 +711,9 @@ export default function WorldScene({
     return () => window.clearTimeout(timer);
   }, [phonePeek]);
   const readMessages = useCallback((ids: string[]) => {
-    setPhone(current => { const next = markRead(current, ids); if (next !== current) writePhone(characterId, next); return next; });
-  }, [characterId]);
+    if (!phoneLib) return;
+    setPhone(current => { const next = phoneLib.markRead(current, ids); if (next !== current) phoneLib.writePhone(characterId, next); return next; });
+  }, [characterId, phoneLib]);
   const openPhone = useCallback(() => {
     if (menuOpenRef.current || dialogueRef.current || npcActiveRef.current || rangeOpenRef.current) return;
     phoneOpenRef.current = true;
@@ -713,7 +729,7 @@ export default function WorldScene({
   }, []);
   const phoneActionsRef = useRef({ open: openPhone, close: closePhone });
   phoneActionsRef.current = { open: openPhone, close: closePhone };
-  const phoneUnread = unreadCount(phone, messages);
+  const phoneUnread = phoneLib ? phoneLib.unreadCount(phone, messages) : 0;
   const [npcChat, setNpcChat] = useState<NpcChat | null>(null);
   const npcChatRef = useRef<NpcChat | null>(null);
   const npcActiveRef = useRef(false);
@@ -2426,10 +2442,10 @@ export default function WorldScene({
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
         <WorldMap open={mapOpen} onClose={() => setMapOpen(false)} read={readMap} travel={travelTo} waypoint={waypointControl} />
         <Minimap read={readMap} hidden={mapOpen || menuOpen || phoneOpen || Boolean(rangeOpen) || inHome || atSchool} />
-        <Phone open={phoneOpen && !menuOpen && !mapOpen} onClose={closePhone} phone={phone} messages={messages} onRead={readMessages}
+        {phoneOpen && <Suspense fallback={null}><Phone open={!menuOpen && !mapOpen} onClose={closePhone} phone={phone} messages={messages} onRead={readMessages}
           relations={npcRelations} career={career} clock={formatClock(lifeView.minute)} day={lifeView.day} energy={lifeView.energy}
           objective={currentStep(story).step.objective}
-          onOpenMap={() => { closePhone(); setMapOpen(true); audioRef.current?.cue('map'); }} />
+          onOpenMap={() => { closePhone(); setMapOpen(true); audioRef.current?.cue('map'); }} /></Suspense>}
         {scoreboard && <div className="world-scoreboard" role="status" aria-live="polite"><strong>{scoreboard}</strong><small>F shoot · Shift+F chip · Q pass</small>
           <span className="world-scoreboard-actions">
             <button type="button" onClick={event => { kickRef.current(false); focusWorld(event); }}>Shoot (F)</button>
