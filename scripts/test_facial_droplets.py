@@ -22,7 +22,8 @@ class DropletGeometryTests(unittest.TestCase):
                     self.assertTrue(all((x < 0 if side == 'Left' else x > 0) for x, _, _ in g['positions']))
                     self.assertTrue(all(1.61 < y < 1.73 and .07 < z < .10 for _, y, z in g['positions']))
                     self.assertTrue(all(d[1] < -.02 for d in g['targets'][0]))
-                    self.assertTrue(all(d[0] * (-1 if side == 'Left' else 1) > 0\n                                        and d[2] < 0 for d in g['targets'][0]))
+                    self.assertTrue(all(d[0] * (-1 if side == 'Left' else 1) > 0
+                                        and d[2] < 0 for d in g['targets'][0]))
                     for i in range(0, len(g['indices']), 3):
                         a, b, c = (g['positions'][g['indices'][j][0]] for j in range(i, i+3))
                         cross_z = (b[0]-a[0])*(c[1]-a[1]) - (b[1]-a[1])*(c[0]-a[0])
