@@ -1,0 +1,13 @@
+export type Panel = 'front' | 'rear' | 'left' | 'right';
+export type DamageMark = { id: string; panel: Panel; x: number; z: number; severity: number; kind: 'scratch' | 'dent'; size: number; angle: number };
+export type CarDamage = { panels: Record<Panel, number>; marks: ReadonlyArray<DamageMark>; hits: number };
+export declare const DAMAGE: Readonly<{ minSpeed: number; fullSpeed: number; dentAbove: number; scrapeBelow: number; mergeRadius: number; panelWear: number; maxMarks: number }>;
+export declare const PANELS: ReadonlyArray<Panel>;
+export declare function createCarDamage(): CarDamage;
+export declare function impactSeverity(speed: number): number;
+export declare function impactSpot(input: { speed?: number; steer?: number }, severity: number, seed?: number): { panel: Panel; x: number; z: number };
+export declare function applyImpact(state: CarDamage, input?: { speed?: number; steer?: number }): { state: CarDamage; mark: DamageMark | null; replaces: string | null };
+export declare function markSize(severity: number): number;
+export declare function bodyCondition(state: CarDamage | null | undefined): number;
+export declare function conditionLabel(percent: number): string;
+export declare function marksForQuality(quality: { scale?: number; base?: number } | null | undefined): number;
