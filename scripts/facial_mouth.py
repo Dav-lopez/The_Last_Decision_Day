@@ -75,7 +75,8 @@ def build_mouth_geometry(head_joint):
             elif name.startswith("mouthFrown") and side:
                 dy = -0.012 * corner
             elif name.startswith("mouthPress") and side:
-                dy = 0.003 if row == 3 else -0.003 if row == 2 else 0.0
+                # Keep the 4 mm rest gap open even at full mouthPress weight.
+                dy = 0.0015 if row == 3 else -0.0015 if row == 2 else 0.0
             elif name == "jawOpen" and lower:
                 dy = -0.026
             elif name == "mouthOpen" and lower:
