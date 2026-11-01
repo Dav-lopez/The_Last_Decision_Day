@@ -48,7 +48,7 @@ import { ROUNDS as LEAGUE_ROUNDS, YOU as LEAGUE_YOU, clubName, clubShort, readLe
 import { loadFootballPlayers } from './footballPlayers';
 import { CAREERS, SHIFT_HOURS, joinCareer, workplaceDoors, quitCareer, rankOf, readCareer, workShift, writeCareer, type CareerId, type CareerState } from './careers.mjs';
 import { buildWorkplaces, createLightBar, createSiren, createTaskMarker } from './careersScene';
-import { TASKS, formatClock, planTask, stepTask, taskResult, taskStatus, type CareerTask } from './careerTasks.mjs';
+import { TASKS, formatClock as formatDutyClock, planTask, stepTask, taskResult, taskStatus, type CareerTask } from './careerTasks.mjs';
 import { CareersPanel } from './CareersPanel';
 import { bindActions, loadActionClips } from './characterActions';
 import { bodyLean, headingDelta, jumpFor, jumpHeight } from './actionMixer.mjs';
@@ -805,7 +805,7 @@ export default function WorldScene({
           setLook(look => ({ ...look, ...CAREERS[id].uniform }));
           showTaskStop();
           setDuty(taskStatus(task));
-          notify(`${task.title}: ${task.brief} Par ${formatClock(task.par)}.`);
+          notify(`${task.title}: ${task.brief} Par ${formatDutyClock(task.par)}.`);
           audioRef.current?.cue('dispatch');
           return;
         }
@@ -1888,7 +1888,7 @@ export default function WorldScene({
               const { result } = activeTask;
               const outcome = taskResult(task, result.pay);
               const paid = { ...result, pay: result.pay + outcome.bonus, state: { ...result.state, money: result.state.money + outcome.bonus } };
-              const timing = `${outcome.title} (${formatClock(outcome.seconds)}, par ${formatClock(outcome.par)})`;
+              const timing = `${outcome.title} (${formatDutyClock(outcome.seconds)}, par ${formatDutyClock(outcome.par)})`;
               endTask(null);
               audioRef.current?.cue('checkpoint');
               pendingShift = { result: paid, timer: 0, note: `${task.title}: ${timing}. +$${paid.pay}${outcome.bonus ? ` with a $${outcome.bonus} bonus` : ''}.` };
@@ -2406,7 +2406,7 @@ export default function WorldScene({
         {busyLabel && <div className="world-sleep world-kitchen" role="status" aria-live="polite"><span>{busyLabel}</span></div>}
         {duty && inCity && <section className="world-duty" aria-label={`Career duty: ${duty.title}`}>
           <header><strong>{duty.title}</strong><span className={duty.left < 0 ? 'world-duty-late' : undefined}
-            aria-label={duty.left < 0 ? `${formatClock(duty.left)} over par` : `${formatClock(duty.left)} left on par`}>{formatClock(duty.left)}</span></header>
+            aria-label={duty.left < 0 ? `${formatDutyClock(duty.left)} over par` : `${formatDutyClock(duty.left)} left on par`}>{formatDutyClock(duty.left)}</span></header>
           <ol className="world-duty-pips" aria-hidden="true">{Array.from({ length: duty.total + 1 }, (_, i) => <li key={i}
             className={i < duty.done ? 'done' : i === duty.done ? 'next' : undefined} data-final={i === duty.total ? '' : undefined} />)}</ol>
           <p role="status" aria-live="polite">{duty.next}{duty.onFoot ? ' · on foot' : ''} · follow the beam and the GPS</p>
