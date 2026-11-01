@@ -123,3 +123,22 @@ test('speech overlay clamps bad frame deltas and malformed state', () => {
 
 // Keep the emotional speech-layer regression suite in the existing CI character test entrypoint.
 import './facial-layer-blend.test.mjs';
+
+import { buildNpcSpeechCues } from '../src/world/npcSpeechCues.mjs';
+import { remoteCuedSpeechWeight } from '../src/world/speechOverlay.mjs';
+
+test('text-driven remote jaw/lip morphs respect the fade and leave eye morphs untouched', () => {
+  const cues = buildNpcSpeechCues('Papa, no!', 1.8);
+  const vowel = cues.find(c => c.open > 0);
+  const closure = cues.find(c => c.press > 0);
+  const mid = c => (c.start + c.end) / 2;
+  const full = remoteCuedSpeechWeight('jawOpen', cues, mid(vowel), 1);
+  assert.ok(full > 0);
+  assert.ok(Math.abs(remoteCuedSpeechWeight('jawOpen', cues, mid(vowel), 0.25) - full * 0.25) < 1e-12);
+  assert.equal(remoteCuedSpeechWeight('jawOpen', cues, mid(closure), 1), 0);
+  assert.ok(remoteCuedSpeechWeight('mouthPressLeft', cues, mid(closure), 1) > 0);
+  assert.equal(remoteCuedSpeechWeight('eyeBlinkLeft', cues, mid(vowel), 1), 0);
+  assert.equal(remoteCuedSpeechWeight('jawOpen', cues, 1.8, 1), 0);
+  for (const fade of [-1, NaN, Infinity, 0]) assert.equal(remoteCuedSpeechWeight('jawOpen', cues, mid(vowel), fade), 0);
+  assert.equal(remoteCuedSpeechWeight('jawOpen', [], mid(vowel), 1), 0);
+});

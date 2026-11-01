@@ -1,3 +1,5 @@
+import { npcSpeechCueWeight } from './npcSpeechCues.mjs';
+
 /**
  * Independent facial-only speech for remote chat. No body animation clip is
  * required; the existing Talk morph articulation receives this fade envelope.
@@ -10,4 +12,10 @@ export function stepSpeechOverlay(previous, speaking, seconds) {
   const weight = oldWeight + (target - oldWeight) * (1 - Math.exp(-12 * dt));
   if (!speaking && weight < 0.001) return { elapsed: 0, weight: 0 };
   return { elapsed: speaking ? oldElapsed + dt : oldElapsed, weight };
+}
+
+/** Fade text-specific mouth morphs without modifying blinks or body animations. */
+export function remoteCuedSpeechWeight(name, cues, elapsed, fade) {
+  if (!Array.isArray(cues) || !cues.length || !Number.isFinite(fade) || fade <= 0) return 0;
+  return npcSpeechCueWeight(name, elapsed, cues) * Math.min(1, fade);
 }

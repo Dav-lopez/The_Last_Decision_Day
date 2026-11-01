@@ -1,13 +1,18 @@
-"""Lightweight head-skinned eyebrow fibres driven by the existing brow morphs.
+"""Head-skinned, tapered 3D eyebrow fibres for both licensed character bodies.
 
-The pinned CC0 face looks along +Z. These shallow, tapered ribbons add visible
-brow relief without textures, extra bones, or per-frame mesh allocations.
-Both character bodies use the same geometry shifted by their eye centres.
+Each fibre has a two-segment ribbon with a narrowing tip and shallow forward
+relief. Unlike single flat triangles, its root, ridge and tip catch light at
+slightly different angles. Morphs use the existing brow target names, so no
+runtime controllers or extra animation tracks are needed.
 """
+
+import math
 
 STROKES_PER_ROW = 14
 ROWS = 2
 BROW_TARGETS = ("browInnerUp", "browDownLeft", "browDownRight")
+VERTICES_PER_FIBRE = 5
+TRIANGLES_PER_FIBRE = 3
 
 
 def build_brow_geometry(head_joint):
@@ -23,15 +28,38 @@ def build_brow_geometry(head_joint):
                 arch = max(0.0, 1.0 - u * u)
                 y = 1.710 + 0.0047 * arch + row * 0.002
                 z = 0.0932 + 0.001 * arch + row * 0.0002
-                # Narrow triangular fibres, all wound toward +Z.
+                # Deterministic variation avoids identical comb-like fibres.
+                variation = 0.5 + 0.5 * math.sin(i * 2.17 + row * 1.31 + side * 0.47)
+                root_width = 0.00068 + 0.00024 * variation
+                ridge_width = root_width * 0.57
+                lift = 0.0026 + 0.00045 * variation
+                ridge_y = y + lift * 0.53
+                tip_y = y + lift
+                ridge_z = z + 0.00065
+                tip_z = z + 0.00018
                 start = len(positions)
-                positions.extend(((x - 0.00075, y, z),
-                                  (x + 0.00075, y, z),
-                                  (x + side * 0.0023, y + 0.0025, z + 0.0004)))
-                normals.extend(((0.0, 0.0, 1.0),) * 3)
-                owners.extend((side,) * 3)
-                inner_factors.extend((max(0.0, (1 - side * u) / 2),) * 3)
-                indices.extend(((start,), (start + 1,), (start + 2,)))
+                positions.extend(((x - root_width, y, z),
+                                  (x + root_width, y, z),
+                                  (x - ridge_width + side * 0.00045, ridge_y, ridge_z),
+                                  (x + ridge_width + side * 0.00045, ridge_y, ridge_z),
+                                  (x + side * 0.00165, tip_y, tip_z)))
+                # The middle ridge and narrowing tip catch light differently.
+                lower_slope = (ridge_z - z) / (ridge_y - y)
+                upper_slope = (tip_z - ridge_z) / (tip_y - ridge_y)
+
+                def normal(slope):
+                    length = math.hypot(1, slope)
+                    return (0.0, -slope / length, 1.0 / length)
+
+                normals.extend((normal(lower_slope), normal(lower_slope),
+                                normal((lower_slope + upper_slope) / 2),
+                                normal((lower_slope + upper_slope) / 2),
+                                normal(upper_slope)))
+                owners.extend((side,) * VERTICES_PER_FIBRE)
+                inner_factors.extend((max(0.0, (1 - side * u) / 2),) * VERTICES_PER_FIBRE)
+                indices.extend(((start,), (start + 1,), (start + 2,),
+                                (start + 1,), (start + 3,), (start + 2,),
+                                (start + 2,), (start + 3,), (start + 4,)))
 
     targets = []
     for name in BROW_TARGETS:

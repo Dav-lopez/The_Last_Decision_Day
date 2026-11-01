@@ -3,7 +3,9 @@ export type TrafficEdge = Readonly<{ id: number; from: string; to: string; point
 export type TrafficNode = { key: string; x: number; z: number; edges: number[] };
 export type RoadGraph = { nodes: Map<string, TrafficNode>; edges: TrafficEdge[] };
 export type TrafficCar = { id: number; paint: number; edge: number; forward: boolean; s: number; speed: number };
-export type Traffic = { cars: TrafficCar[]; random: () => number };
+export type LightState = 'green' | 'yellow' | 'red';
+export type TrafficSignal = Readonly<{ node: string; x: number; z: number; axes: readonly [readonly number[], readonly number[]]; offset: number }>;
+export type Traffic = { cars: TrafficCar[]; random: () => number; signals?: Map<string, TrafficSignal>; time?: number };
 export type TrafficObstacle = { x: number; z: number; radius?: number };
 export type TrafficPose = { id: number; paint: number; speed: number; x: number; z: number; rotation: number; dx: number; dz: number };
 export declare const DRIVABLE: readonly string[];
@@ -18,3 +20,7 @@ export declare function createTraffic(graph: RoadGraph, count: number, seed?: nu
 export declare function gapAhead(graph: RoadGraph, car: TrafficCar, others: ReadonlyArray<TrafficCar>, obstacles?: ReadonlyArray<TrafficObstacle>, poses?: Map<number, { x: number; z: number; dx: number; dz: number }> | null): number;
 export declare function stepTraffic(graph: RoadGraph, traffic: Traffic, seconds: number, obstacles?: ReadonlyArray<TrafficObstacle>): Traffic;
 export declare function trafficPoses(graph: RoadGraph, traffic: Traffic): TrafficPose[];
+export declare const SIGNAL: Readonly<{ green: number; yellow: number; allRed: number }>;
+export declare function buildSignals(graph: RoadGraph, seed?: number): Map<string, TrafficSignal>;
+export declare function signalPhase(signal: TrafficSignal, time: number): [LightState, LightState];
+export declare function lightFor(signals: Map<string, TrafficSignal> | null | undefined, edgeId: number, nodeKey: string, time: number): LightState | null;

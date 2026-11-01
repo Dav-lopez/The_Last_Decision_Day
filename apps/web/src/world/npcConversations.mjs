@@ -165,6 +165,29 @@ export function nearbyNpc(position, location, minute, live = null) {
   return match;
 }
 
+/**
+ * A spot right beside someone you can talk to on the street now (nearest to `from`
+ * when given), for touch hints and automated playtests: { id, x, z } or null.
+ * Stands `gap` metres from them, on the side towards the middle of the street.
+ */
+export function talkSpot(location, minute, live = null, from = null, gap = 0.8) {
+  if (location !== 'street') return null;
+  let best = null;
+  for (const id of ['maya', 'jordan', ...WALKERS]) {
+    const npc = NPC_DIALOGUES[id];
+    const resident = NEIGHBORS.find(person => person.id === npc.resident);
+    if (!resident || !isOut(resident, minute)) continue;
+    const at = resident.route.kind === 'stand' ? resident.route.at : live?.[resident.id];
+    if (!at || !Number.isFinite(at.x) || !Number.isFinite(at.z)) continue;
+    const side = at.x > 0 ? -1 : 1;
+    const spot = { id, x: at.x + side * gap, z: at.z };
+    const distance = from ? Math.hypot(spot.x - from.x, spot.z - from.z) : 0;
+    if (!best || distance < best.distance) best = { ...spot, distance };
+  }
+  if (!best) return null;
+  return { id: best.id, x: best.x, z: best.z };
+}
+
 export function beginNpcConversation(id, relations) {
   const npc = NPC_DIALOGUES[id];
   if (!npc) return null;

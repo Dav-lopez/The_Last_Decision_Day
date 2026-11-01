@@ -10,5 +10,6 @@ export declare function normalizeNpcRelations(value: unknown): NpcRelations;
 export declare function readNpcRelations(characterId: string, storage?: Storage): NpcRelations;
 export declare function writeNpcRelations(characterId: string, state: NpcRelations, storage?: Storage): boolean;
 export declare function nearbyNpc(position: { x: number; z: number }, location: string, minute: number, live?: Readonly<Record<string, { x: number; z: number }>> | null): NpcId | null;
+export declare function talkSpot(location: string, minute: number, live?: Readonly<Record<string, { x: number; z: number }>> | null, from?: { x: number; z: number } | null, gap?: number): { id: NpcId; x: number; z: number } | null;
 export declare function beginNpcConversation(id: NpcId, relations: NpcRelations): NpcConversation | null;
 export declare function chooseNpcReply(relations: NpcRelations, id: NpcId, choiceId: string): NpcReply | null;

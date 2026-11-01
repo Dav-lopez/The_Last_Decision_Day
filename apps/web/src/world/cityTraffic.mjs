@@ -173,12 +173,13 @@ function spawn(graph, random, avoid = [], clear = TRAFFIC.respawnClear, occupied
 export function createTraffic(graph, count, seed = 7, avoid = []) {
   const random = makeRandom(seed);
   const cars = [];
-  if (!graph.edges.length) return { cars, random };
+  const signals = buildSignals(graph, seed + 1);
+  if (!graph.edges.length) return { cars, random, signals, time: 0 };
   for (let i = 0; i < count; i++) {
     const occupied = cars.map(other => carPose(graph, other));
     cars.push({ ...spawn(graph, random, avoid, 25, occupied), id: i, paint: i % 6 });
   }
-  return { cars, random };
+  return { cars, random, signals, time: 0 };
 }
 
 /**
@@ -213,6 +214,8 @@ export function stepTraffic(graph, traffic, seconds, obstacles = []) {
   const dt = Number.isFinite(seconds) ? Math.max(0, Math.min(seconds, 0.1)) : 0;
   if (!dt || !graph.edges.length) return traffic;
   const { random } = traffic;
+  const time = (traffic.time ?? 0) + dt;
+  const signals = traffic.signals ?? null;
   const holders = junctionHolders(graph, traffic.cars);
   // Every car's pose once per step, not once per pair.
   const poses = new Map(traffic.cars.map(car => [car.id, carPose(graph, car)]));
@@ -229,16 +232,26 @@ export function stepTraffic(graph, traffic, seconds, obstacles = []) {
       if (busy && remaining >= TRAFFIC.junctionBox && remaining < TRAFFIC.junctionWait) {
         target = 0;
       }
+      // Red means stop at the line; on yellow, stop if there's room to, otherwise carry on through.
+      const light = lightFor(signals, car.edge, junction.key, time);
+      const toLine = remaining - TRAFFIC.junctionBox;
+      const canStop = toLine > (car.speed * car.speed) / (2 * TRAFFIC.brake) + 0.5;
+      if (toLine >= 0 && (light === 'red' || (light === 'yellow' && canStop))) {
+        // Brake smoothly to the line from up to 40 m out.
+        if (toLine < 40) target = Math.min(target, Math.max(0, Math.sqrt(2 * TRAFFIC.brake * 0.55 * Math.max(0, toLine - 0.3))));
+        if (toLine < 0.6) target = 0;
+      }
     }
     const gap = gapAhead(graph, car, traffic.cars, obstacles, poses) - TRAFFIC.carLength / 2 - TRAFFIC.gap;
     if (gap < 0) target = 0;
     else if (gap < 10) target = Math.min(target, gap * 0.9);
     const speed = car.speed < target ? Math.min(target, car.speed + TRAFFIC.accel * dt) : Math.max(target, car.speed - TRAFFIC.brake * dt);
     let next = { ...car, speed, s: car.s + speed * dt };
-    // Entering a junction box claims the junction; if someone got there first, stop at the line.
+    // Entering a junction box claims the junction; if someone got there first, or the light is red, stop at the line.
     if (junction.edges.length >= 3 && remaining >= TRAFFIC.junctionBox && edge.length - next.s < TRAFFIC.junctionBox) {
       const claimed = holders.get(junction.key) ?? new Set();
-      if ([...claimed].some(id => id !== car.id)) next = { ...next, s: edge.length - TRAFFIC.junctionBox, speed: 0 };
+      const light = lightFor(signals, car.edge, junction.key, time);
+      if ([...claimed].some(id => id !== car.id) || light === 'red') next = { ...next, s: edge.length - TRAFFIC.junctionBox, speed: 0 };
       else { claimed.add(car.id); holders.set(junction.key, claimed); }
     }
     while (next.s >= graph.edges[next.edge].length) {
@@ -253,7 +266,63 @@ export function stepTraffic(graph, traffic, seconds, obstacles = []) {
     }
     return next;
   });
-  return { ...traffic, cars };
+  return { ...traffic, cars, time };
+}
+
+/**
+ * Traffic lights. Junctions where a main road (primary, secondary or
+ * tertiary) meets others get signals. Approaches are split into two axes by
+ * direction; the axes take turns: green, yellow, then a moment of all-red.
+ * Each junction starts at its own point in the cycle, so the city doesn't
+ * change all at once.
+ */
+export const SIGNAL = Object.freeze({ green: 11, yellow: 3, allRed: 1.5 });
+const MAIN_ROADS = ['primary', 'secondary', 'tertiary'];
+
+/** Direction an edge leaves `node` in, as an angle in [0, π) (so both ways along a road share an axis). */
+function leavingAxis(graph, edgeId, nodeKey) {
+  const edge = graph.edges[edgeId];
+  const fromStart = edge.from === nodeKey;
+  const [ax, az] = fromStart ? edge.points[0] : edge.points[edge.points.length - 1];
+  const [bx, bz] = fromStart ? edge.points[1] : edge.points[edge.points.length - 2];
+  const angle = Math.atan2(bz - az, bx - ax);
+  return ((angle % Math.PI) + Math.PI) % Math.PI;
+}
+const axisGap = (a, b) => { const d = Math.abs(a - b) % Math.PI; return Math.min(d, Math.PI - d); };
+
+export function buildSignals(graph, seed = 5) {
+  const random = makeRandom(seed);
+  const signals = new Map();
+  for (const node of graph.nodes.values()) {
+    if (node.edges.length < 3 || !node.edges.some(id => MAIN_ROADS.includes(graph.edges[id].kind))) continue;
+    const axes = node.edges.map(id => ({ id, axis: leavingAxis(graph, id, node.key) }));
+    // Axis A: the main road through the junction; axis B: everything crossing it.
+    const main = axes.find(entry => MAIN_ROADS.includes(graph.edges[entry.id].kind)) ?? axes[0];
+    const a = axes.filter(entry => axisGap(entry.axis, main.axis) < Math.PI / 4).map(entry => entry.id);
+    const b = axes.filter(entry => !a.includes(entry.id)).map(entry => entry.id);
+    if (!b.length) continue; // a bend with a side road in line: no conflict worth a light
+    const cycle = 2 * (SIGNAL.green + SIGNAL.yellow + SIGNAL.allRed);
+    signals.set(node.key, Object.freeze({ node: node.key, x: node.x, z: node.z, axes: Object.freeze([Object.freeze(a), Object.freeze(b)]), offset: random() * cycle }));
+  }
+  return signals;
+}
+
+/** 'green' | 'yellow' | 'red' for each axis of a signal at `time` seconds. */
+export function signalPhase(signal, time) {
+  const half = SIGNAL.green + SIGNAL.yellow + SIGNAL.allRed;
+  const t = (((time + signal.offset) % (2 * half)) + 2 * half) % (2 * half);
+  const active = t < half ? 0 : 1;
+  const local = t % half;
+  const state = local < SIGNAL.green ? 'green' : local < SIGNAL.green + SIGNAL.yellow ? 'yellow' : 'red';
+  return active === 0 ? [state, 'red'] : ['red', state];
+}
+
+/** The light facing a car arriving at `nodeKey` along edge `edgeId`, or null when there's no signal. */
+export function lightFor(signals, edgeId, nodeKey, time) {
+  const signal = signals?.get(nodeKey);
+  if (!signal) return null;
+  const axis = signal.axes[0].includes(edgeId) ? 0 : signal.axes[1].includes(edgeId) ? 1 : -1;
+  return axis < 0 ? null : signalPhase(signal, time)[axis];
 }
 
 /** Render data: city-local pose and paint index for every car. */

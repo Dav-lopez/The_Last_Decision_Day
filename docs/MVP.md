@@ -46,24 +46,29 @@ A new player can:
       and Reset progress. A first-run hint showing the basic controls.
 - [x] **3. Progress saved to the account**: story, career and training record, and neighbour relationships
       synced through the API for signed-in players (guests keep local saves); newest-wins merge; tests on both sides.
-- [ ] **4. Football extras**: better goalkeeping, smarter opponents (support runs, marking), a season league
+- [x] **4. Football extras**: better goalkeeping, smarter opponents (support runs, marking), a season league
       table that records your match results.
   - [x] 4a. Season league table: six local clubs, one round per match you play, other games simulated, saved per character.
-  - [ ] 4b. Better goalkeeping and smarter opponents (support runs, marking).
-- [ ] **5. Phone and touch pass**: every action reachable by touch (talk, map, range, match, car), layouts that
+  - [x] 4b. Better goalkeeping and smarter opponents: keepers narrow the angle, dive (with a dive animation),
+        catch or parry wide, and rush out to smother; forwards make support runs, defenders mark goal-side and cover,
+        passers avoid blocked lanes, shooters pick the far post. Save commentary for both keepers.
+- [x] **5. Phone and touch pass**: every action reachable by touch (talk, map, range, match, car), layouts that
       fit 360-pixel-wide screens, and a phone-viewport run in the playtest.
   - [x] 5a. Phone playtest (360×640 touch screen, tap-only: story, touch-pad walking, map, downtown, pitch, match)
         that fails on sideways scrolling, overlapping overlays or core buttons under 40 px; phone HUD layout;
         Shoot and Chip buttons for football.
-  - [ ] 5b. Touch flow through talking to a neighbour, the training range and driving a car in the phone playtest;
-        on-screen controls visible without scrolling on a phone (pad next to the view).
+  - [x] 5b. Touch flow through talking to a neighbour, the training range and driving a car in the phone playtest;
+        on-screen controls visible without scrolling on a phone (pad right under the view, help text below it,
+        and the game scrolls the view to the top of the screen on phones).
 - [ ] **6. Loading speed**: compressed models, downtown and range loaded on demand, a loading screen with
       progress, and a bundle-size check in CI.
   - [x] 6a. Loading screen with real progress (Maple Street, character, school, neighbours, props, cars; tips;
         "Start now" after 8 s; never holds you more than 45 s), downtown loading shown as a chip afterwards, and a
         gzipped bundle-size budget (`apps/web/bundle-budget.json`) checked in CI.
-  - [ ] 6b. Compressed models (meshopt/Draco or texture-size cuts for the 1.6 MB human and plant GLBs), and
-        downtown and the training range loaded only when you first go there.
+  - [x] 6b. Downtown and the training range loaded only when you first go there: the 3D city, street lamps, pitch,
+        workplace signs and traffic are built behind the first ride's fade (the map, taxi and workplace pins work
+        from the street data at once), and the range is its own download; the playtest checks both halves.
+  - [ ] 6c. Compressed models (meshopt/Draco or texture-size cuts for the 1.6 MB human and plant GLBs).
 - [ ] **7. Accessibility**: full keyboard flow, visible focus, reduced-motion option, readable contrast,
       captions for story audio cues.
   - [x] 7a. Accessibility settings in the menu: motion (follow the device / reduced / full), sound captions that
@@ -85,10 +90,13 @@ above is done or blocked; any item may be split into slices.
 
 - [x] **10. Living downtown traffic**: AI cars driving the real street network, keeping right,
       following each other, yielding to you, and solid to your car.
-- [ ] **11. Minimap and GPS**: a corner minimap that rotates with you, a waypoint you set on the big map, and a
+- [x] **11. Minimap and GPS**: a corner minimap that rotates with you, a waypoint you set on the big map, and a
       route line along the roads to it (story objectives set it automatically).
 - [ ] **12. Traffic lights and pedestrians downtown**: signal-controlled junctions the traffic obeys; people
       walking downtown sidewalks who cross at lights.
+  - [x] 12a. Traffic lights: 22 signalised junctions (wherever a main road meets others), two-way phases with
+        yellow and all-red, offsets per junction; traffic stops at the line on red, and on yellow when it can.
+  - [ ] 12b. Pedestrians walking downtown sidewalks, crossing at the lights.
 - [ ] **13. Driving feel**: body roll and pitch, tyre squeal and skid marks, engine sound by speed and gear,
       cosmetic dents and scratches, a horn; a police cruiser and a fire engine for those careers.
 - [ ] **14. Phone**: an in-game phone (Esc-free, key P) with messages from Mom and friends, contacts you've
@@ -109,7 +117,15 @@ above is done or blocked; any item may be split into slices.
   devices everything moves in slow motion. Worth a "low-end" check in item 6.
 - Traffic: a road crossing without a shared OSM node (an overpass or a data gap) lets cars pass through each
   other there; traffic lights (item 12) should add explicit junctions. Cars have no headlights at night yet.
+- Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
+  opposite conventions).
 - (add bugs and small follow-ups here)
+- 6c note: the Poly Haven props already use 1024 px WebP textures and quantized meshes; the bulk is geometry
+  (the plant is 1.3 MB of vertices, the human GLBs carry facial morph targets), so the real win needs meshopt with
+  a self-hosted decoder (Babylon fetches it from its CDN by default). Leave the facial GLBs to the facial-asset
+  contract job.
+- Building downtown on the first trip takes a noticeable moment on slow devices; it happens behind the ride's
+  fade, but a later pass could build it in idle frames while the player walks to the bus stop.
 - Accessibility settings (motion, captions, text size) live in the browser settings key only; they are
   device preferences, so they are deliberately not part of the account progress document.
 - "Reset progress" in the game menu (#190) clears the browser saves only; for signed-in players it should also
@@ -127,3 +143,12 @@ above is done or blocked; any item may be split into slices.
   GLBs (Babylon's `onProgress`) would make the bar smoother on slow connections.
 - The football league save (`tld-league-v1:`) is local only; add it to the account progress document now that #192 has landed.
 - The opponents in a league match still wear the red kit; club colours per opponent would make rounds feel distinct.
+- The match AI favoured whichever team was listed first when two players could reach the ball (home won every tie);
+  the nearer player now plays it, and a mirrored match plays out identically for both ends.
+- A keeper rolling the ball out was logged as a "save", so every goal kick showed "Saved by …" and played the save
+  sound; it is a pass now. AI-vs-AI matches used to finish around 6–5; with the new keeping and marking they average ~6 goals.
+- Keepers dive by tipping the whole body at the feet; a proper dive clip (Quaternius has none) would look better.
+- Playtests can stand the player next to a neighbour, a parked car or a workplace sign (`__tld.place`, only
+  with `?playtest`), so touch flows don't depend on walking there in 2 fps software rendering.
+- On phones in landscape (640×360) the view and pad still don't fit together; a true overlay pad on the view
+  would cover that case (worth doing with item 7's layout work).

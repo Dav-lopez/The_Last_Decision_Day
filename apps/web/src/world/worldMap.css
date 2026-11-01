@@ -2,7 +2,8 @@
   background: rgba(9, 18, 32, 0.94); color: #eef3fb; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45); }
 .world-map-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .world-map-head .wardrobe-tabs { margin: 0; }
-.world-map-svg { flex: 1; min-height: 0; width: 100%; border-radius: 8px; background: #2b3a2a; }
+.world-map { overflow: auto; }
+.world-map-svg { flex: 1; min-height: 170px; width: 100%; border-radius: 8px; background: #2b3a2a; }
 .world-map-travel { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 0.82rem; }
 .world-map-travel button { padding: 5px 10px; font-size: 0.8rem; }
 .world-map-travel button:disabled { opacity: 0.45; }
