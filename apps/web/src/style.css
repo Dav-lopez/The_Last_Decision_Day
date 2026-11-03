@@ -171,6 +171,8 @@
   .world-root .world-drive-hud{bottom:8px;left:8px;right:8px;font-size:.74rem}
   /* The pad and the action button say how to drive on a phone; keeping the HUD short leaves room for notices under the button. */
   .world-root .world-drive-help{display:none}
+  /* A long notice wraps at most to two lines, so the HUD never grows up into the action button above it. */
+  .world-root .world-drive-notice{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden}
   .world-root .world-scoreboard{top:auto;bottom:150px;left:8px;right:8px;transform:none;flex-wrap:wrap;justify-content:center;gap:6px;padding:6px 8px}
   .world-root .world-scoreboard small{display:none}
   .world-root .world-camera-toggle{padding:10px 8px;gap:6px}

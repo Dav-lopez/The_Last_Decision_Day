@@ -112,8 +112,8 @@
   "body": "female",
   "output": {
     "file": "human-female.glb",
-    "bytes": 1643352,
-    "sha256": "5dd8e595e731df65e23e708789b6ab36471efeb05fee8ffbe00e0c9d025e2606",
+    "bytes": 1246908,
+    "sha256": "ee75a4f150366dc0856dc622660b954529ba0b421f2ce0c9617f754371822cd9",
     "morphTargets": [
       "browDownLeft",
       "browDownRight",
@@ -166,6 +166,7 @@
     "Add shallow transparent head-skinned corneal films with bilateral blink and gaze morphs.",
     "Split the outfit into zones painted in the browser (sleeves, midriff, waist, thighs, knees, shins, socks, shoes, soles).",
     "Ship every hairstyle (parted, buzzed, pixie, long, buns, beard) moved onto this head by the eye-centre difference; the browser shows one.",
-    "Add a skinned flared skirt (pelvis and thighs), hidden unless worn."
+    "Add a skinned flared skirt (pelvis and thighs), hidden unless worn.",
+    "Pack outfit and hair skin weights (8-bit, sums kept at exactly 1) and normals (8-bit, KHR_mesh_quantization); facial surfaces stay float."
   ]
 }

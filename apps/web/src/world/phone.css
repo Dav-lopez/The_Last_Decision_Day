@@ -9,8 +9,8 @@
 .world-phone-battery span{display:block;height:100%;background:#7bd389;border-radius:1px}
 .world-phone-objective{margin:0 4px 8px;padding:6px 10px;border-radius:12px;background:#152238;border-left:3px solid #ffd27a;font-size:.8rem;line-height:1.35}
 .world-phone-objective small{display:block;color:#ffd27a;font-size:.66rem;letter-spacing:.05em;text-transform:uppercase}
-.world-phone-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin:0 2px 8px}
-.world-phone-tabs button{position:relative;padding:4px 2px;font-size:.78rem}
+.world-phone-tabs{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:3px;margin:0 2px 8px}
+.world-phone-tabs button{position:relative;padding:4px 1px;font-size:.7rem}
 .world-phone-tabs button[aria-selected=true]{background:#3b6fd8;color:#fff}
 .world-phone-badge{position:absolute;top:-5px;right:-3px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:#e5484d;color:#fff;font-size:.7rem;line-height:18px;font-weight:700}
 .world-phone-screen{flex:1 1 auto;min-height:120px;overflow-y:auto;border-radius:16px;background:#f4f6fa;color:#17233a;padding:6px}
@@ -49,3 +49,11 @@
 .world-phone-button-badge{display:inline-block;min-width:18px;margin-left:6px;padding:0 5px;border-radius:9px;background:#e5484d;color:#fff;font-size:.72rem;line-height:18px;font-weight:700}
 @media(max-width:520px){.world-phone{right:8px;bottom:8px;width:calc(100% - 16px);max-height:calc(100% - 16px);border-radius:20px}}
 @media(max-height:380px){.world-phone-objective{display:none}.world-phone{padding-top:6px}}
+/* Camera app inside the phone. */
+.world-phone-career .world-phone-photos{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:6px 0 0;padding:0;list-style:none}
+.world-phone-photos li{position:relative;display:flex;flex-direction:column;gap:3px;min-width:0}
+.world-phone-photos img{display:block;width:100%;min-width:0;aspect-ratio:4/3;object-fit:cover;border-radius:8px;background:#1d2a3f}
+.world-phone-photos small{color:#3d4a61;font-size:.68rem;line-height:1.2}
+.world-phone-photo-actions{display:flex;gap:4px}
+.world-phone .world-phone-photo-actions a,.world-phone .world-phone-photo-actions button{flex:1;min-height:32px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:#dfe6f3;color:#17233a;font-size:.72rem;font-weight:600;text-decoration:none}
+.world-phone .world-phone-photo-actions a:focus-visible{outline:3px solid #ffd27a;outline-offset:1px}

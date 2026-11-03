@@ -122,4 +122,6 @@ export const CUES = Object.freeze({
   skid: [],
   // The phone sliding up: a soft two-note tap.
   phone: [[740,.05,.022,0],[988,.08,.018,.05]],
+  // Phone camera: a crisp two-part shutter click.
+  shutter: [N(.025,.05,5200,0,'highpass'), N(.04,.035,2600,.07,'bandpass')],
 });

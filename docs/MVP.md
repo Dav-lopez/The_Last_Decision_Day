@@ -60,7 +60,7 @@ A new player can:
   - [x] 5b. Touch flow through talking to a neighbour, the training range and driving a car in the phone playtest;
         on-screen controls visible without scrolling on a phone (pad right under the view, help text below it,
         and the game scrolls the view to the top of the screen on phones).
-- [ ] **6. Loading speed**: compressed models, downtown and range loaded on demand, a loading screen with
+- [x] **6. Loading speed**: compressed models, downtown and range loaded on demand, a loading screen with
       progress, and a bundle-size check in CI.
   - [x] 6a. Loading screen with real progress (Maple Street, character, school, neighbours, props, cars; tips;
         "Start now" after 8 s; never holds you more than 45 s), downtown loading shown as a chip afterwards, and a
@@ -73,7 +73,7 @@ A new player can:
         players (`footballMatchKit.ts`) when you start a match, and the big map after Maple Street is up. WorldScene
         went from 125.7 KB to 110.2 KB gzipped (main had gone over its 124 KB budget once the radio, phone and
         driving feel all landed); `lazy-chunks.test.mjs` keeps those modules out of WorldScene's static imports.
-  - [ ] 6c. Compressed models (meshopt/Draco or texture-size cuts for the 1.6 MB human and plant GLBs).
+  - [x] 6c. Compressed models (meshopt/Draco or texture-size cuts for the 1.6 MB human and plant GLBs).
     - [x] 6c-1 (partial slice). Action clips (talk, sit, drive, jump, dance…) slimmed from 711 KB to 255 KB per body
           (278 KB → 75 KB gzipped) by `scripts/slim_clips.py`: redundant keys dropped (≤0.02°, 0.1 mm), rotations
           stored as 16-bit, shared buffer views; Babylon import checked in CI. Still to do: the plant and human GLBs.
@@ -83,6 +83,12 @@ A new player can:
           512 px textures, 1.68 MB → 0.78 MB (1.20 MB → 0.49 MB gzipped); every prop's normals packed to 8 bits;
           all ten props 5.37 MB → 4.27 MB. Checked by `polyhaven-slim.test.mjs`. Still to do: the human GLBs
           (facial-asset pipeline) and meshopt with a self-hosted decoder.
+    - [x] 6c-3. The two character bodies slimmed by `scripts/slim_character.py` (pure Python, called by
+          `build-character.py` before hashing, so rebuilt models come out slim too): outfit and hair skin weights
+          packed to 8 bits (rounded so each vertex still sums to exactly 1; worst error 0.003) and their normals to
+          8 bits with KHR_mesh_quantization (worst error 0.4°). The face, eyes and anything with morph targets keep
+          their float data, so the facial-asset contract is unchanged. human.glb 1.68 MB → 1.28 MB, human-female.glb
+          1.64 MB → 1.25 MB (622 KB → 500 KB and 613 KB → 487 KB gzipped); checked by `character-slim.test.mjs`.
 - [x] **7. Accessibility**: full keyboard flow, visible focus, reduced-motion option, readable contrast,
       captions for story audio cues.
   - [x] 7a. Accessibility settings in the menu: motion (follow the device / reduced / full), sound captions that
@@ -164,13 +170,21 @@ above is done or blocked; any item may be split into slices.
         HUD shows the bodywork ("Dented 85%"), captions describe the crunch and scrape, fewer decals are drawn at lower
         adaptive quality, and the car is repaired overnight when you sleep. The phone playtest knocks the car and checks
         the badge. Still to do: a police cruiser and a fire engine.
-- [ ] **14. Phone**: an in-game phone (Esc-free, key P) with messages from Mom and friends, contacts you've
+- [x] **14. Phone**: an in-game phone (Esc-free, key P) with messages from Mom and friends, contacts you've
       met, the map, your career, and a camera / photo mode.
   - [x] 14a (partial slice). The phone (P, or the Phone button): texts from Mom every morning (and a nudge home
         after dark), the story's own texts, friends who text once you get on well (and a cool note if you don't),
         work texts (welcome, today's shift hours, promotions); a buzz, a caption and a peek under the objective when
         one arrives; threads, unread badges, contacts with trust, a career summary and a map shortcut; arrow keys
-        between apps, P / Esc to put it away. Both playtests open it. Still to do: 14b, camera / photo mode.
+        between apps, P / Esc to put it away. Both playtests open it.
+  - [x] 14b. Camera / photo mode: Phone → Camera → Take photos raises a viewfinder and the HUD steps aside (sound
+        captions stay). WASD / arrows aim the camera instead of walking, drag and pinch still orbit, + / − zoom up to
+        3×, F cycles five looks (Natural, Golden hour, Vivid, Black & white, Faded film, previewed live), G a
+        rule-of-thirds grid, Space the shutter (click, flash, caption; a still frame under reduced motion). Photos are
+        stamped with day, time and place (downtown ones carry "Map data © OpenStreetMap contributors"), kept in the
+        Camera app (newest 8, per character, in this browser) and can be saved to the device or deleted. Pure rules in
+        `photoMode.mjs` (`photo-mode.test.mjs`); the viewfinder and capture code load the first time the camera opens;
+        the guest playtest takes a photo and finds it in the app.
 - [x] **15. Car radio**: three or four original procedural stations with DJ-style station idents.
   - Four stations, all original and generated in the browser: Maple 98.1 (indie pop), Low Tide 88.4 (lo-fi),
     Downtown 101.3 (late-night jazz) and Pulse 94.7 (synthwave), two songs each with intro, verse, chorus and
@@ -198,6 +212,11 @@ above is done or blocked; any item may be split into slices.
 
 ## Found along the way
 
+- 14b: photo filters are applied to the pixels with the CSS filter formulas rather than canvas `ctx.filter`, because
+  Safari has no `ctx.filter`; the live preview is a CSS filter on the 3D canvas, so both match. Photos are not
+  removed by "Reset progress" (they are keepsakes, like looks and settings), and they are not synced to the account:
+  at ~80 KB each they would need a file store rather than the progress API.
+
 - 9b drives the story's events through a playtest hook (`__tld.story.report`), not by re-playing school, sleep,
   downtown, a shift and a match three times over: at ~2 fps in CI's software renderer that would take hours. Those
   systems are each played for real earlier in the same run.
@@ -219,6 +238,14 @@ above is done or blocked; any item may be split into slices.
   nearby, spraying from the engine's hose reel would be a natural next step.
 - 16a: Babylon particle shaders compile the first time a fire is shown, which can hitch a frame on slow devices; the
   fire is lit when the duty starts (at the station door), not when you arrive, so the hitch lands somewhere harmless.
+- 6c-3: `facial_release_parity.py` fails on the checked-in GLBs on main too ("unexpected eyebrow fibre vertex
+  budget"); it is meant for freshly generated files (the build workflow runs it after `build-character.py`), so the
+  checked-in bodies predate a later brow change. Rebuilding them from the pinned sources would settle it. Positions
+  are still float: skinned meshes ignore node transforms, so 16-bit positions need the inverse bind matrices rebased
+  (or meshopt with a self-hosted decoder) — the next ~250 KB per body.
+- Fixed (6c-3): the phone playtest once failed "drive HUD covers action button" on a run whose only change was model
+  bytes — timing put a long notice in the drive HUD, which wrapped to four lines and grew up into the "Get out"
+  button. On phones the drive notice now wraps to at most two lines, and the playtest notes what the HUD said.
 - Fixed: a merge resolution had moved the phone playtest's radio check into `checkLayout`, so every phone step
   after the first layout check waited for a radio that only exists while driving (10 phone steps red on main), and
   the phone radio dial had ended up inside the 3D view. Seven facial tests had also dropped out of every npm

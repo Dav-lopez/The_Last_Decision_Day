@@ -15,6 +15,7 @@ on:
       - 'scripts/facial_ears.py'
       - 'scripts/test_facial_ears.py'
       - 'scripts/hair_detail.py'
+      - 'scripts/slim_character.py'
       - 'scripts/test_hair_detail.py'
       - 'scripts/validate_hair_detail_glb.py'
       - 'scripts/facial_brows.py'
