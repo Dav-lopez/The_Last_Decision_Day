@@ -215,6 +215,9 @@ above is done or blocked; any item may be split into slices.
   checked-in bodies predate a later brow change. Rebuilding them from the pinned sources would settle it. Positions
   are still float: skinned meshes ignore node transforms, so 16-bit positions need the inverse bind matrices rebased
   (or meshopt with a self-hosted decoder) — the next ~250 KB per body.
+- Fixed (6c-3): the phone playtest once failed "drive HUD covers action button" on a run whose only change was model
+  bytes — timing put a long notice in the drive HUD, which wrapped to four lines and grew up into the "Get out"
+  button. On phones the drive notice now wraps to at most two lines, and the playtest notes what the HUD said.
 - Fixed: a merge resolution had moved the phone playtest's radio check into `checkLayout`, so every phone step
   after the first layout check waited for a radio that only exists while driving (10 phone steps red on main), and
   the phone radio dial had ended up inside the 3D view. Seven facial tests had also dropped out of every npm
