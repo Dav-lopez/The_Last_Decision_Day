@@ -29,6 +29,8 @@ export const SOUND_CAPTIONS = Object.freeze({
   shot: 'Pistol shot on the range',
   rifle: 'Rifle shot on the range',
   spray: 'Hose spraying',
+  blaze: 'Fire crackles',
+  hiss: 'Fire hisses out',
   ding: 'Steel plate rings: hit',
   reload: 'Reloading',
   skid: 'Tyres screech',

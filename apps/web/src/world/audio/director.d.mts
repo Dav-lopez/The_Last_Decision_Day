@@ -1,5 +1,5 @@
 export type RadioSpeech = { speak(line: string, voice?: { volume?: number; pitch?: number; rate?: number }): void; cancel(): void };
-export type AudioCue = 'notice'|'message'|'talk'|'door'|'car'|'bus'|'bell'|'food'|'wake'|'achievement'|'kick'|'whistle'|'goal'|'save'|'jump'|'land'|'shift'|'promotion'|'horn'|'checkpoint'|'dispatch'|'map'|'chat'|'emote'|'shot'|'rifle'|'spray'|'ding'|'reload'|'phone'|'skid';
+export type AudioCue = 'notice'|'message'|'talk'|'door'|'car'|'bus'|'bell'|'food'|'wake'|'achievement'|'kick'|'whistle'|'goal'|'save'|'jump'|'land'|'shift'|'promotion'|'horn'|'checkpoint'|'dispatch'|'map'|'chat'|'emote'|'shot'|'rifle'|'spray'|'ding'|'reload'|'phone'|'skid'|'crackle'|'blaze'|'hiss';
 export type AudioStatus = 'off' | 'running' | 'suspended' | 'unavailable';
 export type AudioSettings = { master: number; music: number; effects: number; ambience: number; muted: boolean };
 export type AudioWorld = { location?: 'street'|'home'|'school'|'city'|'pitch'; match?: boolean; speed?: number; drivingSpeed?: number|null; car?: { rpm?: number; frequency?: number; throttle?: number; slip?: number } | null; reading?: boolean; paused?: boolean; evening?: boolean };
@@ -7,6 +7,8 @@ export declare function createGameAudio(options?: { createContext?: () => AudioC
   enable(): Promise<boolean>; disable(): void; setSettings(value: AudioSettings): void; setHidden(hidden: boolean): void;
   cue(name: AudioCue): void;
   horn(on: boolean): void;
+  /** Hold the fire hose's water sound (true) or let go (false). */
+  hose(on: boolean): void;
   useCarSynth(factory: ((deps: import('./carAudio.mjs').CarSynthDeps) => import('./carAudio.mjs').CarSynth) | null): void;
   /** Resolves once the station's songs have loaded (they load on first use). */
   setRadio(station: string | null): Promise<void>;

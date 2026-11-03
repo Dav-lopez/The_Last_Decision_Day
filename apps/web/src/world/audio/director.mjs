@@ -13,7 +13,7 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
   let disposed = false, enabled = false, hidden = false, resumeVersion = 0;
   let settings = normalizeAudioSettings(null);
   let nextBeat = 0, beat = 0, nextFootstep = 0, nextAmbient = 0, lastLocation = '';
-  let engine = null, hornWanted = false, carSynthFactory = null, carSynth = null;
+  let engine = null, hornWanted = false, carSynthFactory = null, carSynth = null, hoseVoice = null;
   let reverb = null, reverbSend = null, intensity = 0;
   const voices = new Set(), lastCue = new Map();
   const targets = new WeakMap();
@@ -200,6 +200,30 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
       for(const part of CUES[name]) {
         if (Array.isArray(part)) { const [hz,duration,gain,offset]=part; tone(hz,duration,gain,time+offset); }
         else noise(part.duration,part.gain,part.cutoff,'effects',part.filter,time+part.offset);
+      }
+    },
+    /**
+     * The fire hose (16a): a steady looping rush of water while held, faded in and out so it never clicks. One voice,
+     * on the effects bus (volume sliders and mute apply); `cue('spray')` carries the caption when it starts.
+     */
+    hose(on) {
+      if (hoseVoice && !voices.has(hoseVoice.voice)) hoseVoice = null;
+      if (on && !hoseVoice && playable() && voices.size < 80) {
+        ensureNoise();
+        const start = now();
+        const source = context.createBufferSource(), gain = context.createGain(), filter = context.createBiquadFilter();
+        source.buffer = noiseBuffer; source.loop = true;
+        filter.type = 'bandpass'; filter.frequency.setValueAtTime(1250, start);
+        gain.gain.setValueAtTime(.0001, start); gain.gain.exponentialRampToValueAtTime(.032, start + .09);
+        source.connect(filter); filter.connect(gain); gain.connect(buses.effects);
+        const voice = register(source, gain, 'effects', [filter]);
+        if (!voice) return;
+        source.start(start);
+        hoseVoice = { voice, source, gain };
+      } else if (!on && hoseVoice) {
+        const { source, gain } = hoseVoice, end = now();
+        hoseVoice = null;
+        try { gain.gain.cancelScheduledValues(end); gain.gain.setTargetAtTime(.0001, end, .05); source.stop(end + .3); } catch {}
       }
     },
     /** Hold the car horn (true) or let go (false). Sounds only while driving. */

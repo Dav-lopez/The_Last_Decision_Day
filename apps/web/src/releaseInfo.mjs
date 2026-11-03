@@ -10,6 +10,14 @@ export const GAME_TAGLINE = 'Your life. Your choices. Your consequences.';
  */
 export const RELEASE_NOTES = Object.freeze([
   Object.freeze({
+    id: '2026-11-03d', title: 'Real fire calls',
+    items: Object.freeze([
+      'A fire call now starts at a real fire: a burning skip behind the shops, its smoke visible down the street.',
+      'Hold Space (or HOSE) to spray. Stand still and you turn onto the flames; the duty card shows how much fire is left.',
+      'Put it out quickly and cleanly for a better time. Steam, a hiss and the litres of water used tell you how it went.',
+    ]),
+  }),
+  Object.freeze({
     id: '2026-11-01c', title: 'Feel the road',
     items: Object.freeze([
       'Cars have gears you can hear: the engine climbs, drops on each shift and climbs again.',

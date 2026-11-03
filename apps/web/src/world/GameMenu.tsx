@@ -10,7 +10,7 @@ export type MenuTab = 'controls' | 'settings' | 'story' | 'news' | 'credits';
 const CONTROLS: ReadonlyArray<readonly [string, string]> = [
   ['W A S D / arrow keys', 'Walk (the camera decides which way is forward)'],
   ['Shift', 'Run (or switch RUN on below the game)'],
-  ['Space', 'Jump (on foot)'],
+  ['Space', 'Jump (on foot) · hold the hose at a fire call (or HOSE)'],
   ['Drag · scroll · pinch', 'Orbit and zoom the camera'],
   ['E', 'Interact: doors, desks, bed, stove, cars, signs, talk to people'],
   ['1 – 3 · ↑ ↓ and Enter', 'Pick an answer in a conversation'],

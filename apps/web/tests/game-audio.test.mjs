@@ -132,3 +132,23 @@ test('driving: revs set the engine note, sliding tyres squeal (with a caption) a
   assert.equal(context.sources.filter(s=>s.kind==='oscillator'&&s.frequency.value===349&&!s.disconnected).length,0,'no horn on foot');
   audio.dispose();
 });
+
+test('the fire hose is one looping voice that fades out on release and stops when muted', async () => {
+  const context = audioContext(); const audio = createGameAudio({ createContext: () => context }); audio.setSettings(effectsOnly); await audio.enable();
+  const before = context.sources.length;
+  audio.hose(true); audio.hose(true);
+  const loops = context.sources.slice(before).filter(s => s.kind === 'buffer' && s.loop);
+  assert.equal(loops.length, 1, 'holding the hose adds a single looping source');
+  assert.equal(loops[0].end, Infinity);
+  audio.hose(false);
+  assert.ok(loops[0].end > context.currentTime && loops[0].end < context.currentTime + 1, 'it fades and stops shortly after release');
+  audio.hose(false);
+  audio.hose(true);
+  const again = context.sources.slice(before).filter(s => s.kind === 'buffer' && s.loop);
+  assert.equal(again.length, 2);
+  audio.setSettings({ ...AUDIO_DEFAULTS, muted: true });
+  assert.ok(again.at(-1).disconnected, 'mute stops it');
+  audio.hose(true);
+  assert.equal(context.sources.slice(before).filter(s => s.loop).length, 2, 'no sound while muted');
+  audio.dispose();
+});
