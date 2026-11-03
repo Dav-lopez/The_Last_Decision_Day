@@ -11,12 +11,14 @@ const binary = bytes.subarray(28 + jsonLength);
 const widths = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
 function accessor(index) {
   const a = gltf.accessors[index], v = gltf.bufferViews[a.bufferView];
-  const component = { 5121: [1, 'readUInt8'], 5123: [2, 'readUInt16LE'], 5125: [4, 'readUInt32LE'], 5126: [4, 'readFloatLE'] }[a.componentType];
+  const component = { 5120: [1, 'readInt8', 127], 5121: [1, 'readUInt8', 255], 5123: [2, 'readUInt16LE', 65535], 5125: [4, 'readUInt32LE'], 5126: [4, 'readFloatLE'] }[a.componentType];
   assert.ok(component, 'supported component type');
-  const [size, read] = component;
+  const [size, read, unit] = component;
+  // Normalized integers (8-bit outfit weights and normals from scripts/slim_character.py) read back as 0..1 / -1..1.
+  const scale = a.normalized ? 1 / unit : 1;
   const width = widths[a.type], stride = v.byteStride ?? size * width;
   return Array.from({ length: a.count }, (_, i) => Array.from({ length: width }, (_, c) =>
-    binary[read]((v.byteOffset ?? 0) + (a.byteOffset ?? 0) + i * stride + c * size)));
+    Math.max(-1, binary[read]((v.byteOffset ?? 0) + (a.byteOffset ?? 0) + i * stride + c * size) * scale)));
 }
 
 test('bundled character is complete, licensed, below budget and needs no external asset URLs', () => {

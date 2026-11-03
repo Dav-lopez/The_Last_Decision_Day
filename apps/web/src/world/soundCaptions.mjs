@@ -35,6 +35,7 @@ export const SOUND_CAPTIONS = Object.freeze({
   reload: 'Reloading',
   skid: 'Tyres screech',
   siren: 'Siren wails',
+  shutter: 'Camera shutter clicks',
 });
 
 export const CAPTION_SECONDS = 3.5;

@@ -204,6 +204,39 @@ await step('phone opens with P: Mom\'s texts, apps by arrow keys, closes with P'
   await waitFor('phone closes', timeout => page.waitForSelector('.world-phone', { state: 'detached', timeout }), 15000);
   if (!(await page.evaluate(() => document.activeElement?.tagName === 'CANVAS'))) throw new Error('focus did not return to the world');
 });
+await step('phone camera: a filtered photo lands in the Camera app', async () => {
+  await page.locator('canvas').first().click({ position: { x: 320, y: 120 } });
+  await page.keyboard.press('p');
+  await waitFor('phone opens', timeout => page.waitForSelector('.world-phone', { timeout }), 30000);
+  await page.locator('.world-phone [role=tab]', { hasText: 'Camera' }).click();
+  await page.locator('.world-phone-camera button', { hasText: 'Take photos' }).click();
+  await waitFor('viewfinder', timeout => page.waitForSelector('.world-photo', { timeout }), 30000);
+  if (await page.locator('.world-phone').count()) throw new Error('the phone should go away while the camera is up');
+  if (await page.locator('.story-objective').isVisible()) throw new Error('the HUD should step aside in photo mode');
+  await page.keyboard.press('f'); // Golden hour
+  await page.keyboard.press('+');
+  await page.keyboard.press('a'); // aims, does not walk
+  const before = await read();
+  await page.keyboard.press(' ');
+  await waitFor('photo saved', timeout => page.waitForSelector('.world-photo-last img', { timeout }), 20000);
+  const after = await read();
+  if (before && after && Math.hypot(after.x - before.x, after.z - before.z) > 0.2) throw new Error('the player walked while aiming the camera');
+  const src = await page.locator('.world-photo-last img').getAttribute('src');
+  if (!src?.startsWith('data:image/jpeg')) throw new Error('the photo is not a JPEG');
+  await shot('04f-photo-mode');
+  await page.keyboard.press('Escape');
+  await waitFor('camera put away', timeout => page.waitForSelector('.world-photo', { state: 'detached', timeout }), 10000);
+  if (await page.locator('.game-menu-backdrop:not([hidden])').count()) throw new Error('Esc in photo mode should not open the menu');
+  if (!(await page.evaluate(() => document.activeElement?.tagName === 'CANVAS'))) throw new Error('focus did not return to the world after photo mode');
+  await page.keyboard.press('p');
+  await waitFor('phone reopens', timeout => page.waitForSelector('.world-phone', { timeout }), 15000);
+  await page.locator('.world-phone [role=tab]', { hasText: 'Camera' }).click();
+  const saved = await page.locator('.world-phone-photos li').count();
+  notes.push(`camera: ${saved} photo(s) in the Camera app, ${Math.round((src?.length ?? 0) / 1024)} KB`);
+  if (saved < 1) throw new Error('the photo is missing from the Camera app');
+  await page.keyboard.press('p');
+  await waitFor('phone closes', timeout => page.waitForSelector('.world-phone', { state: 'detached', timeout }), 15000);
+});
 await step('menu opens with Esc, shows every tab, and closes', async () => {
   await page.locator('canvas').first().click({ position: { x: 320, y: 120 } });
   await page.keyboard.press('Escape');

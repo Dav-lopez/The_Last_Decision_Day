@@ -208,6 +208,8 @@ await step('drive a car by tapping', async () => {
   }
   await page.locator('.world-viewport').scrollIntoViewIfNeeded();
   await checkLayout('driving');
+  // What the drive HUD said at that moment (a long notice once made it tall enough to reach the action button).
+  notes.push(`drive HUD: "${(await page.locator('.world-drive-hud').textContent().catch(() => ''))?.trim().slice(0, 160)}"`);
   await shot('03c-driving');
   // Car radio: on phones the dial sits under the touch pad; tapping › tunes to the next station.
   const radio = page.locator('.world-radio-panel');
