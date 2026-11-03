@@ -112,8 +112,8 @@
   "body": "female",
   "output": {
     "file": "human-female.glb",
-    "bytes": 1246908,
-    "sha256": "ee75a4f150366dc0856dc622660b954529ba0b421f2ce0c9617f754371822cd9",
+    "bytes": 1309016,
+    "sha256": "ed59c0409bdabc53955a74d6948165906a92525e752e1467ddda37c95d8756cd",
     "morphTargets": [
       "browDownLeft",
       "browDownRight",
