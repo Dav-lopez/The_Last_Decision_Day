@@ -16,7 +16,7 @@ const walk = (from, keys, seconds, forward = { x: 0, z: -1 }) => {
 };
 
 test('the home is built away from the street, outside the playable neighborhood', () => {
-  assert.ok(HOME_ORIGIN.z - ROOM.halfDepth - 12 > WORLD_RADIUS);
+  assert.ok(Math.abs(HOME_ORIGIN.z) - ROOM.halfDepth - 12 > WORLD_RADIUS);
   assert.equal(isInsideHome({ x: 0, z: 0 }), false);
   assert.equal(isInsideHome(HOME_SPAWN), true);
 });

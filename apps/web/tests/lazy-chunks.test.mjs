@@ -10,7 +10,7 @@ const staticImports = [...scene.matchAll(/^import (?!type )[^;]*? from '([^']+)'
 test('downtown 3D builders, the football match and the big map load on demand', () => {
   for (const lazyOnly of ['./cityScene', './cityLights', './footballScene', './cityTrafficScene', './cityPedestriansScene',
     './trafficLightsScene', './footballMatch.mjs', './footballPlayers', './WorldMap', './downtownKit', './footballMatchKit',
-    './TrainingRange', './Phone', './audio/RadioHud', './audio/radio.mjs', './driveFeel', './carDamageScene']) {
+    './TrainingRange', './Phone', './audio/RadioHud', './audio/radio.mjs', './driveFeel', './carDamageScene', './openRoadScene']) {
     assert.ok(!staticImports.includes(lazyOnly), `${lazyOnly} is imported eagerly by WorldScene`);
   }
   for (const kit of ['./downtownKit', './footballMatchKit', './WorldMap']) assert.match(scene, new RegExp(`import\\('${kit.replace('.', '\\.')}'\\)`));
@@ -18,7 +18,7 @@ test('downtown 3D builders, the football match and the big map load on demand', 
 
 test('the kits re-export what WorldScene takes from them', async () => {
   const downtown = await readFile(new URL('../src/world/downtownKit.ts', import.meta.url), 'utf8');
-  for (const name of ['buildCityScene', 'buildCityLights', 'buildFootballPitch', 'loadCityTraffic']) assert.match(downtown, new RegExp(`\\b${name}\\b`));
+  for (const name of ['buildCityScene', 'buildCityLights', 'buildFootballPitch', 'loadCityTraffic', 'buildOpenRoadScene']) assert.match(downtown, new RegExp(`\\b${name}\\b`));
   const match = await readFile(new URL('../src/world/footballMatchKit.ts', import.meta.url), 'utf8');
   for (const name of ['createMatch', 'formatMatchClock', 'saveMessage', 'stepMatch', 'loadFootballPlayers']) assert.match(match, new RegExp(`\\b${name}\\b`));
   const { createMatch, stepMatch, formatClock, saveMessage } = await import('../src/world/footballMatch.mjs');

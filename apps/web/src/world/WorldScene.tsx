@@ -115,6 +115,7 @@ import type { Gear } from './carFeel.mjs';
 import type { DriveFeel } from './driveFeel';
 import type { CarDamageView } from './carDamageScene';
 import { conditionLabel } from './carDamage.mjs';
+import { CITY_ENTER_MARGIN, CITY_LEAVE_MARGIN, buildOpenRoad, insideCity, onOpenRoad, roadFog, roadPose, roadProgress, streetOrRoadBlocked, type OpenRoad } from './openRoad.mjs';
 import { TOWN_EXIT, canExitVehicle, chaseCameraAlpha, driveInput, footprintPoints, leavingTown, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
 import { activeCaptions, captionLabel, CAPTION_SECONDS, chapterCaption, pushCaption, storyLineCaption, storyLineCue, type SoundCaption } from './soundCaptions.mjs';
@@ -976,8 +977,17 @@ export default function WorldScene({
       };
       decorRef.current();
       let cityLights: ReturnType<typeof buildCityLights> | null = null;
-      // Downtown views run hundreds of metres down real streets: thinner haze there than on Maple Street.
-      const applyFog = () => { scene.fogDensity = locationRef.current === 'city' ? 0.0032 : 0.009; };
+      // The open road north from Maple Street to downtown (item 17): drive there and back without a fade.
+      let openRoad: OpenRoad | null = null;
+      let disposeOpenRoad: (() => void) | null = null;
+      // Which way you're heading on it, for the "open road" and "back on Maple Street" notices.
+      let roadLeg: 'out' | 'home' | null = null;
+      let roadFogOn = false;
+      // Fog: thick on Maple Street, lighter downtown (its views run hundreds of metres down real streets), and blended along the open road between them (item 17).
+      const STREET_FOG = 0.009, CITY_FOG = 0.0032;
+      const applyFog = (onRoadAt?: PlanarPosition) => {
+        scene.fogDensity = onRoadAt && openRoad ? roadFog(openRoad, onRoadAt, STREET_FOG, CITY_FOG) : locationRef.current === 'city' ? CITY_FOG : STREET_FOG;
+      };
       let eveningNow = false;
       let workDoors = new Map<CareerId, PlanarPosition>();
       const workplaceAt = (at: PlanarPosition) => [...workDoors].find(([, door]) => Math.hypot(door.x - at.x, door.z - at.z) <= 2)?.[0] ?? null;
@@ -1073,6 +1083,8 @@ export default function WorldScene({
           city, collider, heading: local.heading,
           stop: { ...world, rotation: movementHeading(local.dx, local.dz), dx: local.dx, dz: local.dz, awayX: local.awayX, awayZ: local.awayZ, street: local.street },
         };
+        openRoad = buildOpenRoad(city);
+        if (openRoad) disposeOpenRoad = downtownKit.buildOpenRoadScene(scene, openRoad, city.name);
         // A link with ?play=football takes the bus straight to the pitch.
         if (playFootball) window.setTimeout(() => { if (!disposed && locationRef.current === 'street') boardBus('downtown'); }, 600);
       };
@@ -1429,6 +1441,26 @@ export default function WorldScene({
         prepareDowntown();
         setRiding(to === 'downtown' ? `Driving to ${downtownSite.city.name}…` : 'Driving home to Maple Street…');
       };
+      /** Driving into downtown on the open road: no fade, you're simply there. */
+      const arriveByRoad = () => {
+        if (!downtown) return;
+        locationRef.current = 'city';
+        setInCity(downtown.city.name);
+        cityCameraRadius = null;
+        roadLeg = null;
+        storyActionsRef.current.reportStory('drove');
+        notify(`${downtown.city.name}. ${openRoad?.street ?? 'The main road'} south takes you back to Maple Street.`);
+        saveToAccount();
+      };
+      /** Driving out of downtown on the open road, back towards Maple Street. */
+      const leaveByRoad = () => {
+        locationRef.current = 'street';
+        matchRef.current.leave();
+        setInCity(null);
+        roadLeg = 'home';
+        storyActionsRef.current.reportStory('drove');
+        notify('Heading home: Maple Street is straight down the road.');
+      };
       const trainingCheck = () => {
         const job = careerRef.current.career ? CAREERS[careerRef.current.career] : null;
         return canTrain(careerRef.current, { minute: life.minute, energy: life.energy, hours: job?.hours });
@@ -1474,6 +1506,7 @@ export default function WorldScene({
             car: drivenIndex() >= 0 ? { x: cars[drivenIndex()].x, z: cars[drivenIndex()].z, speed: cars[drivenIndex()].speed, gear: driveFeel?.gear ?? null, rpm: driveFeel?.rpm ?? null, slip: driveFeel?.slip ?? 0, horn: carHorn, skidMarks: driveFeel?.marks ?? 0, body: carDamage?.condition(drivenIndex()) ?? 100, damageMarks: carDamage?.marks(drivenIndex()) ?? 0 } : null,
             loading: !worldReadyRef.current,
             downtownBuilt: downtown !== null, downtownBuildMs,
+            road: openRoad && drivenIndex() >= 0 ? Math.round(roadProgress(openRoad, cars[drivenIndex()]).t * 100) / 100 : null,
             career: { id: careerRef.current.career, shifts: careerRef.current.shifts, money: careerRef.current.money },
             duty: activeTask ? { id: activeTask.task.id, next: activeTask.task.next, stops: activeTask.task.stops.length, elapsed: activeTask.task.elapsed, par: activeTask.task.par } : null,
             busy: pendingShift !== null,
@@ -1486,6 +1519,19 @@ export default function WorldScene({
             restart: () => { if (dialogueRef.current) return false; saveStory({ ...NEW_STORY }); storyActionsRef.current.openPendingScene(); return true; },
           },
           travel: (to: TravelTarget) => travelRef.current(to),
+          // Move the car you're driving to a spot `t` of the way along the open road (0 Maple Street, 1 downtown).
+          openRoad: (t: number) => {
+            const index = drivenIndex();
+            if (index < 0 || !openRoad || locationRef.current !== 'street' || pendingDrive) return false;
+            if (!ensureDowntown()) return false;
+            const pose = roadPose(openRoad, t);
+            cars[index] = { x: pose.x, z: pose.z, rotation: pose.rotation, speed: 0 };
+            placeCar(index);
+            seatDriver(cars[index]);
+            camera.alpha = chaseCameraAlpha(pose.rotation);
+            camera.setTarget(new Vector3(pose.x, 1.25, pose.z), false, false, true);
+            return true;
+          },
           // Knock the car you're driving as if it hit something at this speed (m/s), through the real damage code.
           knock: (speed: number, steer = 0) => Boolean(knockCar(drivenIndex(), speed, steer)),
           route: () => mapReadRef.current().routeLength ?? 0,
@@ -1633,7 +1679,9 @@ export default function WorldScene({
           cars[drive.index] = { x: lane.x, z: lane.z, rotation: Math.atan2(stop.dx, stop.dz), speed: 3 };
           locationRef.current = 'city';
           setInCity(downtown.city.name);
-          notify(`${downtown.city.name}. Drive around; head for the edge of downtown to drive home.`);
+          notify(openRoad
+            ? `${downtown.city.name}. ${openRoad.street} south is the road home; any other edge of downtown takes you straight there.`
+            : `${downtown.city.name}. Drive around; head for the edge of downtown to drive home.`);
         } else {
           cars[drive.index] = { x: 0, z: TOWN_EXIT.beyond - 2.5, rotation: Math.PI, speed: 3 };
           locationRef.current = 'street';
@@ -1866,6 +1914,10 @@ export default function WorldScene({
         const exit = locationRef.current === 'city' && downtown
           ? vehicleExitPosition(car, cars, point => !downtown!.collider.blockedLocal(...toLocal(point)))
           : vehicleExitPosition(car, cars);
+        if (!exit && openRoad && locationRef.current === 'street' && car.z > TOWN_EXIT.leaveAt) {
+          notify(`There's nowhere to pull over on the open road. Drive on to ${downtownSite?.city.name.split(',')[0] ?? 'downtown'} or back to Maple Street.`);
+          return;
+        }
         if (!exit) { notify('No room to open a door here. Move the car a little.'); return; }
         car.speed = 0;
         position = exit;
@@ -2339,20 +2391,43 @@ export default function WorldScene({
           const others = cars.filter((_, index) => index !== driven);
           const before = cars[driven];
           // Downtown, the real buildings are what the car runs into.
+          // On the open road, only its tarmac is drivable; where it runs into downtown, it carries on past the edge.
+          const road = downtown ? openRoad : null;
           const cityBlock = locationRef.current === 'city' && downtown
-            ? (candidate: CarState) => footprintPoints(candidate).some(point => downtown!.collider.blockedLocal(...toLocal(point)))
-            : undefined;
+            ? (candidate: CarState) => footprintPoints(candidate).some(point => !(road && onOpenRoad(road, point)) && downtown!.collider.blockedLocal(...toLocal(point)))
+            : road ? (candidate: CarState, near: ReadonlyArray<CarState>, people: ReadonlyArray<{ x: number; z: number; radius?: number }>) => streetOrRoadBlocked(road, candidate, near, people)
+              : undefined;
           // Downtown, the other cars are the traffic around you.
           const controls = driveInput(keys);
           const next = stepVehicle(before, controls, delta, locationRef.current === 'city' ? cityTraffic?.cars() ?? [] : others, locationRef.current === 'city' ? cityTraffic?.people() ?? [] : peopleOut, cityBlock);
           cars[driven] = { x: next.x, z: next.z, rotation: next.rotation, speed: next.speed };
           if (locationRef.current === 'street') {
-            setGate(Math.hypot(next.x, next.z - TOWN_EXIT.beyond) < TOWN_EXIT.gateRange);
-            if (leavingTown(next)) startDrive('downtown', driven);
+            const atGate = Math.hypot(next.x, next.z - TOWN_EXIT.beyond) < TOWN_EXIT.gateRange;
+            setGate(atGate);
+            // Build downtown while you wait at the barrier, so it's there by the time you arrive.
+            if (atGate && openRoad) prepareDowntown();
+            if (road) {
+              const outOfTown = next.z > TOWN_EXIT.leaveAt;
+              if (outOfTown && roadLeg === null) {
+                roadLeg = 'out';
+                notify(`The open road: ${downtown!.city.name.split(',')[0]} is ${Math.round(road.length / 100) / 10} km ahead.`);
+              }
+              if (insideCity(road, next, CITY_ENTER_MARGIN)) arriveByRoad();
+              else if (!outOfTown && roadLeg) {
+                if (roadLeg === 'home') notify('Back on Maple Street.');
+                roadLeg = null;
+              }
+              if (outOfTown) { applyFog(next); roadFogOn = true; } else if (roadFogOn) { roadFogOn = false; applyFog(); }
+            } else if (leavingTown(next)) startDrive('downtown', driven);
           } else if (locationRef.current === 'city' && downtown) {
+            if (road && onOpenRoad(road, next) && !insideCity(road, next, CITY_ENTER_MARGIN)) { applyFog(next); roadFogOn = true; }
+            else if (roadFogOn) { roadFogOn = false; applyFog(); }
             const [lx, lz] = toLocal(next);
             const [hx, hz] = downtown.city.halfSize;
-            if (Math.abs(lx) > hx - 14 || Math.abs(lz) > hz - 14) startDrive('home', driven);
+            if (Math.abs(lx) > hx - CITY_LEAVE_MARGIN || Math.abs(lz) > hz - CITY_LEAVE_MARGIN) {
+              if (road && onOpenRoad(road, next)) leaveByRoad();
+              else startDrive('home', driven);
+            }
           }
           placeCar(driven);
           const tilt = bodyLean({ kind: 'car', speed: next.speed, yawRate: delta > 0 ? headingDelta(before.rotation, next.rotation) / delta : 0,
@@ -2615,6 +2690,7 @@ export default function WorldScene({
         sirenRef.current = null;
         disposeMapleStop();
         downtown?.dispose();
+        disposeOpenRoad?.();
         neighbors?.dispose();
         npcSceneRef.current = null;
         renderPipeline.dispose();

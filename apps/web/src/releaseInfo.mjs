@@ -10,6 +10,14 @@ export const GAME_TAGLINE = 'Your life. Your choices. Your consequences.';
  */
 export const RELEASE_NOTES = Object.freeze([
   Object.freeze({
+    id: '2026-11-03e', title: 'The open road',
+    items: Object.freeze([
+      'Drive out past the barrier at the top of Maple Street and keep going: the road runs all the way into downtown.',
+      'No loading screen either way. The haze thins as the city comes into view, and Broadway south brings you home.',
+      'The taxi and the bus still get you there in a moment if you would rather not drive.',
+    ]),
+  }),
+  Object.freeze({
     id: '2026-11-03', title: 'Say cheese',
     items: Object.freeze([
       'Your phone has a camera: open Phone → Camera → Take photos, aim with WASD or by dragging, and press Space.',

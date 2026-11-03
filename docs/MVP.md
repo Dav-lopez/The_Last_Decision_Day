@@ -194,6 +194,18 @@ above is done or blocked; any item may be split into slices.
 - [ ] **16. Career missions**: police patrol calls (traffic stop, lost child, noise complaint), fire calls with
       the hose, army route march with checkpoints; timed, scored, and paid better than a plain shift.
 - [ ] **17. Seamless road**: drive from Maple Street to downtown and back without a fade (streamed world).
+  - [x] 17a (partial slice). The open road: downtown now sits north of the town (`CITY_ORIGIN` moved from 1 km east
+        to 620 m north), and the road past the barrier at the top of Maple Street carries on for ~370 m, bends onto
+        Broadway and drives straight into downtown with no fade; Broadway south (reversing out works too) brings you
+        home the same way. The route is worked out from the street data (`openRoad.mjs`: the drivable street that
+        crosses downtown's south edge nearest the town); only its tarmac is drivable out of town, the fog thins from
+        Maple Street's haze to downtown's along it, and downtown is built while you wait at the barrier. Tarmac,
+        edge lines, centre dashes, gravel shoulders, reflector posts, a grass verge over the gap and two road signs are
+        a few frozen meshes in the downtown chunk (`openRoadScene.ts`). Other edges of downtown still use the quick
+        fade, and the bus and taxi are unchanged. The home interior moved south (it stood on the road at z = 60). The
+        guest playtest drives into downtown on the road, reverses out and back in, and fails on any fade.
+        Still to do: a faster open-road speed (cars are capped at 32 km/h for residential streets; it is a ~40 s drive),
+        traffic on the road, and streaming the town and downtown in and out instead of keeping both built.
 - [ ] **18. Weather and sky**: rain and wet roads, fog, sunsets, clouds; weather changes by day.
 - [ ] **19. Cinematic story**: camera-directed cutscenes with letterboxing and character animation for each
       chapter opening and the three endings.
@@ -218,6 +230,11 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- 17a: the home interior was built at (0, 60), right on the road north of Maple Street, so it was visible up the
+  exit road and would have been driven into; it now sits south at (0, −110), where the south road is closed.
+- 17a: you can't get out of the car on the open road (there's nowhere for the player to walk out of town; a notice
+  says so), and downtown traffic is only drawn once you're in the city, so it appears as you arrive. The open-road
+  speed limit waits for #246 (per-vehicle specs in `stepVehicle`) to avoid two PRs rewriting the same lines.
 - 13b first sat on an unpushed-for-review branch (`feature/car-damage-20261101`) that failed typecheck: the new
   `crunch` / `scrape` cues were in `score.mjs` but not in `AudioCue` (`director.d.mts`). New cues need both.
 - Car damage (13b) is kept per car for the session and cleared when you sleep; it isn't saved. Traffic downtown

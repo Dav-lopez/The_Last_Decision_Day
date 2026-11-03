@@ -408,6 +408,41 @@ await step('quick travel to the pitch and back home', async () => {
   await shot('07-home');
 });
 
+await step('the open road: drive into downtown and out again with no fade (item 17)', async () => {
+  // In the family car on Maple Street, then near the downtown end of the road (all of it is ~40 s of game time,
+  // several minutes in CI's software renderer).
+  if (!(await page.evaluate(() => window.__tld.place('car')))) throw new Error('no parked car to get into');
+  const getIn = page.locator('.world-car-action', { hasText: /^Get in car/ });
+  await waitFor('get-in prompt', timeout => getIn.waitFor({ timeout }), 60000);
+  await getIn.click();
+  await waitFor('in the car', timeout => page.waitForFunction(() => window.__tld.read().driving, null, { timeout }), 15000);
+  await waitFor('car on the open road', timeout => page.waitForFunction(() => window.__tld.openRoad(0.9), null, { timeout, polling: 1000 }), 60000);
+  // Any fade (the old "Driving to…" screen) on the way counts as a failure.
+  await page.evaluate(() => {
+    window.__roadFaded = false;
+    window.__roadWatch = setInterval(() => { if (window.__tld.read().taxi || document.querySelector('.world-bus')) window.__roadFaded = true; }, 100);
+  });
+  const drive = async (key, label, until) => {
+    await page.keyboard.down(key);
+    try { await waitFor(label, timeout => page.waitForFunction(until, null, { timeout, polling: 250 }), 240000); }
+    finally { await page.keyboard.up(key); }
+  };
+  await drive('w', 'drive into downtown on the road', () => { const s = window.__tld.read(); return s.location === 'city' && s.driving; });
+  await shot('07b-open-road-arrive');
+  const arrived = await read();
+  notes.push(`open road: arrived downtown at road progress ${arrived.road}, ${arrived.car.speed.toFixed(1)} m/s`);
+  await drive('s', 'reverse back out onto the road', () => { const s = window.__tld.read(); return s.location === 'street' && s.driving; });
+  await drive('w', 'drive into downtown again', () => { const s = window.__tld.read(); return s.location === 'city' && s.driving; });
+  await drive('s', 'stop the car', () => (window.__tld.read().car?.speed ?? 9) < 0.3);
+  const faded = await page.evaluate(() => { clearInterval(window.__roadWatch); return window.__roadFaded; });
+  if (faded) throw new Error('a fade screen showed while driving the open road');
+  for (let tries = 0; tries < 10 && (await read()).driving; tries++) { await page.keyboard.press('e'); await page.waitForTimeout(1500); }
+  if ((await read()).driving) throw new Error('could not get out of the car downtown');
+  await page.evaluate(() => window.__tld.travel('maple'));
+  await page.waitForFunction(() => window.__tld.read().location === 'street', null, { timeout: 180000 });
+  await dismissDialogue();
+});
+
 // MVP 9b: the whole story, chapter 1 to the epilogue, once for each of the three endings. Every step's gameplay
 // event goes through the game's own story code (the systems that raise them — school, sleep, downtown, careers,
 // the match — are played for real above), every scene is clicked through and checked line by line, the last
