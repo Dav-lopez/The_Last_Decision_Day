@@ -149,7 +149,7 @@ above is done or blocked; any item may be split into slices.
         yellow and all-red, offsets per junction; traffic stops at the line on red, and on yellow when it can.
   - [x] 12b. Pedestrians: 18 people (male and female, varied outfits) walk the pavements, wait at the kerb on red,
         cross with the traffic that has green, and cars stop for anyone in the road.
-- [ ] **13. Driving feel**: body roll and pitch, tyre squeal and skid marks, engine sound by speed and gear,
+- [x] **13. Driving feel**: body roll and pitch, tyre squeal and skid marks, engine sound by speed and gear,
       cosmetic dents and scratches, a horn; a police cruiser and a fire engine for those careers.
   - [x] 13a (partial slice). Feel at the wheel: a three-speed gearbox whose revs drive a new engine note (sawtooth
         and sub through a filter that opens with the gas, dipping on each up-shift) and a gear badge in the drive HUD;
@@ -157,6 +157,13 @@ above is done or blocked; any item may be split into slices.
         (Space, or HANDBRAKE on touch: the car slows and the tail swings round); a held horn (H, or HORN on touch); a
         thud when you hit something. Body roll and pitch were already in. The police siren moved from H to L.
         Still to do: dents and scratches, a police cruiser and a fire engine.
+  - [x] 13b (partial slice). Dents and scratches: a knock above walking pace marks the car where it hit (the nose
+        driving forwards, the tail reversing, the corner you steer towards; a light knock while turning scrapes down
+        the side). Light knocks scratch the paint, hard ones dent it with a crunch, and a repeat knock deepens the same
+        mark (`carDamage.mjs`). Marks are decals projected onto the car's own bodywork and ride along with it; the drive
+        HUD shows the bodywork ("Dented 85%"), captions describe the crunch and scrape, fewer decals are drawn at lower
+        adaptive quality, and the car is repaired overnight when you sleep. The phone playtest knocks the car and checks
+        the badge. The cruiser and fire engine are 13c.
   - [x] 13c (partial slice). A police cruiser and a fire engine for those careers, parked in a free bay outside the
         real police and fire stations downtown (`vehicleSpecs.mjs` finds a spot clear of buildings, traffic lanes, the
         door and Captain Brooks). Each has its own size and handling: the black-and-white cruiser is quicker and brakes
@@ -165,7 +172,7 @@ above is done or blocked; any item may be split into slices.
         that winds up — now played through the audio director, so the volume sliders, mute and a "[Siren wails]" caption
         apply. Only officers drive the cruiser and only firefighters the engine; they turn back at the edge of downtown.
         The playtest drives the engine as a firefighter, switches lights and siren on by key and off by touch, and is
-        refused the cruiser. Dents and scratches are 13b (#244).
+        refused the cruiser.
 - [ ] **14. Phone**: an in-game phone (Esc-free, key P) with messages from Mom and friends, contacts you've
       met, the map, your career, and a camera / photo mode.
   - [x] 14a (partial slice). The phone (P, or the Phone button): texts from Mom every morning (and a nudge home
@@ -210,6 +217,14 @@ above is done or blocked; any item may be split into slices.
 - Station vehicles stay wherever you leave them downtown until the page is reloaded; a later pass could tow them back to
   their bay overnight (like the body shop in 13b). The engine has no hose yet: item 16's fire calls can hang the hose
   off the engine's side lockers.
+- 13b first sat on an unpushed-for-review branch (`feature/car-damage-20261101`) that failed typecheck: the new
+  `crunch` / `scrape` cues were in `score.mjs` but not in `AudioCue` (`director.d.mts`). New cues need both.
+- Car damage (13b) is kept per car for the session and cleared when you sleep; it isn't saved. Traffic downtown
+  only stops for you rather than hitting you, so only your own knocks mark the car. The impact spot is inferred from
+  speed and steering, not from which footprint point touched; `stepVehicle` could report the contact point instead.
+- Merging 13b and 13c: the cruiser and fire engine take dents and scratches too, but the impact spot is laid out on
+  the family car's footprint, so on the 7.8 m engine a nose or tail mark lands nearer the middle than the bumper.
+  `impactSpot` could take the vehicle's length from `vehicleSpecs.mjs`.
 - Fixed: a merge resolution had moved the phone playtest's radio check into `checkLayout`, so every phone step
   after the first layout check waited for a radio that only exists while driving (10 phone steps red on main), and
   the phone radio dial had ended up inside the 3D view. Seven facial tests had also dropped out of every npm

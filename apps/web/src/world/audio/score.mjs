@@ -99,6 +99,8 @@ export const CUES = Object.freeze({
   shift: [[440,.12,.03,0],[554,.12,.03,.12],[659,.25,.03,.24]],
   promotion: [[392,.15,.04,0],[523,.15,.04,.15],[659,.15,.04,.3],[784,.6,.05,.45],[1047,.6,.03,.45]],
   horn: [[349,.22,.04,0],[440,.22,.03,0]],
+  crunch: [N(.28,.07,900), [62,.18,.06,0], N(.16,.03,3200,.06,'highpass')],
+  scrape: [N(.34,.03,2600,0,'bandpass'), N(.2,.015,5200,.08,'highpass')],
   // Career duties: a bright two-note blip at each stop, and a radio squelch with a call tone when a duty starts.
   checkpoint: [[784,.08,.035,0],[1175,.16,.03,.08]],
   dispatch: [N(.18,.03,1800,0,'bandpass'), [988,.12,.025,.16],[740,.16,.022,.3]],
