@@ -18,7 +18,7 @@ const CONTROLS: ReadonlyArray<readonly [string, string]> = [
   ['P', 'Phone: messages from Mom and friends, contacts, career, map'],
   ['W / S · A / D', 'In a car: accelerate, brake, reverse · steer'],
   ['Space · H', 'In a car: handbrake (slide round corners) · horn'],
-  ['L', 'Police siren and lights (police officers, in a car)'],
+  ['L', 'Lights and siren (in the police cruiser or the fire engine; SIREN on touch)'],
   ['F', 'Kick the ball (Shift + F chips it)'],
   ['M', 'Start a five-a-side match on the pitch'],
   ['Q', 'Pass to a teammate in a match'],

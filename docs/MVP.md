@@ -157,6 +157,15 @@ above is done or blocked; any item may be split into slices.
         (Space, or HANDBRAKE on touch: the car slows and the tail swings round); a held horn (H, or HORN on touch); a
         thud when you hit something. Body roll and pitch were already in. The police siren moved from H to L.
         Still to do: dents and scratches, a police cruiser and a fire engine.
+  - [x] 13c (partial slice). A police cruiser and a fire engine for those careers, parked in a free bay outside the
+        real police and fire stations downtown (`vehicleSpecs.mjs` finds a spot clear of buildings, traffic lanes, the
+        door and Captain Brooks). Each has its own size and handling: the black-and-white cruiser is quicker and brakes
+        harder than the family car; the 7.8 m engine is slow to pick up speed, long to stop, turns wide and has a low air
+        horn. L (or SIREN on touch) switches on flashing beacons and a siren — a police wail, a mechanical fire growl
+        that winds up — now played through the audio director, so the volume sliders, mute and a "[Siren wails]" caption
+        apply. Only officers drive the cruiser and only firefighters the engine; they turn back at the edge of downtown.
+        The playtest drives the engine as a firefighter, switches lights and siren on by key and off by touch, and is
+        refused the cruiser. Dents and scratches are 13b (#244).
 - [ ] **14. Phone**: an in-game phone (Esc-free, key P) with messages from Mom and friends, contacts you've
       met, the map, your career, and a camera / photo mode.
   - [x] 14a (partial slice). The phone (P, or the Phone button): texts from Mom every morning (and a nudge home
@@ -192,6 +201,15 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- Fixed (13c): a car you drove downtown and got out of could never be got back into (downtown, E only looked for
+  the bus, workplaces, people and the ball), and parked cars downtown were walk-through. Any car standing downtown is
+  now solid on foot, to your car and to the traffic, and E gets you back in.
+- Fixed (13c): the police siren made its own AudioContext and ignored the volume sliders and mute; it now plays through
+  the audio director with a caption. The old light bar that appeared on the family car for police officers is gone —
+  the lights belong to the cruiser.
+- Station vehicles stay wherever you leave them downtown until the page is reloaded; a later pass could tow them back to
+  their bay overnight (like the body shop in 13b). The engine has no hose yet: item 16's fire calls can hang the hose
+  off the engine's side lockers.
 - Fixed: a merge resolution had moved the phone playtest's radio check into `checkLayout`, so every phone step
   after the first layout check waited for a radio that only exists while driving (10 phone steps red on main), and
   the phone radio dial had ended up inside the 3D view. Seven facial tests had also dropped out of every npm
