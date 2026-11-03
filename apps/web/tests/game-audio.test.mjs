@@ -132,3 +132,23 @@ test('driving: revs set the engine note, sliding tyres squeal (with a caption) a
   assert.equal(context.sources.filter(s=>s.kind==='oscillator'&&s.frequency.value===349&&!s.disconnected).length,0,'no horn on foot');
   audio.dispose();
 });
+
+test('rain: one looped voice on the ambience bus, muffled indoors, fading out when it stops',async()=>{
+  const context=audioContext();const audio=createGameAudio({createContext:()=>context});
+  audio.setSettings({...AUDIO_DEFAULTS,music:0});await audio.enable();
+  audio.update({location:'street'});
+  assert.equal(context.sources.filter(s=>s.kind==='buffer'&&s.loop).length,0,'no rain voice on a dry day');
+  audio.update({location:'street',rain:1});
+  const loops=()=>context.sources.filter(s=>s.kind==='buffer'&&s.loop&&!s.disconnected);
+  assert.equal(loops().length,1);
+  const rain=loops()[0];const gain=rain.connections[0].connections[0];
+  const outdoors=gain.gain.value;assert.ok(outdoors>0);
+  for(let i=0;i<5;i++)audio.update({location:'street',rain:1});
+  assert.equal(loops().length,1,'reused, not stacked');
+  audio.update({location:'home',rain:1});assert.ok(gain.gain.value<outdoors,'quieter under a roof');
+  audio.update({location:'street',rain:0});context.advance(1);
+  assert.ok(rain.disconnected,'stops once the rain does');
+  audio.setSettings({...AUDIO_DEFAULTS,music:0,ambience:0});audio.update({location:'street',rain:1});
+  assert.equal(loops().length,0,'ambience volume 0: no rain');
+  audio.dispose();
+});

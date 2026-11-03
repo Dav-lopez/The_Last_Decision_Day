@@ -15,6 +15,7 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
   let nextBeat = 0, beat = 0, nextFootstep = 0, nextAmbient = 0, lastLocation = '';
   let engine = null, hornWanted = false, carSynthFactory = null, carSynth = null;
   let reverb = null, reverbSend = null, intensity = 0;
+  let rainVoice = null, rainBuffer = null;
   const voices = new Set(), lastCue = new Map();
   const targets = new WeakMap();
   const now = () => context?.currentTime ?? 0;
@@ -35,6 +36,7 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
       release(voice);
     }
     if (!category || category === 'effects') { engine = null; carSynth?.reset(); }
+    if (!category || category === 'ambience') rainVoice = null;
   }
   function register(source, gain, category, extra = []) {
     if (voices.size >= 80) return false;
@@ -109,6 +111,36 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
     gain.gain.setValueAtTime(volume,start); gain.gain.exponentialRampToValueAtTime(.0001,start+duration);
     source.connect(filter); filter.connect(gain); gain.connect(buses[category]);
     register(source,gain,category,[filter]); source.start(start); source.stop(start+duration);
+  }
+  /** Rain: a long, softened noise loop (2.3 s, so it doesn't audibly repeat) on the ambience bus. */
+  function rainLoop(rain, indoors) {
+    const want = Number.isFinite(rain) ? Math.max(0, Math.min(1, rain)) : 0;
+    if (want <= .01 || settings.ambience <= 0) {
+      if (rainVoice) { try { rainVoice.source.stop(now() + .3); } catch {} ramp(rainVoice.gain.gain, 0); rainVoice = null; }
+      return;
+    }
+    if (!rainVoice && voices.size < 78) {
+      if (!rainBuffer) {
+        rainBuffer = context.createBuffer(1, Math.ceil(context.sampleRate * 2.3), context.sampleRate);
+        const data = rainBuffer.getChannelData(0); let seed = 7919, last = 0;
+        // Gently low-passed noise with sparse brighter ticks (drops on leaves and roofs).
+        for (let i = 0; i < data.length; i++) {
+          seed = (seed * 16807) % 2147483647; const white = (seed / 2147483647) * 2 - 1;
+          last = last * .55 + white * .45; data[i] = last + (seed % 997 === 0 ? white * 1.8 : 0);
+        }
+      }
+      const source = context.createBufferSource(), filter = context.createBiquadFilter(), gain = context.createGain();
+      source.buffer = rainBuffer; source.loop = true; filter.type = 'lowpass';
+      gain.gain.setValueAtTime(0, now());
+      source.connect(filter); filter.connect(gain); gain.connect(buses.ambience);
+      const voice = register(source, gain, 'ambience', [filter]);
+      if (!voice) return;
+      voice.gain = gain; voice.filter = filter; rainVoice = voice; source.start();
+    }
+    if (!rainVoice) return;
+    // Muffled under a roof; harder rain is louder and brighter.
+    ramp(rainVoice.gain.gain, (indoors ? .012 : .035) * (.35 + .65 * want));
+    ramp(rainVoice.filter.frequency, indoors ? 650 : 1800 + 2400 * want);
   }
   /** The DJ reads the station ident over the jingle (browser speech, when the device has it). */
   function announce(station, step) {
@@ -206,7 +238,7 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
     horn(on) { const want=Boolean(on); if(want && !hornWanted) { try { onCue('horn'); } catch {} } hornWanted=want; },
     /** Plug in the car's engine, squeal and horn voices (loaded with the driving code). */
     useCarSynth(factory) { carSynthFactory=typeof factory==='function' ? factory : null; carSynth=null; },
-    update({ location='street', speed=0, drivingSpeed=null, car=null, reading=false, paused=false, evening=false, match=false } = {}) {
+    update({ location='street', speed=0, drivingSpeed=null, car=null, reading=false, paused=false, evening=false, match=false, rain=0 } = {}) {
       if(!playable()) return;
       const time=now();
       location=LOCATIONS.includes(location) ? location : 'street';
@@ -250,6 +282,7 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
         }
         if(engine) ramp(engine.source.frequency,55+Math.min(35,Math.abs(drivingSpeed))*3);
       } else if(engine) { try {engine.source.stop();}catch{} release(engine);engine=null; }
+      rainLoop(rain, location==='home' || location==='school');
       if(time>=nextAmbient && !reading && !paused && settings.ambience>0) {
         if (location==='pitch') {
           // The crowd: a broad murmur that swells, with the odd shout.

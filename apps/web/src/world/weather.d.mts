@@ -1,0 +1,20 @@
+export type WeatherKind = 'clear' | 'cloudy' | 'showers' | 'fog';
+export type DayWeather = {
+  day: number; kind: WeatherKind; cloud: number;
+  rain: { start: number; end: number; peak: number } | null;
+  fog: { until: number } | null;
+};
+export type WeatherState = { kind: WeatherKind; label: string; rain: number; wet: number; fog: number; cloud: number };
+export type WeatherLook = { overcast: number; sun: number; sky: number; fogScale: number; shadowDarkness: number; grey: number; sunGlow: number };
+export declare const WEATHER_KINDS: readonly WeatherKind[];
+export declare const WEATHER_LABELS: Readonly<Record<WeatherKind, string>>;
+export declare const WEATHER_TIMING: Readonly<{ rainRamp: number; soak: number; dry: number; fogFade: number }>;
+export declare const RAIN_DROPS: Readonly<{ max: number; min: number }>;
+export declare function dayWeather(day: number): DayWeather;
+export declare function weatherAt(day: number, minute: number, override?: WeatherKind | null): WeatherState;
+export declare function forecastLine(day: number): string;
+export declare function weatherTip(day: number): string | null;
+export declare function weatherStatus(state: WeatherState): string;
+export declare function weatherLook(state: WeatherState, evening?: boolean): WeatherLook;
+export declare function rainDropCount(rain: number, quality?: { scale: number; base: number }): number;
+export declare function wetSurface(wet: number): { darken: number; specular: number; power: number };
