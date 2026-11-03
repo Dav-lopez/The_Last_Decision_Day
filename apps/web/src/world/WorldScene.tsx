@@ -905,7 +905,11 @@ export default function WorldScene({
       // A fire call's fire: the rules (fireHose.mjs, city-local) and its flames, smoke and water (loaded on demand).
       let callFire: { fire: Fire; at: PlanarPosition; along: { x: number; z: number }; sinceOut: number; spraying: boolean; crackle: number; report?: string } | null = null;
       let fireView: FireCallView | null = null;
+      // Bumped whenever a fire is lit or cleared, so a slow scene download can't draw a fire that's gone
+      // (callFire itself is replaced every frame, so it can't be compared by identity).
+      let fireToken = 0;
       const clearFire = () => {
+        fireToken++;
         if (callFire?.spraying) audioRef.current?.hose(false);
         callFire = null;
         fireView?.dispose();
@@ -919,11 +923,11 @@ export default function WorldScene({
         const at = toWorld([stop.hose.x, stop.hose.z]);
         const length = Math.hypot(stop.hose.x - stop.x, stop.hose.z - stop.z) || 1;
         const along = { x: (stop.hose.x - stop.x) / length, z: (stop.hose.z - stop.z) / length };
-        const lit = { fire: createFire(stop.hose), at, along, sinceOut: 0, spraying: false, crackle: 0 };
-        callFire = lit;
+        callFire = { fire: createFire(stop.hose), at, along, sinceOut: 0, spraying: false, crackle: 0 };
+        const token = ++fireToken;
         // The smoke is up before you arrive, so you can see the call from down the street.
         void import('./fireCallScene').then(module => {
-          if (disposed || callFire !== lit) return;
+          if (disposed || token !== fireToken || !callFire) return;
           fireView = module.createFireCall(scene, at, along, quality);
         }).catch(() => {});
       };
