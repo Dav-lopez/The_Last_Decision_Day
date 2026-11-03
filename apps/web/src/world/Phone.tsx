@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { PHONE_APPS, arrivedLabel, careerSummary, contacts, threads, type PhoneAppId, type PhoneMessage, type PhoneState } from './phone.mjs';
 import type { NpcRelations } from './npcConversations.mjs';
 import type { CareerState } from './careers.mjs';
+import type { Photo } from './photoMode.mjs';
 import './phone.css';
 
 type Props = {
@@ -17,13 +18,16 @@ type Props = {
   energy: number;
   objective: string;
   onOpenMap: () => void;
+  photos: ReadonlyArray<Photo>;
+  onOpenCamera: () => void;
+  onDeletePhoto: (id: string) => void;
 };
 
 const FOCUSABLE = 'button:not([disabled]),[tabindex]:not([tabindex="-1"])';
 const initial = (name: string) => name.replace(/^(Mr\.|Ms\.|Coach|Captain)\s+/, '').charAt(0).toUpperCase();
 
-/** The in-game phone (P): messages, contacts, career and a shortcut to the map. The world keeps running. */
-export function Phone({ open, onClose, phone, messages, onRead, relations, career, clock, day, energy, objective, onOpenMap }: Props) {
+/** The in-game phone (P): messages, contacts, career, a shortcut to the map and the camera. The world keeps running. */
+export function Phone({ open, onClose, phone, messages, onRead, relations, career, clock, day, energy, objective, onOpenMap, photos, onOpenCamera, onDeletePhoto }: Props) {
   const [app, setApp] = useState<PhoneAppId>('messages');
   const [thread, setThread] = useState<string | null>(null);
   const rootRef = useRef<HTMLElement | null>(null);
@@ -119,6 +123,20 @@ export function Phone({ open, onClose, phone, messages, onRead, relations, caree
       {app === 'map' && <div className="world-phone-career">
         <p>See Maple Street and downtown, set a GPS waypoint, or call a taxi.</p>
         <button type="button" className="world-phone-wide" onClick={onOpenMap}>Open the map (N)</button>
+      </div>}
+      {app === 'camera' && <div className="world-phone-career world-phone-camera">
+        <p>Frame a shot of the street, your friends or the sunset. Photos stay in this browser.</p>
+        <button type="button" className="world-phone-wide" onClick={onOpenCamera}>Take photos</button>
+        {photos.length ? <ul className="world-phone-photos" aria-label={`${photos.length} photo${photos.length === 1 ? '' : 's'}`}>
+          {photos.map(photo => <li key={photo.id}>
+            <img src={photo.src} alt={`Photo: ${photo.stamp}`} />
+            <small>{photo.stamp}</small>
+            <span className="world-phone-photo-actions">
+              <a href={photo.src} download={photo.name} aria-label={`Save photo from ${photo.stamp}`}>Save</a>
+              <button type="button" aria-label={`Delete photo from ${photo.stamp}`} onClick={() => onDeletePhoto(photo.id)}>Delete</button>
+            </span>
+          </li>)}
+        </ul> : <p className="world-phone-empty">No photos yet.</p>}
       </div>}
     </div>
     <footer className="world-phone-foot">

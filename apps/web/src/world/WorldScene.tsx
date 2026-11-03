@@ -49,9 +49,15 @@ import { nearestOnRoads, routeBetween } from './gps.mjs';
 import { Minimap } from './Minimap';
 import { GameMenu, type MenuTab } from './GameMenu';
 import type { PhoneMessage, PhoneState } from './phone.mjs';
+import type { Photo } from './photoMode.mjs';
 // The phone and its messages are their own small download, fetched just after the world starts.
 const Phone = lazy(() => import('./Phone').then(module => ({ default: module.Phone })));
 type PhoneLib = typeof import('./phone.mjs');
+// Photo mode (phone camera): the viewfinder and capture code load the first time the camera is raised.
+type PhotoKit = typeof import('./PhotoMode');
+type PhotoLib = typeof import('./photoMode.mjs');
+type PhotoView = import('./PhotoMode').PhotoView;
+const NO_PHOTOS: Photo[] = [];
 const NO_MESSAGES: PhoneMessage[] = [];
 import { graphicsMode, readSettings, reducedMotion, resetProgress, writeSettings, type PlayerSettings } from './gameSettings.mjs';
 import type { AudioCue, GameAudio } from './audio/director.mjs';
@@ -720,6 +726,18 @@ export default function WorldScene({
   const phoneOpenRef = useRef(false);
   const [phoneLib, setPhoneLib] = useState<PhoneLib | null>(null);
   const [phone, setPhone] = useState<PhoneState>({ version: 1, arrived: {}, read: [] });
+  // Photo mode (open-world 14b): the phone's camera. Movement keys aim it; the shutter saves into the Camera app.
+  const [photos, setPhotos] = useState<Photo[]>(NO_PHOTOS);
+  const [photoView, setPhotoView] = useState<PhotoView | null>(null);
+  const photoViewRef = useRef<PhotoView | null>(null);
+  const photoModeRef = useRef(false);
+  const photoLibRef = useRef<PhotoLib | null>(null);
+  const photoKitRef = useRef<PhotoKit | null>(null);
+  const photoBusyRef = useRef(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoShots, setPhotoShots] = useState(0);
+  const [photoLast, setPhotoLast] = useState<Photo | null>(null);
+  const photoRigRef = useRef<{ engine: Engine; camera: ArcRotateCamera; canvas: HTMLCanvasElement; baseFov: number } | null>(null);
   useEffect(() => {
     let cancelled = false;
     import('./phone.mjs').then(lib => {
@@ -728,6 +746,11 @@ export default function WorldScene({
       setPhoneLib(lib);
       void import('./Phone');
     }).catch(() => { /* Offline mid-session: the phone stays empty; the game carries on. */ });
+    import('./photoMode.mjs').then(lib => {
+      if (cancelled) return;
+      setPhotos(lib.readGallery(characterId));
+      photoLibRef.current = lib;
+    }).catch(() => { /* The camera app stays empty. */ });
     return () => { cancelled = true; };
   }, [characterId]);
   const [phonePeek, setPhonePeek] = useState<{ name: string; text: string } | null>(null);
@@ -777,6 +800,76 @@ export default function WorldScene({
   const phoneActionsRef = useRef({ open: openPhone, close: closePhone });
   phoneActionsRef.current = { open: openPhone, close: closePhone };
   const phoneUnread = phoneLib ? phoneLib.unreadCount(phone, messages) : 0;
+  const showPhotoView = (view: PhotoView | null) => {
+    photoViewRef.current = view;
+    setPhotoView(view);
+    const rig = photoRigRef.current, lib = photoLibRef.current;
+    if (rig) rig.camera.fov = view && lib ? lib.fovForZoom(rig.baseFov, view.zoom) : rig.baseFov;
+  };
+  const openCamera = () => {
+    if (photoModeRef.current || menuOpenRef.current || dialogueRef.current || npcActiveRef.current || rangeOpenRef.current) return;
+    if (phoneOpenRef.current) { phoneOpenRef.current = false; setPhoneOpen(false); }
+    Promise.all([import('./photoMode.mjs'), import('./PhotoMode')]).then(([lib, kit]) => {
+      photoLibRef.current = lib;
+      photoKitRef.current = kit;
+      if (menuOpenRef.current || dialogueRef.current || npcActiveRef.current) return;
+      photoModeRef.current = true;
+      inputRef.current.clear();
+      setPhotoLast(null);
+      showPhotoView({ filter: 'natural', zoom: 1, grid: false });
+      audioRef.current?.cue('phone');
+    }).catch(() => { setPhonePeek({ name: 'Camera', text: 'The camera could not start. Check your connection.' }); });
+  };
+  const closeCamera = () => {
+    if (!photoModeRef.current) return;
+    photoModeRef.current = false;
+    showPhotoView(null);
+    canvasRef.current?.focus({ preventScroll: true });
+  };
+  const shootPhoto = () => {
+    const rig = photoRigRef.current, lib = photoLibRef.current, kit = photoKitRef.current, view = photoViewRef.current;
+    if (!rig || !lib || !kit || !view || photoBusyRef.current) return;
+    photoBusyRef.current = true;
+    setPhotoBusy(true);
+    const place = locationRef.current === 'city' ? 'city' : locationRef.current === 'home' ? 'home' : locationRef.current === 'school' ? 'school' : 'street';
+    const clock = formatClock(lifeView.minute);
+    const stamp = lib.photoStamp({ day: lifeView.day, clock, place });
+    // Downtown is built from OpenStreetMap data, so its photos carry the credit.
+    const credit = place === 'city' ? 'Map data © OpenStreetMap contributors' : undefined;
+    kit.capturePhoto(rig.engine, rig.canvas, view.filter, stamp, credit).then(src => {
+      const id = `photo-${Date.now().toString(36)}`;
+      setPhotos(current => {
+        const shot: Photo = { id, src, stamp, filter: view.filter, name: lib.photoFileName({ day: lifeView.day, clock, index: current.length + 1 }) };
+        return lib.writeGallery(characterId, lib.addPhoto(current, shot));
+      });
+      setPhotoLast({ id, src, stamp, filter: view.filter, name: `${id}.jpg` });
+      setPhotoShots(count => count + 1);
+      audioRef.current?.cue('shutter');
+    }).catch(() => setPhonePeek({ name: 'Camera', text: 'That photo did not come out. Try again.' }))
+      .finally(() => { photoBusyRef.current = false; setPhotoBusy(false); });
+  };
+  const photoAction = (action: NonNullable<ReturnType<PhotoLib['photoKeyAction']>>) => {
+    const view = photoViewRef.current, lib = photoLibRef.current, rig = photoRigRef.current;
+    if (!view || !lib) return;
+    if (action === 'exit') closeCamera();
+    else if (action === 'shoot') shootPhoto();
+    else if (action === 'filter' || action === 'filter-back') showPhotoView({ ...view, filter: lib.nextFilter(view.filter, action === 'filter' ? 1 : -1).id });
+    else if (action === 'zoom-in' || action === 'zoom-out') showPhotoView({ ...view, zoom: lib.clampZoom(view.zoom + (action === 'zoom-in' ? lib.ZOOM.step : -lib.ZOOM.step)) });
+    else if (action === 'grid') showPhotoView({ ...view, grid: !view.grid });
+    else if (rig) {
+      const aimed = lib.aimCamera({ alpha: rig.camera.alpha, beta: rig.camera.beta }, action,
+        { lower: rig.camera.lowerBetaLimit ?? 0.25, upper: Math.min(1.5, rig.camera.upperBetaLimit ?? 1.5) });
+      rig.camera.alpha = aimed.alpha;
+      rig.camera.beta = aimed.beta;
+    }
+  };
+  const photoActionsRef = useRef(photoAction);
+  photoActionsRef.current = photoAction;
+  const deletePhoto = useCallback((id: string) => {
+    const lib = photoLibRef.current;
+    if (!lib) return;
+    setPhotos(current => lib.writeGallery(characterId, lib.removePhoto(current, id)));
+  }, [characterId]);
   const [npcChat, setNpcChat] = useState<NpcChat | null>(null);
   const npcChatRef = useRef<NpcChat | null>(null);
   const npcActiveRef = useRef(false);
@@ -1197,6 +1290,7 @@ export default function WorldScene({
         new Vector3(position.x, 1.25, position.z), scene);
       const cameraControls = createCameraControls(camera);
       cameraControlsRef.current = cameraControls;
+      photoRigRef.current = { engine: scene.getEngine() as Engine, camera, canvas, baseFov: camera.fov };
       // Arrow keys move the player. Babylon's default keyboard orbit input
       // previously rotated/tilted the camera at the same time.
       camera.inputs.removeByType('ArcRotateCameraKeyboardMoveInput');
@@ -1865,6 +1959,13 @@ export default function WorldScene({
           return;
         }
         if (rangeOpenRef.current) return;
+        // Photo mode: movement keys aim the camera, Space shoots, F filters, Esc / P puts the camera away.
+        if (photoModeRef.current) {
+          const action = photoLibRef.current?.photoKeyAction(event.key, event.shiftKey) ?? null;
+          if (action || MOVE_KEYS.has(event.key)) event.preventDefault();
+          if (action && (!event.repeat || action.startsWith('turn') || action.startsWith('tilt'))) photoActionsRef.current(action);
+          return;
+        }
         // P or Esc puts the phone away, wherever focus is inside it.
         if (phoneOpenRef.current && (event.key === 'p' || event.key === 'P' || event.key === 'Escape') && !event.repeat) {
           event.preventDefault();
@@ -2214,7 +2315,7 @@ export default function WorldScene({
         if (driven >= 0) {
           tickLife(delta, 'drive');
           // Car-relative controls: W/S accelerate, brake and reverse; A/D steer.
-          const keys = schoolOpenRef.current || dialogueRef.current || npcActiveRef.current || rangeOpenRef.current ? new Set<string>() : inputRef.current.pressed;
+          const keys = schoolOpenRef.current || dialogueRef.current || npcActiveRef.current || rangeOpenRef.current || photoModeRef.current ? new Set<string>() : inputRef.current.pressed;
           const others = cars.filter((_, index) => index !== driven);
           const before = cars[driven];
           // Downtown, the real buildings are what the car runs into.
@@ -2286,7 +2387,7 @@ export default function WorldScene({
         const inSchool = locationRef.current === 'school';
         const city = locationRef.current === 'city' ? downtown : null;
         const tired = isExhausted(life);
-        const pressed = schoolOpenRef.current || dialogueRef.current || npcActiveRef.current || rangeOpenRef.current ? new Set<string>() : inputRef.current.pressed;
+        const pressed = schoolOpenRef.current || dialogueRef.current || npcActiveRef.current || rangeOpenRef.current || photoModeRef.current ? new Set<string>() : inputRef.current.pressed;
         // Exhausted players can still walk home, but not run.
         const walkKeys = tired ? new Set([...pressed].filter(key => key !== 'Shift')) : pressed;
         const locomotion = atHome
@@ -2476,6 +2577,8 @@ export default function WorldScene({
         window.removeEventListener('resize', resize);
         document.removeEventListener('visibilitychange', onVisibilityChange);
         cameraControlsRef.current = null;
+        photoRigRef.current = null;
+        photoModeRef.current = false;
         writeLife(characterId, life);
         saveToAccount();
         disposed = true;
@@ -2604,9 +2707,14 @@ export default function WorldScene({
       : doorPrompt === 'enter' ? 'Go inside your home (E)'
         : doorPrompt === 'locked' ? "Neighbors' house (E)"
           : nearCar && !inHome && !atSchool ? 'Get in car (E)' : '';
-  return <div className="world-root" aria-label="Playable 3D neighborhood">
+  const photoKit = photoKitRef.current;
+  return <div className="world-root" aria-label="Playable 3D neighborhood" data-photo={photoView ? 'true' : undefined}>
     <div className="world-viewport" ref={viewportRef}>
-      {!error && <canvas ref={canvasRef} tabIndex={0} aria-label={`3D world for ${displayName}; click to focus, use WASD or arrow keys to move`} />}
+      {!error && <canvas ref={canvasRef} tabIndex={0} aria-label={`3D world for ${displayName}; click to focus, use WASD or arrow keys to move`}
+        style={photoView && photoKit ? { filter: photoKit.previewFilter(photoView.filter) } : undefined} />}
+      {photoView && photoKit && <photoKit.PhotoMode view={photoView} shots={photoShots} last={photoLast} busy={photoBusy} onShoot={shootPhoto}
+        onFilter={step => photoAction(step > 0 ? 'filter' : 'filter-back')} onZoom={step => photoAction(step > 0 ? 'zoom-in' : 'zoom-out')}
+        onGrid={() => photoAction('grid')} onExit={closeCamera} />}
       {error ? <p className="world-fallback" role="status">{error}</p> : <>
         <LoadingScreen tracker={loadTracker} onReady={() => { worldReadyRef.current = true; void loadWorldMap().catch(() => {}); }} />
         <div className="world-life" role="status" aria-label={`Day ${lifeView.day}, ${formatClock(lifeView.minute)}, energy ${Math.round(lifeView.energy)} percent`}>
@@ -2635,7 +2743,8 @@ export default function WorldScene({
         {phoneOpen && <Suspense fallback={null}><Phone open={!menuOpen && !mapOpen} onClose={closePhone} phone={phone} messages={messages} onRead={readMessages}
           relations={npcRelations} career={career} clock={formatClock(lifeView.minute)} day={lifeView.day} energy={lifeView.energy}
           objective={currentStep(story).step.objective}
-          onOpenMap={() => { closePhone(); setMapOpen(true); audioRef.current?.cue('map'); }} /></Suspense>}
+          onOpenMap={() => { closePhone(); setMapOpen(true); audioRef.current?.cue('map'); }}
+          photos={photos} onOpenCamera={openCamera} onDeletePhoto={deletePhoto} /></Suspense>}
         {scoreboard && <div className="world-scoreboard" role="status" aria-live="polite"><strong>{scoreboard}</strong><small>F shoot · Shift+F chip · Q pass</small>
           <span className="world-scoreboard-actions">
             <button type="button" onClick={event => { kickRef.current(false); focusWorld(event); }}>Shoot (F)</button>
