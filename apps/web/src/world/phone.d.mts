@@ -1,7 +1,7 @@
 import type { StoryState } from './storyChapters.mjs';
 import type { NpcRelations } from './npcConversations.mjs';
 import type { CareerState } from './careers.mjs';
-export type PhoneAppId = 'messages' | 'contacts' | 'career' | 'map';
+export type PhoneAppId = 'messages' | 'contacts' | 'career' | 'map' | 'camera';
 export type PhoneArrival = { day: number; minute: number };
 export type PhoneState = { version: number; arrived: Record<string, PhoneArrival>; read: string[] };
 export type PhoneMessage = { id: string; from: string; name: string; text: string; kind: 'story' | 'daily' | 'friend' | 'work'; day?: number };

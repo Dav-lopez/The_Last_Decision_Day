@@ -18,6 +18,7 @@ export const PHONE_APPS = Object.freeze([
   Object.freeze({ id: 'contacts', title: 'Contacts' }),
   Object.freeze({ id: 'career', title: 'Career' }),
   Object.freeze({ id: 'map', title: 'Map' }),
+  Object.freeze({ id: 'camera', title: 'Camera' }),
 ]);
 
 /** How many days of daily texts the inbox keeps. */

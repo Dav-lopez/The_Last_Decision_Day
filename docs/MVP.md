@@ -164,13 +164,21 @@ above is done or blocked; any item may be split into slices.
         HUD shows the bodywork ("Dented 85%"), captions describe the crunch and scrape, fewer decals are drawn at lower
         adaptive quality, and the car is repaired overnight when you sleep. The phone playtest knocks the car and checks
         the badge. Still to do: a police cruiser and a fire engine.
-- [ ] **14. Phone**: an in-game phone (Esc-free, key P) with messages from Mom and friends, contacts you've
+- [x] **14. Phone**: an in-game phone (Esc-free, key P) with messages from Mom and friends, contacts you've
       met, the map, your career, and a camera / photo mode.
   - [x] 14a (partial slice). The phone (P, or the Phone button): texts from Mom every morning (and a nudge home
         after dark), the story's own texts, friends who text once you get on well (and a cool note if you don't),
         work texts (welcome, today's shift hours, promotions); a buzz, a caption and a peek under the objective when
         one arrives; threads, unread badges, contacts with trust, a career summary and a map shortcut; arrow keys
-        between apps, P / Esc to put it away. Both playtests open it. Still to do: 14b, camera / photo mode.
+        between apps, P / Esc to put it away. Both playtests open it.
+  - [x] 14b. Camera / photo mode: Phone → Camera → Take photos raises a viewfinder and the HUD steps aside (sound
+        captions stay). WASD / arrows aim the camera instead of walking, drag and pinch still orbit, + / − zoom up to
+        3×, F cycles five looks (Natural, Golden hour, Vivid, Black & white, Faded film, previewed live), G a
+        rule-of-thirds grid, Space the shutter (click, flash, caption; a still frame under reduced motion). Photos are
+        stamped with day, time and place (downtown ones carry "Map data © OpenStreetMap contributors"), kept in the
+        Camera app (newest 8, per character, in this browser) and can be saved to the device or deleted. Pure rules in
+        `photoMode.mjs` (`photo-mode.test.mjs`); the viewfinder and capture code load the first time the camera opens;
+        the guest playtest takes a photo and finds it in the app.
 - [x] **15. Car radio**: three or four original procedural stations with DJ-style station idents.
   - Four stations, all original and generated in the browser: Maple 98.1 (indie pop), Low Tide 88.4 (lo-fi),
     Downtown 101.3 (late-night jazz) and Pulse 94.7 (synthwave), two songs each with intro, verse, chorus and
@@ -187,6 +195,11 @@ above is done or blocked; any item may be split into slices.
       facial work), screen-space reflections on wet roads where the device can afford it.
 
 ## Found along the way
+
+- 14b: photo filters are applied to the pixels with the CSS filter formulas rather than canvas `ctx.filter`, because
+  Safari has no `ctx.filter`; the live preview is a CSS filter on the 3D canvas, so both match. Photos are not
+  removed by "Reset progress" (they are keepsakes, like looks and settings), and they are not synced to the account:
+  at ~80 KB each they would need a file store rather than the progress API.
 
 - 9b drives the story's events through a playtest hook (`__tld.story.report`), not by re-playing school, sleep,
   downtown, a shift and a match three times over: at ~2 fps in CI's software renderer that would take hours. Those

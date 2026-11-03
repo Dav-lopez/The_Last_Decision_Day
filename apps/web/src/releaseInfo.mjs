@@ -10,6 +10,14 @@ export const GAME_TAGLINE = 'Your life. Your choices. Your consequences.';
  */
 export const RELEASE_NOTES = Object.freeze([
   Object.freeze({
+    id: '2026-11-03', title: 'Say cheese',
+    items: Object.freeze([
+      'Your phone has a camera: open Phone → Camera → Take photos, aim with WASD or by dragging, and press Space.',
+      'Five looks (Natural, Golden hour, Vivid, Black & white, Faded film), up to 3× zoom and a framing grid.',
+      'Photos are stamped with the day, time and place and kept in the Camera app, where you can save them to your device.',
+    ]),
+  }),
+  Object.freeze({
     id: '2026-11-01d', title: 'Mind the paintwork',
     items: Object.freeze([
       'Bump the car and it shows: light knocks scratch the paint, hard ones leave a dent where you hit.',
