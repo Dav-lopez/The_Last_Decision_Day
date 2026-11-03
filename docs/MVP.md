@@ -157,6 +157,13 @@ above is done or blocked; any item may be split into slices.
         (Space, or HANDBRAKE on touch: the car slows and the tail swings round); a held horn (H, or HORN on touch); a
         thud when you hit something. Body roll and pitch were already in. The police siren moved from H to L.
         Still to do: dents and scratches, a police cruiser and a fire engine.
+  - [x] 13b (partial slice). Dents and scratches: a knock above walking pace marks the car where it hit (the nose
+        driving forwards, the tail reversing, the corner you steer towards; a light knock while turning scrapes down
+        the side). Light knocks scratch the paint, hard ones dent it with a crunch, and a repeat knock deepens the same
+        mark (`carDamage.mjs`). Marks are decals projected onto the car's own bodywork and ride along with it; the drive
+        HUD shows the bodywork ("Dented 85%"), captions describe the crunch and scrape, fewer decals are drawn at lower
+        adaptive quality, and the car is repaired overnight when you sleep. The phone playtest knocks the car and checks
+        the badge. Still to do: a police cruiser and a fire engine.
 - [ ] **14. Phone**: an in-game phone (Esc-free, key P) with messages from Mom and friends, contacts you've
       met, the map, your career, and a camera / photo mode.
   - [x] 14a (partial slice). The phone (P, or the Phone button): texts from Mom every morning (and a nudge home
@@ -202,6 +209,11 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- 13b first sat on an unpushed-for-review branch (`feature/car-damage-20261101`) that failed typecheck: the new
+  `crunch` / `scrape` cues were in `score.mjs` but not in `AudioCue` (`director.d.mts`). New cues need both.
+- Car damage (13b) is kept per car for the session and cleared when you sleep; it isn't saved. Traffic downtown
+  only stops for you rather than hitting you, so only your own knocks mark the car. The impact spot is inferred from
+  speed and steering, not from which footprint point touched; `stepVehicle` could report the contact point instead.
 - 16a: the skip on a fire call isn't solid (you can walk through it), and the water arc passes through walls and
   parked cars; a collider entry for the skip and a ray for the jet would fix both. With the fire engine (13c) parked
   nearby, spraying from the engine's hose reel would be a natural next step.
