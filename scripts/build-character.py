@@ -25,6 +25,7 @@ from facial_brows import build_brow_geometry
 from facial_smile_folds import build_smile_fold_geometry
 from facial_eyelids import build_eyelid_geometry
 from facial_cornea import build_cornea_geometry
+from slim_character import MODIFICATION as SLIM_MODIFICATION, slim_glb
 from facial_droplets import DROPLET_KINDS, DROPLET_SIDES, build_droplet_geometry
 from hair_detail import build_hair_detail
 
@@ -766,6 +767,7 @@ def build(files, variant):
     encoded = json.dumps(b.doc, separators=(",", ":")).encode()
     encoded += b" " * (-len(encoded) % 4)
     glb = struct.pack("<III", 0x46546C67, 2, 28+len(encoded)+len(b.binary)) + struct.pack("<II", len(encoded), 0x4E4F534A) + encoded + struct.pack("<II", len(b.binary), 0x004E4942) + b.binary
+    glb = slim_glb(glb)  # 8-bit outfit/hair weights and normals; the face stays float
     OUTPUT.mkdir(parents=True, exist_ok=True)
     (OUTPUT / config["output"]).write_bytes(glb)
     (OUTPUT / "licenses").mkdir(exist_ok=True)
@@ -778,7 +780,7 @@ def build(files, variant):
                 "body": variant,
                 "output": {"file": config["output"], "bytes": len(glb), "sha256": hashlib.sha256(glb).hexdigest(),
                            "morphTargets": sorted({name for mesh in b.doc["meshes"] for name in mesh.get("extras", {}).get("targetNames", [])})},
-                "modifications": ["Keep only Idle_Loop, Walk_Loop and Sprint_Loop, exported as Idle/Walk/Run.", "Rebase local rotations onto the character bind pose; retain target limb lengths.", "Preserve pelvis bob and remove horizontal root travel; gameplay controls world movement.", "Add parted hair, remap hair joints, split clothing/skin materials for browser customization.", "Add bounded head-skinned hair-fibre relief to each licensed hairstyle, sharing its hair material and visibility.", "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes.", "Add two separate head-skinned lip ribbons with smile, frown, press and open morphs.", "Add recessed oral cavity, fixed upper teeth, eight articulated lower tooth crowns and tongue geometry synchronized to jaw opening.", "Add head-skinned cheek squint targets and transparent blush surfaces.", "Add head-skinned animated translucent tear and sweat droplets.", "Add a head-skinned sculpted nose bridge and tip sharing the skin material.", "Add bilateral sculpted ear relief with helix and concha skinned to Head.", "Add head-skinned eyebrow fibre relief following bilateral brow expression morphs.", "Add skinned upper/lower eyelid rims and tapered lashes driven by bilateral blink morphs.", "Add shallow transparent head-skinned corneal films with bilateral blink and gaze morphs.", "Split the outfit into zones painted in the browser (sleeves, midriff, waist, thighs, knees, shins, socks, shoes, soles).", "Ship every hairstyle (parted, buzzed, pixie, long, buns, beard) moved onto this head by the eye-centre difference; the browser shows one.", "Add a skinned flared skirt (pelvis and thighs), hidden unless worn."]}
+                "modifications": ["Keep only Idle_Loop, Walk_Loop and Sprint_Loop, exported as Idle/Walk/Run.", "Rebase local rotations onto the character bind pose; retain target limb lengths.", "Preserve pelvis bob and remove horizontal root travel; gameplay controls world movement.", "Add parted hair, remap hair joints, split clothing/skin materials for browser customization.", "Add bounded head-skinned hair-fibre relief to each licensed hairstyle, sharing its hair material and visibility.", "Embed eye texture; omit unused textures, UV sets, vertex colors, actions and source meshes.", "Add two separate head-skinned lip ribbons with smile, frown, press and open morphs.", "Add recessed oral cavity, fixed upper teeth, eight articulated lower tooth crowns and tongue geometry synchronized to jaw opening.", "Add head-skinned cheek squint targets and transparent blush surfaces.", "Add head-skinned animated translucent tear and sweat droplets.", "Add a head-skinned sculpted nose bridge and tip sharing the skin material.", "Add bilateral sculpted ear relief with helix and concha skinned to Head.", "Add head-skinned eyebrow fibre relief following bilateral brow expression morphs.", "Add skinned upper/lower eyelid rims and tapered lashes driven by bilateral blink morphs.", "Add shallow transparent head-skinned corneal films with bilateral blink and gaze morphs.", "Split the outfit into zones painted in the browser (sleeves, midriff, waist, thighs, knees, shins, socks, shoes, soles).", "Ship every hairstyle (parted, buzzed, pixie, long, buns, beard) moved onto this head by the eye-centre difference; the browser shows one.", "Add a skinned flared skirt (pelvis and thighs), hidden unless worn.", SLIM_MODIFICATION]}
     (OUTPUT / config["manifest"]).write_text(json.dumps(manifest, indent=2)+"\n")
     print(f"Built {config['output']}: {len(glb):,} bytes with {len(b.doc['animations'])} animation clips.")
 

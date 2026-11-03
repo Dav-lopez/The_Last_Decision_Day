@@ -112,8 +112,8 @@
   "body": "male",
   "output": {
     "file": "human.glb",
-    "bytes": 1675600,
-    "sha256": "a74ed04a81b2f9f9ec7352e4900fc76dc313f8cb78bbd27709a7cfb44d24ad60",
+    "bytes": 1281084,
+    "sha256": "6d41a1af57a3a6eba8f6acff4b850a4499c668f3f39bc099bc52eaaacdd47d19",
     "morphTargets": [
       "browDownLeft",
       "browDownRight",
@@ -166,6 +166,7 @@
     "Add shallow transparent head-skinned corneal films with bilateral blink and gaze morphs.",
     "Split the outfit into zones painted in the browser (sleeves, midriff, waist, thighs, knees, shins, socks, shoes, soles).",
     "Ship every hairstyle (parted, buzzed, pixie, long, buns, beard) moved onto this head by the eye-centre difference; the browser shows one.",
-    "Add a skinned flared skirt (pelvis and thighs), hidden unless worn."
+    "Add a skinned flared skirt (pelvis and thighs), hidden unless worn.",
+    "Pack outfit and hair skin weights (8-bit, sums kept at exactly 1) and normals (8-bit, KHR_mesh_quantization); facial surfaces stay float."
   ]
 }
