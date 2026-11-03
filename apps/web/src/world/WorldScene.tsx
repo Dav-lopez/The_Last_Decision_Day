@@ -1419,12 +1419,12 @@ export default function WorldScene({
             if (interaction.mode !== 'walking' || pendingTaxi || pendingDrive || pendingRide) return false;
             const where = locationRef.current;
             let to: PlanarPosition | null = null;
+            let rotation = avatar.rotation.y;
             if (spot.startsWith('talk:')) to = talkSpot(where, life.minute, neighbors?.positions(), position, 0.8, spot.slice(5) as NpcId);
             else if (spot === 'neighbour') to = where === 'city' ? downtownTalkSpot(regulars ? regularSpots : [], life.minute, position)
               : talkSpot(where, life.minute, neighbors?.positions(), position);
             else if (spot === 'car') to = where === 'street' ? vehicleExitPosition(cars[0], cars) : null;
-            let rotation = avatar.rotation.y;
-            if (spot === 'duty') {
+            else if (spot === 'duty') {
               const stop = activeTask && where === 'city' ? activeTask.task.stops[activeTask.task.next] : null;
               to = stop ? toWorld([stop.x, stop.z]) : null;
               // At a fire, stand on the ring facing the flames.
