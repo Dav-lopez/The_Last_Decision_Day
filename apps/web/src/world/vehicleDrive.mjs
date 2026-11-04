@@ -4,7 +4,8 @@
  * its front (local +Z) along (sin r, cos r); positive steering turns right.
  */
 import { STATIC_SOLIDS, TREE_TRUNKS, WORLD_RADIUS, carContains, isBlocked } from './movement.mjs';
-import { CAR_HALF_LENGTH, CAR_HALF_WIDTH, STREET_LIGHTS } from './streetLayout.mjs';
+import { STREET_LIGHTS } from './streetLayout.mjs';
+import { vehicleSize, vehicleSpec } from './vehicleSpecs.mjs';
 
 export const VEHICLE = Object.freeze({
   maxForwardSpeed: 9,      // ~32 km/h: a residential street, not a race track
@@ -23,6 +24,7 @@ export const VEHICLE = Object.freeze({
 
 const SAMPLE_X = [-1, 0, 1];
 const SAMPLE_Z = [-1, -0.5, 0, 0.5, 1];
+const SAMPLE_Z_LONG = [-1, -0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75, 1];
 
 export function vehicleForward(rotation) {
   return { x: Math.sin(rotation), z: Math.cos(rotation) };
@@ -47,9 +49,12 @@ export function driveInput(keys) {
 }
 
 export function footprintPoints(car) {
+  const { halfWidth, halfLength } = vehicleSize(car);
+  // Long vehicles (the fire engine) get extra samples along their sides so a lamp post can't slip between.
+  const along = halfLength > 3 ? SAMPLE_Z_LONG : SAMPLE_Z;
   const points = [];
-  for (const fx of SAMPLE_X) for (const fz of SAMPLE_Z) {
-    points.push(carLocalToWorld(car, fx * CAR_HALF_WIDTH, fz * CAR_HALF_LENGTH));
+  for (const fx of SAMPLE_X) for (const fz of along) {
+    points.push(carLocalToWorld(car, fx * halfWidth, fz * halfLength));
   }
   return points;
 }
@@ -83,8 +88,7 @@ export function vehicleBlocked(car, otherCars = [], people = []) {
   return otherCars.some(other => footprintPoints(other).some(point => carContains(car, point.x, point.z)));
 }
 
-function nextSpeed(speed, throttle, seconds) {
-  const v = VEHICLE;
+function nextSpeed(speed, throttle, seconds, v = VEHICLE) {
   let next = speed;
   if (throttle > 0) {
     next = speed < -0.05 ? Math.min(0, speed + v.brakeDeceleration * seconds) : speed + v.acceleration * seconds;
@@ -107,22 +111,23 @@ export function stepVehicle(car, input, seconds, otherCars = [], people = [], bl
   const throttle = Math.max(-1, Math.min(1, Number(input?.throttle) || 0));
   const steer = Math.max(-1, Math.min(1, Number(input?.steer) || 0));
   const handbrake = Boolean(input?.handbrake);
+  const spec = vehicleSpec(car);
   let speed;
   if (handbrake) {
     // The handbrake overrides the gas: the car slows and, if you steer, the back slides round.
     const before = car.speed ?? 0;
-    const drop = VEHICLE.handbrakeDeceleration * dt;
+    const drop = spec.handbrakeDeceleration * dt;
     speed = Math.abs(before) <= drop ? 0 : before - Math.sign(before) * drop;
-  } else speed = nextSpeed(car.speed ?? 0, throttle, dt);
-  const slide = handbrake && Math.abs(speed) > 2 ? VEHICLE.handbrakeYaw : 1;
-  const yawRate = speed * Math.tan(steer * VEHICLE.maxSteerAngle) / VEHICLE.wheelbase * slide;
+  } else speed = nextSpeed(car.speed ?? 0, throttle, dt, spec);
+  const slide = handbrake && Math.abs(speed) > 2 ? spec.handbrakeYaw : 1;
+  const yawRate = speed * Math.tan(steer * spec.maxSteerAngle) / spec.wheelbase * slide;
   const steps = Math.max(1, Math.ceil(Math.abs(speed) * dt / 0.1));
   const slice = dt / steps;
-  let state = { x: car.x, z: car.z, rotation: car.rotation, speed };
+  let state = { ...car, speed };
   for (let i = 0; i < steps; i++) {
     const rotation = state.rotation + yawRate * slice;
     const forward = vehicleForward(rotation);
-    const candidate = { x: state.x + forward.x * speed * slice, z: state.z + forward.z * speed * slice, rotation, speed };
+    const candidate = { ...state, x: state.x + forward.x * speed * slice, z: state.z + forward.z * speed * slice, rotation, speed };
     if (blocked(candidate, otherCars, people)) return { ...state, speed: 0, collided: true };
     state = candidate;
   }
@@ -138,8 +143,9 @@ export function canExitVehicle(car) {
  * then passenger side, behind and in front. Null when every door is blocked.
  */
 export function vehicleExitPosition(car, allCars, isFree = null) {
-  const side = CAR_HALF_WIDTH + VEHICLE.exitClearance;
-  const end = CAR_HALF_LENGTH + VEHICLE.exitClearance;
+  const { halfWidth, halfLength } = vehicleSize(car);
+  const side = halfWidth + VEHICLE.exitClearance;
+  const end = halfLength + VEHICLE.exitClearance;
   const candidates = [[-side, 0.2], [side, 0.2], [0, -end], [0, end]];
   for (const [localX, localZ] of candidates) {
     const point = carLocalToWorld(car, localX, localZ);
