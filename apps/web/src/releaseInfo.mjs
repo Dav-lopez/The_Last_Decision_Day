@@ -10,6 +10,14 @@ export const GAME_TAGLINE = 'Your life. Your choices. Your consequences.';
  */
 export const RELEASE_NOTES = Object.freeze([
   Object.freeze({
+    id: '2026-11-04', title: 'Route march, scored',
+    items: Object.freeze([
+      'Army route marches are scored: every checkpoint times your leg against its own par (Sharp, On pace, Steady, Behind).',
+      'At each checkpoint, call the bearing to the next one (keys 1–3 or tap). The N on the minimap is your compass.',
+      'Splits and bearings add up to a grade: Distinction pays 40 % on top of the shift, a Pass 20 %.',
+    ]),
+  }),
+  Object.freeze({
     id: '2026-11-03d', title: 'Real fire calls',
     items: Object.freeze([
       'A fire call now starts at a real fire: a burning skip behind the shops, its smoke visible down the street.',

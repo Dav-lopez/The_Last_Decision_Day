@@ -14,6 +14,7 @@ const PACE = 3.2;                  // par pace in m/s: a jog, with a little slac
 const STOP_SECONDS = 8;            // par allowance per stop
 export const HOSE_SECONDS = 15;    // extra par for putting a fire out
 const FIRE_OFFSET = 5;             // the fire is this far along the pavement from where you stand
+export const DRILL_SECONDS = 4;    // extra par per map-and-compass call on a route march (routeMarch.mjs)
 
 export const TASKS = Object.freeze({
   police: Object.freeze({
@@ -50,6 +51,8 @@ export const TASKS = Object.freeze({
       'Checkpoint Echo: last leg home.',
     ]),
     signOff: 'Report back to the Recruiting Office',
+    // Every checkpoint is scored (open-world 16c): a split time per leg and a bearing to call to the next one.
+    drill: Object.freeze({ arrive: 'Checkpoint reached: call the bearing to the next one (keys 1–3).' }),
   }),
 });
 
@@ -106,6 +109,7 @@ export function planTask(career, graph, door, { seed = 1, collider = null } = {}
     previous = spot;
     const { along, ...at } = spot;
     stops.push(fire ? { ...at, line: spec.stops[stops.length], final: false, hose: { x: fire.x, z: fire.z, arrive: spec.hose.arrive } }
+      : spec.drill ? { ...at, line: spec.stops[stops.length], final: false, drill: { arrive: spec.drill.arrive } }
       : { ...at, line: spec.stops[stops.length], final: false });
     walked = 0;
   }
@@ -114,7 +118,8 @@ export function planTask(career, graph, door, { seed = 1, collider = null } = {}
   stops.push({ x: door.x, z: door.z, line: spec.signOff, final: true });
   return {
     career, id: spec.id, title: spec.title, brief: spec.brief, onFoot: spec.onFoot, stops, next: 0, elapsed: 0,
-    par: Math.ceil(length / PACE + STOP_SECONDS * stops.length + (stops.some(s => s.hose) ? HOSE_SECONDS : 0)),
+    par: Math.ceil(length / PACE + STOP_SECONDS * stops.length + (stops.some(s => s.hose) ? HOSE_SECONDS : 0)
+      + DRILL_SECONDS * stops.filter(s => s.drill).length),
     length: Math.round(length), done: false, warnedOnFoot: false, beat: null,
   };
 }
@@ -151,13 +156,13 @@ function fireSpot(spot, collider) {
 /**
  * Advance a duty run by `seconds` with the player (or their car) at (x, z). Returns the new task and what happened:
  * `{ type: 'stop', index, line }` at a stop, `{ type: 'done' }` at the final one, `{ type: 'beat', beat: 'hose' }`
- * on reaching a fire (the run then waits for `finishBeat`), `{ type: 'on-foot', reason }` once when a march stop, a
+ * on reaching a fire or `{ type: 'beat', beat: 'bearing' }` at a march checkpoint (the run then waits for `finishBeat`), `{ type: 'on-foot', reason }` once when a march stop, a
  * fire or the sign-off at the door is attempted at the wheel, or null.
  */
 export function stepTask(task, { x, z, seconds = 0, driving = false }) {
   if (!task || task.done) return { task, event: null };
   const next = { ...task, elapsed: task.elapsed + Math.max(0, Math.min(1, Number(seconds) || 0)) };
-  // At a fire the clock runs but nothing else moves on until it's out.
+  // At a fire (or calling a bearing) the clock runs but nothing else moves on until it's done.
   if (task.beat) return { task: next, event: null };
   const stop = task.stops[task.next];
   if (!stop || !Number.isFinite(x) || !Number.isFinite(z)) return { task: next, event: null };
@@ -175,12 +180,16 @@ export function stepTask(task, { x, z, seconds = 0, driving = false }) {
     next.beat = 'hose';
     return { task: next, event: { type: 'beat', beat: 'hose', index, line: stop.hose.arrive } };
   }
+  if (stop.drill) {
+    next.beat = 'bearing';
+    return { task: next, event: { type: 'beat', beat: 'bearing', index, line: stop.drill.arrive } };
+  }
   next.next = index + 1;
   if (stop.final) { next.done = true; return { task: next, event: { type: 'done' } }; }
   return { task: next, event: { type: 'stop', index, line: stop.line } };
 }
 
-/** The fire at the current stop is out (or the beat is otherwise done): move on to the next stop. */
+/** The fire at the current stop is out (or the bearing is called): move on to the next stop. */
 export function finishBeat(task) {
   if (!task?.beat || task.done) return { task, event: null };
   const index = task.next;
@@ -203,7 +212,7 @@ export function taskStatus(task) {
   const regular = task.stops.length - 1;
   return {
     title: task.title,
-    next: task.beat === 'hose' ? 'Put the fire out' : stop.final ? stop.line : `Stop ${Math.min(task.next + 1, regular)} of ${regular}`,
+    next: task.beat === 'hose' ? 'Put the fire out' : task.beat === 'bearing' ? 'Call the bearing' : stop.final ? stop.line : `Stop ${Math.min(task.next + 1, regular)} of ${regular}`,
     done: Math.min(task.next, regular), total: regular,
     left: Math.round(task.par - task.elapsed),
     onFoot: task.onFoot,

@@ -24,6 +24,8 @@ export const SOUND_CAPTIONS = Object.freeze({
   crunch: 'Metal crunch: the car is dented',
   scrape: 'Paint scrapes',
   checkpoint: 'Checkpoint reached',
+  compass: 'Bearing correct',
+  wrong: 'Bearing wrong',
   dispatch: 'Radio: duty call',
   map: 'Map unfolds',
   chat: 'Chat message',
