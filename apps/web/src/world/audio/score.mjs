@@ -111,6 +111,11 @@ export const CUES = Object.freeze({
   shot: [N(.09,.07,2600), [110,.07,.04,0]],
   rifle: [N(.14,.08,2000), [70,.12,.05,0], N(.25,.015,700,.05)],
   spray: [N(.32,.035,1600,0,'bandpass')],
+  // Fire calls (16a): the fire's crackle (a few dry pops, repeated while it burns, so no caption of its own), a
+  // whoosh as you reach it, and the hiss of steam when it goes out. The hose itself is a held loop (director.hose).
+  crackle: [N(.025,.03,3800,0,'highpass'), N(.02,.022,3000,.13,'highpass'), N(.03,.026,4400,.29,'highpass')],
+  blaze: [N(.6,.04,500), N(.03,.03,3800,.1,'highpass'), N(.03,.03,3200,.3,'highpass')],
+  hiss: [N(1.1,.04,6000,0,'highpass'), [196,.25,.02,.05]],
   ding: [[1760,.45,.028,0],[2637,.3,.012,0]],
   reload: [N(.035,.03,4200,0,'highpass'), N(.04,.03,3200,.2,'highpass')],
   // Tyre squeal is a continuous sound made while driving; the cue only carries its caption.
