@@ -218,4 +218,11 @@ button.secondary{background:transparent;color:#dbe7ff;border:1px solid #7d93b8}
 .world-duty p{margin:0 0 6px;line-height:1.3;color:#e8eef7}
 .world-duty button{min-height:32px;padding:4px 12px;border-radius:6px;border:1px solid #9fb4cf;background:transparent;color:#fff;font:inherit;cursor:pointer}
 .world-duty button:hover{background:#ffffff1a}
-@media(max-width:640px){.world-root .world-duty{top:114px;right:8px;width:calc(52% - 12px);font-size:.74rem;padding:6px 8px}.world-root .world-duty button{min-height:40px}}
+.world-duty:has(.world-duty-answers){width:min(380px,calc(100% - 24px))}
+.world-duty-call p{color:#fff}
+.world-duty-call-note{display:block;margin-top:3px;color:#ffd38a;font-weight:600}
+.world-duty-answers{display:grid;gap:5px;margin:0 0 8px;padding:0;list-style:none}
+.world-duty-answers button{display:flex;gap:8px;align-items:flex-start;width:100%;text-align:left;line-height:1.3;padding:6px 8px;border-color:#ffd38a88;background:#ffffff0f}
+.world-duty-answers button:hover,.world-duty-answers button:focus-visible{background:#ffd38a26;border-color:#ffd38a}
+.world-duty-answers kbd{flex:none;min-width:1.4em;padding:0 4px;border-radius:4px;background:#ffd38a;color:#14243a;font:700 .8rem/1.4 inherit;text-align:center}
+@media(max-width:640px){.world-root .world-duty{top:114px;right:8px;width:calc(52% - 12px);font-size:.74rem;padding:6px 8px}.world-root .world-duty button{min-height:40px}.world-root .world-duty:has(.world-duty-answers){width:calc(100% - 16px)}}

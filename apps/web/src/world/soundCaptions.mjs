@@ -36,6 +36,8 @@ export const SOUND_CAPTIONS = Object.freeze({
   skid: 'Tyres screech',
   siren: 'Siren wails',
   shutter: 'Camera shutter clicks',
+  knock: 'Knocking on a door',
+  reunite: 'Happy reunion',
 });
 
 export const CAPTION_SECONDS = 3.5;
