@@ -155,7 +155,7 @@ above is done or blocked; any item may be split into slices.
         yellow and all-red, offsets per junction; traffic stops at the line on red, and on yellow when it can.
   - [x] 12b. Pedestrians: 18 people (male and female, varied outfits) walk the pavements, wait at the kerb on red,
         cross with the traffic that has green, and cars stop for anyone in the road.
-- [ ] **13. Driving feel**: body roll and pitch, tyre squeal and skid marks, engine sound by speed and gear,
+- [x] **13. Driving feel**: body roll and pitch, tyre squeal and skid marks, engine sound by speed and gear,
       cosmetic dents and scratches, a horn; a police cruiser and a fire engine for those careers.
   - [x] 13a (partial slice). Feel at the wheel: a three-speed gearbox whose revs drive a new engine note (sawtooth
         and sub through a filter that opens with the gas, dipping on each up-shift) and a gear badge in the drive HUD;
@@ -169,7 +169,16 @@ above is done or blocked; any item may be split into slices.
         mark (`carDamage.mjs`). Marks are decals projected onto the car's own bodywork and ride along with it; the drive
         HUD shows the bodywork ("Dented 85%"), captions describe the crunch and scrape, fewer decals are drawn at lower
         adaptive quality, and the car is repaired overnight when you sleep. The phone playtest knocks the car and checks
-        the badge. Still to do: a police cruiser and a fire engine.
+        the badge. The cruiser and fire engine are 13c.
+  - [x] 13c (partial slice). A police cruiser and a fire engine for those careers, parked in a free bay outside the
+        real police and fire stations downtown (`vehicleSpecs.mjs` finds a spot clear of buildings, traffic lanes, the
+        door and Captain Brooks). Each has its own size and handling: the black-and-white cruiser is quicker and brakes
+        harder than the family car; the 7.8 m engine is slow to pick up speed, long to stop, turns wide and has a low air
+        horn. L (or SIREN on touch) switches on flashing beacons and a siren — a police wail, a mechanical fire growl
+        that winds up — now played through the audio director, so the volume sliders, mute and a "[Siren wails]" caption
+        apply. Only officers drive the cruiser and only firefighters the engine; they turn back at the edge of downtown.
+        The playtest drives the engine as a firefighter, switches lights and siren on by key and off by touch, and is
+        refused the cruiser.
 - [x] **14. Phone**: an in-game phone (Esc-free, key P) with messages from Mom and friends, contacts you've
       met, the map, your career, and a camera / photo mode.
   - [x] 14a (partial slice). The phone (P, or the Phone button): texts from Mom every morning (and a nudge home
@@ -233,11 +242,23 @@ above is done or blocked; any item may be split into slices.
   line; the cornice hides most of it. Snapping the facade's v so the top storey ends on the roof would fix the rest.
   Awnings aren't solid (they're above head height, but the camera can pass through them), and the lit-window pattern
   repeats every four bays and storeys per style (the per-building offset hides most of it).
+- Fixed (13c): a car you drove downtown and got out of could never be got back into (downtown, E only looked for
+  the bus, workplaces, people and the ball), and parked cars downtown were walk-through. Any car standing downtown is
+  now solid on foot, to your car and to the traffic, and E gets you back in.
+- Fixed (13c): the police siren made its own AudioContext and ignored the volume sliders and mute; it now plays through
+  the audio director with a caption. The old light bar that appeared on the family car for police officers is gone —
+  the lights belong to the cruiser.
+- Station vehicles stay wherever you leave them downtown until the page is reloaded; a later pass could tow them back to
+  their bay overnight (like the body shop in 13b). The engine has no hose yet: item 16's fire calls can hang the hose
+  off the engine's side lockers.
 - 13b first sat on an unpushed-for-review branch (`feature/car-damage-20261101`) that failed typecheck: the new
   `crunch` / `scrape` cues were in `score.mjs` but not in `AudioCue` (`director.d.mts`). New cues need both.
 - Car damage (13b) is kept per car for the session and cleared when you sleep; it isn't saved. Traffic downtown
   only stops for you rather than hitting you, so only your own knocks mark the car. The impact spot is inferred from
   speed and steering, not from which footprint point touched; `stepVehicle` could report the contact point instead.
+- Merging 13b and 13c: the cruiser and fire engine take dents and scratches too, but the impact spot is laid out on
+  the family car's footprint, so on the 7.8 m engine a nose or tail mark lands nearer the middle than the bumper.
+  `impactSpot` could take the vehicle's length from `vehicleSpecs.mjs`.
 - 6c-3: `facial_release_parity.py` fails on the checked-in GLBs on main too ("unexpected eyebrow fibre vertex
   budget"); it is meant for freshly generated files (the build workflow runs it after `build-character.py`), so the
   checked-in bodies predate a later brow change. Rebuilding them from the pinned sources would settle it. Positions
