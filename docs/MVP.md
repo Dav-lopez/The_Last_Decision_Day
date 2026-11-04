@@ -155,7 +155,7 @@ above is done or blocked; any item may be split into slices.
         yellow and all-red, offsets per junction; traffic stops at the line on red, and on yellow when it can.
   - [x] 12b. Pedestrians: 18 people (male and female, varied outfits) walk the pavements, wait at the kerb on red,
         cross with the traffic that has green, and cars stop for anyone in the road.
-- [ ] **13. Driving feel**: body roll and pitch, tyre squeal and skid marks, engine sound by speed and gear,
+- [x] **13. Driving feel**: body roll and pitch, tyre squeal and skid marks, engine sound by speed and gear,
       cosmetic dents and scratches, a horn; a police cruiser and a fire engine for those careers.
   - [x] 13a (partial slice). Feel at the wheel: a three-speed gearbox whose revs drive a new engine note (sawtooth
         and sub through a filter that opens with the gas, dipping on each up-shift) and a gear badge in the drive HUD;
@@ -169,7 +169,16 @@ above is done or blocked; any item may be split into slices.
         mark (`carDamage.mjs`). Marks are decals projected onto the car's own bodywork and ride along with it; the drive
         HUD shows the bodywork ("Dented 85%"), captions describe the crunch and scrape, fewer decals are drawn at lower
         adaptive quality, and the car is repaired overnight when you sleep. The phone playtest knocks the car and checks
-        the badge. Still to do: a police cruiser and a fire engine.
+        the badge. The cruiser and fire engine are 13c.
+  - [x] 13c (partial slice). A police cruiser and a fire engine for those careers, parked in a free bay outside the
+        real police and fire stations downtown (`vehicleSpecs.mjs` finds a spot clear of buildings, traffic lanes, the
+        door and Captain Brooks). Each has its own size and handling: the black-and-white cruiser is quicker and brakes
+        harder than the family car; the 7.8 m engine is slow to pick up speed, long to stop, turns wide and has a low air
+        horn. L (or SIREN on touch) switches on flashing beacons and a siren — a police wail, a mechanical fire growl
+        that winds up — now played through the audio director, so the volume sliders, mute and a "[Siren wails]" caption
+        apply. Only officers drive the cruiser and only firefighters the engine; they turn back at the edge of downtown.
+        The playtest drives the engine as a firefighter, switches lights and siren on by key and off by touch, and is
+        refused the cruiser.
 - [x] **14. Phone**: an in-game phone (Esc-free, key P) with messages from Mom and friends, contacts you've
       met, the map, your career, and a camera / photo mode.
   - [x] 14a (partial slice). The phone (P, or the Phone button): texts from Mom every morning (and a nudge home
@@ -207,10 +216,29 @@ above is done or blocked; any item may be split into slices.
 - [ ] **18. Weather and sky**: rain and wet roads, fog, sunsets, clouds; weather changes by day.
 - [ ] **19. Cinematic story**: camera-directed cutscenes with letterboxing and character animation for each
       chapter opening and the three endings.
+  - [x] 19a (partial slice). Directed story scenes: while a story scene plays, a camera director (`cutscene.mjs`)
+        gives every line a shot from who is speaking and where they stand — a wide establishing shot that pushes in
+        when a chapter opens, a slow drift for narration, close over the shoulder onto the phone for texts and the
+        note from "A.", over-the-shoulder shots and reverse angles (eyelines kept on one side) when the speaker is
+        standing near you, a three-quarter close-up on your own lines, a listening shot when someone speaks who isn't
+        there, and a rising crane over Maple Street for the endings. Shots move slowly inside and cut between lines;
+        lines from the same speaker hold the shot. Neighbours in the scene turn to you and lip-sync their lines, your
+        character plays the talk animation on yours and turns to face whoever is talking. Chapter openings and the
+        epilogue get wider bars and a title card ("Chapter 2 · The Note", "Ending · The Maple Street Garden"); the
+        minimap and objective step aside. Indoors the shots stay tight and high under the cutaway; under reduced
+        motion every shot holds still. The camera is handed back exactly as it was. The guest playtest checks the
+        opening's title card, establishing shot and first cut, the camera's return, and the range of shots across all
+        three endings. Still to do: authored camera moves and staging for set pieces (the note under the door, the
+        clubhouse photo, the street changing on Last Decision Day), character gestures beyond Talk.
 - [ ] **20. Visual quality pass**: better materials and lighting downtown, higher-detail characters (with the
       facial work), screen-space reflections on wet roads where the device can afford it.
 
 ## Found along the way
+
+- 19a: story scenes can't be checked frame by frame in the sandbox (no npm install, so no Babylon); the shots are
+  judged by `cutscene.test.mjs` (geometry) and the playtest's camera readings. Some neighbours keep walking while a
+  scene plays unless they are the one speaking, so a two-shot partner can drift out of the 9 m "in the scene" range;
+  the plan is made once when the scene opens. Camera collisions can nudge an over-the-shoulder shot near a wall.
 
 - 14b: photo filters are applied to the pixels with the CSS filter formulas rather than canvas `ctx.filter`, because
   Safari has no `ctx.filter`; the live preview is a CSS filter on the 3D canvas, so both match. Photos are not
@@ -228,6 +256,15 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- Fixed (13c): a car you drove downtown and got out of could never be got back into (downtown, E only looked for
+  the bus, workplaces, people and the ball), and parked cars downtown were walk-through. Any car standing downtown is
+  now solid on foot, to your car and to the traffic, and E gets you back in.
+- Fixed (13c): the police siren made its own AudioContext and ignored the volume sliders and mute; it now plays through
+  the audio director with a caption. The old light bar that appeared on the family car for police officers is gone —
+  the lights belong to the cruiser.
+- Station vehicles stay wherever you leave them downtown until the page is reloaded; a later pass could tow them back to
+  their bay overnight (like the body shop in 13b). The engine has no hose yet: item 16's fire calls can hang the hose
+  off the engine's side lockers.
 - 13b first sat on an unpushed-for-review branch (`feature/car-damage-20261101`) that failed typecheck: the new
   `crunch` / `scrape` cues were in `score.mjs` but not in `AudioCue` (`director.d.mts`). New cues need both.
 - Car damage (13b) is kept per car for the session and cleared when you sleep; it isn't saved. Traffic downtown
@@ -238,6 +275,9 @@ above is done or blocked; any item may be split into slices.
   nearby, spraying from the engine's hose reel would be a natural next step.
 - 16a: Babylon particle shaders compile the first time a fire is shown, which can hitch a frame on slow devices; the
   fire is lit when the duty starts (at the station door), not when you arrive, so the hitch lands somewhere harmless.
+- Merging 13b and 13c: the cruiser and fire engine take dents and scratches too, but the impact spot is laid out on
+  the family car's footprint, so on the 7.8 m engine a nose or tail mark lands nearer the middle than the bumper.
+  `impactSpot` could take the vehicle's length from `vehicleSpecs.mjs`.
 - 6c-3: `facial_release_parity.py` fails on the checked-in GLBs on main too ("unexpected eyebrow fibre vertex
   budget"); it is meant for freshly generated files (the build workflow runs it after `build-character.py`), so the
   checked-in bodies predate a later brow change. Rebuilding them from the pinned sources would settle it. Positions

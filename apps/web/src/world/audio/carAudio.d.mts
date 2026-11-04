@@ -5,6 +5,6 @@ export type CarSynthDeps = {
 };
 export type CarSynth = {
   reset(): void;
-  update(state: { time: number; driving: boolean; speed: number; car?: { rpm?: number; frequency?: number; throttle?: number; slip?: number } | null; horn: boolean }): boolean;
+  update(state: { time: number; driving: boolean; speed: number; car?: { rpm?: number; frequency?: number; throttle?: number; slip?: number; hornPitch?: number } | null; horn: boolean }): boolean;
 };
 export declare function createCarSynth(deps: CarSynthDeps): CarSynth;

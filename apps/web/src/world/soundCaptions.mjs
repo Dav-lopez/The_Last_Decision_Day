@@ -36,6 +36,7 @@ export const SOUND_CAPTIONS = Object.freeze({
   ding: 'Steel plate rings: hit',
   reload: 'Reloading',
   skid: 'Tyres screech',
+  siren: 'Siren wails',
   shutter: 'Camera shutter clicks',
 });
 

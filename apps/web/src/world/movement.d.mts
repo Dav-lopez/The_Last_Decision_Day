@@ -3,7 +3,7 @@ export declare const WORLD_RADIUS: number;
 export declare const SCHOOL_DOOR: Readonly<PlanarPosition>;
 export declare const SOLID_AREAS: ReadonlyArray<Readonly<{ minX: number; maxX: number; minZ: number; maxZ: number }>>;
 export declare function movementVector(keys: ReadonlySet<string>, cameraForward?: PlanarPosition): PlanarPosition;
-export type CarFootprint = { x: number; z: number; rotation: number };
+export type CarFootprint = { x: number; z: number; rotation: number; kind?: import('./vehicleSpecs.mjs').VehicleKind };
 export declare const BUILDING_AREAS: ReadonlyArray<Readonly<{ minX: number; maxX: number; minZ: number; maxZ: number }>>;
 export declare const STATIC_SOLIDS: ReadonlyArray<Readonly<{ minX: number; maxX: number; minZ: number; maxZ: number }>>;
 export declare const TREE_TRUNKS: ReadonlyArray<Readonly<PlanarPosition>>;

@@ -152,3 +152,25 @@ test('the fire hose is one looping voice that fades out on release and stops whe
   assert.equal(context.sources.slice(before).filter(s => s.loop).length, 2, 'no sound while muted');
   audio.dispose();
 });
+
+test('the emergency siren is one voice on the effects bus: captioned, swept, silenced by the effects slider and by off',async()=>{
+  const context=audioContext();const cues=[];const audio=createGameAudio({createContext:()=>context,onCue:c=>cues.push(c)});
+  audio.setSettings(effectsOnly);await audio.enable();
+  audio.siren('wail');assert.deepEqual(cues,['siren']);
+  audio.update({});
+  const voices=()=>context.sources.filter(s=>s.kind==='oscillator'&&!s.disconnected&&s.frequency.events.length);
+  assert.equal(voices().length,1,'one siren voice');
+  const siren=voices()[0];const first=siren.frequency.value;
+  context.advance(.6);audio.update({});
+  assert.ok(siren.frequency.value>first,'the wail sweeps up');
+  for(let i=0;i<10;i++){context.advance(.1);audio.update({});}
+  assert.equal(voices().length,1,'reused, not stacked');
+  audio.siren('wail');assert.equal(cues.length,1,'switching on again is not a new caption');
+  audio.setSettings({...effectsOnly,effects:0});audio.update({});assert.ok(siren.disconnected,'follows the effects slider');
+  audio.setSettings(effectsOnly);audio.update({});
+  const growl=voices()[0];assert.ok(growl&&growl!==siren,'comes back with the slider');
+  audio.siren('growl');audio.update({});
+  assert.ok(voices()[0].frequency.value<320,'the fire engine winds up from low');
+  audio.siren(null);audio.update({});assert.equal(voices().length,0,'off');
+  audio.dispose();
+});
