@@ -108,11 +108,27 @@ await step('world loads', async () => {
 });
 await step('opening story scene plays and closes', async () => {
   await checkContrast('the street HUD');
-  if (await page.locator('.story-scene').count()) await checkContrast('a story scene');
+  if (await page.locator('.story-scene').count()) {
+    await checkContrast('a story scene');
+    // Open-world 19a: the opening is directed — a title card and an establishing shot, then a cut on the next line.
+    const card = await page.locator('.story-title-card').textContent({ timeout: 2000 }).catch(() => '');
+    if (!/New in Town/.test(card ?? '')) throw new Error(`no chapter title card on the opening (saw "${card}")`);
+    await waitFor('the opening is directed', timeout => page.waitForFunction(() => window.__tld.read().cutscene?.kind === 'establish', null, { timeout }), 15000);
+    const wide = (await read()).camera;
+    await shot('01b-cutscene-establish');
+    await page.locator('.story-scene').first().click();
+    await waitFor('the next line cuts to a new shot', timeout => page.waitForFunction(() => window.__tld.read().cutscene?.index === 1, null, { timeout }), 15000);
+    const next = await read();
+    if (Math.abs(next.camera.radius - wide.radius) < 0.5 && Math.abs(next.camera.alpha - wide.alpha) < 0.05) throw new Error('the camera did not cut between lines');
+    notes.push(`opening shots: establish (radius ${wide.radius.toFixed(1)} m) → ${next.cutscene.kind} (radius ${next.camera.radius.toFixed(1)} m)`);
+  } else notes.push('no opening story scene was open to check the directed camera');
   await dismissDialogue();
   await shot('02-after-story');
   const state = await read();
   if (state?.dialogue) throw new Error('dialogue still open');
+  await waitFor('the camera is handed back', timeout => page.waitForFunction(() => window.__tld.read().cutscene === null, null, { timeout }), 10000);
+  const back = (await read()).camera;
+  if (!(back.radius >= 2.8 && back.radius <= 18 && back.beta >= 0.4 && back.beta <= 1.48)) throw new Error(`the follow camera came back out of range (radius ${back.radius}, beta ${back.beta})`);
 });
 // The game clamps each frame to 0.05 s of game time, so in a slow software renderer
 // everything takes more wall-clock time: hold keys until something happens instead.
@@ -340,6 +356,7 @@ await step('talk to a downtown regular (guide, coach or fire captain)', async ()
   notes.push(`downtown: ${label}`);
 });
 await step('minimap shows, and a map waypoint gives a GPS route', async () => {
+  await dismissDialogue(); // the minimap steps aside during story scenes
   await waitFor('minimap visible', timeout => page.waitForSelector('.world-minimap canvas', { timeout }));
   await page.locator('canvas').first().click({ position: { x: 320, y: 120 } });
   await page.keyboard.press('n');
@@ -421,6 +438,12 @@ const playScene = () => page.evaluate(async () => {
     if (!scene) break;
     const text = scene.querySelector('.story-box p')?.textContent ?? '';
     if (seen.at(-1) !== text) seen.push(text);
+    // Open-world 19a: wait for the director to frame this line, and note which shot it used.
+    const index = Number(/^(\d+)\//.exec(scene.querySelector('.story-continue')?.textContent ?? '')?.[1] ?? 0) - 1;
+    for (let wait = 0; wait < 60 && window.__tld.read().cutscene?.index !== index; wait++) await sleep(50);
+    const kind = window.__tld.read().cutscene?.kind;
+    window.__shotKinds = window.__shotKinds ?? {};
+    window.__shotKinds[kind ?? 'none'] = (window.__shotKinds[kind ?? 'none'] ?? 0) + 1;
     scene.click();
     for (let wait = 0; wait < 60; wait++) {
       await sleep(50);
@@ -494,6 +517,13 @@ for (const [event, ending] of Object.entries(DECISIONS)) {
   });
 }
 if (endingScenes.length) notes.push(`endings played: ${endingScenes.join(' · ')}`);
+await step('story scenes are directed with a range of shots (open-world 19a)', async () => {
+  const kinds = await page.evaluate(() => window.__shotKinds ?? {});
+  notes.push(`story shots: ${Object.entries(kinds).map(([kind, count]) => `${kind} ${count}`).join(', ')}`);
+  const missing = ['establish', 'narration', 'phone', 'crane'].filter(kind => !kinds[kind]);
+  if (missing.length) throw new Error(`no ${missing.join(', ')} shots across the story`);
+  if ((kinds.none ?? 0) > 3) throw new Error(`${kinds.none} story lines had no directed shot`);
+});
 
 await step('a crash shows the error screen with a working reload button', async () => {
   // A separate tab, so the deliberate crash is not mistaken for a real one in the main run.

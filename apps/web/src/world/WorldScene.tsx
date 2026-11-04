@@ -81,6 +81,7 @@ import './story.css';
 import './worldMap.css';
 import './football.css';
 import { buildDecisionDecor } from './storyDecor';
+import { NEAR_METRES, SPEAKER_RESIDENTS, planShots, sceneCard, sceneMood, shotPose, type SceneMood, type Shot } from './cutscene.mjs';
 import { CAST, NEW_STORY, advanceStory, currentStep, markSceneSeen, pendingScene, readStory, storyComplete, writeStory,
   type StoryEvent, type StoryLine, type StoryState } from './storyChapters.mjs';
 import { buildSurroundings } from './worldSurroundings';
@@ -633,8 +634,13 @@ export default function WorldScene({
   // Story: progress, the open dialogue scene and a brief "chapter complete" banner.
   const [story, setStory] = useState<StoryState>(() => readStory(characterId));
   const storyRef = useRef(story);
-  const [dialogue, setDialogue] = useState<{ lines: ReadonlyArray<StoryLine>; index: number } | null>(null);
+  type Dialogue = { lines: ReadonlyArray<StoryLine>; index: number; mood: SceneMood; card: ReturnType<typeof sceneCard> };
+  const [dialogue, setDialogue] = useState<Dialogue | null>(null);
   const dialogueRef = useRef(false);
+  // Directed story scenes (open-world 19a): the render loop's camera director reads the open scene from here.
+  const cutsceneRef = useRef<Dialogue | null>(null);
+  cutsceneRef.current = dialogue;
+  const cutsceneShotRef = useRef<{ kind: Shot['kind']; index: number; subject: string | null } | null>(null);
   const [storyBanner, setStoryBanner] = useState('');
   const storyBannerCaption = useRef<string | null>(null);
   const saveStory = (next: StoryState) => { storyRef.current = next; writeStory(characterId, next); setStory(next); decorRef.current(); progressChangedRef.current(); };
@@ -644,10 +650,11 @@ export default function WorldScene({
   const openPendingScene = () => {
     const scene = pendingScene(storyRef.current);
     if (!scene || dialogueRef.current) return;
+    const opening = storyRef.current;
     saveStory(markSceneSeen(storyRef.current));
     dialogueRef.current = true;
     inputRef.current.clear();
-    setDialogue({ lines: scene, index: 0 });
+    setDialogue({ lines: scene, index: 0, mood: sceneMood(opening), card: sceneCard(opening) });
   };
   const advanceDialogue = () => {
     setDialogue(current => {
@@ -1316,6 +1323,71 @@ export default function WorldScene({
       camera.checkCollisions = true;
       camera.collisionRadius = new Vector3(0.25, 0.25, 0.25);
       camera.attachControl(canvas, false);
+      // Story scenes are directed (open-world 19a): each line gets a shot (establishing, over the shoulder, close on
+      // the phone, a crane for the endings) with a slow move inside it and a cut between lines. The player's camera
+      // is put back exactly as it was when the scene closes.
+      let directed: { lines: ReadonlyArray<StoryLine>; shots: Shot[]; index: number; seconds: number; baseAlpha: number;
+        saved: { alpha: number; beta: number; radius: number; target: Vector3; limits: Pick<ArcRotateCamera, 'lowerRadiusLimit' | 'upperRadiusLimit' | 'lowerBetaLimit' | 'upperBetaLimit'> };
+        speaking: string | null } | null = null;
+      const directorPlayer = () => { const driven = drivenIndex(); return driven >= 0 ? cars[driven] : position; };
+      const residentNear = (speaker: string) => {
+        const resident = SPEAKER_RESIDENTS[speaker as keyof typeof SPEAKER_RESIDENTS];
+        const at = resident ? talkablePositions()?.[resident] : undefined;
+        const me = directorPlayer();
+        return at && Math.hypot(at.x - me.x, at.z - me.z) <= NEAR_METRES ? at : null;
+      };
+      const endCutscene = () => {
+        if (!directed) return;
+        const { saved } = directed;
+        Object.assign(camera, saved.limits);
+        camera.alpha = saved.alpha; camera.beta = saved.beta; camera.radius = saved.radius;
+        camera.setTarget(saved.target, false, false, true);
+        camera.inertialAlphaOffset = camera.inertialBetaOffset = camera.inertialRadiusOffset = 0;
+        if (directed.speaking && !npcActiveRef.current) npcSceneRef.current?.setConversation(null);
+        directed = null;
+        cutsceneShotRef.current = null;
+      };
+      const directCutscene = () => {
+        const open = cutsceneRef.current;
+        if (!open) { endCutscene(); return; }
+        const frame = Math.min(scene.getEngine().getDeltaTime() / 1000, 0.05);
+        if (!directed || directed.lines !== open.lines) {
+          if (directed) endCutscene();
+          const planned = planShots(open.lines, { mood: open.mood, near: speaker => residentNear(speaker) !== null });
+          directed = { lines: open.lines, shots: planned, index: -1, seconds: 0, baseAlpha: camera.alpha, speaking: null,
+            saved: { alpha: camera.alpha, beta: camera.beta, radius: camera.radius, target: camera.getTarget().clone(),
+              limits: { lowerRadiusLimit: camera.lowerRadiusLimit, upperRadiusLimit: camera.upperRadiusLimit,
+                lowerBetaLimit: camera.lowerBetaLimit, upperBetaLimit: camera.upperBetaLimit } } };
+          camera.lowerRadiusLimit = camera.upperRadiusLimit = camera.lowerBetaLimit = camera.upperBetaLimit = null;
+          cameraControls.cancel();
+        }
+        const shot = directed.shots[open.index] ?? null;
+        if (open.index !== directed.index) {
+          directed.index = open.index;
+          if (!shot?.hold) directed.seconds = 0;
+          const line = open.lines[open.index];
+          // The people in the scene act it out: whoever is speaking turns to you with their lines lip-synced,
+          // and your character talks on your own lines.
+          if (shot?.kind === 'speaker' && SPEAKER_RESIDENTS[shot.speaker as keyof typeof SPEAKER_RESIDENTS]) {
+            directed.speaking = SPEAKER_RESIDENTS[shot.speaker as keyof typeof SPEAKER_RESIDENTS]!;
+            npcSceneRef.current?.setConversation(directed.speaking, open.mood === 'ending' ? 'happy' : 'neutral', line?.text ?? '');
+          }
+          if (line?.speaker === 'you') riggedRef.current?.playAction('Talk');
+          cutsceneShotRef.current = shot ? { kind: shot.kind, index: open.index, subject: shot.subject } : null;
+        } else directed.seconds += frame;
+        const me = directorPlayer();
+        const other = shot?.subject ? residentNear(shot.subject) : null;
+        // On foot, face whoever you're talking with.
+        if (other && drivenIndex() < 0) avatar.rotation.y = smoothHumanHeading(avatar.rotation.y, movementHeading(other.x - me.x, other.z - me.z), frame);
+        const location = locationRef.current;
+        const pose = shotPose(shot, { player: me, other, baseAlpha: directed.baseAlpha, indoor: location === 'home' || location === 'school',
+          reduced: document.documentElement.dataset.reduceMotion === 'true' }, directed.seconds);
+        camera.inertialAlphaOffset = camera.inertialBetaOffset = camera.inertialRadiusOffset = 0;
+        camera.setTarget(new Vector3(pose.target.x, pose.target.y, pose.target.z), false, false, true);
+        camera.alpha = pose.alpha; camera.beta = pose.beta; camera.radius = pose.radius;
+      };
+      // Runs inside every scene.render(), after the frame's own follow / chase / clamp code, so the director wins.
+      const cutsceneObserver = scene.onBeforeRenderObservable.add(directCutscene);
       // Filmic tone mapping, bloom, anti-aliasing and (on capable devices) ambient occlusion.
       const renderPipeline = createRenderPipeline(scene, camera, pickRenderQuality(scene));
       // Dynamic resolution keeps the frame rate up on slower devices.
@@ -1478,6 +1550,7 @@ export default function WorldScene({
             duty: activeTask ? { id: activeTask.task.id, next: activeTask.task.next, stops: activeTask.task.stops.length, elapsed: activeTask.task.elapsed, par: activeTask.task.par } : null,
             busy: pendingShift !== null,
             decor: decorShownRef.current,
+            cutscene: cutsceneShotRef.current, camera: { alpha: camera.alpha, beta: camera.beta, radius: camera.radius },
           }),
           // The endings playthrough (MVP 9b) reports each step's gameplay event through the real story code,
           // so every scene, the decision and Maple Street's change play exactly as they do for a player.
@@ -2590,6 +2663,7 @@ export default function WorldScene({
       engine.resize();
 
       return () => {
+        scene.onBeforeRenderObservable.remove(cutsceneObserver);
         inputRef.current.clear();
         canvas.removeEventListener('pointerdown', focus);
         canvas.removeEventListener('wheel', cancelCameraTransition);
@@ -2764,7 +2838,7 @@ export default function WorldScene({
           onClick={() => openMenu()}>☰ Menu</button> <strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : inCity ? inCity : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
         {(mapOpen || mapMounted) && <Suspense fallback={null}><WorldMap open={mapOpen} onClose={() => setMapOpen(false)} read={readMap} travel={travelTo} waypoint={waypointControl} /></Suspense>}
-        <Minimap read={readMap} hidden={mapOpen || menuOpen || phoneOpen || Boolean(rangeOpen) || inHome || atSchool} />
+        <Minimap read={readMap} hidden={mapOpen || menuOpen || phoneOpen || Boolean(rangeOpen) || inHome || atSchool || Boolean(dialogue)} />
         {phoneOpen && <Suspense fallback={null}><Phone open={!menuOpen && !mapOpen} onClose={closePhone} phone={phone} messages={messages} onRead={readMessages}
           relations={npcRelations} career={career} clock={formatClock(lifeView.minute)} day={lifeView.day} energy={lifeView.energy}
           objective={currentStep(story).step.objective}
@@ -2777,7 +2851,7 @@ export default function WorldScene({
             <button type="button" onClick={event => { matchRef.current.pass(); focusWorld(event); }}>Pass (Q)</button>
           </span></div>}
         {/* The duty card takes the objective's corner while a duty runs; the objective comes back when it ends. */}
-        {!(duty && inCity) && (() => {
+        {!(duty && inCity) && !dialogue && (() => {
           const { chapter, step } = currentStep(story);
           return <div className="story-objective" aria-live="polite"><small>{chapter.title}</small><strong>{step.objective}</strong>
             {phonePeek && !phoneOpen && <span className="world-phone-peek">📱 {phonePeek.name}: {phonePeek.text} · P to read</span>}</div>;
@@ -2786,9 +2860,11 @@ export default function WorldScene({
         {dialogue && (() => {
           const current = dialogue.lines[dialogue.index];
           const cast = CAST[current.speaker];
-          return <div className="story-scene" role="dialog" aria-label="Story scene" onClick={() => advanceDialogue()}>
+          return <div className={`story-scene story-scene-${dialogue.mood}`} role="dialog" aria-label="Story scene" onClick={() => advanceDialogue()}>
             <div className="story-letterbox story-letterbox-top" />
             <div className="story-letterbox story-letterbox-bottom" />
+            {dialogue.card && dialogue.index === 0 && <div className="story-title-card" aria-live="polite">
+              <small>{dialogue.card.kicker}</small><strong>{dialogue.card.title}</strong></div>}
             <div className={`story-box story-${cast.tone}`}>
               {cast.name && <span className="story-speaker">{cast.name}</span>}
               <p>{current.text}</p>
