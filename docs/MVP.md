@@ -243,6 +243,17 @@ above is done or blocked; any item may be split into slices.
         procedural (no downloads) and frozen into three extra merged meshes. The guest playtest checks the details and
         switches the lights to see the windows come on. Still to do: lighting downtown (light probes or a baked
         ambient), higher-detail characters and reflections on wet roads.
+  - [x] 20b (partial slice). Baked ambient light downtown (`downtownLighting.mjs`), worked out once from the street
+        data when downtown is built, so it costs nothing per frame: walls darken towards the pavement, and where the
+        building across an alley or a narrow street hides the sky they darken by how much of it is hidden (the
+        neighbour's real height and distance, so the upper storeys above a low neighbour stay bright). The shading
+        rides on the facades' vertex colours (walls are cut into bands where it bends), so each style is still one draw
+        call. Soft contact shadows lie on the pavement along the foot of every free wall and under the shop awnings (one
+        alpha-blended mesh, about 1,000 strips). After dark every street lamp throws a warm pool of light on the ground
+        under its head (one additive mesh): subtle where the device also has real clustered lamp lights, stronger
+        where it doesn't, so lamps light the street on every device. The guest playtest checks the shadow and canyon
+        counts and that the pools follow the street lights. Still to do: higher-detail characters and reflections on
+        wet roads.
 
 ## Found along the way
 
@@ -267,6 +278,12 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- 20b: the canyon shade looks out from the middle of each wall only, so a long wall half-facing an alley and
+  half-facing a square gets one value; sampling a few points along the wall (and splitting it there) would fix it.
+  Contact strips double up slightly at outside corners (they overlap), which reads as a darker corner. Party walls
+  that touch a neighbour are cut into bands too although they're hidden; skipping them would save ~40% of wall
+  vertices. Lamp pools are flat at road height and draw over the kerb onto the pavement; the 3D view in the sandbox
+  still can't be rendered (no Babylon), so the look was checked as a top-down map of the same data.
 - 20a: building heights in the OSM data aren't whole storeys, so the top row of windows can be cut by the roof
   line; the cornice hides most of it. Snapping the facade's v so the top storey ends on the roof would fix the rest.
   Awnings aren't solid (they're above head height, but the camera can pass through them), and the lit-window pattern

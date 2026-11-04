@@ -1,6 +1,7 @@
 import { type BaseTexture, Color3, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, Texture, VertexData, type Scene } from '@babylonjs/core';
 import { CITY_ORIGIN, laneDashes, pointInRing, triangulate, type City } from './cityLayout.mjs';
 import { awningSpans, drawFacade, FACADE_STYLES, FACADE_TILE, facadeVariant, litWindows, rooftopUnits } from './facadeDesign.mjs';
+import { AMBIENT, awningShadow, buildingIndex, contactFalloff, contactStrips, edgeNormal, facingNeighbour, wallBreaks, wallShade, type GroundQuad } from './downtownLighting.mjs';
 
 const { bay: BAY, floor: FLOOR, bays: TILE_BAYS, floors: TILE_FLOORS } = FACADE_TILE;
 type StyleName = keyof typeof FACADE_STYLES;
@@ -94,6 +95,71 @@ function addWalls(target: Buffers, ring: number[][], height: number, base = 0, o
     target.uvs.push(u0, v0, u1, v0, u1, v1, u0, v1);
     target.indices.push(start, start + 1, start + 2, start, start + 2, start + 3);
   }
+}
+
+/**
+ * Like `addWalls`, with baked ambient light (open-world 20b): each wall is cut into bands where the
+ * shading bends (`wallBreaks`) and every vertex carries the building's tint times `wallShade` — darker at
+ * the pavement and where the building across the alley hides the sky. Returns how many walls face one.
+ */
+function addShadedWalls(target: Buffers, ring: number[][], height: number, uShift: number, tint: readonly number[],
+  neighbour: (a: number[], b: number[], normal: [number, number]) => { distance: number; height: number }) {
+  let canyons = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i]; const b = ring[(i + 1) % ring.length];
+    const normal = edgeNormal(a, b);
+    if (!normal) continue;
+    const [nx, nz] = normal;
+    const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const facing = neighbour(a, b, normal);
+    if (facing.distance < Infinity) canyons++;
+    const ys = wallBreaks(height, facing.height);
+    const u0 = uShift / TILE_BAYS; const u1 = u0 + length / BAY / TILE_BAYS;
+    const x0 = CITY_ORIGIN.x + a[0]; const z0 = CITY_ORIGIN.z + a[1];
+    const x1 = CITY_ORIGIN.x + b[0]; const z1 = CITY_ORIGIN.z + b[1];
+    for (let k = 0; k + 1 < ys.length; k++) {
+      const lo = ys[k]; const hi = ys[k + 1];
+      const start = target.positions.length / 3;
+      target.positions.push(x0, lo, z0, x1, lo, z1, x1, hi, z1, x0, hi, z0);
+      for (let n = 0; n < 4; n++) target.normals.push(nx, 0, nz);
+      const v0 = lo / FLOOR / TILE_FLOORS; const v1 = hi / FLOOR / TILE_FLOORS;
+      target.uvs.push(u0, v0, u1, v0, u1, v1, u0, v1);
+      target.indices.push(start, start + 1, start + 2, start, start + 2, start + 3);
+      for (const y of [lo, lo, hi, hi]) {
+        const shade = wallShade(y, facing.distance, facing.height);
+        target.colors.push(tint[0] * shade, tint[1] * shade, tint[2] * shade, 1);
+      }
+    }
+  }
+  return canyons;
+}
+
+/** Flat quads on the ground with v running from `near` (corners 0–1) to `far` (corners 2–3). */
+function addGroundQuads(target: Buffers, quads: GroundQuad[], y: number, near = 0, far = 1) {
+  for (const corners of quads) {
+    const start = target.positions.length / 3;
+    for (const [x, z] of corners) {
+      target.positions.push(CITY_ORIGIN.x + x, y, CITY_ORIGIN.z + z);
+      target.normals.push(0, 1, 0);
+    }
+    target.uvs.push(0.5, near, 0.5, near, 0.5, far, 0.5, far);
+    target.indices.push(start, start + 2, start + 1, start, start + 3, start + 2);
+  }
+}
+
+/** Contact shadow falloff across a strip (alpha only), sampled from `contactFalloff`. */
+function contactTexture(scene: Scene) {
+  const texture = new DynamicTexture('city contact shadow', { width: 4, height: 64 }, scene, true);
+  texture.hasAlpha = true;
+  const c = texture.getContext() as unknown as CanvasRenderingContext2D;
+  c.clearRect(0, 0, 4, 64);
+  for (let row = 0; row < 64; row++) {
+    // Canvas row 0 is the top of the texture, which Babylon maps to v = 1 (the outer edge).
+    c.fillStyle = `rgba(0,0,0,${contactFalloff(1 - (row + 0.5) / 64).toFixed(3)})`;
+    c.fillRect(0, row, 4, 1);
+  }
+  texture.update();
+  return texture;
 }
 
 /** An axis-aligned box (rooftop plant), city-local x/z, sitting on `y`. */
@@ -193,7 +259,7 @@ function offsetLine(points: number[][], offset: number) {
  * Builds the whole downtown: buildings extruded to their real heights with
  * per-type facades and storefront glass, flat roofs, streets, paths, parks with
  * trees and labels on named landmarks; cornices, rooftop plant and shop awnings
- * (open-world 20a). Returns a dispose function that also switches the lit
+ * (open-world 20a); baked ambient light on walls and pavements (20b). Returns a dispose function that also switches the lit
  * windows on after dark (`setEvening`).
  */
 export function buildCityScene(scene: Scene, city: City) {
@@ -221,15 +287,22 @@ export function buildCityScene(scene: Scene, city: City) {
   const parapets = buffers();
   const plant = buffers();
   const awnings = buffers();
+  const contact = buffers();
   let awningCount = 0;
   let plantCount = 0;
-  for (const building of city.buildings) {
+  let canyonWalls = 0;
+  let contactCount = 0;
+  const footprints = buildingIndex(city.buildings);
+  city.buildings.forEach((building, self) => {
     const { style, tint, bayShift, parapet } = facadeVariant(building);
     const look = FACADE_STYLES[style];
     const target = (walls[style] ??= buffers());
-    const from = target.positions.length / 3;
-    addWalls(target, building.ring, building.height, 0, 0, bayShift);
-    paint(target, from, tint);
+    canyonWalls += addShadedWalls(target, building.ring, building.height, bayShift, tint,
+      (a, b, normal) => facingNeighbour(city.buildings, footprints, self, a, b, normal));
+    // A soft shadow on the pavement along the foot of every wall that isn't against a neighbour.
+    const strips = contactStrips(building.ring, (x, z) => footprints.at(x, z, self) >= 0);
+    addGroundQuads(contact, strips, 0.05);
+    contactCount += strips.length;
     addCap(roofs, building.ring, building.height);
     if (parapet > 0) {
       // A cornice that stands proud of the wall and rises past the roof as a parapet.
@@ -252,9 +325,11 @@ export function buildCityScene(scene: Scene, city: City) {
       addAwning(awnings, span.a, span.b, span.normal);
       const colour = Color3.FromHexString(span.colour);
       paint(awnings, start, [colour.r, colour.g, colour.b]);
+      // The awning's shade on the pavement below, deepest by the shop window.
+      addGroundQuads(contact, [awningShadow(span)], 0.052, 0.15, 0.85);
       awningCount++;
     }
-  }
+  });
   // Lit windows after dark: each style's night map goes on as its emissive texture in the evening.
   const nightMaps: Array<{ material: StandardMaterial; night: DynamicTexture }> = [];
   for (const [style, data] of Object.entries(walls) as Array<[StyleName, Buffers]>) {
@@ -297,6 +372,18 @@ export function buildCityScene(scene: Scene, city: City) {
     m.diffuseTexture = awningTexture(scene);
     m.backFaceCulling = false;
   })));
+
+  // Baked contact shadows: one alpha-blended mesh, no lights, no shadow maps.
+  const contactMesh = toMesh(scene, 'city contact shadows', contact, material('contact shadow', m => {
+    m.diffuseColor = Color3.Black();
+    m.specularColor = Color3.Black();
+    m.disableLighting = true;
+    m.opacityTexture = contactTexture(scene);
+    m.alpha = AMBIENT.contactAlpha;
+    m.zOffset = -2;
+    m.backFaceCulling = false;
+  }));
+  meshes.push(contactMesh);
 
   const streets = buffers();
   const paths = buffers();
@@ -412,7 +499,7 @@ export function buildCityScene(scene: Scene, city: City) {
       for (const { material: m, night } of nightMaps) m.emissiveTexture = on ? night : null;
       shopGlass.emissiveColor = on ? new Color3(0.62, 0.5, 0.34) : new Color3(0.08, 0.1, 0.11);
     },
-    /** What the playtest checks: facade styles in use, awnings, rooftop plant, and whether windows are lit. */
-    look: () => ({ styles: nightMaps.length, awnings: awningCount, rooftop: plantCount, lit: evening }),
+    /** What the playtest checks: facade styles, awnings, rooftop plant, lit windows and the baked ambient light. */
+    look: () => ({ styles: nightMaps.length, awnings: awningCount, rooftop: plantCount, lit: evening, contactShadows: contactCount, canyonWalls }),
   });
 }
