@@ -1,5 +1,7 @@
 import type { PlanarPosition } from './movement.mjs';
-export type CarState = { x: number; z: number; rotation: number; speed: number };
+import type { VehicleKind } from './vehicleSpecs.mjs';
+/** A car's pose; `kind` picks its size and handling (sedan when absent). */
+export type CarState = { x: number; z: number; rotation: number; speed: number; kind?: VehicleKind };
 export type DriveInput = { throttle: number; steer: number; handbrake?: boolean; horn?: boolean };
 export declare const VEHICLE: Readonly<{
   maxForwardSpeed: number; maxReverseSpeed: number; acceleration: number; reverseAcceleration: number;

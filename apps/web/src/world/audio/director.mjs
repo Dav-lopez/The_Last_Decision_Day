@@ -1,6 +1,7 @@
 import { CUES, LOCATIONS, beatSeconds, musicStep } from './score.mjs';
 import { normalizeAudioSettings } from './settings.mjs';
 import { isStation } from './radioDial.mjs';
+import { sirenFrequency } from '../vehicleSpecs.mjs';
 
 /** Web Audio is created only by enable(), called directly from a user gesture. */
 export function createGameAudio({ createContext, onStatus = () => {}, onCue = () => {}, speech } = {}) {
@@ -14,6 +15,8 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
   let settings = normalizeAudioSettings(null);
   let nextBeat = 0, beat = 0, nextFootstep = 0, nextAmbient = 0, lastLocation = '';
   let engine = null, hornWanted = false, carSynthFactory = null, carSynth = null;
+  // Emergency siren (cruiser 'wail', fire engine 'growl'): one voice on the effects bus, so it follows the sliders.
+  let sirenPattern = null, sirenVoice = null, sirenStart = 0;
   let reverb = null, reverbSend = null, intensity = 0;
   let rainVoice = null, rainBuffer = null;
   const voices = new Set(), lastCue = new Map();
@@ -35,7 +38,7 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
       try { voice.source.stop(); } catch {}
       release(voice);
     }
-    if (!category || category === 'effects') { engine = null; carSynth?.reset(); }
+    if (!category || category === 'effects') { engine = null; sirenVoice = null; carSynth?.reset(); }
     if (!category || category === 'ambience') rainVoice = null;
   }
   function register(source, gain, category, extra = []) {
@@ -236,6 +239,14 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
     },
     /** Hold the car horn (true) or let go (false). Sounds only while driving. */
     horn(on) { const want=Boolean(on); if(want && !hornWanted) { try { onCue('horn'); } catch {} } hornWanted=want; },
+    /** Switch the emergency siren on with a pattern ('wail' or 'growl') or off (null). */
+    siren(pattern) {
+      const want = pattern === 'wail' || pattern === 'growl' ? pattern : null;
+      if (want === sirenPattern) return;
+      if (want) { try { onCue('siren'); } catch {} sirenStart = now(); }
+      if (sirenVoice) { try { sirenVoice.source.stop(); } catch {} release(sirenVoice); sirenVoice = null; }
+      sirenPattern = want;
+    },
     /** Plug in the car's engine, squeal and horn voices (loaded with the driving code). */
     useCarSynth(factory) { carSynthFactory=typeof factory==='function' ? factory : null; carSynth=null; },
     update({ location='street', speed=0, drivingSpeed=null, car=null, reading=false, paused=false, evening=false, match=false, rain=0 } = {}) {
@@ -282,6 +293,17 @@ export function createGameAudio({ createContext, onStatus = () => {}, onCue = ()
         }
         if(engine) ramp(engine.source.frequency,55+Math.min(35,Math.abs(drivingSpeed))*3);
       } else if(engine) { try {engine.source.stop();}catch{} release(engine);engine=null; }
+      if(sirenPattern && settings.effects>0 && !paused) {
+        if(!sirenVoice && voices.size<80) {
+          const source=context.createOscillator(),filter=context.createBiquadFilter(),gain=context.createGain();
+          source.type='sawtooth';filter.type='lowpass';filter.frequency.setValueAtTime(2400,time);
+          gain.gain.setValueAtTime(0,time);gain.gain.linearRampToValueAtTime(.032,time+.2);
+          source.connect(filter);filter.connect(gain);gain.connect(buses.effects);
+          sirenVoice=register(source,gain,'effects',[filter]) || null;
+          if(sirenVoice) source.start(time);
+        }
+        if(sirenVoice) sirenVoice.source.frequency.setTargetAtTime(sirenFrequency(sirenPattern,time-sirenStart),time,.03);
+      } else if(sirenVoice) { try {sirenVoice.source.stop();}catch{} release(sirenVoice);sirenVoice=null; }
       rainLoop(rain, location==='home' || location==='school');
       if(time>=nextAmbient && !reading && !paused && settings.ambience>0) {
         if (location==='pitch') {
