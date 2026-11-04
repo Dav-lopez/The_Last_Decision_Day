@@ -464,7 +464,9 @@ const playScene = () => page.evaluate(async () => {
     if (seen.at(-1) !== text) seen.push(text);
     // Open-world 19a: wait for the director to frame this line, and note which shot it used.
     const index = Number(/^(\d+)\//.exec(scene.querySelector('.story-continue')?.textContent ?? '')?.[1] ?? 0) - 1;
-    for (let wait = 0; wait < 60 && window.__tld.read().cutscene?.index !== index; wait++) await sleep(50);
+    // Match the line's text too: a scene that opens as another closes would otherwise still show the old line 0.
+    const framed = () => { const shot = window.__tld.read().cutscene; return shot?.index === index && shot.text === text; };
+    for (let wait = 0; wait < 60 && !framed(); wait++) await sleep(50);
     const kind = window.__tld.read().cutscene?.kind;
     window.__shotKinds = window.__shotKinds ?? {};
     window.__shotKinds[kind ?? 'none'] = (window.__shotKinds[kind ?? 'none'] ?? 0) + 1;

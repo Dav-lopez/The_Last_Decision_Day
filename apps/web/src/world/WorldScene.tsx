@@ -647,7 +647,7 @@ export default function WorldScene({
   // Directed story scenes (open-world 19a): the render loop's camera director reads the open scene from here.
   const cutsceneRef = useRef<Dialogue | null>(null);
   cutsceneRef.current = dialogue;
-  const cutsceneShotRef = useRef<{ kind: Shot['kind']; index: number; subject: string | null; gesture: string | null; emotion: string | null } | null>(null);
+  const cutsceneShotRef = useRef<{ kind: Shot['kind']; index: number; text: string; subject: string | null; gesture: string | null; emotion: string | null } | null>(null);
   // The face your character pulls on the current story line (open-world 19b); null for the usual one.
   const cutsceneEmotionRef = useRef<StoryEmotion | null>(null);
   const [storyBanner, setStoryBanner] = useState('');
@@ -1483,7 +1483,7 @@ export default function WorldScene({
             directed.gesture = null;
           }
           cutsceneEmotionRef.current = acting.emotion;
-          cutsceneShotRef.current = shot ? { kind: shot.kind, index: open.index, subject: shot.subject, gesture: directed.gesture, emotion: acting.emotion } : null;
+          cutsceneShotRef.current = shot ? { kind: shot.kind, index: open.index, text: line?.text ?? '', subject: shot.subject, gesture: directed.gesture, emotion: acting.emotion } : null;
         } else directed.seconds += frame;
         const me = directorPlayer();
         const other = shot?.subject ? residentNear(shot.subject) : null;
