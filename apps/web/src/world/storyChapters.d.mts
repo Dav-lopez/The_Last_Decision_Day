@@ -5,7 +5,9 @@ export type StoryEvent = 'game-start' | 'left-home' | 'reached-school' | 'entere
   | 'talked-priya' | 'talked-dee' | 'talked-brooks';
 export type SpeakerId = 'narrator' | 'you' | 'mom' | 'maya' | 'jordan' | 'rivera' | 'stranger' | 'ruth' | 'okafor' | 'marcus' | 'elena' | 'tess';
 export type DecisionId = 'garden' | 'crossing' | 'football';
-export type StoryLine = Readonly<{ speaker: SpeakerId; text: string }>;
+export type StoryBeat = 'note' | 'photo' | 'reveal' | 'celebrate';
+export declare const STORY_BEATS: ReadonlyArray<StoryBeat>;
+export type StoryLine = Readonly<{ speaker: SpeakerId; text: string; beat?: StoryBeat }>;
 export type StoryStep = Readonly<{ id: string; objective: string; completeOn: ReadonlyArray<StoryEvent>; skipOn: ReadonlyArray<StoryEvent>; scene: ReadonlyArray<StoryLine> | Readonly<Record<string, ReadonlyArray<StoryLine>>> | null; decide?: boolean; final?: boolean }>;
 export type StoryChapter = Readonly<{ id: string; title: string; steps: ReadonlyArray<StoryStep> }>;
 export type StoryState = { chapter: number; step: number; seen: boolean; decision?: DecisionId };

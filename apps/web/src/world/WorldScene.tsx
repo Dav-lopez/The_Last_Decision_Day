@@ -84,6 +84,7 @@ import './worldMap.css';
 import './football.css';
 import { buildDecisionDecor } from './storyDecor';
 import { NEAR_METRES, SPEAKER_RESIDENTS, planShots, sceneCard, sceneMood, shotPose, type SceneMood, type Shot } from './cutscene.mjs';
+import { lineActing, type StoryEmotion } from './storyActing.mjs';
 import { CAST, NEW_STORY, advanceStory, currentStep, markSceneSeen, pendingScene, readStory, storyComplete, writeStory,
   type StoryEvent, type StoryLine, type StoryState } from './storyChapters.mjs';
 import { buildSurroundings } from './worldSurroundings';
@@ -646,7 +647,9 @@ export default function WorldScene({
   // Directed story scenes (open-world 19a): the render loop's camera director reads the open scene from here.
   const cutsceneRef = useRef<Dialogue | null>(null);
   cutsceneRef.current = dialogue;
-  const cutsceneShotRef = useRef<{ kind: Shot['kind']; index: number; subject: string | null } | null>(null);
+  const cutsceneShotRef = useRef<{ kind: Shot['kind']; index: number; subject: string | null; gesture: string | null; emotion: string | null } | null>(null);
+  // The face your character pulls on the current story line (open-world 19b); null for the usual one.
+  const cutsceneEmotionRef = useRef<StoryEmotion | null>(null);
   const [storyBanner, setStoryBanner] = useState('');
   const storyBannerCaption = useRef<string | null>(null);
   const saveStory = (next: StoryState) => { storyRef.current = next; writeStory(characterId, next); setStory(next); decorRef.current(); progressChangedRef.current(); };
@@ -1423,7 +1426,7 @@ export default function WorldScene({
       // is put back exactly as it was when the scene closes.
       let directed: { lines: ReadonlyArray<StoryLine>; shots: Shot[]; index: number; seconds: number; baseAlpha: number;
         saved: { alpha: number; beta: number; radius: number; target: Vector3; limits: Pick<ArcRotateCamera, 'lowerRadiusLimit' | 'upperRadiusLimit' | 'lowerBetaLimit' | 'upperBetaLimit'> };
-        speaking: string | null } | null = null;
+        speaking: string | null; gesture: string | null } | null = null;
       const directorPlayer = () => { const driven = drivenIndex(); return driven >= 0 ? cars[driven] : position; };
       const residentNear = (speaker: string) => {
         const resident = SPEAKER_RESIDENTS[speaker as keyof typeof SPEAKER_RESIDENTS];
@@ -1439,6 +1442,9 @@ export default function WorldScene({
         camera.setTarget(saved.target, false, false, true);
         camera.inertialAlphaOffset = camera.inertialBetaOffset = camera.inertialRadiusOffset = 0;
         if (directed.speaking && !npcActiveRef.current) npcSceneRef.current?.setConversation(null);
+        // Hand the body back: stop the gesture the scene started (unless something else has taken over since).
+        if (directed.gesture && riggedRef.current?.action === directed.gesture) riggedRef.current.stopAction();
+        cutsceneEmotionRef.current = null;
         directed = null;
         cutsceneShotRef.current = null;
       };
@@ -1449,7 +1455,7 @@ export default function WorldScene({
         if (!directed || directed.lines !== open.lines) {
           if (directed) endCutscene();
           const planned = planShots(open.lines, { mood: open.mood, near: speaker => residentNear(speaker) !== null });
-          directed = { lines: open.lines, shots: planned, index: -1, seconds: 0, baseAlpha: camera.alpha, speaking: null,
+          directed = { lines: open.lines, shots: planned, index: -1, seconds: 0, baseAlpha: camera.alpha, speaking: null, gesture: null,
             saved: { alpha: camera.alpha, beta: camera.beta, radius: camera.radius, target: camera.getTarget().clone(),
               limits: { lowerRadiusLimit: camera.lowerRadiusLimit, upperRadiusLimit: camera.upperRadiusLimit,
                 lowerBetaLimit: camera.lowerBetaLimit, upperBetaLimit: camera.upperBetaLimit } } };
@@ -1461,14 +1467,23 @@ export default function WorldScene({
           directed.index = open.index;
           if (!shot?.hold) directed.seconds = 0;
           const line = open.lines[open.index];
-          // The people in the scene act it out: whoever is speaking turns to you with their lines lip-synced,
-          // and your character talks on your own lines.
+          // The people in the scene act it out (19b): whoever is speaking turns to you with their lines lip-synced
+          // and in the line's mood; your character talks on your own lines, picks up the note, reaches for the old
+          // photo, dances when the street changes, and wears the line's face. In a car, hands stay on the wheel.
+          const acting = lineActing(line, { mood: open.mood, previous: open.lines[open.index - 1] ?? null, driving: drivenIndex() >= 0 });
           if (shot?.kind === 'speaker' && SPEAKER_RESIDENTS[shot.speaker as keyof typeof SPEAKER_RESIDENTS]) {
             directed.speaking = SPEAKER_RESIDENTS[shot.speaker as keyof typeof SPEAKER_RESIDENTS]!;
-            npcSceneRef.current?.setConversation(directed.speaking, open.mood === 'ending' ? 'happy' : 'neutral', line?.text ?? '');
+            npcSceneRef.current?.setConversation(directed.speaking, acting.npcMood, line?.text ?? '');
           }
-          if (line?.speaker === 'you') riggedRef.current?.playAction('Talk');
-          cutsceneShotRef.current = shot ? { kind: shot.kind, index: open.index, subject: shot.subject } : null;
+          const body = riggedRef.current;
+          if (acting.gesture && acting.gesture !== 'hold') {
+            if (body?.playAction(acting.gesture)) directed.gesture = acting.gesture;
+          } else if (!acting.gesture && directed.gesture) {
+            if (body?.action === directed.gesture) body.stopAction();
+            directed.gesture = null;
+          }
+          cutsceneEmotionRef.current = acting.emotion;
+          cutsceneShotRef.current = shot ? { kind: shot.kind, index: open.index, subject: shot.subject, gesture: directed.gesture, emotion: acting.emotion } : null;
         } else directed.seconds += frame;
         const me = directorPlayer();
         const other = shot?.subject ? residentNear(shot.subject) : null;
@@ -2757,7 +2772,7 @@ export default function WorldScene({
         if (riggedRef.current) {
           // The neutral preview follows gameplay: sprinting briefly produces
           // exertion, while an explicitly selected emotion remains in control.
-          riggedRef.current.setEmotion(resolveCharacterEmotion(previewEmotionRef.current, movementSpeed));
+          riggedRef.current.setEmotion(cutsceneEmotionRef.current ?? resolveCharacterEmotion(previewEmotionRef.current, movementSpeed));
           riggedRef.current.update(movementSpeed, delta);
         }
         if (moving && !riggedRef.current) {

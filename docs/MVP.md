@@ -220,10 +220,28 @@ above is done or blocked; any item may be split into slices.
         opening's title card, establishing shot and first cut, the camera's return, and the range of shots across all
         three endings. Still to do: authored camera moves and staging for set pieces (the note under the door, the
         clubhouse photo, the street changing on Last Decision Day), character gestures beyond Talk.
+  - [x] 19b (partial slice). Acted set pieces (`storyActing.mjs`, story lines can carry a staged `beat`): you bend
+        to pick up the note slipped under the door while the opening establishes, and look uneasy reading it; at the
+        clubhouse the camera drops low over your shoulder and creeps towards the old team photo on the wall while you
+        reach for it (one move held over both lines), then pushes in slowly on your face for "A. Rivera. Ms. Rivera?";
+        when the street changes on Last Decision Day you break into a dance under the crane shot, in all three
+        endings. Your face follows the line (wide-eyed at the note and the reveal, happy through the endings), and
+        neighbours speak in the line's mood. Gestures stop when someone else speaks and when the scene closes, and in a
+        car your hands stay on the wheel. The guest playtest checks the new shots and that the pick-up, reach, dance,
+        talk and both faces all play across the three endings. Still to do: new clips for nods, shrugs and pointing
+        (the action library has none yet), staging a neighbour beside you for two-person set pieces.
 - [ ] **20. Visual quality pass**: better materials and lighting downtown, higher-detail characters (with the
       facial work), screen-space reflections on wet roads where the device can afford it.
 
 ## Found along the way
+
+- Fixed (19b): after a story scene where you spoke, your character kept the looping Talk animation going after the
+  scene closed (nothing stopped it), and a scene that played while driving swapped the Drive pose for Talk, taking
+  your hands off the wheel. Scene gestures are now stopped when the next speaker isn't you and when the scene ends,
+  and none play in a car.
+- 19b: the "clubhouse" photo shot looks at the wall ahead of wherever you stand when the scene opens (usually by the
+  pitch after full time); there is no clubhouse interior or photo prop yet, so the shot frames you and the sky line
+  rather than a picture. A small clubhouse with the 1998 photo would make this land properly.
 
 - 19a: story scenes can't be checked frame by frame in the sandbox (no npm install, so no Babylon); the shots are
   judged by `cutscene.test.mjs` (geometry) and the playtest's camera readings. Some neighbours keep walking while a

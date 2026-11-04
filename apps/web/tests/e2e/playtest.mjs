@@ -468,6 +468,10 @@ const playScene = () => page.evaluate(async () => {
     const kind = window.__tld.read().cutscene?.kind;
     window.__shotKinds = window.__shotKinds ?? {};
     window.__shotKinds[kind ?? 'none'] = (window.__shotKinds[kind ?? 'none'] ?? 0) + 1;
+    // Open-world 19b: what your character acted on this line (gesture and face).
+    const acted = window.__tld.read().cutscene;
+    window.__acting = window.__acting ?? {};
+    for (const key of [acted?.gesture && `gesture:${acted.gesture}`, acted?.emotion && `face:${acted.emotion}`]) if (key) window.__acting[key] = (window.__acting[key] ?? 0) + 1;
     scene.click();
     for (let wait = 0; wait < 60; wait++) {
       await sleep(50);
@@ -547,6 +551,17 @@ await step('story scenes are directed with a range of shots (open-world 19a)', a
   const missing = ['establish', 'narration', 'phone', 'crane'].filter(kind => !kinds[kind]);
   if (missing.length) throw new Error(`no ${missing.join(', ')} shots across the story`);
   if ((kinds.none ?? 0) > 3) throw new Error(`${kinds.none} story lines had no directed shot`);
+});
+await step('story scenes are acted: the note, the photo, the reveal and the celebrations (open-world 19b)', async () => {
+  const kinds = await page.evaluate(() => window.__shotKinds ?? {});
+  const acting = await page.evaluate(() => window.__acting ?? {});
+  notes.push(`story acting: ${Object.entries(acting).map(([key, count]) => `${key} ${count}`).join(', ') || 'none'}`);
+  const missingShots = ['detail', 'push'].filter(kind => !kinds[kind]);
+  if (missingShots.length) throw new Error(`no ${missingShots.join(', ')} shots across the story`);
+  const missing = ['gesture:Talk', 'gesture:PickUp', 'gesture:Interact', 'gesture:Dance', 'face:happy', 'face:fear'].filter(key => !acting[key]);
+  if (missing.length) throw new Error(`story scenes never showed ${missing.join(', ')}`);
+  // Three endings, three celebrations.
+  if ((acting['gesture:Dance'] ?? 0) < 3) throw new Error(`only ${acting['gesture:Dance'] ?? 0} of 3 endings celebrated`);
 });
 
 await step('a crash shows the error screen with a working reload button', async () => {
