@@ -284,6 +284,8 @@ above is done or blocked; any item may be split into slices.
 - 17a: you can't get out of the car on the open road (there's nowhere for the player to walk out of town; a notice
   says so), and downtown traffic is only drawn once you're in the city, so it appears as you arrive. The open-road
   speed limit can now build on #246 (per-vehicle specs in `stepVehicle`, merged); the cruiser and engine stop at downtown's edge rather than take the road.
+- 17a merged with 16a and 20a: a fire call's smoke and the new facades are built with the rest of downtown, so both
+  are already standing when you drive in on the open road; the road's fog blend replaces 20a's fixed downtown haze.
 - 20a: building heights in the OSM data aren't whole storeys, so the top row of windows can be cut by the roof
   line; the cornice hides most of it. Snapping the facade's v so the top storey ends on the roof would fix the rest.
   Awnings aren't solid (they're above head height, but the camera can pass through them), and the lit-window pattern
