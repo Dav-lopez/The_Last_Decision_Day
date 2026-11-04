@@ -214,6 +214,17 @@ above is done or blocked; any item may be split into slices.
         Still to do: police calls (traffic stop, lost child, noise complaint) and scored army checkpoints.
 - [ ] **17. Seamless road**: drive from Maple Street to downtown and back without a fade (streamed world).
 - [ ] **18. Weather and sky**: rain and wet roads, fog, sunsets, clouds; weather changes by day.
+  - [x] 18a (partial slice). Weather by day (`weather.mjs`, the same on every device, nothing saved): day 1 clear,
+        day 2 an afternoon shower, day 3 a foggy morning, then a mix (about 40 % clear, 25 % cloudy, 22 % showers,
+        13 % fog). Rain falls around the camera as streaks with splashes at your feet (fewer drops at lower adaptive
+        quality, none indoors), builds up and dies away over 15 minutes, and soaks the roads and pavements, which turn
+        darker and glossy under the sun and street lamps and dry over two and a half hours. Overcast days fade in a grey
+        cloud layer, hide the sun's glow, dim the sun and soften shadows; fog thickens and greys the haze and lifts by
+        late morning. A rain loop on the ambience bus (muffled indoors), captions when rain starts and stops, the
+        weather on the day clock ("Day 2 · 14:20 · Heavy rain", forecast on hover), and Mom's morning text warns of
+        rain or fog. The scene code loads the first time a day isn't clear. The guest playtest forces showers and fog
+        downtown and checks drops, wet roads, the HUD and both captions. Still to do: sunsets (a dusk sky between day
+        and evening), moving clouds, puddles and reflections (item 20), wet-road grip.
 - [ ] **19. Cinematic story**: camera-directed cutscenes with letterboxing and character animation for each
       chapter opening and the three endings.
   - [x] 19a (partial slice). Directed story scenes: while a story scene plays, a camera director (`cutscene.mjs`)
@@ -246,6 +257,10 @@ above is done or blocked; any item may be split into slices.
 
 ## Found along the way
 
+- 18a: the sky still switches straight from day to evening (`isEvening`); a sunset slice needs a gradual dusk
+  (sun angle and colour by minute) rather than the boolean `setEvening`, which the weather now multiplies on top of.
+  Wet roads only change the look; cars grip the same, and NPCs don't carry umbrellas or hurry in the rain yet.
+  Rain particles aren't fogged, so in thick fog plus rain the near drops read a little bright.
 - 19a: story scenes can't be checked frame by frame in the sandbox (no npm install, so no Babylon); the shots are
   judged by `cutscene.test.mjs` (geometry) and the playtest's camera readings. Some neighbours keep walking while a
   scene plays unless they are the one speaking, so a two-shot partner can drift out of the 9 m "in the scene" range;

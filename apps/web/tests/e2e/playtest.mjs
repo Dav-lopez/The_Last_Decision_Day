@@ -353,6 +353,29 @@ await step('downtown traffic drives', async () => {
   notes.push(`${(await read()).walkers} people walking downtown`);
   await shot('05b-traffic');
 });
+await step('weather: rain falls downtown, roads get wet, then fog (open-world 18a)', async () => {
+  // Day 1 is always clear, so the playtest forces the weather through the real weather code.
+  await page.evaluate(() => window.__tld.weather('showers'));
+  await waitFor('rain caption', timeout => page.waitForSelector('.world-sound-captions li:has-text("Rain starts falling")', { timeout }), 15000);
+  await waitFor('rain drops falling', timeout => page.waitForFunction(() => { const w = window.__tld.read().weather; return w.loaded && w.drops > 0 && w.wet > 0; }, null, { timeout, polling: 500 }), 120000);
+  const hud = await page.locator('.world-weather').first().textContent();
+  if (!/rain/i.test(hud ?? '')) throw new Error(`HUD weather says "${hud}"`);
+  const fps = await page.evaluate(() => new Promise(resolve => {
+    let frames = 0; const start = performance.now();
+    const tick = () => { frames++; if (performance.now() - start < 2000) requestAnimationFrame(tick); else resolve(frames / 2); };
+    requestAnimationFrame(tick);
+  }));
+  notes.push(`rain: ${(await read()).weather.drops} drops alive, ~${Math.round(fps)} fps in software rendering`);
+  await page.waitForTimeout(1500);
+  await shot('05c-rain');
+  await checkContrast('rain downtown');
+  await page.evaluate(() => window.__tld.weather('fog'));
+  await waitFor('dry caption', timeout => page.waitForSelector('.world-sound-captions li:has-text("The rain stops")', { timeout }), 15000);
+  await waitFor('rain stops in fog', timeout => page.waitForFunction(() => { const w = window.__tld.read().weather; return w.fog === 1 && w.rain === 0; }, null, { timeout }), 10000);
+  await page.waitForTimeout(1500);
+  await shot('05d-fog');
+  await page.evaluate(() => window.__tld.weather(null));
+});
 await step('talk to a downtown regular (guide, coach or fire captain)', async () => {
   // The regulars load just after the city; stand beside whoever is out now.
   await waitFor('a downtown regular to talk to', timeout => page.waitForFunction(() => window.__tld.place('neighbour'), null, { timeout, polling: 1000 }), 120000);
