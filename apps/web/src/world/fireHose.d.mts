@@ -1,0 +1,10 @@
+export type Fire = { x: number; z: number; heat: number; out: boolean; sprayed: number; water: number; burning: number; hitting: boolean };
+export type HoseAim = { distance: number; angle: number; inRange: boolean; onTarget: boolean; quality: number; hint: 'closer' | 'back' | 'aim' | null };
+export declare const HOSE: Readonly<{ minRange: number; maxRange: number; cone: number; knockdown: number; regrow: number; out: number; flow: number; smoulderSeconds: number }>;
+export declare function placeFire(stop: { x: number; z: number }, along: { x: number; z: number } | null | undefined, distance?: number): { x: number; z: number };
+export declare function createFire(at: { x: number; z: number }): Fire;
+export declare function aimAt(fire: Fire, from: { x: number; z: number; dx: number; dz: number }): HoseAim;
+export declare function stepFire(fire: Fire, input: { x: number; z: number; dx: number; dz: number; spraying?: boolean; seconds?: number }): { fire: Fire; aim: HoseAim; event: 'out' | null };
+export declare function hoseStatus(fire: Fire | null, aim: HoseAim | null, spraying?: boolean): { left: number; line: string };
+export declare function hoseReport(fire: Fire | null): { litres: number; seconds: number; efficiency: number; grade: string };
+export declare function particleBudget(quality: { scale?: number; base?: number } | null | undefined): { flames: number; smoke: number; water: number; factor: number };

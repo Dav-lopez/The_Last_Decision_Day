@@ -1,48 +1,35 @@
-import { Color3, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, Texture, VertexData, type Scene } from '@babylonjs/core';
-import { CITY_ORIGIN, laneDashes, pointInRing, triangulate, type City, type CityBuilding } from './cityLayout.mjs';
+import { type BaseTexture, Color3, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, Texture, VertexData, type Scene } from '@babylonjs/core';
+import { CITY_ORIGIN, laneDashes, pointInRing, triangulate, type City } from './cityLayout.mjs';
+import { awningSpans, drawFacade, FACADE_STYLES, FACADE_TILE, facadeVariant, litWindows, rooftopUnits } from './facadeDesign.mjs';
 
-const FLOOR = 3.4;
-const BAY = 3.2;
+const { bay: BAY, floor: FLOOR, bays: TILE_BAYS, floors: TILE_FLOORS } = FACADE_TILE;
+type StyleName = keyof typeof FACADE_STYLES;
 
-type Style = { wall: string; mortar: string; window: string; frame: string; storefront: boolean };
-const STYLES: Record<string, Style> = {
-  brick: { wall: '#9a4a36', mortar: '#7d3b2b', window: '#405a6e', frame: '#e8e1d2', storefront: true },
-  tan: { wall: '#c9ad86', mortar: '#ad9370', window: '#3f5a6b', frame: '#f2ece0', storefront: true },
-  house: { wall: '#c7cfd4', mortar: '#aab3b9', window: '#4a6577', frame: '#ffffff', storefront: false },
-  stone: { wall: '#d7d0bf', mortar: '#bdb5a3', window: '#33495a', frame: '#efe9dc', storefront: false },
-  modern: { wall: '#7d8a93', mortar: '#6c7880', window: '#2c4252', frame: '#c9d2d8', storefront: true },
-};
-function styleFor(building: CityBuilding): keyof typeof STYLES {
-  if (['civic', 'government', 'public', 'church', 'school', 'university'].includes(building.kind) || /Courthouse|Library|Municipal|Post Office/.test(building.name)) return 'stone';
-  if (['house', 'detached', 'residential', 'terrace', 'garage', 'garages', 'shed'].includes(building.kind)) return 'house';
-  if (building.height > 18 || building.kind === 'office' || building.kind === 'hotel') return 'modern';
-  return building.id % 3 === 0 ? 'tan' : 'brick';
-}
-
-/** One storey, one window bay: tiled across every wall by its UVs. */
-function facadeTexture(scene: Scene, name: string, style: Style) {
-  const texture = new DynamicTexture(`city facade ${name}`, { width: 256, height: 256 }, scene, true);
-  const c = texture.getContext() as unknown as CanvasRenderingContext2D;
-  c.fillStyle = style.wall;
-  c.fillRect(0, 0, 256, 256);
-  c.fillStyle = style.mortar;
-  for (let y = 0; y < 256; y += 10) for (let x = (y / 10) % 2 ? 0 : 14; x < 256; x += 28) c.fillRect(x, y, 2, 10);
-  for (let y = 0; y < 256; y += 10) c.fillRect(0, y, 256, 1);
-  c.fillStyle = style.frame;
-  c.fillRect(56, 44, 144, 150);
-  c.fillStyle = style.window;
-  c.fillRect(66, 54, 124, 130);
-  c.fillStyle = '#9fbdd055';
-  c.fillRect(70, 58, 50, 60);
-  c.fillStyle = style.frame;
-  c.fillRect(124, 54, 8, 130);
-  c.fillRect(66, 116, 124, 6);
-  c.fillRect(46, 196, 164, 10);
+/**
+ * Four bays by four storeys of one style, as a 512 px canvas: 'day' colour, 'night' lit windows (the
+ * emissive map after dark) or 'gloss' (glass shines, walls stay matte). Walls tile it by their UVs.
+ */
+function facadeTexture(scene: Scene, style: StyleName, mode: 'day' | 'night' | 'gloss') {
+  // The colour map gets 128 px per bay; the gloss and night maps are soft anyway, so a quarter of the memory.
+  const size = mode === 'day' ? 512 : 256;
+  const texture = new DynamicTexture(`city facade ${style} ${mode}`, { width: size, height: size }, scene, true);
+  drawFacade(texture.getContext() as unknown as CanvasRenderingContext2D, style, size, mode, litWindows(style.length * 31 + 2));
   texture.update();
-  // Dynamic textures clamp by default; facades tile one window bay per 3.2 m × 3.4 m.
+  // Dynamic textures clamp by default; facades must repeat along every wall.
   texture.wrapU = Texture.WRAP_ADDRESSMODE;
   texture.wrapV = Texture.WRAP_ADDRESSMODE;
   texture.anisotropicFilteringLevel = 8;
+  return texture;
+}
+
+/** Canvas awning stripes along the length; the colour comes from each shop's vertex colour. */
+function awningTexture(scene: Scene) {
+  const texture = new DynamicTexture('city awning stripes', { width: 64, height: 16 }, scene, true);
+  const c = texture.getContext() as unknown as CanvasRenderingContext2D;
+  c.fillStyle = '#ffffff'; c.fillRect(0, 0, 64, 16);
+  c.fillStyle = '#d8d2c4'; c.fillRect(32, 0, 32, 16);
+  texture.update();
+  texture.wrapU = Texture.WRAP_ADDRESSMODE;
   return texture;
 }
 
@@ -63,21 +50,33 @@ function speckleTexture(scene: Scene, name: string, base: string, flecks: string
   return texture;
 }
 
-type Buffers = { positions: number[]; normals: number[]; uvs: number[]; indices: number[] };
-const buffers = (): Buffers => ({ positions: [], normals: [], uvs: [], indices: [] });
+type Buffers = { positions: number[]; normals: number[]; uvs: number[]; indices: number[]; colors: number[] };
+const buffers = (): Buffers => ({ positions: [], normals: [], uvs: [], indices: [], colors: [] });
 function toMesh(scene: Scene, name: string, data: Buffers, material: StandardMaterial) {
   const mesh = new Mesh(name, scene);
   const vertexData = new VertexData();
-  Object.assign(vertexData, data);
+  vertexData.positions = data.positions;
+  vertexData.normals = data.normals;
+  vertexData.uvs = data.uvs;
+  vertexData.indices = data.indices;
+  // Per-building tints ride on vertex colours, so a whole style is still one draw call.
+  if (data.colors.length) vertexData.colors = data.colors;
   vertexData.applyToMesh(mesh);
   mesh.material = material;
   mesh.isPickable = false;
   mesh.freezeWorldMatrix();
   return mesh;
 }
+/** Gives every vertex added since `from` this colour. */
+function paint(target: Buffers, from: number, rgb: readonly number[]) {
+  for (let i = from; i < target.positions.length / 3; i++) target.colors.push(rgb[0], rgb[1], rgb[2], 1);
+}
 
-/** Wall quads with outward normals; the ring is counter-clockwise (x east, z north). */
-function addWalls(target: Buffers, ring: number[][], height: number, base = 0, offset = 0) {
+/**
+ * Wall quads with outward normals; the ring is counter-clockwise (x east, z north). UVs are in facade
+ * tiles (four bays by four storeys); `uShift` (in bays) moves where the window grid starts along each wall.
+ */
+function addWalls(target: Buffers, ring: number[][], height: number, base = 0, offset = 0, uShift = 0) {
   for (let i = 0; i < ring.length; i++) {
     const [ax, az] = ring[i];
     const [bx, bz] = ring[(i + 1) % ring.length];
@@ -90,8 +89,51 @@ function addWalls(target: Buffers, ring: number[][], height: number, base = 0, o
     const start = target.positions.length / 3;
     target.positions.push(x0, base, z0, x1, base, z1, x1, base + height, z1, x0, base + height, z0);
     for (let k = 0; k < 4; k++) target.normals.push(nx, 0, nz);
-    const u = length / BAY; const v = height / FLOOR;
-    target.uvs.push(0, 0, u, 0, u, v, 0, v);
+    const u0 = uShift / TILE_BAYS; const u1 = u0 + length / BAY / TILE_BAYS;
+    const v0 = base / FLOOR / TILE_FLOORS; const v1 = (base + height) / FLOOR / TILE_FLOORS;
+    target.uvs.push(u0, v0, u1, v0, u1, v1, u0, v1);
+    target.indices.push(start, start + 1, start + 2, start, start + 2, start + 3);
+  }
+}
+
+/** An axis-aligned box (rooftop plant), city-local x/z, sitting on `y`. */
+function addBox(target: Buffers, x: number, y: number, z: number, width: number, height: number, depth: number) {
+  const cx = CITY_ORIGIN.x + x; const cz = CITY_ORIGIN.z + z;
+  const hx = width / 2; const hz = depth / 2;
+  const faces: Array<[number[], number[][]]> = [
+    [[0, 1, 0], [[-hx, height, -hz], [-hx, height, hz], [hx, height, hz], [hx, height, -hz]]],
+    [[0, 0, 1], [[-hx, 0, hz], [hx, 0, hz], [hx, height, hz], [-hx, height, hz]]],
+    [[0, 0, -1], [[hx, 0, -hz], [-hx, 0, -hz], [-hx, height, -hz], [hx, height, -hz]]],
+    [[1, 0, 0], [[hx, 0, hz], [hx, 0, -hz], [hx, height, -hz], [hx, height, hz]]],
+    [[-1, 0, 0], [[-hx, 0, -hz], [-hx, 0, hz], [-hx, height, hz], [-hx, height, -hz]]],
+  ];
+  for (const [normal, corners] of faces) {
+    const start = target.positions.length / 3;
+    for (const [px, py, pz] of corners) {
+      target.positions.push(cx + px, y + py, cz + pz);
+      target.normals.push(normal[0], normal[1], normal[2]);
+    }
+    target.uvs.push(0, 0, 1, 0, 1, 1, 0, 1);
+    target.indices.push(start, start + 1, start + 2, start, start + 2, start + 3);
+  }
+}
+
+/** A shop awning over a wall span: a canvas slope out from the wall and a short valance at the front. */
+function addAwning(target: Buffers, a: number[], b: number[], normal: number[]) {
+  const top = 3.2; const drop = 0.55; const reach = 1.25; const valance = 0.24;
+  const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  const [nx, nz] = normal;
+  const at = (p: number[], out: number, y: number) => [CITY_ORIGIN.x + p[0] + nx * out, y, CITY_ORIGIN.z + p[1] + nz * out];
+  const slope = Math.hypot(reach, drop);
+  const quads: Array<[number[], number[][]]> = [
+    [[nx * drop / slope, reach / slope, nz * drop / slope], [at(a, 0.05, top), at(b, 0.05, top), at(b, reach, top - drop), at(a, reach, top - drop)]],
+    [[nx, 0, nz], [at(a, reach, top - drop), at(b, reach, top - drop), at(b, reach, top - drop - valance), at(a, reach, top - drop - valance)]],
+  ];
+  const stripes = length / 0.9;
+  for (const [n, corners] of quads) {
+    const start = target.positions.length / 3;
+    for (const [px, py, pz] of corners) { target.positions.push(px, py, pz); target.normals.push(n[0], n[1], n[2]); }
+    target.uvs.push(0, 1, stripes, 1, stripes, 0, 0, 0);
     target.indices.push(start, start + 1, start + 2, start, start + 2, start + 3);
   }
 }
@@ -150,11 +192,14 @@ function offsetLine(points: number[][], offset: number) {
 /**
  * Builds the whole downtown: buildings extruded to their real heights with
  * per-type facades and storefront glass, flat roofs, streets, paths, parks with
- * trees and labels on named landmarks. Returns a dispose function.
+ * trees and labels on named landmarks; cornices, rooftop plant and shop awnings
+ * (open-world 20a). Returns a dispose function that also switches the lit
+ * windows on after dark (`setEvening`).
  */
-export function buildCityScene(scene: Scene, city: City): () => void {
+export function buildCityScene(scene: Scene, city: City) {
   const meshes: Mesh[] = [];
   const materials: StandardMaterial[] = [];
+  const textures: DynamicTexture[] = [];
   const material = (name: string, setup: (m: StandardMaterial) => void) => {
     const m = new StandardMaterial(`city ${name}`, scene);
     m.specularColor = new Color3(0.06, 0.06, 0.06);
@@ -170,32 +215,86 @@ export function buildCityScene(scene: Scene, city: City): () => void {
   ground.isPickable = false;
   meshes.push(ground);
 
-  const walls: Record<string, Buffers> = {};
+  const walls: Partial<Record<StyleName, Buffers>> = {};
   const storefronts = buffers();
   const roofs = buffers();
+  const parapets = buffers();
+  const plant = buffers();
+  const awnings = buffers();
+  let awningCount = 0;
+  let plantCount = 0;
   for (const building of city.buildings) {
-    const style = styleFor(building);
-    walls[style] ??= buffers();
-    addWalls(walls[style], building.ring, building.height);
+    const { style, tint, bayShift, parapet } = facadeVariant(building);
+    const look = FACADE_STYLES[style];
+    const target = (walls[style] ??= buffers());
+    const from = target.positions.length / 3;
+    addWalls(target, building.ring, building.height, 0, 0, bayShift);
+    paint(target, from, tint);
     addCap(roofs, building.ring, building.height);
-    if (STYLES[style].storefront && (building.shop || ['commercial', 'retail'].includes(building.kind))) {
+    if (parapet > 0) {
+      // A cornice that stands proud of the wall and rises past the roof as a parapet.
+      const start = parapets.positions.length / 3;
+      addWalls(parapets, building.ring, parapet + 0.32, building.height - 0.32, 0.14);
+      const trim = Color3.FromHexString(look.trim);
+      paint(parapets, start, [trim.r * tint[0], trim.g * tint[1], trim.b * tint[2]]);
+    }
+    for (const unit of rooftopUnits(building)) {
+      const start = plant.positions.length / 3;
+      addBox(plant, unit.x, building.height, unit.z, unit.width, unit.height, unit.depth);
+      paint(plant, start, unit.kind === 'housing' ? [0.78, 0.76, 0.72] : [0.62, 0.65, 0.67]);
+      plantCount++;
+    }
+    if (look.storefront && (building.shop || ['commercial', 'retail'].includes(building.kind))) {
       addWalls(storefronts, building.ring, 2.7, 0.35, 0.04);
     }
+    for (const span of awningSpans(building, city.roads)) {
+      const start = awnings.positions.length / 3;
+      addAwning(awnings, span.a, span.b, span.normal);
+      const colour = Color3.FromHexString(span.colour);
+      paint(awnings, start, [colour.r, colour.g, colour.b]);
+      awningCount++;
+    }
   }
-  for (const [style, data] of Object.entries(walls)) {
-    const wall = material(`${style} facade`, m => { m.diffuseTexture = facadeTexture(scene, style, STYLES[style]); m.backFaceCulling = false; });
+  // Lit windows after dark: each style's night map goes on as its emissive texture in the evening.
+  const nightMaps: Array<{ material: StandardMaterial; night: DynamicTexture }> = [];
+  for (const [style, data] of Object.entries(walls) as Array<[StyleName, Buffers]>) {
+    const night = facadeTexture(scene, style, 'night');
+    textures.push(night);
+    const wall = material(`${style} facade`, m => {
+      m.diffuseTexture = facadeTexture(scene, style, 'day');
+      // Glass catches the sun and the street lamps; brick and stucco stay matte.
+      m.specularTexture = facadeTexture(scene, style, 'gloss');
+      m.specularColor = new Color3(0.55, 0.55, 0.55);
+      m.specularPower = 48;
+      m.backFaceCulling = false;
+    });
+    nightMaps.push({ material: wall, night });
     const mesh = toMesh(scene, `city ${style} walls`, data, wall);
     mesh.checkCollisions = true;
     meshes.push(mesh);
   }
-  meshes.push(toMesh(scene, 'city storefronts', storefronts, material('storefront glass', m => {
+  const shopGlass = material('storefront glass', m => {
     m.diffuseColor = Color3.FromHexString('#24333d');
     m.emissiveColor = new Color3(0.08, 0.1, 0.11);
     m.specularColor = new Color3(0.7, 0.7, 0.7);
     m.backFaceCulling = false;
-  })));
+  });
+  meshes.push(toMesh(scene, 'city storefronts', storefronts, shopGlass));
   meshes.push(toMesh(scene, 'city roofs', roofs, material('roofs', m => {
     m.diffuseTexture = speckleTexture(scene, 'roof gravel', '#6d6a66', ['#5b5854', '#7f7c77'], 1);
+    m.backFaceCulling = false;
+  })));
+  meshes.push(toMesh(scene, 'city cornices', parapets, material('cornice', m => {
+    m.diffuseTexture = speckleTexture(scene, 'cornice stone', '#f2f0ea', ['#e2dfd7', '#d6d2c8'], 1);
+    m.backFaceCulling = false;
+  })));
+  meshes.push(toMesh(scene, 'city rooftop plant', plant, material('rooftop plant', m => {
+    m.diffuseTexture = speckleTexture(scene, 'galvanised', '#e4e6e8', ['#d2d5d8', '#c3c7cb'], 1);
+    m.specularColor = new Color3(0.25, 0.25, 0.25);
+    m.backFaceCulling = false;
+  })));
+  meshes.push(toMesh(scene, 'city awnings', awnings, material('awning canvas', m => {
+    m.diffuseTexture = awningTexture(scene);
     m.backFaceCulling = false;
   })));
 
@@ -297,8 +396,23 @@ export function buildCityScene(scene: Scene, city: City): () => void {
     meshes.push(sign);
   }
 
-  return () => {
+  let evening = false;
+  const dispose = () => {
     for (const mesh of meshes) mesh.dispose();
+    // Each texture once, whether it is on a material now (day maps, labels) or waiting for the evening.
+    const owned = new Set<BaseTexture>(textures);
+    for (const m of materials) for (const t of m.getActiveTextures()) owned.add(t);
     for (const m of materials) m.dispose();
+    for (const t of owned) t.dispose();
   };
+  return Object.assign(dispose, {
+    /** After dark, windows light up (about two in five) and shop glass glows warm. */
+    setEvening(on: boolean) {
+      evening = on;
+      for (const { material: m, night } of nightMaps) m.emissiveTexture = on ? night : null;
+      shopGlass.emissiveColor = on ? new Color3(0.62, 0.5, 0.34) : new Color3(0.08, 0.1, 0.11);
+    },
+    /** What the playtest checks: facade styles in use, awnings, rooftop plant, and whether windows are lit. */
+    look: () => ({ styles: nightMaps.length, awnings: awningCount, rooftop: plantCount, lit: evening }),
+  });
 }

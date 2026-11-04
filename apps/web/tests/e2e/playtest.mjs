@@ -329,6 +329,20 @@ await step('quick travel downtown', async () => {
   await shot('05-downtown');
   await checkContrast('downtown');
 });
+await step('downtown facades: cornices, rooftop plant, awnings and lit windows after dark', async () => {
+  const look = (await read()).cityLook;
+  if (!look) throw new Error('downtown reports no facade details');
+  if (look.styles < 4) throw new Error(`only ${look.styles} facade styles downtown`);
+  if (look.awnings < 30 || look.rooftop < 60) throw new Error(`too few details: ${look.awnings} awnings, ${look.rooftop} rooftop units`);
+  const lighting = page.getByRole('button', { name: /Switch lighting/ });
+  const startedLit = look.lit;
+  await lighting.click();
+  await waitFor('windows switch with the lights', timeout => page.waitForFunction(lit => window.__tld.read().cityLook?.lit === !lit, startedLit, { timeout }));
+  if (!startedLit) await shot('05a-downtown-night');
+  await lighting.click();
+  await waitFor('windows switch back', timeout => page.waitForFunction(lit => window.__tld.read().cityLook?.lit === lit, startedLit, { timeout }));
+  notes.push(`downtown: ${look.styles} facade styles, ${look.awnings} awnings, ${look.rooftop} rooftop units`);
+});
 await step('downtown traffic drives', async () => {
   await page.waitForFunction(() => window.__tld.read().traffic.length > 0, null, { timeout: 120000 });
   const before = (await read()).traffic;
@@ -382,7 +396,7 @@ await step('minimap shows, and a map waypoint gives a GPS route', async () => {
   notes.push(`GPS route ${Math.round(await page.evaluate(() => window.__tld.route()))} m`);
   await shot('05d-minimap-route');
 });
-await step('career duty: a fire call downtown, paid on sign-off (MVP 8b)', async () => {
+await step('career duty: a fire call downtown, the hose on a burning skip, paid on sign-off (MVP 8b, open-world 16a)', async () => {
   if (!(await page.evaluate(() => window.__tld.place('firefighter')))) throw new Error('fire station sign not found downtown');
   const apply = page.locator('.world-car-action', { hasText: /Apply: Firefighter/ });
   await waitFor('apply button at the fire station', timeout => apply.waitFor({ timeout }));
@@ -404,6 +418,31 @@ await step('career duty: a fire call downtown, paid on sign-off (MVP 8b)', async
     const at = (await read()).duty?.next;
     if (at === undefined) break;
     if (!(await page.evaluate(() => window.__tld.place('duty')))) throw new Error(`could not stand at duty stop ${at + 1}`);
+    if (at === 0) {
+      // Open-world 16a: the first stop is a burning skip. The run waits there until the hose has put it out.
+      await waitFor('arrived at the fire', timeout => page.waitForFunction(() => window.__tld.read().duty?.beat === 'hose', null, { timeout }));
+      const lit = (await read()).fire;
+      if (!lit || lit.out || !(lit.heat > 0.9)) throw new Error(`no fire burning at the call: ${JSON.stringify(lit)}`);
+      await waitFor('fire meter on the duty card', timeout => page.locator('.world-duty-fire [role=meter]').waitFor({ timeout }));
+      await waitFor('flames drawn', timeout => page.waitForFunction(() => window.__tld.read().fire?.drawn, null, { timeout }));
+      await page.waitForTimeout(1500);
+      await shot('05e-fire-call');
+      // Hold Space (the hose) with the 3D view focused; the soft aim assist keeps the jet on the flames.
+      await page.locator('canvas').first().focus();
+      await page.keyboard.down(' ');
+      try {
+        await waitFor('the hose sprays', timeout => page.waitForFunction(() => window.__tld.read().fire?.spraying, null, { timeout }));
+        await page.waitForTimeout(1200);
+        await shot('05e-hose');
+        await waitFor('fire knocked down by the hose', timeout => page.waitForFunction(() => window.__tld.read().fire?.out, null, { timeout }), 240000);
+      } finally { await page.keyboard.up(' '); }
+      const out = await read();
+      if (out.duty?.beat) throw new Error('the duty stayed at the fire after it went out');
+      if (out.duty?.next !== 1) throw new Error(`the fire call did not move on to stop 2 (next ${out.duty?.next})`);
+      if (!(out.fire.water > 0)) throw new Error('no water used');
+      notes.push(`fire out with ${Math.round(out.fire.water)} L of water`);
+      continue;
+    }
     await waitFor(`duty stop ${at + 1} counts`, timeout => page.waitForFunction(n => window.__tld.read().duty?.next !== n, at, { timeout }));
   }
   await waitFor('shift signed off and paid', timeout => page.waitForFunction(shifts => { const s = window.__tld.read(); return !s.duty && !s.busy && s.career.shifts > shifts; }, career.shifts, { timeout }));
