@@ -73,6 +73,8 @@ import { buildWorkplaces, createTaskMarker } from './careersScene';
 import { TASKS, finishBeat, formatClock as formatDutyClock, planTask, stepTask, taskResult, taskStatus, type CareerTask } from './careerTasks.mjs';
 import { aimAt, createFire, hoseReport, hoseStatus, stepFire, type Fire } from './fireHose.mjs';
 import type { FireCallView } from './fireCallScene';
+import { callFor, callResult, callStatus, callTarget, chooseCall, holdsTask, planCall, resolveCall, stepCall, type PoliceCall } from './policeCalls.mjs';
+import type { PoliceCallView } from './policeCallScene';
 import { CareersPanel } from './CareersPanel';
 import { bindActions, loadActionClips } from './characterActions';
 import { bodyLean, headingDelta, jumpFor, jumpHeight } from './actionMixer.mjs';
@@ -628,6 +630,9 @@ export default function WorldScene({
   // A career duty under way downtown (MVP 8b): HUD summary, and a way to give it up.
   const [duty, setDuty] = useState<ReturnType<typeof taskStatus>>(null);
   const dutyActionsRef = useRef<{ giveUp: () => void }>({ giveUp: () => {} });
+  // A police call on a patrol (16b): what's happening and the three answers on offer (keys 1–3 or the buttons).
+  const [policeCallView, setPoliceCallView] = useState<ReturnType<typeof callStatus>>(null);
+  const callActionsRef = useRef<{ choose: (index: number) => void; answering: () => boolean }>({ choose: () => {}, answering: () => false });
   // The fire on a fire call (16a): how much is left, what to fix, and whether the hose is in reach (HOSE button).
   const [hose, setHose] = useState<{ left: number; line: string; ready: boolean; spraying: boolean } | null>(null);
   const [atSchool, setAtSchool] = useState(false);
@@ -1005,9 +1010,23 @@ export default function WorldScene({
       let activeTask: { task: CareerTask; result: Extract<ReturnType<typeof workShift>, { ok: true }> } | null = null;
       const taskMarker = createTaskMarker(scene);
       let dutyTimer = 0;
+      // A police call on the patrol (16b): its rules (policeCalls.mjs, city-local) and its people (loaded on demand).
+      let policeCall: PoliceCall | null = null;
+      let callScene: PoliceCallView | null = null;
+      let callLoad = 0;
+      let callBeat = 0;
+      const clearCall = () => {
+        callLoad++;
+        policeCall = null;
+        callScene?.dispose();
+        callScene = null;
+        setPoliceCallView(null);
+      };
       const showTaskStop = () => {
+        // Walking a lost child home, the beam stands over his dad instead of the patrol's next stop.
+        const target = callTarget(policeCall);
         const stop = activeTask ? activeTask.task.stops[activeTask.task.next] : null;
-        taskMarker.show(stop ? toWorld([stop.x, stop.z]) : null, activeTask?.task.career ?? null, Boolean(stop?.final));
+        taskMarker.show(target ? toWorld([target.x, target.z]) : stop ? toWorld([stop.x, stop.z]) : null, activeTask?.task.career ?? null, Boolean(stop?.final && !target));
       };
       // A fire call's fire: the rules (fireHose.mjs, city-local) and its flames, smoke and water (loaded on demand).
       let callFire: { fire: Fire; at: PlanarPosition; along: { x: number; z: number }; sinceOut: number; spraying: boolean; crackle: number; report?: string } | null = null;
@@ -1043,12 +1062,29 @@ export default function WorldScene({
         && locationRef.current === 'city' && Math.hypot(callFire.at.x - position.x, callFire.at.z - position.z) < 14);
       const endTask = (message: string | null) => {
         activeTask = null;
+        clearCall();
         clearFire();
         showTaskStop();
         setDuty(null);
         if (message) notify(message);
       };
       dutyActionsRef.current.giveUp = () => { if (activeTask) endTask('Duty given up: no pay for this shift.'); };
+      callActionsRef.current.answering = () => Boolean(activeTask && policeCall?.phase === 'talk');
+      callActionsRef.current.choose = (index: number) => {
+        if (!activeTask || !policeCall) return;
+        const { call, event } = chooseCall(policeCall, index);
+        if (!event) return;
+        policeCall = call;
+        audioRef.current?.cue('talk');
+        if (event.type === 'resolved') {
+          activeTask = { ...activeTask, task: resolveCall(activeTask.task, call) };
+          audioRef.current?.cue('checkpoint');
+        }
+        notify(event.line);
+        showTaskStop();
+        setPoliceCallView(callStatus(call));
+        setDuty(taskStatus(activeTask.task));
+      };
       const startShift = (id: CareerId) => {
         const current = careerRef.current;
         if (activeTask) { notify(`Finish your duty first: ${taskStatus(activeTask.task)!.next}.`); return; }
@@ -1063,8 +1099,20 @@ export default function WorldScene({
         const result = workShift(current, { minute: life.minute, totalMinutes: lifeTotalMinutes(life), energy: life.energy });
         if (!result.ok) { notify(result.reason); return; }
         const door = workDoors.get(id);
-        const task = door && roadGraph ? planTask(id, roadGraph, (([x, z]) => ({ x, z }))(toLocal(door)),
+        let task = door && roadGraph ? planTask(id, roadGraph, (([x, z]) => ({ x, z }))(toLocal(door)),
           { seed: current.shifts + 1, collider: downtownSite?.collider ?? null }) : null;
+        // A patrol carries a call from dispatch: a lost child, a traffic stop or a noise complaint, in turn.
+        clearCall();
+        const planned = task && id === 'police' ? planCall(task, callFor(current.shifts + 1), roadGraph) : null;
+        if (planned) {
+          task = planned.task;
+          policeCall = planned.call;
+          const token = ++callLoad;
+          void import('./policeCallScene').then(module => {
+            if (disposed || token !== callLoad || !policeCall) return;
+            callScene = module.createPoliceCall(scene, policeCall, shadows);
+          }).catch(() => { /* The call still plays as a conversation. */ });
+        }
         if (task) {
           activeTask = { task, result };
           // The GPS follows the duty: a map waypoint of your own gives way to it.
@@ -1073,7 +1121,9 @@ export default function WorldScene({
           showTaskStop();
           lightFire(task);
           setDuty(taskStatus(task));
-          notify(`${task.title}: ${task.brief} Par ${formatDutyClock(task.par)}.`);
+          notify(policeCall ? `${task.title}: ${callStatus(policeCall)!.prompt} Par ${formatDutyClock(task.par)}.`
+            : `${task.title}: ${task.brief} Par ${formatDutyClock(task.par)}.`);
+          setPoliceCallView(callStatus(policeCall));
           audioRef.current?.cue('dispatch');
           return;
         }
@@ -1685,6 +1735,8 @@ export default function WorldScene({
             cityLook: cityLook?.() ?? null,
             career: { id: careerRef.current.career, shifts: careerRef.current.shifts, money: careerRef.current.money },
             duty: activeTask ? { id: activeTask.task.id, next: activeTask.task.next, stops: activeTask.task.stops.length, elapsed: activeTask.task.elapsed, par: activeTask.task.par, beat: activeTask.task.beat } : null,
+            call: policeCall ? { kind: policeCall.kind, stop: policeCall.stop, phase: policeCall.phase, tone: policeCall.tone, drawn: callScene !== null,
+              child: policeCall.child ? Math.hypot(policeCall.child.x - toLocal(position)[0], policeCall.child.z - toLocal(position)[1]) : null } : null,
             fire: callFire ? { heat: callFire.fire.heat, out: callFire.fire.out, spraying: callFire.spraying, water: callFire.fire.water, drawn: fireView !== null } : null,
             busy: pendingShift !== null,
             decor: decorShownRef.current,
@@ -1719,9 +1771,11 @@ export default function WorldScene({
             }
             else if (spot === 'duty') {
               const stop = activeTask && where === 'city' ? activeTask.task.stops[activeTask.task.next] : null;
-              to = stop ? toWorld([stop.x, stop.z]) : null;
+              // Walking a lost child home: beside his dad.
+              const target = activeTask && where === 'city' ? callTarget(policeCall) : null;
+              to = target ? toWorld([target.x, target.z]) : stop ? toWorld([stop.x, stop.z]) : null;
               // At a fire, stand on the ring facing the flames.
-              if (stop?.hose) rotation = movementHeading(stop.hose.x - stop.x, stop.hose.z - stop.z);
+              if (!target && stop?.hose) rotation = movementHeading(stop.hose.x - stop.x, stop.hose.z - stop.z);
             }
             else if (where === 'city') to = workDoors.get(spot as CareerId) ?? null;
             if (!to) return false;
@@ -2252,6 +2306,10 @@ export default function WorldScene({
           // In a car, H holds the horn and Space holds the handbrake.
           event.preventDefault();
           inputRef.current.press(`keyboard:${key}`, key);
+        } else if (/^[1-3]$/.test(key) && !event.repeat && callActionsRef.current.answering()) {
+          // A police call: 1–3 picks an answer.
+          event.preventDefault();
+          callActionsRef.current.choose(Number(key) - 1);
         } else if (key === ' ' && hoseReady()) {
           // On a fire call, Space holds the hose (instead of a jump).
           event.preventDefault();
@@ -2404,7 +2462,7 @@ export default function WorldScene({
             // With no waypoint of your own, the GPS follows the story objective.
             if (!waypoint?.manual) {
               const stop = activeTask ? activeTask.task.stops[activeTask.task.next] : null;
-              const target = stop ? { x: stop.x, z: stop.z, label: stop.final ? TASKS[activeTask!.task.career].signOff : `${activeTask!.task.title} · ${taskStatus(activeTask!.task)!.next}` } : objectiveWaypoint();
+              const target = (activeTask ? callTarget(policeCall) : null) ?? (stop ? { x: stop.x, z: stop.z, label: stop.final ? TASKS[activeTask!.task.career].signOff : `${activeTask!.task.title} · ${taskStatus(activeTask!.task)!.next}` } : objectiveWaypoint());
               waypoint = target ? { ...target, manual: false } : null;
             }
             const driven = drivenIndex();
@@ -2435,7 +2493,41 @@ export default function WorldScene({
           else if (!pendingTaxi && !pendingDrive && !pendingRide) {
             const driven = drivenIndex();
             const [tx, tz] = toLocal(driven >= 0 ? cars[driven] : position);
-            let { task, event } = stepTask(activeTask.task, { x: tx, z: tz, seconds: delta, driving: driven >= 0 });
+            let { task, event } = holdsTask(activeTask.task, policeCall)
+              // Held at the call: the clock runs, the call decides when the patrol moves on.
+              ? { task: { ...activeTask.task, elapsed: activeTask.task.elapsed + Math.min(1, delta) }, event: null as ReturnType<typeof stepTask>['event'] }
+              : stepTask(activeTask.task, { x: tx, z: tz, seconds: delta, driving: driven >= 0 });
+            if (policeCall && !policeCall.done) {
+              const stepped = stepCall(policeCall, { x: tx, z: tz, heading: avatar.rotation.y, seconds: delta, driving: driven >= 0 });
+              policeCall = stepped.call;
+              const happened = stepped.event;
+              if (happened?.type === 'arrive') {
+                notify(happened.line);
+                audioRef.current?.cue(policeCall.kind === 'noise-complaint' ? 'knock' : 'talk');
+                setPoliceCallView(callStatus(policeCall));
+              } else if (happened?.type === 'on-foot') notify('Park up and talk to them on foot.');
+              else if (happened?.type === 'resolved') {
+                task = resolveCall(task, policeCall);
+                notify(happened.line);
+                audioRef.current?.cue('reunite');
+                showTaskStop();
+                setPoliceCallView(callStatus(policeCall));
+              }
+            }
+            // A party's bass thumps while you're near it, until you've had a word.
+            if (policeCall?.kind === 'noise-complaint' && (policeCall.phase === 'travel' || policeCall.phase === 'talk')
+              && Math.hypot(tx - policeCall.x, tz - policeCall.z) < 40) {
+              callBeat -= delta;
+              if (callBeat <= 0) { callBeat = 0.5; audioRef.current?.cue('thump'); }
+            }
+            if (policeCall && callScene) {
+              callScene.update(delta, policeCall, quality);
+              // Once it's settled and you've walked on, the call's people and car are tidied away.
+              if (policeCall.done && Math.hypot(tx - policeCall.x, tz - policeCall.z) > 60
+                && (!policeCall.parent || Math.hypot(tx - policeCall.parent.x, tz - policeCall.parent.z) > 60)) {
+                callScene.dispose(); callScene = null; callLoad++;
+              }
+            }
             // The hose: spray while Space or HOSE is held; standing still, you turn onto the flames (a soft aim assist).
             if (callFire) {
               const walking = driven < 0;
@@ -2496,11 +2588,14 @@ export default function WorldScene({
             else if (event?.type === 'done') {
               const { result } = activeTask;
               const outcome = taskResult(task, result.pay);
-              const paid = { ...result, pay: result.pay + outcome.bonus, state: { ...result.state, money: result.state.money + outcome.bonus } };
-              const timing = `${outcome.title} (${formatDutyClock(outcome.seconds)}, par ${formatDutyClock(outcome.par)})`;
+              // A police call is paid on top, by how you treated people.
+              const conduct = policeCall ? callResult(policeCall, result.pay) : null;
+              const bonus = outcome.bonus + (conduct?.bonus ?? 0);
+              const paid = { ...result, pay: result.pay + bonus, state: { ...result.state, money: result.state.money + bonus } };
+              const timing = `${outcome.title} (${formatDutyClock(outcome.seconds)}, par ${formatDutyClock(outcome.par)})${conduct?.grade ? ` · call: ${conduct.title}` : ''}`;
               endTask(null);
               audioRef.current?.cue('checkpoint');
-              pendingShift = { result: paid, timer: 0, note: `${task.title}: ${timing}. +$${paid.pay}${outcome.bonus ? ` with a $${outcome.bonus} bonus` : ''}.` };
+              pendingShift = { result: paid, timer: 0, note: `${task.title}: ${timing}. +$${paid.pay}${bonus ? ` with a $${bonus} bonus` : ''}.` };
               inputRef.current.clear();
               if (drivenIndex() < 0) avatar.setEnabled(false);
               setBusyLabel(`Signing off: ${task.title} · ${timing}…`);
@@ -2915,6 +3010,8 @@ export default function WorldScene({
         driveFeel?.dispose();
         carDamage?.dispose();
         taskMarker.dispose();
+        callScene?.dispose();
+        callScene = null;
         fireView?.dispose();
         fireView = null;
         audioRef.current?.siren(null);
@@ -3071,7 +3168,17 @@ export default function WorldScene({
                 </div>
                 <p role="status" aria-live="polite">Fire {hose.left}% · {hose.line}</p>
               </div>
-            : <p role="status" aria-live="polite">{duty.next}{duty.onFoot ? ' · on foot' : ''} · follow the beam and the GPS</p>}
+            : policeCallView && (policeCallView.phase === 'talk' || policeCallView.phase === 'escort')
+            ? <div className="world-duty-call" data-phase={policeCallView.phase}>
+                <p role="status" aria-live="polite"><strong>{policeCallView.title}:</strong> {policeCallView.prompt}</p>
+                {policeCallView.options.length > 0 && <ol className="world-duty-answers" aria-label="How do you handle it?">
+                  {policeCallView.options.map((text, i) => <li key={i}><button type="button" onClick={event => { callActionsRef.current.choose(i); focusWorld(event); }}>
+                    <kbd aria-hidden="true">{i + 1}</kbd> {text}</button></li>)}
+                </ol>}
+              </div>
+            : <p role="status" aria-live="polite">{duty.next}{duty.onFoot ? ' · on foot' : ''} · follow the beam and the GPS
+                {policeCallView && <span className="world-duty-call-note">{policeCallView.phase === 'travel'
+                  ? `Call: ${policeCallView.title.toLowerCase()} at stop ${policeCallView.stop + 1}` : `Call: ${policeCallView.grade}`}</span>}</p>}
           <button type="button" onClick={event => { dutyActionsRef.current.giveUp(); focusWorld(event); }}>Give up</button>
         </section>}
         {inClass && <div className="world-sleep world-class" role="status" aria-live="polite"><span>{inClass} class…</span></div>}
