@@ -5,6 +5,14 @@
 @keyframes story-banner{0%{opacity:0;transform:translate(-50%,8px)}12%,82%{opacity:1;transform:translate(-50%,0)}100%{opacity:0}}
 .story-scene{position:absolute;inset:0;cursor:pointer;z-index:5}
 .story-letterbox{position:absolute;left:0;right:0;height:9%;background:#000;animation:story-bars .5s ease both}
+/* Directed scenes (19a): chapter openings and endings get wider bars and a title card over the first shot. */
+.story-scene-opening .story-letterbox,.story-scene-ending .story-letterbox{height:12%}
+.story-scene-opening .story-box,.story-scene-ending .story-box{bottom:14%}
+.story-title-card{box-sizing:border-box;position:absolute;left:50%;top:22%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 32px 12px;border-radius:10px;background:#0b1626e0;box-shadow:0 10px 40px #0009;color:#fff6e2;text-align:center;pointer-events:none;animation:story-card 6s ease both;white-space:nowrap}
+.story-title-card small{font-size:.8rem;font-weight:700;letter-spacing:.32em;text-transform:uppercase;color:#ffd27a}
+.story-title-card strong{font-family:Georgia,'Times New Roman',serif;font-size:clamp(1.6rem,5vw,2.8rem);font-weight:600;letter-spacing:.02em}
+.story-title-card::after{content:'';width:64px;height:2px;margin-top:6px;background:#ffd27a;border-radius:2px}
+@keyframes story-card{0%{opacity:0;letter-spacing:.12em}15%,75%{opacity:1;letter-spacing:.02em}100%{opacity:0}}
 .story-letterbox-top{top:0}
 .story-letterbox-bottom{bottom:0}
 @keyframes story-bars{from{transform:scaleY(0)}to{transform:scaleY(1)}}
@@ -19,7 +27,9 @@
 .story-mystery{border-top-color:#ff6b6b}.story-mystery .story-speaker{color:#ff8b8b}.story-mystery p{font-family:Georgia,serif}
 .story-neighbour{border-top-color:#7fd88f}.story-neighbour .story-speaker{color:#8fe39e}
 @media(max-width:640px){.story-objective{top:150px;right:8px;max-width:calc(100% - 16px)}.story-box p{font-size:.95rem}}
-@media (prefers-reduced-motion:reduce){.story-banner,.story-letterbox{animation:none}}
+@media (prefers-reduced-motion:reduce){.story-banner,.story-letterbox,.story-title-card{animation:none}}
+:root[data-reduce-motion="true"] .story-letterbox,:root[data-reduce-motion="true"] .story-title-card{animation:none}
+@media(max-width:640px){.story-title-card{top:16%;white-space:normal;width:calc(100% - 32px)}}
 
 /* In-world conversation and choice panel. Lives above story HUD and touch controls. */
 .npc-chat-backdrop{position:absolute;inset:0;z-index:8;display:flex;align-items:flex-end;justify-content:center;padding:12px;background:#05101bc9;overflow-y:auto}

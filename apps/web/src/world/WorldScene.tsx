@@ -13,7 +13,8 @@ import LoadingScreen from './LoadingScreen';
 import { WORLD_LOAD_TASKS, createLoadingTracker } from './loadingProgress.mjs';
 import { smoothHumanHeading } from './humanMotion.mjs';
 import { HUMAN_HEIGHT, movementHeading } from './riggedPresentation.mjs';
-import { SCHOOL_DOOR, isNearSchool, type PlanarPosition } from './movement.mjs';
+import { SCHOOL_DOOR, carContains, isNearSchool, type PlanarPosition } from './movement.mjs';
+import { CAREER_VEHICLES, distanceToVehicle, mayDrive, stationBay, streetDirection, vehicleSpec, type VehicleKind } from './vehicleSpecs.mjs';
 import { stepLocomotion } from './locomotion.mjs';
 import { createCameraControls } from './cameraControls.mjs';
 import { createStreetLighting } from './streetLighting.mjs';
@@ -35,6 +36,7 @@ import type { RangeOutcome } from './TrainingRange';
 const RadioHud = lazy(() => import('./audio/RadioHud').then(module => ({ default: module.RadioHud })));
 // Downtown's 3D builders and the football match load on demand (see downtownKit.ts and footballMatchKit.ts).
 type DowntownKit = typeof import('./downtownKit');
+type CareerVehicleModel = import('./downtownKit').CareerVehicleModel;
 type MatchKit = typeof import('./footballMatchKit');
 // The big map loads once the world is up (prefetched), and mounts the first time it opens.
 const loadWorldMap = () => import('./WorldMap');
@@ -67,7 +69,7 @@ import type { MatchState } from './footballMatch.mjs';
 import { ROUNDS as LEAGUE_ROUNDS, YOU as LEAGUE_YOU, clubName, clubShort, readLeague, recordResult, standings, upcomingFixture, writeLeague, yourPosition, type ClubId, type League } from './footballLeague.mjs';
 import type { loadFootballPlayers } from './footballPlayers';
 import { CAREERS, SHIFT_HOURS, joinCareer, workplaceDoors, quitCareer, rankOf, readCareer, workShift, writeCareer, type CareerId, type CareerState } from './careers.mjs';
-import { buildWorkplaces, createLightBar, createSiren, createTaskMarker } from './careersScene';
+import { buildWorkplaces, createTaskMarker } from './careersScene';
 import { TASKS, formatClock as formatDutyClock, planTask, stepTask, taskResult, taskStatus, type CareerTask } from './careerTasks.mjs';
 import { CareersPanel } from './CareersPanel';
 import { bindActions, loadActionClips } from './characterActions';
@@ -81,6 +83,7 @@ import './story.css';
 import './worldMap.css';
 import './football.css';
 import { buildDecisionDecor } from './storyDecor';
+import { NEAR_METRES, SPEAKER_RESIDENTS, planShots, sceneCard, sceneMood, shotPose, type SceneMood, type Shot } from './cutscene.mjs';
 import { CAST, NEW_STORY, advanceStory, currentStep, markSceneSeen, pendingScene, readStory, storyComplete, writeStory,
   type StoryEvent, type StoryLine, type StoryState } from './storyChapters.mjs';
 import { buildSurroundings } from './worldSurroundings';
@@ -568,7 +571,11 @@ export default function WorldScene({
   const careerRef = useRef(career);
   const [workPrompt, setWorkPrompt] = useState<CareerId | null>(null);
   const saveCareer = (next: CareerState) => { careerRef.current = next; writeCareer(characterId, next); setCareer(next); progressChangedRef.current(); };
-  const sirenRef = useRef<ReturnType<typeof createSiren> | null>(null);
+  // Lights and siren on the station vehicle you're driving (L, or SIREN on touch).
+  const sirenToggleRef = useRef<() => void>(() => {});
+  const [sirenShown, setSirenShown] = useState(false);
+  const [drivingKind, setDrivingKind] = useState<VehicleKind>('sedan');
+  const [cityVehicle, setCityVehicle] = useState<VehicleKind | null>(null);
   const [ballPrompt, setBallPrompt] = useState(false);
   // Five-a-side: the scoreboard while a match is on, and whether you can start one.
   const [scoreboard, setScoreboard] = useState<string | null>(null);
@@ -634,8 +641,13 @@ export default function WorldScene({
   // Story: progress, the open dialogue scene and a brief "chapter complete" banner.
   const [story, setStory] = useState<StoryState>(() => readStory(characterId));
   const storyRef = useRef(story);
-  const [dialogue, setDialogue] = useState<{ lines: ReadonlyArray<StoryLine>; index: number } | null>(null);
+  type Dialogue = { lines: ReadonlyArray<StoryLine>; index: number; mood: SceneMood; card: ReturnType<typeof sceneCard> };
+  const [dialogue, setDialogue] = useState<Dialogue | null>(null);
   const dialogueRef = useRef(false);
+  // Directed story scenes (open-world 19a): the render loop's camera director reads the open scene from here.
+  const cutsceneRef = useRef<Dialogue | null>(null);
+  cutsceneRef.current = dialogue;
+  const cutsceneShotRef = useRef<{ kind: Shot['kind']; index: number; subject: string | null } | null>(null);
   const [storyBanner, setStoryBanner] = useState('');
   const storyBannerCaption = useRef<string | null>(null);
   const saveStory = (next: StoryState) => { storyRef.current = next; writeStory(characterId, next); setStory(next); decorRef.current(); progressChangedRef.current(); };
@@ -645,10 +657,11 @@ export default function WorldScene({
   const openPendingScene = () => {
     const scene = pendingScene(storyRef.current);
     if (!scene || dialogueRef.current) return;
+    const opening = storyRef.current;
     saveStory(markSceneSeen(storyRef.current));
     dialogueRef.current = true;
     inputRef.current.clear();
-    setDialogue({ lines: scene, index: 0 });
+    setDialogue({ lines: scene, index: 0, mood: sceneMood(opening), card: sceneCard(opening) });
   };
   const advanceDialogue = () => {
     setDialogue(current => {
@@ -1061,6 +1074,11 @@ export default function WorldScene({
       let routeTimer = 0;
       let viewHeading = 0;
       let downtownKit: DowntownKit | null = null;
+      // The police cruiser and fire engine (13c): parked outside their stations once downtown is built; their
+      // states live in `cars` (at `index`) like the family cars, so driving, collisions and the HUD are shared.
+      const stationVehicles: { index: number; kind: Exclude<VehicleKind, 'sedan'>; model: CareerVehicleModel }[] = [];
+      let beaconsOn = false;
+      let beaconTime = 0;
       const loadDowntown = async () => {
         // The 3D builders download alongside the map data; downtownSite (and so the bus, taxi and road) waits for both.
         const kitLoading = import('./downtownKit');
@@ -1087,6 +1105,35 @@ export default function WorldScene({
         if (openRoad) disposeOpenRoad = downtownKit.buildOpenRoadScene(scene, openRoad, city.name);
         // A link with ?play=football takes the bus straight to the pitch.
         if (playFootball) window.setTimeout(() => { if (!disposed && locationRef.current === 'street') boardBus('downtown'); }, 600);
+      };
+      /**
+       * Parks the cruiser and the engine in a free bay by their station doors: the whole footprint off the buildings
+       * and the traffic lanes, clear of the door, the regular who stands there and each other.
+       */
+      const parkStationVehicles = (city: City, collider: ReturnType<typeof createCityCollider>) => {
+        if (!downtownKit) return () => {};
+        const isFree = (x: number, z: number) => {
+          const [lx, lz] = toLocal({ x, z });
+          if (collider.blockedLocal(lx, lz) || !offTraffic(city.roads, lx, lz, 0.3)) return false;
+          // Far enough from a regular (Captain Brooks by the fire station) that "Talk to" and "Drive" never compete.
+          if (regularSpots.some(spot => Math.hypot(spot.route.at.x - x, spot.route.at.z - z) < 2.8)) return false;
+          return stationVehicles.every(parked => distanceToVehicle(cars[parked.index], { x, z }) > 0.9);
+        };
+        for (const [career, entry] of Object.entries(CAREER_VEHICLES)) {
+          const door = workDoors.get(career as CareerId);
+          if (!door) continue;
+          const [lx, lz] = toLocal(door);
+          const street = streetDirection(city.roads, { x: lx, z: lz });
+          const bay = stationBay(door, entry.kind, isFree, { along: street });
+          if (!bay) continue;
+          const model = downtownKit.buildCareerVehicle(scene, entry.kind, shadows);
+          const index = cars.length;
+          cars.push({ x: bay.x, z: bay.z, rotation: bay.rotation, speed: 0, kind: entry.kind });
+          carRoots[index] = [model.root];
+          placeCar(index);
+          stationVehicles.push({ index, kind: entry.kind, model });
+        }
+        return () => { for (const parked of stationVehicles) parked.model.dispose(); };
       };
       /** Builds the 3D downtown the first time it's needed; afterwards (or with no map data yet) returns what there is. */
       const ensureDowntown = () => {
@@ -1117,9 +1164,10 @@ export default function WorldScene({
           if (disposed || scene.isDisposed) loaded?.dispose();
           else regulars = loaded;
         }).catch(error => console.warn('Downtown regulars unavailable', error));
+        const disposeVehicles = parkStationVehicles(city, collider);
         pitch.show(football.ball);
         const disposeStop = buildBusStop(scene, stop.x + stop.awayX * 0.9, stop.z + stop.awayZ * 0.9, heading);
-        downtown = { city, collider, stop, dispose: () => { disposeCity(); disposeStop(); lights.dispose(); pitch.dispose(); workplaces.dispose(); cityTraffic?.dispose(); cityTraffic = null; regulars?.dispose(); regulars = null; } };
+        downtown = { city, collider, stop, dispose: () => { disposeCity(); disposeStop(); disposeVehicles(); lights.dispose(); pitch.dispose(); workplaces.dispose(); cityTraffic?.dispose(); cityTraffic = null; regulars?.dispose(); regulars = null; } };
         downtownBuildMs = Math.round(performance.now() - builtAt);
         return downtown;
       };
@@ -1166,13 +1214,17 @@ export default function WorldScene({
         for (const node of carRoots[index] ?? []) { node.rotation.x = carBody.pitch; node.rotation.z = carBody.roll; }
       };
       // The driver stays visible behind the wheel (left seat), playing the Drive clip.
-      const DRIVER_SEAT = { x: -0.3, y: -0.3, z: -0.12 }; // seated pose: head below the roof line
+      const DRIVER_SEATS: Record<VehicleKind, { x: number; y: number; z: number }> = {
+        sedan: { x: -0.3, y: -0.3, z: -0.12 }, // seated pose: head below the roof line
+        cruiser: { x: -0.32, y: -0.28, z: 0.05 },
+        'fire-engine': { x: -0.55, y: 0.6, z: 2.85 }, // high in the cab, over the front axle
+      };
       const seatDriver = (car: CarState) => {
+        const seat = DRIVER_SEATS[car.kind ?? 'sedan'] ?? DRIVER_SEATS.sedan;
         const c = Math.cos(car.rotation); const sn = Math.sin(car.rotation);
-        avatar.position.set(car.x + DRIVER_SEAT.x * c + DRIVER_SEAT.z * sn, DRIVER_SEAT.y, car.z - DRIVER_SEAT.x * sn + DRIVER_SEAT.z * c);
+        avatar.position.set(car.x + seat.x * c + seat.z * sn, seat.y, car.z - seat.x * sn + seat.z * c);
         avatar.rotation.y = car.rotation;
       };
-      const lightBar = createLightBar(scene);
       // Driving feel (gearbox revs, tyre squeal, skid marks) loads the first time you get in a car.
       let driveFeel: DriveFeel | null = null;
       let carDamage: CarDamageView | null = null;
@@ -1184,6 +1236,58 @@ export default function WorldScene({
       };
       let bumpCooldown = 0;
       let carHorn = false;
+      // Lights and siren: only the cruiser and the fire engine have them. The siren plays through the audio
+      // director, so the volume sliders, mute and captions apply.
+      const stationOf = (index: number) => stationVehicles.find(parked => parked.index === index) ?? null;
+      const setSiren = (on: boolean) => {
+        const driven = drivenIndex();
+        const pattern = on && driven >= 0 ? vehicleSpec(cars[driven]).siren : null;
+        beaconsOn = Boolean(pattern);
+        if (!beaconsOn) for (const parked of stationVehicles) parked.model.setBeacons(false, 0);
+        audioRef.current?.siren(pattern);
+        setSirenShown(beaconsOn);
+        return beaconsOn;
+      };
+      sirenToggleRef.current = () => {
+        const driven = drivenIndex();
+        if (driven < 0) return;
+        const spec = vehicleSpec(cars[driven]);
+        if (!spec.siren) { notify(careerRef.current.career === 'police' || careerRef.current.career === 'firefighter'
+          ? `Lights and siren are on the ${careerRef.current.career === 'police' ? 'police cruiser' : 'fire engine'} outside your station downtown.`
+          : 'Family cars have no siren.'); return; }
+        notify(setSiren(!beaconsOn) ? `Lights and siren on (L to switch off).` : 'Lights and siren off.');
+      };
+      /** Cars standing downtown (not the one you're driving): the station vehicles and any car you parked there. */
+      const downtownCars = (except = drivenIndex()) => {
+        const half = downtownSite?.city.halfSize;
+        if (!half) return [];
+        return cars.filter((car, index) => {
+          if (index === except) return false;
+          const [lx, lz] = toLocal(car);
+          return Math.abs(lx) <= half[0] && Math.abs(lz) <= half[1];
+        });
+      };
+      /** The downtown car whose doors you're beside (within reach of its bodywork), or -1. */
+      const nearDowntownCar = (at: PlanarPosition) => {
+        let best = -1, bestDistance = 1.3;
+        for (const car of downtownCars(-1)) {
+          const distance = distanceToVehicle(car, at);
+          if (distance <= bestDistance) { bestDistance = distance; best = cars.indexOf(car); }
+        }
+        return best;
+      };
+      // Downtown walking: the parked cars are solid too (unless you're already standing in one's footprint).
+      const cityWalkCollider = (collider: ReturnType<typeof createCityCollider>) => {
+        const parked = downtownCars();
+        const from = position;
+        const solid = parked.filter(car => !carContains(car, from.x, from.z, 0.25));
+        return { blockedLocal: (x: number, z: number) => {
+          if (collider.blockedLocal(x, z)) return true;
+          if (!solid.length) return false;
+          const world = toWorld([x, z]);
+          return solid.some(car => carContains(car, world.x, world.z, 0.25));
+        } } as ReturnType<typeof createCityCollider>;
+      };
       /** A knock on the car you drive: a scratch or a dent where it hit (nothing for a nudge). */
       const knockCar = (index: number, speed: number, steer: number) => {
         if (!carDamage || index < 0) return null;
@@ -1194,8 +1298,6 @@ export default function WorldScene({
         setDriveBody(carDamage.condition(index));
         return mark;
       };
-      const siren = createSiren();
-      sirenRef.current = siren;
       const streetLighting = createStreetLighting(scene, directional, sun);
       // Painted sky with clouds and a sun glow; fog fades the town into the horizon colour.
       const atmosphere = createAtmosphere(scene, directional.direction);
@@ -1328,6 +1430,71 @@ export default function WorldScene({
       camera.checkCollisions = true;
       camera.collisionRadius = new Vector3(0.25, 0.25, 0.25);
       camera.attachControl(canvas, false);
+      // Story scenes are directed (open-world 19a): each line gets a shot (establishing, over the shoulder, close on
+      // the phone, a crane for the endings) with a slow move inside it and a cut between lines. The player's camera
+      // is put back exactly as it was when the scene closes.
+      let directed: { lines: ReadonlyArray<StoryLine>; shots: Shot[]; index: number; seconds: number; baseAlpha: number;
+        saved: { alpha: number; beta: number; radius: number; target: Vector3; limits: Pick<ArcRotateCamera, 'lowerRadiusLimit' | 'upperRadiusLimit' | 'lowerBetaLimit' | 'upperBetaLimit'> };
+        speaking: string | null } | null = null;
+      const directorPlayer = () => { const driven = drivenIndex(); return driven >= 0 ? cars[driven] : position; };
+      const residentNear = (speaker: string) => {
+        const resident = SPEAKER_RESIDENTS[speaker as keyof typeof SPEAKER_RESIDENTS];
+        const at = resident ? talkablePositions()?.[resident] : undefined;
+        const me = directorPlayer();
+        return at && Math.hypot(at.x - me.x, at.z - me.z) <= NEAR_METRES ? at : null;
+      };
+      const endCutscene = () => {
+        if (!directed) return;
+        const { saved } = directed;
+        Object.assign(camera, saved.limits);
+        camera.alpha = saved.alpha; camera.beta = saved.beta; camera.radius = saved.radius;
+        camera.setTarget(saved.target, false, false, true);
+        camera.inertialAlphaOffset = camera.inertialBetaOffset = camera.inertialRadiusOffset = 0;
+        if (directed.speaking && !npcActiveRef.current) npcSceneRef.current?.setConversation(null);
+        directed = null;
+        cutsceneShotRef.current = null;
+      };
+      const directCutscene = () => {
+        const open = cutsceneRef.current;
+        if (!open) { endCutscene(); return; }
+        const frame = Math.min(scene.getEngine().getDeltaTime() / 1000, 0.05);
+        if (!directed || directed.lines !== open.lines) {
+          if (directed) endCutscene();
+          const planned = planShots(open.lines, { mood: open.mood, near: speaker => residentNear(speaker) !== null });
+          directed = { lines: open.lines, shots: planned, index: -1, seconds: 0, baseAlpha: camera.alpha, speaking: null,
+            saved: { alpha: camera.alpha, beta: camera.beta, radius: camera.radius, target: camera.getTarget().clone(),
+              limits: { lowerRadiusLimit: camera.lowerRadiusLimit, upperRadiusLimit: camera.upperRadiusLimit,
+                lowerBetaLimit: camera.lowerBetaLimit, upperBetaLimit: camera.upperBetaLimit } } };
+          camera.lowerRadiusLimit = camera.upperRadiusLimit = camera.lowerBetaLimit = camera.upperBetaLimit = null;
+          cameraControls.cancel();
+        }
+        const shot = directed.shots[open.index] ?? null;
+        if (open.index !== directed.index) {
+          directed.index = open.index;
+          if (!shot?.hold) directed.seconds = 0;
+          const line = open.lines[open.index];
+          // The people in the scene act it out: whoever is speaking turns to you with their lines lip-synced,
+          // and your character talks on your own lines.
+          if (shot?.kind === 'speaker' && SPEAKER_RESIDENTS[shot.speaker as keyof typeof SPEAKER_RESIDENTS]) {
+            directed.speaking = SPEAKER_RESIDENTS[shot.speaker as keyof typeof SPEAKER_RESIDENTS]!;
+            npcSceneRef.current?.setConversation(directed.speaking, open.mood === 'ending' ? 'happy' : 'neutral', line?.text ?? '');
+          }
+          if (line?.speaker === 'you') riggedRef.current?.playAction('Talk');
+          cutsceneShotRef.current = shot ? { kind: shot.kind, index: open.index, subject: shot.subject } : null;
+        } else directed.seconds += frame;
+        const me = directorPlayer();
+        const other = shot?.subject ? residentNear(shot.subject) : null;
+        // On foot, face whoever you're talking with.
+        if (other && drivenIndex() < 0) avatar.rotation.y = smoothHumanHeading(avatar.rotation.y, movementHeading(other.x - me.x, other.z - me.z), frame);
+        const location = locationRef.current;
+        const pose = shotPose(shot, { player: me, other, baseAlpha: directed.baseAlpha, indoor: location === 'home' || location === 'school',
+          reduced: document.documentElement.dataset.reduceMotion === 'true' }, directed.seconds);
+        camera.inertialAlphaOffset = camera.inertialBetaOffset = camera.inertialRadiusOffset = 0;
+        camera.setTarget(new Vector3(pose.target.x, pose.target.y, pose.target.z), false, false, true);
+        camera.alpha = pose.alpha; camera.beta = pose.beta; camera.radius = pose.radius;
+      };
+      // Runs inside every scene.render(), after the frame's own follow / chase / clamp code, so the director wins.
+      const cutsceneObserver = scene.onBeforeRenderObservable.add(directCutscene);
       // Filmic tone mapping, bloom, anti-aliasing and (on capable devices) ambient occlusion.
       const renderPipeline = createRenderPipeline(scene, camera, pickRenderQuality(scene));
       // Dynamic resolution keeps the frame rate up on slower devices.
@@ -1503,7 +1670,7 @@ export default function WorldScene({
             taxi: Boolean(pendingTaxi) || Boolean(pendingDrive),
             travelling: pendingTaxi !== null,
             match: match ? { phase: match.phase, clock: match.clock, score: match.score, keepers: match.players.filter(p => p.role === 'keeper').map(p => ({ team: p.team, x: p.x - PITCH.x, z: p.z - PITCH.z })) } : null,
-            car: drivenIndex() >= 0 ? { x: cars[drivenIndex()].x, z: cars[drivenIndex()].z, speed: cars[drivenIndex()].speed, gear: driveFeel?.gear ?? null, rpm: driveFeel?.rpm ?? null, slip: driveFeel?.slip ?? 0, horn: carHorn, skidMarks: driveFeel?.marks ?? 0, body: carDamage?.condition(drivenIndex()) ?? 100, damageMarks: carDamage?.marks(drivenIndex()) ?? 0 } : null,
+            car: drivenIndex() >= 0 ? { kind: cars[drivenIndex()].kind ?? 'sedan', siren: beaconsOn, x: cars[drivenIndex()].x, z: cars[drivenIndex()].z, speed: cars[drivenIndex()].speed, gear: driveFeel?.gear ?? null, rpm: driveFeel?.rpm ?? null, slip: driveFeel?.slip ?? 0, horn: carHorn, skidMarks: driveFeel?.marks ?? 0, body: carDamage?.condition(drivenIndex()) ?? 100, damageMarks: carDamage?.marks(drivenIndex()) ?? 0 } : null,
             loading: !worldReadyRef.current,
             downtownBuilt: downtown !== null, downtownBuildMs,
             road: openRoad && drivenIndex() >= 0 ? Math.round(roadProgress(openRoad, cars[drivenIndex()]).t * 100) / 100 : null,
@@ -1511,6 +1678,8 @@ export default function WorldScene({
             duty: activeTask ? { id: activeTask.task.id, next: activeTask.task.next, stops: activeTask.task.stops.length, elapsed: activeTask.task.elapsed, par: activeTask.task.par } : null,
             busy: pendingShift !== null,
             decor: decorShownRef.current,
+            cutscene: cutsceneShotRef.current, camera: { alpha: camera.alpha, beta: camera.beta, radius: camera.radius },
+            stationVehicles: stationVehicles.map(parked => ({ kind: parked.kind, x: cars[parked.index].x, z: cars[parked.index].z })),
           }),
           // The endings playthrough (MVP 9b) reports each step's gameplay event through the real story code,
           // so every scene, the decision and Maple Street's change play exactly as they do for a player.
@@ -1525,7 +1694,7 @@ export default function WorldScene({
             if (index < 0 || !openRoad || locationRef.current !== 'street' || pendingDrive) return false;
             if (!ensureDowntown()) return false;
             const pose = roadPose(openRoad, t);
-            cars[index] = { x: pose.x, z: pose.z, rotation: pose.rotation, speed: 0 };
+            cars[index] = { ...cars[index], x: pose.x, z: pose.z, rotation: pose.rotation, speed: 0 };
             placeCar(index);
             seatDriver(cars[index]);
             camera.alpha = chaseCameraAlpha(pose.rotation);
@@ -1537,7 +1706,7 @@ export default function WorldScene({
           route: () => mapReadRef.current().routeLength ?? 0,
           waypoint: () => mapReadRef.current().waypoint,
           // Stand the player beside something to try by touch: a neighbour, a parked car, or a workplace sign.
-          place: (spot: 'neighbour' | 'car' | 'duty' | `talk:${NpcId}` | CareerId) => {
+          place: (spot: 'neighbour' | 'car' | 'duty' | 'cruiser' | 'fire-engine' | `talk:${NpcId}` | CareerId) => {
             if (interaction.mode !== 'walking' || pendingTaxi || pendingDrive || pendingRide) return false;
             const where = locationRef.current;
             let to: PlanarPosition | null = null;
@@ -1545,6 +1714,11 @@ export default function WorldScene({
             else if (spot === 'neighbour') to = where === 'city' ? downtownTalkSpot(regulars ? regularSpots : [], life.minute, position)
               : talkSpot(where, life.minute, neighbors?.positions(), position);
             else if (spot === 'car') to = where === 'street' ? vehicleExitPosition(cars[0], cars) : null;
+            else if (spot === 'cruiser' || spot === 'fire-engine') {
+              // Beside the driver's door of a station vehicle downtown.
+              const parked = where === 'city' ? stationVehicles.find(entry => entry.kind === spot) : undefined;
+              to = parked && downtown ? vehicleExitPosition(cars[parked.index], cars, point => !downtown!.collider.blockedLocal(...toLocal(point))) : null;
+            }
             else if (spot === 'duty') {
               const stop = activeTask && where === 'city' ? activeTask.task.stops[activeTask.task.next] : null;
               to = stop ? toWorld([stop.x, stop.z]) : null;
@@ -1870,13 +2044,21 @@ export default function WorldScene({
           npcActionsRef.current.open(nearNpcRef.current);
           return;
         }
+        let cityTarget: { id: string; type: 'vehicle'; x: number; z: number } | null = null;
         if (index < 0 && locationRef.current === 'city') {
           if (downtown && atBusStop(position, downtown.stop)) boardBus('home');
           else if (workplaceAt(position)) startShift(workplaceAt(position)!);
           // Talk to a downtown regular, unless the ball is at your feet.
           else if (nearNpcRef.current && !(football && Math.hypot(football.ball.x - position.x, football.ball.z - position.z) <= KICK.reach)) npcActionsRef.current.open(nearNpcRef.current);
+          // Get into a car parked downtown: the cruiser or engine (for their crews), or a car you left here.
+          else if (nearDowntownCar(position) >= 0) {
+            const near = nearDowntownCar(position);
+            const allowed = mayDrive(cars[near].kind, careerRef.current.career);
+            if (allowed.ok) cityTarget = { id: `car-${near}`, type: 'vehicle' as const, x: cars[near].x, z: cars[near].z };
+            else { notify(allowed.reason); audioRef.current?.cue('notice'); }
+          }
           else kick(false);
-          return;
+          if (!cityTarget) return;
         }
         if (index < 0 && atBusStop(position, MAPLE_BUS_STOP)) { boardBus('downtown'); return; }
         if (index < 0 && isNearSchool(position)) {
@@ -1891,9 +2073,13 @@ export default function WorldScene({
           return;
         }
         if (index < 0) {
-          const target = closestInteraction(position, carTargets());
+          const target = cityTarget ?? closestInteraction(position, carTargets());
           if (!target) return;
           interaction = transitionInteraction(interaction, target);
+          const kind = cars[Number(target.id.slice(4))]?.kind ?? 'sedan';
+          setDrivingKind(kind);
+          setCityVehicle(null);
+          if (kind !== 'sedan') notify(`${vehicleSpec(kind).name[0].toUpperCase()}${vehicleSpec(kind).name.slice(1)}: L for lights and siren, H for the ${kind === 'fire-engine' ? 'air horn' : 'horn'}.`);
           audioRef.current?.cue('car');
           inputRef.current.clear();
           // With the action clips loaded, you sit visibly behind the wheel; otherwise the car hides you.
@@ -1928,8 +2114,8 @@ export default function WorldScene({
         inputRef.current.clear();
         riggedRef.current?.stopAction();
         tiltCar(index, 0, 0, 10);
-        lightBar.update(0, false);
-        siren.stop();
+        setSiren(false);
+        setDrivingKind('sedan');
         audioRef.current?.horn(false);
         carHorn = false;
         driveFeel?.reset();
@@ -2072,9 +2258,9 @@ export default function WorldScene({
           // In a car, H holds the horn and Space holds the handbrake.
           event.preventDefault();
           inputRef.current.press(`keyboard:${key}`, key);
-        } else if (key === 'l' && !event.repeat && interaction.mode === 'driving' && careerRef.current.career === 'police') {
+        } else if (key === 'l' && !event.repeat && interaction.mode === 'driving') {
           event.preventDefault();
-          notify(siren.toggle() ? 'Siren on (L to switch off).' : 'Siren off.');
+          sirenToggleRef.current();
         } else if (key === 'p' && !event.repeat) {
           event.preventDefault();
           phoneActionsRef.current.open();
@@ -2168,7 +2354,7 @@ export default function WorldScene({
           match: Boolean(match && match.phase !== 'fulltime'),
           speed: delta>0 && audioDistance<1 ? audioDistance/delta : 0,
           drivingSpeed: audioCar>=0 ? cars[audioCar].speed : null,
-          car: audioCar>=0 ? driveFeel?.sound() ?? null : null,
+          car: audioCar>=0 ? { ...driveFeel?.sound(), hornPitch: vehicleSpec(cars[audioCar]).hornPitch } : null,
           reading: schoolOpenRef.current || dialogueRef.current || npcActiveRef.current || Boolean(rangeOpenRef.current) || menuOpenRef.current,
           paused: Boolean(pendingRide || pendingFood || pendingShift || pendingTaxi || pendingDrive || interaction.mode==='sleeping' || interaction.mode==='sitting'),
           evening: isEvening(life.minute) });
@@ -2186,7 +2372,18 @@ export default function WorldScene({
           if (inCityNow) {
             const driving = drivenIndex();
             const focus = driving >= 0 ? cars[driving] : position;
-            cityTraffic.update(delta, focus, [{ x: focus.x, z: focus.z, radius: driving >= 0 ? 1.1 : 0.9 }]);
+            // Parked cars and long vehicles block the lane along their whole length, as a row of circles.
+            const alongCar = (car: CarState) => {
+              const { halfWidth, halfLength } = vehicleSpec(car);
+              const count = Math.max(1, Math.round(halfLength / halfWidth));
+              return Array.from({ length: count }, (_, i) => {
+                const along = count === 1 ? 0 : -halfLength + halfWidth + (2 * (halfLength - halfWidth)) * i / (count - 1);
+                return { x: car.x + Math.sin(car.rotation) * along, z: car.z + Math.cos(car.rotation) * along, radius: halfWidth + 0.2 };
+              });
+            };
+            const you = driving >= 0 && cars[driving].kind && cars[driving].kind !== 'sedan' ? alongCar(cars[driving])
+              : [{ x: focus.x, z: focus.z, radius: driving >= 0 ? 1.1 : 0.9 }];
+            cityTraffic.update(delta, focus, [...you, ...downtownCars().flatMap(alongCar)]);
           }
         }
         // Controls follow the orbit camera: W always walks away from the viewer.
@@ -2393,14 +2590,21 @@ export default function WorldScene({
           // Downtown, the real buildings are what the car runs into.
           // On the open road, only its tarmac is drivable; where it runs into downtown, it carries on past the edge.
           const road = downtown ? openRoad : null;
+          const parkedHere = locationRef.current === 'city' ? downtownCars(driven).filter(car => Math.hypot(car.x - before.x, car.z - before.z) < 16) : [];
           const cityBlock = locationRef.current === 'city' && downtown
-            ? (candidate: CarState) => footprintPoints(candidate).some(point => !(road && onOpenRoad(road, point)) && downtown!.collider.blockedLocal(...toLocal(point)))
+            ? (candidate: CarState) => {
+              const points = footprintPoints(candidate);
+              if (points.some(point => !(road && onOpenRoad(road, point)) && downtown!.collider.blockedLocal(...toLocal(point)))) return true;
+              // The station vehicles and any car you parked downtown are solid.
+              return parkedHere.some(car => points.some(point => carContains(car, point.x, point.z))
+                || footprintPoints(car).some(point => carContains(candidate, point.x, point.z)));
+            }
             : road ? (candidate: CarState, near: ReadonlyArray<CarState>, people: ReadonlyArray<{ x: number; z: number; radius?: number }>) => streetOrRoadBlocked(road, candidate, near, people)
               : undefined;
           // Downtown, the other cars are the traffic around you.
           const controls = driveInput(keys);
           const next = stepVehicle(before, controls, delta, locationRef.current === 'city' ? cityTraffic?.cars() ?? [] : others, locationRef.current === 'city' ? cityTraffic?.people() ?? [] : peopleOut, cityBlock);
-          cars[driven] = { x: next.x, z: next.z, rotation: next.rotation, speed: next.speed };
+          cars[driven] = { ...before, x: next.x, z: next.z, rotation: next.rotation, speed: next.speed };
           if (locationRef.current === 'street') {
             const atGate = Math.hypot(next.x, next.z - TOWN_EXIT.beyond) < TOWN_EXIT.gateRange;
             setGate(atGate);
@@ -2425,7 +2629,11 @@ export default function WorldScene({
             const [lx, lz] = toLocal(next);
             const [hx, hz] = downtown.city.halfSize;
             if (Math.abs(lx) > hx - CITY_LEAVE_MARGIN || Math.abs(lz) > hz - CITY_LEAVE_MARGIN) {
-              if (road && onOpenRoad(road, next)) leaveByRoad();
+              // The cruiser and the engine belong to their stations: they turn back at the edge of downtown.
+              if (stationOf(driven)) {
+                cars[driven] = { ...before, speed: 0 };
+                if (clock - noticeAt > 2.5) notify(`The ${vehicleSpec(before).name} stays downtown. Park it back at the station and take your own car or the bus home.`);
+              } else if (road && onOpenRoad(road, next)) leaveByRoad();
               else startDrive('home', driven);
             }
           }
@@ -2444,14 +2652,8 @@ export default function WorldScene({
             const mark = knockCar(driven, before.speed, controls.steer);
             if (mark || Math.abs(before.speed) > 2) { bumpCooldown = 0.6; if (!mark) audioRef.current?.cue('land'); }
           }
-          // Police: a light bar on the car you drive (L toggles the siren).
-          const cop = careerRef.current.career === 'police';
-          if (cop) {
-            lightBar.bar.position.set(next.x - Math.sin(next.rotation) * 0.1, 1.48, next.z - Math.cos(next.rotation) * 0.1);
-            lightBar.bar.rotation.set(tilt.pitch, next.rotation, tilt.roll);
-          }
-          lightBar.update(delta, cop);
-          sirenRef.current?.update(delta);
+          // The cruiser's and engine's beacons flash while the lights and siren are on (L).
+          if (beaconsOn) { beaconTime += delta; stationOf(driven)?.model.setBeacons(true, beaconTime); }
           if (avatar.isEnabled()) seatDriver(cars[driven]);
           // Someone you bump flinches.
           if (next.collided && Math.abs(before.speed) > 0.6) neighbors?.react(next.x, next.z);
@@ -2491,7 +2693,7 @@ export default function WorldScene({
         const walkKeys = tired ? new Set([...pressed].filter(key => key !== 'Shift')) : pressed;
         const locomotion = atHome
           ? stepHomeLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward)
-          : city ? stepCityLocomotion(city.collider, position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward)
+          : city ? stepCityLocomotion(cityWalkCollider(city.collider), position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward)
           : inSchool ? stepClassroomLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward, peopleOut)
           : stepLocomotion(position, walkKeys, delta, sprintEnabledRef.current && !tired, cameraForward, cars, peopleOut);
         tickLife(delta, locomotion.motion);
@@ -2595,6 +2797,9 @@ export default function WorldScene({
               : `Central Park pitch · goals ${football?.goals ?? 0} · bus stop ${metres} m`;
             setWayfinding(previous => previous === label ? previous : label);
             setNearCar(previous => previous ? false : previous);
+            const nearIndex = nearDowntownCar(position);
+            const nearKind: VehicleKind | null = nearIndex >= 0 ? cars[nearIndex].kind ?? 'sedan' : null;
+            setCityVehicle(previous => previous === nearKind ? previous : nearKind);
           } else if (inSchool) {
             const prompt = atClassroomExit(position) ? 'leave-school' : deskInReach(position) ? 'desk' : null;
             setDoorPrompt(previous => previous === prompt ? previous : prompt);
@@ -2665,6 +2870,7 @@ export default function WorldScene({
       engine.resize();
 
       return () => {
+        scene.onBeforeRenderObservable.remove(cutsceneObserver);
         inputRef.current.clear();
         canvas.removeEventListener('pointerdown', focus);
         canvas.removeEventListener('wheel', cancelCameraTransition);
@@ -2682,12 +2888,10 @@ export default function WorldScene({
         saveToAccount();
         disposed = true;
         remotePlayers.dispose();
-        lightBar.dispose();
         driveFeel?.dispose();
         carDamage?.dispose();
         taskMarker.dispose();
-        siren.dispose();
-        sirenRef.current = null;
+        audioRef.current?.siren(null);
         disposeMapleStop();
         downtown?.dispose();
         disposeOpenRoad?.();
@@ -2795,7 +2999,7 @@ export default function WorldScene({
   const workAction = workPrompt && inCity
     ? (career.career === workPrompt ? (duty ? `On duty: ${duty.next}` : `Start duty: ${TASKS[workPrompt].title} (E)`) : `Apply: ${CAREERS[workPrompt].title} (E)`)
     : null;
-  const actionLabel = driving ? 'Get out of car (E)'
+  const actionLabel = driving ? (drivingKind === 'sedan' ? 'Get out of car (E)' : `Get out of the ${vehicleSpec(drivingKind).name} (E)`)
     : nearNpc && !inHome && !atSchool ? `Talk to ${NPC_DIALOGUES[nearNpc].name} (E)`
     : doorPrompt === 'exit' ? 'Go outside (E)'
       : doorPrompt === 'bed' ? 'Sleep (E)'
@@ -2807,7 +3011,10 @@ export default function WorldScene({
       : doorPrompt === 'school-closed' ? 'School (closed)'
       : doorPrompt === 'enter' ? 'Go inside your home (E)'
         : doorPrompt === 'locked' ? "Neighbors' house (E)"
-          : nearCar && !inHome && !atSchool ? 'Get in car (E)' : '';
+          : nearCar && !inHome && !atSchool ? 'Get in car (E)'
+            : cityVehicle && inCity ? (mayDrive(cityVehicle, career.career).ok
+              ? (cityVehicle === 'sedan' ? 'Get in car (E)' : `Drive the ${vehicleSpec(cityVehicle).name} (E)`)
+              : `${vehicleSpec(cityVehicle).name[0].toUpperCase()}${vehicleSpec(cityVehicle).name.slice(1)} (${cityVehicle === 'cruiser' ? 'police' : 'firefighters'} only)`) : '';
   const photoKit = photoKitRef.current;
   return <div className="world-root" aria-label="Playable 3D neighborhood" data-photo={photoView ? 'true' : undefined}>
     <div className="world-viewport" ref={viewportRef}>
@@ -2840,7 +3047,7 @@ export default function WorldScene({
           onClick={() => openMenu()}>☰ Menu</button> <strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : inCity ? inCity : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
         {(mapOpen || mapMounted) && <Suspense fallback={null}><WorldMap open={mapOpen} onClose={() => setMapOpen(false)} read={readMap} travel={travelTo} waypoint={waypointControl} /></Suspense>}
-        <Minimap read={readMap} hidden={mapOpen || menuOpen || phoneOpen || Boolean(rangeOpen) || inHome || atSchool} />
+        <Minimap read={readMap} hidden={mapOpen || menuOpen || phoneOpen || Boolean(rangeOpen) || inHome || atSchool || Boolean(dialogue)} />
         {phoneOpen && <Suspense fallback={null}><Phone open={!menuOpen && !mapOpen} onClose={closePhone} phone={phone} messages={messages} onRead={readMessages}
           relations={npcRelations} career={career} clock={formatClock(lifeView.minute)} day={lifeView.day} energy={lifeView.energy}
           objective={currentStep(story).step.objective}
@@ -2853,7 +3060,7 @@ export default function WorldScene({
             <button type="button" onClick={event => { matchRef.current.pass(); focusWorld(event); }}>Pass (Q)</button>
           </span></div>}
         {/* The duty card takes the objective's corner while a duty runs; the objective comes back when it ends. */}
-        {!(duty && inCity) && (() => {
+        {!(duty && inCity) && !dialogue && (() => {
           const { chapter, step } = currentStep(story);
           return <div className="story-objective" aria-live="polite"><small>{chapter.title}</small><strong>{step.objective}</strong>
             {phonePeek && !phoneOpen && <span className="world-phone-peek">📱 {phonePeek.name}: {phonePeek.text} · P to read</span>}</div>;
@@ -2862,9 +3069,11 @@ export default function WorldScene({
         {dialogue && (() => {
           const current = dialogue.lines[dialogue.index];
           const cast = CAST[current.speaker];
-          return <div className="story-scene" role="dialog" aria-label="Story scene" onClick={() => advanceDialogue()}>
+          return <div className={`story-scene story-scene-${dialogue.mood}`} role="dialog" aria-label="Story scene" onClick={() => advanceDialogue()}>
             <div className="story-letterbox story-letterbox-top" />
             <div className="story-letterbox story-letterbox-bottom" />
+            {dialogue.card && dialogue.index === 0 && <div className="story-title-card" aria-live="polite">
+              <small>{dialogue.card.kicker}</small><strong>{dialogue.card.title}</strong></div>}
             <div className={`story-box story-${cast.tone}`}>
               {cast.name && <span className="story-speaker">{cast.name}</span>}
               <p>{current.text}</p>
@@ -2915,7 +3124,7 @@ export default function WorldScene({
           </section>
         </div>}
         {driving && <div className="world-drive-hud" role="status" aria-live="polite">
-          <strong>{driveSpeed}</strong>km/h <span className="world-drive-gear" aria-label={driveGear === 'R' ? 'Reverse gear' : `Gear ${driveGear}`}>{driveGear}</span>{driveBody < 100 && <span className="world-drive-body" aria-label={`Bodywork ${driveBody} percent, ${conditionLabel(driveBody).toLowerCase()}`}>{conditionLabel(driveBody)} {driveBody}%</span>}<span className="world-drive-help"> · W/S gas, brake, reverse · A/D steer · Space handbrake · H horn · E to get out when stopped</span>
+          <strong>{driveSpeed}</strong>km/h <span className="world-drive-gear" aria-label={driveGear === 'R' ? 'Reverse gear' : `Gear ${driveGear}`}>{driveGear}</span>{driveBody < 100 && <span className="world-drive-body" aria-label={`Bodywork ${driveBody} percent, ${conditionLabel(driveBody).toLowerCase()}`}>{conditionLabel(driveBody)} {driveBody}%</span>}<span className="world-drive-help"> · W/S gas, brake, reverse · A/D steer · Space handbrake · H horn{drivingKind !== 'sedan' ? ' · L lights and siren' : ''} · E to get out when stopped</span>
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
         </div>}
         {driving && <Suspense fallback={null}><RadioHud placement="overlay" station={radioStation} onTune={tuneRadio} onFocusWorld={() => canvasRef.current?.focus({ preventScroll: true })} /></Suspense>}
@@ -2996,6 +3205,8 @@ export default function WorldScene({
         {driving ? <div className="world-run world-drive-touch" aria-label="Car controls">
           {directionButton('HORN', 'horn', 'Hold the horn')}
           {directionButton('HANDBRAKE', 'handbrake', 'Hold the handbrake')}
+          {drivingKind !== 'sedan' && <button type="button" className="world-pad-key world-siren-key" aria-label="Lights and siren" aria-pressed={sirenShown}
+            onClick={event => { sirenToggleRef.current(); if (event.detail > 0) canvasRef.current?.focus({ preventScroll: true }); }}>{sirenShown ? 'SIREN: ON' : 'SIREN'}</button>}
         </div> : <div className="world-run"><button type="button" className="world-pad-key" aria-label="Toggle running" aria-pressed={sprintEnabled} onClick={event => {
           sprintEnabledRef.current = !sprintEnabledRef.current;
           setSprintEnabled(sprintEnabledRef.current);

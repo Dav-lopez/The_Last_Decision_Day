@@ -51,7 +51,8 @@ export function createCarSynth({ context, output, register, release, ramp, noise
       if (hornOn && driving) {
         if (!horn) {
           const a = context.createOscillator(), b = context.createOscillator(), filter = context.createBiquadFilter(), gain = context.createGain();
-          a.type = 'square'; b.type = 'square'; a.frequency.setValueAtTime(349, time); b.frequency.setValueAtTime(440, time);
+          a.type = 'square'; b.type = 'square'; const pitch = Number.isFinite(car?.hornPitch) && car.hornPitch > 0 ? car.hornPitch : 1;
+          a.frequency.setValueAtTime(349 * pitch, time); b.frequency.setValueAtTime(440 * pitch, time);
           filter.type = 'lowpass'; filter.frequency.setValueAtTime(1800, time);
           gain.gain.setValueAtTime(0, time); gain.gain.linearRampToValueAtTime(.03, time + .02);
           a.connect(filter); b.connect(filter); filter.connect(gain); gain.connect(output);
