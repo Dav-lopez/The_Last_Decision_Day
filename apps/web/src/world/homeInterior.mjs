@@ -11,7 +11,7 @@ import { HUMAN_RUN_SPEED, HUMAN_WALK_SPEED, classifyHumanMotion } from './humanM
 import { HOUSE_SITES } from './suburbLayout.mjs';
 import { propBlocker } from './propLayout.mjs';
 
-export const HOME_ORIGIN = Object.freeze({ x: 0, z: 60 });
+export const HOME_ORIGIN = Object.freeze({ x: 0, z: -110 }); // south, off the open road north to downtown
 /** 9.2 m × 10.8 m: bedroom and living room at the back, kitchen and dining by the front door. */
 export const ROOM = Object.freeze({ halfWidth: 4.6, halfDepth: 5.4, wallHeight: 2.9, wallThickness: 0.2 });
 export const DOOR_HALF_WIDTH = 0.65;

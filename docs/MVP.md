@@ -213,6 +213,18 @@ above is done or blocked; any item may be split into slices.
         crackle, whoosh and hiss cues and captions. Rules in `fireHose.mjs`; the playtest puts a fire out with Space.
         Still to do: police calls (traffic stop, lost child, noise complaint) and scored army checkpoints.
 - [ ] **17. Seamless road**: drive from Maple Street to downtown and back without a fade (streamed world).
+  - [x] 17a (partial slice). The open road: downtown now sits north of the town (`CITY_ORIGIN` moved from 1 km east
+        to 620 m north), and the road past the barrier at the top of Maple Street carries on for ~370 m, bends onto
+        Broadway and drives straight into downtown with no fade; Broadway south (reversing out works too) brings you
+        home the same way. The route is worked out from the street data (`openRoad.mjs`: the drivable street that
+        crosses downtown's south edge nearest the town); only its tarmac is drivable out of town, the fog thins from
+        Maple Street's haze to downtown's along it, and downtown is built while you wait at the barrier. Tarmac,
+        edge lines, centre dashes, gravel shoulders, reflector posts, a grass verge over the gap and two road signs are
+        a few frozen meshes in the downtown chunk (`openRoadScene.ts`). Other edges of downtown still use the quick
+        fade, and the bus and taxi are unchanged. The home interior moved south (it stood on the road at z = 60). The
+        guest playtest drives into downtown on the road, reverses out and back in, and fails on any fade.
+        Still to do: a faster open-road speed (cars are capped at 32 km/h for residential streets; it is a ~40 s drive),
+        traffic on the road, and streaming the town and downtown in and out instead of keeping both built.
 - [ ] **18. Weather and sky**: rain and wet roads, fog, sunsets, clouds; weather changes by day.
 - [ ] **19. Cinematic story**: camera-directed cutscenes with letterboxing and character animation for each
       chapter opening and the three endings.
@@ -267,6 +279,13 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- 17a: the home interior was built at (0, 60), right on the road north of Maple Street, so it was visible up the
+  exit road and would have been driven into; it now sits south at (0, −110), where the south road is closed.
+- 17a: you can't get out of the car on the open road (there's nowhere for the player to walk out of town; a notice
+  says so), and downtown traffic is only drawn once you're in the city, so it appears as you arrive. The open-road
+  speed limit can now build on #246 (per-vehicle specs in `stepVehicle`, merged); the cruiser and engine stop at downtown's edge rather than take the road.
+- 17a merged with 16a and 20a: a fire call's smoke and the new facades are built with the rest of downtown, so both
+  are already standing when you drive in on the open road; the road's fog blend replaces 20a's fixed downtown haze.
 - 20a: building heights in the OSM data aren't whole storeys, so the top row of windows can be cut by the roof
   line; the cornice hides most of it. Snapping the facade's v so the top storey ends on the roof would fix the rest.
   Awnings aren't solid (they're above head height, but the camera can pass through them), and the lit-window pattern
