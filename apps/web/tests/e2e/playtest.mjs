@@ -313,6 +313,20 @@ await step('quick travel downtown', async () => {
   await shot('05-downtown');
   await checkContrast('downtown');
 });
+await step('downtown facades: cornices, rooftop plant, awnings and lit windows after dark', async () => {
+  const look = (await read()).cityLook;
+  if (!look) throw new Error('downtown reports no facade details');
+  if (look.styles < 4) throw new Error(`only ${look.styles} facade styles downtown`);
+  if (look.awnings < 30 || look.rooftop < 60) throw new Error(`too few details: ${look.awnings} awnings, ${look.rooftop} rooftop units`);
+  const lighting = page.getByRole('button', { name: /Switch lighting/ });
+  const startedLit = look.lit;
+  await lighting.click();
+  await waitFor('windows switch with the lights', timeout => page.waitForFunction(lit => window.__tld.read().cityLook?.lit === !lit, startedLit, { timeout }));
+  if (!startedLit) await shot('05a-downtown-night');
+  await lighting.click();
+  await waitFor('windows switch back', timeout => page.waitForFunction(lit => window.__tld.read().cityLook?.lit === lit, startedLit, { timeout }));
+  notes.push(`downtown: ${look.styles} facade styles, ${look.awnings} awnings, ${look.rooftop} rooftop units`);
+});
 await step('downtown traffic drives', async () => {
   await page.waitForFunction(() => window.__tld.read().traffic.length > 0, null, { timeout: 120000 });
   const before = (await read()).traffic;
