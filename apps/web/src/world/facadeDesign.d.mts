@@ -1,0 +1,22 @@
+import type { CityBuilding, CityRoad } from './cityLayout.mjs';
+export type FacadeStyleName = 'brick' | 'tan' | 'house' | 'stone' | 'modern';
+export type FacadeStyle = {
+  wall: string; mortar: string; window: string; frame: string; trim: string; storefront: boolean;
+  pattern: 'brick' | 'stucco' | 'siding' | 'ashlar' | 'curtain'; glass: readonly [number, number, number, number];
+  sash: number; mullion: boolean; lintel: boolean; sill: boolean; band?: boolean; shutters?: string;
+};
+export type LitWindow = { lit: boolean; warmth: number; blind: boolean };
+export type RooftopUnit = { x: number; z: number; width: number; depth: number; height: number; kind: 'unit' | 'housing' };
+export type AwningSpan = { a: [number, number]; b: [number, number]; normal: [number, number]; colour: string };
+type BuildingLike = Pick<CityBuilding, 'id' | 'kind' | 'name' | 'height'> & Partial<Pick<CityBuilding, 'ring' | 'shop'>>;
+export declare const FACADE_TILE: Readonly<{ bays: number; floors: number; bay: number; floor: number }>;
+export declare const FACADE_STYLES: Readonly<Record<FacadeStyleName, FacadeStyle>>;
+export declare function facadeStyleFor(building: BuildingLike): FacadeStyleName;
+export declare function seeded(seed: number): () => number;
+export declare function facadeVariant(building: BuildingLike): { style: FacadeStyleName; tint: [number, number, number]; bayShift: number; parapet: number };
+export declare function litWindows(seed: number, share?: number): LitWindow[][];
+export declare function windowGlow(warmth: number, modern?: boolean): string;
+export declare function drawFacade(ctx: CanvasRenderingContext2D, style: FacadeStyleName, size: number, mode?: 'day' | 'night' | 'gloss', lit?: LitWindow[][]): void;
+export declare function shade(colour: string, factor: number): string;
+export declare function rooftopUnits(building: CityBuilding): RooftopUnit[];
+export declare function awningSpans(building: CityBuilding, roads: ReadonlyArray<CityRoad>, reach?: number): AwningSpan[];

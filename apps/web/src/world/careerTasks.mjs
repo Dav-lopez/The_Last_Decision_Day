@@ -12,6 +12,8 @@ export const TASK_REACH_CAR = 10;  // metres from a stop at the wheel
 const MAX_RADIUS = 300;            // stops stay this close to the workplace
 const PACE = 3.2;                  // par pace in m/s: a jog, with a little slack for corners
 const STOP_SECONDS = 8;            // par allowance per stop
+export const HOSE_SECONDS = 15;    // extra par for putting a fire out
+const FIRE_OFFSET = 5;             // the fire is this far along the pavement from where you stand
 
 export const TASKS = Object.freeze({
   police: Object.freeze({
@@ -27,13 +29,15 @@ export const TASKS = Object.freeze({
   }),
   firefighter: Object.freeze({
     id: 'fire-call', title: 'Fire call', spacing: 110, onFoot: false,
-    brief: 'Smoke alarm call-out: get to the address fast, check the hydrant, report back.',
+    brief: 'Call-out: a skip is on fire behind the shops. Get there fast, put it out with the hose, check the hydrant, report back.',
     stops: Object.freeze([
-      'On scene: burnt toast set the alarm off. You air the kitchen out.',
+      'Fire out. You damp the skip down so it can\'t flare up again.',
       'Hydrant on the corner checked: good pressure.',
       'Smoke alarm reset and tested for the residents.',
     ]),
     signOff: 'Back to the Fire Station',
+    // The first stop is a real fire: the duty waits there until the hose has knocked it down (fireHose.mjs).
+    hose: Object.freeze({ stop: 0, arrive: 'On scene: the skip is burning. Face the flames and hold Space (or HOSE) to spray.' }),
   }),
   soldier: Object.freeze({
     id: 'route-march', title: 'Route march', spacing: 80, onFoot: true,
@@ -93,11 +97,16 @@ export function planTask(career, graph, door, { seed = 1, collider = null } = {}
     if (walked < spec.spacing || edge.length < 12) continue;
     const spot = pavementSpot(edge, random() < 0.5 ? 1 : -1, collider);
     if (!spot) continue;
+    const hose = spec.hose?.stop === stops.length;
+    const fire = hose ? fireSpot(spot, collider) : null;
+    if (hose && !fire) continue;
     if (stops.some(s => Math.hypot(s.x - spot.x, s.z - spot.z) < spec.spacing * 0.5)) continue;
     if (Math.hypot(spot.x - door.x, spot.z - door.z) < 30) continue;
     length += Math.hypot(spot.x - previous.x, spot.z - previous.z) * 1.25;
     previous = spot;
-    stops.push({ ...spot, line: spec.stops[stops.length], final: false });
+    const { along, ...at } = spot;
+    stops.push(fire ? { ...at, line: spec.stops[stops.length], final: false, hose: { x: fire.x, z: fire.z, arrive: spec.hose.arrive } }
+      : { ...at, line: spec.stops[stops.length], final: false });
     walked = 0;
   }
   if (!stops.length) return null;
@@ -105,7 +114,8 @@ export function planTask(career, graph, door, { seed = 1, collider = null } = {}
   stops.push({ x: door.x, z: door.z, line: spec.signOff, final: true });
   return {
     career, id: spec.id, title: spec.title, brief: spec.brief, onFoot: spec.onFoot, stops, next: 0, elapsed: 0,
-    par: Math.ceil(length / PACE + STOP_SECONDS * stops.length), length: Math.round(length), done: false, warnedOnFoot: false,
+    par: Math.ceil(length / PACE + STOP_SECONDS * stops.length + (stops.some(s => s.hose) ? HOSE_SECONDS : 0)),
+    length: Math.round(length), done: false, warnedOnFoot: false, beat: null,
   };
 }
 
@@ -120,36 +130,62 @@ function pavementSpot(edge, side, collider) {
   const t = (half - c[i - 1]) / span;
   const x = ax + (bx - ax) * t, z = az + (bz - az) * t;
   const nx = -(bz - az) / span, nz = (bx - ax) / span;
+  const along = { x: (bx - ax) / span, z: (bz - az) / span };
   const out = edge.lane * 2 + 1.5;
   for (const s of [side, -side]) {
     const px = x + nx * out * s, pz = z + nz * out * s;
-    if (!collider || !collider.blockedLocal(px, pz)) return { x: px, z: pz };
+    if (!collider || !collider.blockedLocal(px, pz)) return { x: px, z: pz, along };
   }
-  return collider && !collider.blockedLocal(x, z) ? { x, z } : collider ? null : { x, z };
+  return collider && !collider.blockedLocal(x, z) ? { x, z, along } : collider ? null : { x, z, along };
+}
+
+/** Where the fire burns: a few metres along the pavement from the stop, either way, wherever there's room. */
+function fireSpot(spot, collider) {
+  for (const distance of [FIRE_OFFSET, -FIRE_OFFSET, FIRE_OFFSET * 0.7, -FIRE_OFFSET * 0.7]) {
+    const x = spot.x + spot.along.x * distance, z = spot.z + spot.along.z * distance;
+    if (!collider || !collider.blockedLocal(x, z)) return { x, z };
+  }
+  return null;
 }
 
 /**
  * Advance a duty run by `seconds` with the player (or their car) at (x, z). Returns the new task and what happened:
- * `{ type: 'stop', index, line }` at a stop, `{ type: 'done' }` at the final one, `{ type: 'on-foot' }` once when a
- * march stop (or the sign-off at the door) is attempted at the wheel, or null.
+ * `{ type: 'stop', index, line }` at a stop, `{ type: 'done' }` at the final one, `{ type: 'beat', beat: 'hose' }`
+ * on reaching a fire (the run then waits for `finishBeat`), `{ type: 'on-foot', reason }` once when a march stop, a
+ * fire or the sign-off at the door is attempted at the wheel, or null.
  */
 export function stepTask(task, { x, z, seconds = 0, driving = false }) {
   if (!task || task.done) return { task, event: null };
   const next = { ...task, elapsed: task.elapsed + Math.max(0, Math.min(1, Number(seconds) || 0)) };
+  // At a fire the clock runs but nothing else moves on until it's out.
+  if (task.beat) return { task: next, event: null };
   const stop = task.stops[task.next];
   if (!stop || !Number.isFinite(x) || !Number.isFinite(z)) return { task: next, event: null };
   const reach = driving ? TASK_REACH_CAR : TASK_REACH;
   if (Math.hypot(x - stop.x, z - stop.z) > reach) return { task: next, event: null };
   // A march only counts on foot, and everyone signs off on foot at the door (park up and walk in).
-  if (driving && (task.onFoot || stop.final)) {
+  if (driving && (task.onFoot || stop.final || stop.hose)) {
     if (task.warnedOnFoot) return { task: next, event: null };
-    return { task: { ...next, warnedOnFoot: true }, event: { type: 'on-foot' } };
+    const reason = stop.final ? 'sign-off' : stop.hose ? 'hose' : 'march';
+    return { task: { ...next, warnedOnFoot: true }, event: { type: 'on-foot', reason } };
   }
   const index = task.next;
-  next.next = index + 1;
   next.warnedOnFoot = false;
+  if (stop.hose) {
+    next.beat = 'hose';
+    return { task: next, event: { type: 'beat', beat: 'hose', index, line: stop.hose.arrive } };
+  }
+  next.next = index + 1;
   if (stop.final) { next.done = true; return { task: next, event: { type: 'done' } }; }
   return { task: next, event: { type: 'stop', index, line: stop.line } };
+}
+
+/** The fire at the current stop is out (or the beat is otherwise done): move on to the next stop. */
+export function finishBeat(task) {
+  if (!task?.beat || task.done) return { task, event: null };
+  const index = task.next;
+  const stop = task.stops[index];
+  return { task: { ...task, beat: null, next: index + 1 }, event: { type: 'stop', index, line: stop.line } };
 }
 
 /** How the run went and the bonus on top of the shift's base pay. */
@@ -167,10 +203,11 @@ export function taskStatus(task) {
   const regular = task.stops.length - 1;
   return {
     title: task.title,
-    next: stop.final ? stop.line : `Stop ${Math.min(task.next + 1, regular)} of ${regular}`,
+    next: task.beat === 'hose' ? 'Put the fire out' : stop.final ? stop.line : `Stop ${Math.min(task.next + 1, regular)} of ${regular}`,
     done: Math.min(task.next, regular), total: regular,
     left: Math.round(task.par - task.elapsed),
     onFoot: task.onFoot,
+    beat: task.beat ?? null,
   };
 }
 
