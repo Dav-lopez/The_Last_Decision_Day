@@ -18,6 +18,14 @@ export const RELEASE_NOTES = Object.freeze([
     ]),
   }),
   Object.freeze({
+    id: '2026-11-03d', title: 'Real fire calls',
+    items: Object.freeze([
+      'A fire call now starts at a real fire: a burning skip behind the shops, its smoke visible down the street.',
+      'Hold Space (or HOSE) to spray. Stand still and you turn onto the flames; the duty card shows how much fire is left.',
+      'Put it out quickly and cleanly for a better time. Steam, a hiss and the litres of water used tell you how it went.',
+    ]),
+  }),
+  Object.freeze({
     id: '2026-11-03', title: 'Say cheese',
     items: Object.freeze([
       'Your phone has a camera: open Phone → Camera → Take photos, aim with WASD or by dragging, and press Space.',

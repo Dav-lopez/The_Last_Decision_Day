@@ -202,6 +202,16 @@ above is done or blocked; any item may be split into slices.
     you're out of the car, so you tune in mid-song; the choice is remembered.
 - [ ] **16. Career missions**: police patrol calls (traffic stop, lost child, noise complaint), fire calls with
       the hose, army route march with checkpoints; timed, scored, and paid better than a plain shift.
+  - [x] 16a (partial slice). Fire calls with the hose: the call-out now starts at a real fire, a skip burning on the
+        pavement a few metres from the stop (placed from the street data, on open ground), its smoke up as soon as the
+        duty starts so you can see it down the street. The run waits there until it's out: hold Space (or HOSE on
+        touch) to spray a water arc; standing still, a soft aim assist turns you onto the flames; too far, too close or
+        facing away is called out on the duty card under a "fire left" meter. Left alone it flares back up; missed
+        water is counted, and the sign-off line grades the job ("Clean knockdown: 40 litres of water"). Flames, smoke,
+        steam and water are particles on one procedural texture (no downloads, no extra lights), sized by adaptive
+        quality and loaded on demand (`fireCallScene.ts`); the hose is a looping sound on the effects bus, with
+        crackle, whoosh and hiss cues and captions. Rules in `fireHose.mjs`; the playtest puts a fire out with Space.
+        Still to do: police calls (traffic stop, lost child, noise complaint) and scored army checkpoints.
 - [ ] **17. Seamless road**: drive from Maple Street to downtown and back without a fade (streamed world).
   - [x] 17a (partial slice). The open road: downtown now sits north of the town (`CITY_ORIGIN` moved from 1 km east
         to 620 m north), and the road past the barrier at the top of Maple Street carries on for ~370 m, bends onto
@@ -234,6 +244,17 @@ above is done or blocked; any item may be split into slices.
         clubhouse photo, the street changing on Last Decision Day), character gestures beyond Talk.
 - [ ] **20. Visual quality pass**: better materials and lighting downtown, higher-detail characters (with the
       facial work), screen-space reflections on wet roads where the device can afford it.
+  - [x] 20a (partial slice). Downtown facades: five facade styles (red brick with stone lintels and sash windows,
+        stucco with string courses, painted siding with shutters, ashlar stone with tall windows, glass curtain walls
+        with spandrels) drawn as one texture of four bays by four storeys each (`facadeDesign.mjs`), so windows no
+        longer repeat bay by bay. Every building gets its own slight tint and window-grid offset (vertex colours, so a
+        style is still one draw call); glass catches the sun and street lamps while walls stay matte (a gloss map);
+        cornices stand proud of the wall and rise into a parapet; 420 air-conditioning units and stair housings sit on
+        the flat roofs; 255 striped canvas awnings hang over shopfronts that face a street. After dark about two in
+        five windows light up (warm tungsten to cool LED, some with blinds half down) and shop glass glows. All of it is
+        procedural (no downloads) and frozen into three extra merged meshes. The guest playtest checks the details and
+        switches the lights to see the windows come on. Still to do: lighting downtown (light probes or a baked
+        ambient), higher-detail characters and reflections on wet roads.
 
 ## Found along the way
 
@@ -263,6 +284,10 @@ above is done or blocked; any item may be split into slices.
 - 17a: you can't get out of the car on the open road (there's nowhere for the player to walk out of town; a notice
   says so), and downtown traffic is only drawn once you're in the city, so it appears as you arrive. The open-road
   speed limit can now build on #246 (per-vehicle specs in `stepVehicle`, merged); the cruiser and engine stop at downtown's edge rather than take the road.
+- 20a: building heights in the OSM data aren't whole storeys, so the top row of windows can be cut by the roof
+  line; the cornice hides most of it. Snapping the facade's v so the top storey ends on the roof would fix the rest.
+  Awnings aren't solid (they're above head height, but the camera can pass through them), and the lit-window pattern
+  repeats every four bays and storeys per style (the per-building offset hides most of it).
 - Fixed (13c): a car you drove downtown and got out of could never be got back into (downtown, E only looked for
   the bus, workplaces, people and the ball), and parked cars downtown were walk-through. Any car standing downtown is
   now solid on foot, to your car and to the traffic, and E gets you back in.
@@ -277,6 +302,11 @@ above is done or blocked; any item may be split into slices.
 - Car damage (13b) is kept per car for the session and cleared when you sleep; it isn't saved. Traffic downtown
   only stops for you rather than hitting you, so only your own knocks mark the car. The impact spot is inferred from
   speed and steering, not from which footprint point touched; `stepVehicle` could report the contact point instead.
+- 16a: the skip on a fire call isn't solid (you can walk through it), and the water arc passes through walls and
+  parked cars; a collider entry for the skip and a ray for the jet would fix both. With the fire engine (13c) parked
+  nearby, spraying from the engine's hose reel would be a natural next step.
+- 16a: Babylon particle shaders compile the first time a fire is shown, which can hitch a frame on slow devices; the
+  fire is lit when the duty starts (at the station door), not when you arrive, so the hitch lands somewhere harmless.
 - Merging 13b and 13c: the cruiser and fire engine take dents and scratches too, but the impact spot is laid out on
   the family car's footprint, so on the 7.8 m engine a nose or tail mark lands nearer the middle than the bumper.
   `impactSpot` could take the vehicle's length from `vehicleSpecs.mjs`.

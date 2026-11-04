@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { TASKS, TASK_REACH, formatClock, planTask, stepTask, taskResult, taskStatus } from '../src/world/careerTasks.mjs';
+import { HOSE_SECONDS, TASKS, TASK_REACH, finishBeat, formatClock, planTask, stepTask, taskResult, taskStatus } from '../src/world/careerTasks.mjs';
 import { CAREERS, workplaceDoors } from '../src/world/careers.mjs';
 import { CITY_ORIGIN, createCityCollider, readCity } from '../src/world/cityLayout.mjs';
 import { buildRoadGraph } from '../src/world/cityTraffic.mjs';
@@ -17,7 +17,7 @@ test('every career has a duty with a stop line for each stop', () => {
   for (const spec of Object.values(TASKS)) {
     assert.ok(spec.stops.length >= 3 && spec.title && spec.brief && spec.signOff);
     // No crime or weapons on duty: these are community jobs.
-    for (const line of [...spec.stops, spec.brief]) assert.doesNotMatch(line, /gun|shoot|arrest|weapon|chase/i);
+    for (const line of [...spec.stops, spec.brief, spec.hose?.arrive ?? '']) assert.doesNotMatch(line, /gun|shoot|arrest|weapon|chase/i);
   }
   assert.equal(TASKS.soldier.onFoot, true);
 });
@@ -63,7 +63,9 @@ test('stepping through the stops in order, then signing off', () => {
   assert.equal(far.task.elapsed, 0.5);
   const lines = [];
   for (const stop of task.stops) {
-    const r = stepTask(task, { x: stop.x + TASK_REACH - 1, z: stop.z, seconds: 1 });
+    let r = stepTask(task, { x: stop.x + TASK_REACH - 1, z: stop.z, seconds: 1 });
+    // A fire holds the run until the hose has put it out.
+    if (r.event.type === 'beat') r = finishBeat(r.task);
     task = r.task;
     lines.push(r.event.type === 'stop' ? r.event.line : r.event.type);
   }
@@ -103,11 +105,50 @@ test('bonus by time: outstanding inside three quarters of par, on time, or late'
 
 test('HUD status counts stops and time left', () => {
   const task = planTask('police', graph, localDoor('police'), { seed: 1, collider });
-  assert.deepEqual(taskStatus(task), { title: 'Patrol route', next: 'Stop 1 of 4', done: 0, total: 4, left: task.par, onFoot: false });
+  assert.deepEqual(taskStatus(task), { title: 'Patrol route', next: 'Stop 1 of 4', done: 0, total: 4, left: task.par, onFoot: false, beat: null });
   const atEnd = { ...task, next: 4, elapsed: task.par + 5 };
   assert.equal(taskStatus(atEnd).next, TASKS.police.signOff);
   assert.equal(taskStatus(atEnd).left, -5);
   assert.equal(formatClock(75), '1:15');
   assert.equal(formatClock(-5), '+0:05');
   assert.equal(taskStatus(null), null);
+});
+
+test('a fire call starts at a real fire: the run waits there until the hose has put it out', () => {
+  for (const seed of [1, 2, 3, 4, 5]) {
+    const task = planTask('firefighter', graph, localDoor('firefighter'), { seed, collider });
+    const fire = task.stops[0].hose;
+    assert.ok(fire, `seed ${seed}: the first stop is a fire`);
+    assert.ok(task.stops.slice(1).every(stop => !stop.hose), 'only one fire per call');
+    // The fire burns a few metres along the pavement from where you stand: in the hose's reach, not on the stop ring.
+    const gap = Math.hypot(fire.x - task.stops[0].x, fire.z - task.stops[0].z);
+    assert.ok(gap > 3 && gap < 6, `seed ${seed}: fire ${gap.toFixed(1)} m from the stop`);
+    assert.equal(collider.blockedLocal(fire.x, fire.z), false, 'the fire is out on open ground');
+    assert.match(fire.arrive, /hold Space/i);
+  }
+  // Par allows for the hose work; other careers have no fire.
+  assert.ok(HOSE_SECONDS > 0);
+  assert.equal(planTask('police', graph, localDoor('police'), { seed: 1, collider }).stops.some(s => s.hose), false);
+
+  let task = planTask('firefighter', graph, localDoor('firefighter'), { seed: 2, collider });
+  const stop = task.stops[0];
+  // Driving up counts as nothing: run the hose on foot.
+  let r = stepTask(task, { ...stop, driving: true, seconds: 0.2 });
+  assert.deepEqual(r.event, { type: 'on-foot', reason: 'hose' });
+  r = stepTask(r.task, { ...stop, seconds: 0.2 });
+  assert.equal(r.event.type, 'beat');
+  assert.equal(r.event.beat, 'hose');
+  assert.equal(r.task.next, 0, 'still at the fire');
+  assert.equal(taskStatus(r.task).next, 'Put the fire out');
+  assert.equal(taskStatus(r.task).beat, 'hose');
+  // While the fire burns the clock runs, and walking off to the next stop does nothing.
+  const waiting = stepTask(r.task, { ...task.stops[1], seconds: 1 });
+  assert.equal(waiting.event, null);
+  assert.equal(waiting.task.next, 0);
+  assert.ok(waiting.task.elapsed > r.task.elapsed);
+  const done = finishBeat(waiting.task);
+  assert.deepEqual(done.event, { type: 'stop', index: 0, line: TASKS.firefighter.stops[0] });
+  assert.equal(done.task.beat, null);
+  assert.equal(done.task.next, 1);
+  assert.equal(finishBeat(done.task).event, null, 'nothing to finish without a beat');
 });

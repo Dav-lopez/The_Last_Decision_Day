@@ -70,7 +70,9 @@ import { ROUNDS as LEAGUE_ROUNDS, YOU as LEAGUE_YOU, clubName, clubShort, readLe
 import type { loadFootballPlayers } from './footballPlayers';
 import { CAREERS, SHIFT_HOURS, joinCareer, workplaceDoors, quitCareer, rankOf, readCareer, workShift, writeCareer, type CareerId, type CareerState } from './careers.mjs';
 import { buildWorkplaces, createTaskMarker } from './careersScene';
-import { TASKS, formatClock as formatDutyClock, planTask, stepTask, taskResult, taskStatus, type CareerTask } from './careerTasks.mjs';
+import { TASKS, finishBeat, formatClock as formatDutyClock, planTask, stepTask, taskResult, taskStatus, type CareerTask } from './careerTasks.mjs';
+import { aimAt, createFire, hoseReport, hoseStatus, stepFire, type Fire } from './fireHose.mjs';
+import type { FireCallView } from './fireCallScene';
 import { CareersPanel } from './CareersPanel';
 import { bindActions, loadActionClips } from './characterActions';
 import { bodyLean, headingDelta, jumpFor, jumpHeight } from './actionMixer.mjs';
@@ -627,6 +629,8 @@ export default function WorldScene({
   // A career duty under way downtown (MVP 8b): HUD summary, and a way to give it up.
   const [duty, setDuty] = useState<ReturnType<typeof taskStatus>>(null);
   const dutyActionsRef = useRef<{ giveUp: () => void }>({ giveUp: () => {} });
+  // The fire on a fire call (16a): how much is left, what to fix, and whether the hose is in reach (HOSE button).
+  const [hose, setHose] = useState<{ left: number; line: string; ready: boolean; spraying: boolean } | null>(null);
   const [atSchool, setAtSchool] = useState(false);
   const [inClass, setInClass] = useState<string | null>(null);
   const [lifeView, setLifeView] = useState<Life>(() => readLife(characterId));
@@ -990,6 +994,7 @@ export default function WorldScene({
       };
       decorRef.current();
       let cityLights: ReturnType<typeof buildCityLights> | null = null;
+      let cityLook: (() => { styles: number; awnings: number; rooftop: number; lit: boolean }) | null = null;
       // The open road north from Maple Street to downtown (item 17): drive there and back without a fade.
       let openRoad: OpenRoad | null = null;
       let disposeOpenRoad: (() => void) | null = null;
@@ -1014,8 +1019,41 @@ export default function WorldScene({
         const stop = activeTask ? activeTask.task.stops[activeTask.task.next] : null;
         taskMarker.show(stop ? toWorld([stop.x, stop.z]) : null, activeTask?.task.career ?? null, Boolean(stop?.final));
       };
+      // A fire call's fire: the rules (fireHose.mjs, city-local) and its flames, smoke and water (loaded on demand).
+      let callFire: { fire: Fire; at: PlanarPosition; along: { x: number; z: number }; sinceOut: number; spraying: boolean; crackle: number; report?: string } | null = null;
+      let fireView: FireCallView | null = null;
+      // Bumped whenever a fire is lit or cleared, so a slow scene download can't draw a fire that's gone
+      // (callFire itself is replaced every frame, so it can't be compared by identity).
+      let fireToken = 0;
+      const clearFire = () => {
+        fireToken++;
+        if (callFire?.spraying) audioRef.current?.hose(false);
+        callFire = null;
+        fireView?.dispose();
+        fireView = null;
+        setHose(null);
+      };
+      const lightFire = (task: CareerTask) => {
+        clearFire();
+        const stop = task.stops.find(s => s.hose);
+        if (!stop?.hose) return;
+        const at = toWorld([stop.hose.x, stop.hose.z]);
+        const length = Math.hypot(stop.hose.x - stop.x, stop.hose.z - stop.z) || 1;
+        const along = { x: (stop.hose.x - stop.x) / length, z: (stop.hose.z - stop.z) / length };
+        callFire = { fire: createFire(stop.hose), at, along, sinceOut: 0, spraying: false, crackle: 0 };
+        const token = ++fireToken;
+        // The smoke is up before you arrive, so you can see the call from down the street.
+        void import('./fireCallScene').then(module => {
+          if (disposed || token !== fireToken || !callFire) return;
+          fireView = module.createFireCall(scene, at, along, quality);
+        }).catch(() => {});
+      };
+      // The hose is in your hands on foot near a burning fire on a call: Space (or HOSE) sprays instead of jumping.
+      const hoseReady = () => Boolean(callFire && !callFire.fire.out && interaction.mode === 'walking' && !pendingShift
+        && locationRef.current === 'city' && Math.hypot(callFire.at.x - position.x, callFire.at.z - position.z) < 14);
       const endTask = (message: string | null) => {
         activeTask = null;
+        clearFire();
         showTaskStop();
         setDuty(null);
         if (message) notify(message);
@@ -1043,6 +1081,7 @@ export default function WorldScene({
           if (waypoint?.manual) waypoint = null;
           setLook(look => ({ ...look, ...CAREERS[id].uniform }));
           showTaskStop();
+          lightFire(task);
           setDuty(taskStatus(task));
           notify(`${task.title}: ${task.brief} Par ${formatDutyClock(task.par)}.`);
           audioRef.current?.cue('dispatch');
@@ -1144,8 +1183,10 @@ export default function WorldScene({
         const disposeCity = buildCityScene(scene, city);
         // Street lamps on every downtown street (clustered lights at night).
         const lights = buildCityLights(scene, city, collider);
-        lights.setEvening(eveningNow);
-        cityLights = lights;
+        // Lamps and lit windows switch on together.
+        cityLights = { ...lights, setEvening: (on: boolean) => { lights.setEvening(on); disposeCity.setEvening(on); } };
+        cityLights.setEvening(eveningNow);
+        cityLook = disposeCity.look;
         // A caged five-a-side pitch in Central Park.
         const pitch = buildFootballPitch(scene);
         football = { pitch, ball: newBall(), goals: 0, resetIn: 0 };
@@ -1674,8 +1715,10 @@ export default function WorldScene({
             loading: !worldReadyRef.current,
             downtownBuilt: downtown !== null, downtownBuildMs,
             road: openRoad && drivenIndex() >= 0 ? Math.round(roadProgress(openRoad, cars[drivenIndex()]).t * 100) / 100 : null,
+            cityLook: cityLook?.() ?? null,
             career: { id: careerRef.current.career, shifts: careerRef.current.shifts, money: careerRef.current.money },
-            duty: activeTask ? { id: activeTask.task.id, next: activeTask.task.next, stops: activeTask.task.stops.length, elapsed: activeTask.task.elapsed, par: activeTask.task.par } : null,
+            duty: activeTask ? { id: activeTask.task.id, next: activeTask.task.next, stops: activeTask.task.stops.length, elapsed: activeTask.task.elapsed, par: activeTask.task.par, beat: activeTask.task.beat } : null,
+            fire: callFire ? { heat: callFire.fire.heat, out: callFire.fire.out, spraying: callFire.spraying, water: callFire.fire.water, drawn: fireView !== null } : null,
             busy: pendingShift !== null,
             decor: decorShownRef.current,
             cutscene: cutsceneShotRef.current, camera: { alpha: camera.alpha, beta: camera.beta, radius: camera.radius },
@@ -1710,6 +1753,7 @@ export default function WorldScene({
             if (interaction.mode !== 'walking' || pendingTaxi || pendingDrive || pendingRide) return false;
             const where = locationRef.current;
             let to: PlanarPosition | null = null;
+            let rotation = avatar.rotation.y;
             if (spot.startsWith('talk:')) to = talkSpot(where, life.minute, neighbors?.positions(), position, 0.8, spot.slice(5) as NpcId);
             else if (spot === 'neighbour') to = where === 'city' ? downtownTalkSpot(regulars ? regularSpots : [], life.minute, position)
               : talkSpot(where, life.minute, neighbors?.positions(), position);
@@ -1722,10 +1766,12 @@ export default function WorldScene({
             else if (spot === 'duty') {
               const stop = activeTask && where === 'city' ? activeTask.task.stops[activeTask.task.next] : null;
               to = stop ? toWorld([stop.x, stop.z]) : null;
+              // At a fire, stand on the ring facing the flames.
+              if (stop?.hose) rotation = movementHeading(stop.hose.x - stop.x, stop.hose.z - stop.z);
             }
             else if (where === 'city') to = workDoors.get(spot as CareerId) ?? null;
             if (!to) return false;
-            placePlayer({ x: to.x, z: to.z, rotation: avatar.rotation.y });
+            placePlayer({ x: to.x, z: to.z, rotation });
             return true;
           },
         };
@@ -2258,6 +2304,10 @@ export default function WorldScene({
           // In a car, H holds the horn and Space holds the handbrake.
           event.preventDefault();
           inputRef.current.press(`keyboard:${key}`, key);
+        } else if (key === ' ' && hoseReady()) {
+          // On a fire call, Space holds the hose (instead of a jump).
+          event.preventDefault();
+          inputRef.current.press(`keyboard:${key}`, key);
         } else if (key === 'l' && !event.repeat && interaction.mode === 'driving') {
           event.preventDefault();
           sirenToggleRef.current();
@@ -2437,7 +2487,43 @@ export default function WorldScene({
           else if (!pendingTaxi && !pendingDrive && !pendingRide) {
             const driven = drivenIndex();
             const [tx, tz] = toLocal(driven >= 0 ? cars[driven] : position);
-            const { task, event } = stepTask(activeTask.task, { x: tx, z: tz, seconds: delta, driving: driven >= 0 });
+            let { task, event } = stepTask(activeTask.task, { x: tx, z: tz, seconds: delta, driving: driven >= 0 });
+            // The hose: spray while Space or HOSE is held; standing still, you turn onto the flames (a soft aim assist).
+            if (callFire) {
+              const walking = driven < 0;
+              const keys = inputRef.current.pressed;
+              const spraying = walking && hoseReady() && (keys.has(' ') || keys.has('hose'));
+              const [px, pz] = toLocal(position);
+              if (spraying) {
+                const want = movementHeading(callFire.fire.x - px, callFire.fire.z - pz);
+                const off = Math.atan2(Math.sin(want - avatar.rotation.y), Math.cos(want - avatar.rotation.y));
+                const moving = [...keys].some(key => key !== ' ' && key !== 'hose' && key !== 'Shift');
+                if (!moving && Math.abs(off) < 1.3) avatar.rotation.y += Math.sign(off) * Math.min(Math.abs(off), 2.6 * delta);
+              }
+              const facing = { x: -Math.sin(avatar.rotation.y), z: -Math.cos(avatar.rotation.y) };
+              const stepped = stepFire(callFire.fire, { x: px, z: pz, dx: facing.x, dz: facing.z, spraying, seconds: delta });
+              if (spraying && !callFire.spraying) audioRef.current?.cue('spray');
+              if (spraying !== callFire.spraying) audioRef.current?.hose(spraying);
+              callFire = { ...callFire, fire: stepped.fire, spraying, sinceOut: stepped.fire.out ? callFire.sinceOut + delta : 0 };
+              // Crackling while it burns and you're close enough to hear it.
+              callFire.crackle -= delta;
+              if (!stepped.fire.out && callFire.crackle <= 0 && Math.hypot(callFire.at.x - position.x, callFire.at.z - position.z) < 30) {
+                callFire.crackle = 0.45; audioRef.current?.cue('crackle');
+              }
+              fireView?.update(delta, { heat: stepped.fire.heat, out: stepped.fire.out, hitting: stepped.fire.hitting, spraying,
+                sinceOut: callFire.sinceOut, nozzle: position, facing });
+              if (stepped.event === 'out') {
+                audioRef.current?.cue('hiss');
+                const report = hoseReport(stepped.fire);
+                callFire.report = `${report.grade}: ${report.litres} litres of water.`;
+              }
+              // Put out (even before you reached the stop ring): the run moves on to the next stop.
+              if (stepped.fire.out && task.beat === 'hose') {
+                const finished = finishBeat(task);
+                task = finished.task;
+                if (finished.event?.type === 'stop') event = { ...finished.event, line: `${finished.event.line} ${callFire.report ?? ''}`.trim() };
+              }
+            }
             activeTask = { ...activeTask, task };
             taskMarker.update(delta);
             dutyTimer += delta;
@@ -2445,9 +2531,20 @@ export default function WorldScene({
               dutyTimer = 0;
               const status = taskStatus(task);
               setDuty(previous => previous && status && previous.next === status.next && previous.left === status.left ? previous : status);
+              if (callFire && !callFire.fire.out) {
+                const [px, pz] = toLocal(position);
+                const facing = { dx: -Math.sin(avatar.rotation.y), dz: -Math.cos(avatar.rotation.y) };
+                const card = hoseStatus(callFire.fire, aimAt(callFire.fire, { x: px, z: pz, ...facing }), callFire.spraying);
+                const ready = hoseReady();
+                const spraying = callFire.spraying;
+                setHose(previous => previous && previous.left === card.left && previous.line === card.line && previous.ready === ready && previous.spraying === spraying
+                  ? previous : { ...card, ready, spraying });
+              } else if (callFire) setHose(previous => previous && previous.left === 0 ? previous : { left: 0, line: 'Fire out', ready: false, spraying: false });
             }
             if (event?.type === 'stop') { showTaskStop(); notify(event.line); audioRef.current?.cue('checkpoint'); }
-            else if (event?.type === 'on-foot') notify(task.onFoot && !task.stops[task.next].final ? 'A route march is on foot: leave the car.' : 'Park up and sign off on foot at the door.');
+            else if (event?.type === 'beat') { notify(event.line); audioRef.current?.cue('blaze'); }
+            else if (event?.type === 'on-foot') notify(event.reason === 'march' ? 'A route march is on foot: leave the car.'
+              : event.reason === 'hose' ? 'Park up and run the hose out on foot.' : 'Park up and sign off on foot at the door.');
             else if (event?.type === 'done') {
               const { result } = activeTask;
               const outcome = taskResult(task, result.pay);
@@ -2891,6 +2988,8 @@ export default function WorldScene({
         driveFeel?.dispose();
         carDamage?.dispose();
         taskMarker.dispose();
+        fireView?.dispose();
+        fireView = null;
         audioRef.current?.siren(null);
         disposeMapleStop();
         downtown?.dispose();
@@ -3039,7 +3138,14 @@ export default function WorldScene({
             aria-label={duty.left < 0 ? `${formatDutyClock(duty.left)} over par` : `${formatDutyClock(duty.left)} left on par`}>{formatDutyClock(duty.left)}</span></header>
           <ol className="world-duty-pips" aria-hidden="true">{Array.from({ length: duty.total + 1 }, (_, i) => <li key={i}
             className={i < duty.done ? 'done' : i === duty.done ? 'next' : undefined} data-final={i === duty.total ? '' : undefined} />)}</ol>
-          <p role="status" aria-live="polite">{duty.next}{duty.onFoot ? ' · on foot' : ''} · follow the beam and the GPS</p>
+          {duty.beat === 'hose' && hose
+            ? <div className="world-duty-fire">
+                <div className="world-duty-fire-bar" role="meter" aria-label="Fire left" aria-valuemin={0} aria-valuemax={100} aria-valuenow={hose.left}>
+                  <span style={{ width: `${hose.left}%` }} />
+                </div>
+                <p role="status" aria-live="polite">Fire {hose.left}% · {hose.line}</p>
+              </div>
+            : <p role="status" aria-live="polite">{duty.next}{duty.onFoot ? ' · on foot' : ''} · follow the beam and the GPS</p>}
           <button type="button" onClick={event => { dutyActionsRef.current.giveUp(); focusWorld(event); }}>Give up</button>
         </section>}
         {inClass && <div className="world-sleep world-class" role="status" aria-live="polite"><span>{inClass} class…</span></div>}
@@ -3207,7 +3313,7 @@ export default function WorldScene({
           {directionButton('HANDBRAKE', 'handbrake', 'Hold the handbrake')}
           {drivingKind !== 'sedan' && <button type="button" className="world-pad-key world-siren-key" aria-label="Lights and siren" aria-pressed={sirenShown}
             onClick={event => { sirenToggleRef.current(); if (event.detail > 0) canvasRef.current?.focus({ preventScroll: true }); }}>{sirenShown ? 'SIREN: ON' : 'SIREN'}</button>}
-        </div> : <div className="world-run"><button type="button" className="world-pad-key" aria-label="Toggle running" aria-pressed={sprintEnabled} onClick={event => {
+        </div> : <div className="world-run">{hose?.ready && directionButton('HOSE', 'hose', 'Hold to spray the hose')}<button type="button" className="world-pad-key" aria-label="Toggle running" aria-pressed={sprintEnabled} onClick={event => {
           sprintEnabledRef.current = !sprintEnabledRef.current;
           setSprintEnabled(sprintEnabledRef.current);
           if (event.detail > 0) canvasRef.current?.focus({ preventScroll: true });
