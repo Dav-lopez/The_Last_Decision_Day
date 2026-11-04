@@ -21,7 +21,7 @@ export const SPEAKER_RESIDENTS = Object.freeze({
 });
 /** Someone this close (metres) is "in the scene" and gets their own shots. */
 export const NEAR_METRES = 9;
-export const SHOT_KINDS = Object.freeze(['establish', 'crane', 'narration', 'phone', 'speaker', 'reverse', 'close', 'listen']);
+export const SHOT_KINDS = Object.freeze(['establish', 'crane', 'narration', 'phone', 'speaker', 'reverse', 'close', 'listen', 'detail', 'push']);
 
 const clamp01 = value => Math.max(0, Math.min(1, value));
 const ease = t => { const c = clamp01(t); return c * c * (3 - 2 * c); };
@@ -67,12 +67,15 @@ export function planShots(lines, { mood = 'scene', near = () => false } = {}) {
   const shots = [];
   let partner = null;
   for (let index = 0; index < (lines?.length ?? 0); index++) {
-    const { speaker } = lines[index];
+    const { speaker, beat } = lines[index];
     const tone = CAST[speaker]?.tone;
     const present = speaker in SPEAKER_RESIDENTS && near(speaker);
     if (present) partner = speaker;
     let kind;
     if (index === 0 && (mood === 'opening' || mood === 'ending')) kind = mood === 'ending' ? 'crane' : 'establish';
+    // Staged beats (19b): over your shoulder at what you're reaching for, or a slow push-in as it dawns on you.
+    else if (beat === 'photo') kind = 'detail';
+    else if (beat === 'reveal') kind = 'push';
     else if (tone === 'phone' || tone === 'mystery') kind = 'phone';
     else if (speaker === 'narrator') kind = mood === 'ending' ? 'crane' : 'narration';
     else if (speaker === 'you') kind = partner ? 'reverse' : 'close';
@@ -120,7 +123,20 @@ export function shotPose(shot, ctx, seconds) {
       return orbitFrom(camera, look);
     }
   }
+  // Which way the player's camera was looking when the scene began: "ahead" for staged shots.
+  const ahead = { x: -Math.cos(baseAlpha), z: -Math.sin(baseAlpha) };
   switch (kind) {
+    case 'detail': {
+      // Low over the right shoulder, looking past you at something on the wall ahead (the old team photo),
+      // creeping closer.
+      const back = lerp(1.35, 0.85, t), side = 0.45;
+      const camera = { x: player.x - ahead.x * back - ahead.z * side, y: lerp(1.3, 1.42, t), z: player.z - ahead.z * back + ahead.x * side };
+      const reach = indoor ? 1.6 : 2.2;
+      return orbitFrom(camera, { x: player.x + ahead.x * reach, y: 1.72, z: player.z + ahead.z * reach });
+    }
+    case 'push':
+      // The penny drops: a slow push from a close-up into an extreme close-up, almost straight on.
+      return orbit(head(player, 1.6), baseAlpha + Math.PI - lerp(0.32, 0.18, t), indoor ? 1.32 : 1.45, lerp(3.1, 1.45, t));
     case 'establish':
       return indoor ? orbit(head(player, 1.2), baseAlpha + lerp(0.45, 0.15, t), lerp(0.7, 0.82, t), lerp(10, 8, t))
         : orbit(head(player, lerp(1.6, 1.3, t)), baseAlpha + lerp(0.5, 0.15, t), lerp(0.86, 1.08, t), lerp(17, 10, t));
