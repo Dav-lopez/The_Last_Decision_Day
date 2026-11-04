@@ -993,7 +993,7 @@ export default function WorldScene({
       };
       decorRef.current();
       let cityLights: ReturnType<typeof buildCityLights> | null = null;
-      let cityLook: (() => { styles: number; awnings: number; rooftop: number; lit: boolean }) | null = null;
+      let cityLook: (() => { styles: number; awnings: number; rooftop: number; lit: boolean; contactShadows: number; canyonWalls: number; pools: number; poolsOn: boolean }) | null = null;
       // Downtown views run hundreds of metres down real streets: thinner haze there than on Maple Street.
       const applyFog = () => { scene.fogDensity = locationRef.current === 'city' ? 0.0032 : 0.009; };
       let eveningNow = false;
@@ -1174,7 +1174,7 @@ export default function WorldScene({
         // Lamps and lit windows switch on together.
         cityLights = { ...lights, setEvening: (on: boolean) => { lights.setEvening(on); disposeCity.setEvening(on); } };
         cityLights.setEvening(eveningNow);
-        cityLook = disposeCity.look;
+        cityLook = () => ({ ...disposeCity.look(), ...lights.look() });
         // A caged five-a-side pitch in Central Park.
         const pitch = buildFootballPitch(scene);
         football = { pitch, ball: newBall(), goals: 0, resetIn: 0 };
