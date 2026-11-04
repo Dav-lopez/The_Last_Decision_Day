@@ -7,3 +7,4 @@ export { buildCityScene } from './cityScene';
 export { buildCityLights } from './cityLights';
 export { buildFootballPitch } from './footballScene';
 export { loadCityTraffic, type CityTraffic } from './cityTrafficScene';
+export { buildCareerVehicle, type CareerVehicleModel } from './careerVehiclesScene';

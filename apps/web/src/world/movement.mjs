@@ -1,6 +1,7 @@
 /** Pure movement and interaction rules shared by desktop and touch inputs. */
 import { PARKED_CARS, CAR_HALF_WIDTH, CAR_HALF_LENGTH, STREET_LIGHTS } from './streetLayout.mjs';
 import { PROP_BLOCKERS } from './propLayout.mjs';
+import { vehicleSize } from './vehicleSpecs.mjs';
 export const WORLD_RADIUS = 11.5;
 export const SCHOOL_DOOR = Object.freeze({ x: 0, z: -5.5 });
 export const TREE_TRUNKS = Object.freeze([
@@ -33,7 +34,8 @@ export function carContains(car, x, z, margin = 0) {
   const sin = Math.sin(car.rotation ?? 0);
   const localX = dx * cos - dz * sin;
   const localZ = dx * sin + dz * cos;
-  return Math.abs(localX) < CAR_HALF_WIDTH + margin && Math.abs(localZ) < CAR_HALF_LENGTH + margin;
+  const { halfWidth, halfLength } = vehicleSize(car);
+  return Math.abs(localX) < halfWidth + margin && Math.abs(localZ) < halfLength + margin;
 }
 
 /**

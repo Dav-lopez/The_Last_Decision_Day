@@ -413,6 +413,30 @@ await step('career duty: a fire call downtown, paid on sign-off (MVP 8b)', async
   notes.push(`duty paid $${after.money - career.money}`);
   await dismissDialogue();
 });
+await step('station vehicles: a firefighter drives the fire engine with lights and siren (open-world 13c)', async () => {
+  await waitFor('cruiser and fire engine parked downtown', timeout => page.waitForFunction(() => (window.__tld.read().stationVehicles ?? []).length >= 2, null, { timeout }));
+  // A firefighter may not take the police cruiser.
+  if (!(await page.evaluate(() => window.__tld.place('cruiser')))) throw new Error('could not stand beside the police cruiser');
+  await waitFor('cruiser is police only', timeout => page.locator('.world-car-action', { hasText: /Police cruiser \(police only\)/ }).waitFor({ timeout }));
+  if (!(await page.evaluate(() => window.__tld.place('fire-engine')))) throw new Error('could not stand beside the fire engine');
+  const getIn = page.locator('.world-car-action', { hasText: /Drive the fire engine/ });
+  await waitFor('drive-the-engine prompt', timeout => getIn.waitFor({ timeout }));
+  await getIn.click();
+  await waitFor('in the fire engine', timeout => page.waitForFunction(() => window.__tld.read().car?.kind === 'fire-engine', null, { timeout }));
+  await page.locator('canvas').first().focus();
+  await page.keyboard.press('l');
+  await waitFor('lights and siren on', timeout => page.waitForFunction(() => window.__tld.read().car?.siren === true, null, { timeout }));
+  await page.locator('.world-siren-key[aria-pressed="true"]').waitFor({ timeout: 10000 });
+  await page.waitForTimeout(1500);
+  await shot('05f-fire-engine');
+  // Touch SIREN switches them off again.
+  await page.locator('.world-siren-key').click();
+  await waitFor('lights and siren off', timeout => page.waitForFunction(() => window.__tld.read().car?.siren === false, null, { timeout }));
+  const getOut = page.locator('.world-car-action', { hasText: /Get out of the fire engine/ });
+  await getOut.click();
+  await waitFor('out of the engine', timeout => page.waitForFunction(() => !window.__tld.read().driving, null, { timeout }));
+  notes.push('fire engine: driven, lights and siren on and off');
+});
 await step('quick travel to the pitch and back home', async () => {
   await page.evaluate(() => window.__tld.travel('pitch'));
   // Already downtown, so wait for the taxi ride itself to finish: a new trip is refused while one is under way.
