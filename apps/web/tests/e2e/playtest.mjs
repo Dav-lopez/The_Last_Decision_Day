@@ -476,6 +476,51 @@ await step('station vehicles: a firefighter drives the fire engine with lights a
   await waitFor('out of the engine', timeout => page.waitForFunction(() => !window.__tld.read().driving, null, { timeout }));
   notes.push('fire engine: driven, lights and siren on and off');
 });
+await step('route march: scored checkpoints, a split and a map-and-compass call at each (open-world 16c)', async () => {
+  if (!(await page.evaluate(() => window.__tld.place('soldier')))) throw new Error('recruiting office sign not found downtown');
+  const apply = page.locator('.world-car-action', { hasText: /Apply: Soldier/ });
+  await waitFor('apply button at the recruiting office', timeout => apply.waitFor({ timeout }));
+  await apply.click();
+  await waitFor('joined the army', timeout => page.waitForFunction(() => window.__tld.read().career.id === 'soldier', null, { timeout }));
+  await dismissDialogue();
+  // Another shift on the same playtest day: rested and inside opening hours.
+  await page.evaluate(() => window.__tld.rest());
+  const start = page.locator('.world-car-action', { hasText: /Start duty: Route march/ });
+  await waitFor('start-march button', timeout => start.waitFor({ timeout }));
+  await start.click();
+  await waitFor('march starts with a scorecard', timeout => page.waitForFunction(() => Boolean(window.__tld.read().duty && window.__tld.read().march), null, { timeout }));
+  const { duty, career } = await read();
+  notes.push(`route march: ${duty.stops - 1} checkpoints, par ${duty.par}s`);
+  for (let i = 0; i < duty.stops - 1; i++) {
+    const at = (await read()).duty?.next;
+    if (at !== i) throw new Error(`march at stop ${at}, expected ${i}`);
+    if (!(await page.evaluate(() => window.__tld.place('duty')))) throw new Error(`could not stand at checkpoint ${i + 1}`);
+    await waitFor(`checkpoint ${i + 1} holds for a bearing`, timeout => page.waitForFunction(() => window.__tld.read().march?.drill, null, { timeout }));
+    const answers = page.locator('.world-duty-bearings button');
+    await waitFor('bearing answers shown', timeout => answers.first().waitFor({ timeout }));
+    const texts = await answers.allInnerTexts();
+    if (texts.length !== 3) throw new Error(`expected three bearings, got ${JSON.stringify(texts)}`);
+    const { march } = await read();
+    if (!march.legs[i].pace) throw new Error(`no split recorded at checkpoint ${i + 1}`);
+    // Call the right bearing with the keyboard on every checkpoint but the second; tap a wrong one there.
+    const right = texts.findIndex(t => t.replace(/^\s*\d\s*/, '').startsWith(`${march.legs[i].answer} `));
+    if (right < 0) throw new Error(`right bearing ${march.legs[i].answer} not offered: ${JSON.stringify(texts)}`);
+    if (i === 0) { await page.waitForTimeout(800); await shot('05i-route-march-bearing'); await checkContrast('a route march bearing call'); }
+    if (i === 1) await answers.nth((right + 1) % 3).click();
+    else { await page.locator('canvas').first().focus(); await page.keyboard.press(String(right + 1)); }
+    await waitFor(`checkpoint ${i + 1} done`, timeout => page.waitForFunction(n => window.__tld.read().duty?.next === n + 1, i, { timeout }));
+    const called = (await read()).march.legs[i];
+    if (called.correct !== (i !== 1)) throw new Error(`bearing at checkpoint ${i + 1} scored ${called.correct}`);
+  }
+  if (!(await page.evaluate(() => window.__tld.place('duty')))) throw new Error('could not stand at the recruiting office door');
+  await waitFor('march signed off and paid', timeout => page.waitForFunction(shifts => { const s = window.__tld.read(); return !s.duty && !s.busy && s.career.shifts > shifts; }, career.shifts, { timeout }));
+  const { lastMarch } = await read();
+  if (!lastMarch || lastMarch.bearings !== lastMarch.legs - 1) throw new Error(`march scorecard ${JSON.stringify(lastMarch)}`);
+  const after = (await read()).career;
+  if (!(after.money > career.money)) throw new Error(`no pay for the march (savings ${career.money} → ${after.money})`);
+  notes.push(`route march ${lastMarch.title} ${lastMarch.score}/${lastMarch.max}, ${lastMarch.bearings}/${lastMarch.legs} bearings, paid $${after.money - career.money}`);
+  await dismissDialogue();
+});
 await step('quick travel to the pitch and back home', async () => {
   await page.evaluate(() => window.__tld.travel('pitch'));
   // Already downtown, so wait for the taxi ride itself to finish: a new trip is refused while one is under way.

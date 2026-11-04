@@ -212,6 +212,17 @@ above is done or blocked; any item may be split into slices.
         quality and loaded on demand (`fireCallScene.ts`); the hose is a looping sound on the effects bus, with
         crackle, whoosh and hiss cues and captions. Rules in `fireHose.mjs`; the playtest puts a fire out with Space.
         Still to do: police calls (traffic stop, lost child, noise complaint) and scored army checkpoints.
+  - [x] 16c (partial slice). Scored route march: every checkpoint on a soldier's march is scored (`routeMarch.mjs`).
+        Each leg has its own split par from the distance walked; arriving shows the split and a band (Sharp inside
+        85 % of par, On pace, Steady, Behind), and the duty card's stop pips turn green, amber or orange to match. The
+        march then holds for a map-and-compass call: which way is the next checkpoint (or the Recruiting Office)?
+        Three compass points are offered — the right one and the two at right angles, in a fixed order per checkpoint
+        — on keys 1–3 or as buttons; the minimap's N is the compass. A right call rings a rising chime, a wrong one a
+        soft falling pair and says which way it was (new `compass` / `wrong` cues with captions). Up to 3 points per
+        split and 2 per bearing grade the march (Distinction from 80 % +40 % of the shift's pay, Pass from 55 % +20 %,
+        Needs work +0 %) on top of the time bonus, shown on the sign-off line; par allows 4 s per call. The guest
+        playtest joins the army, walks the five checkpoints, calls four bearings by keyboard and taps one wrong, and
+        checks the scorecard and pay. Still to do: police calls (16b, in review).
 - [ ] **17. Seamless road**: drive from Maple Street to downtown and back without a fade (streamed world).
 - [ ] **18. Weather and sky**: rain and wet roads, fog, sunsets, clouds; weather changes by day.
 - [ ] **19. Cinematic story**: camera-directed cutscenes with letterboxing and character animation for each
@@ -267,6 +278,11 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- 16c: the playtest works three shifts in one game day (fire call, route march and, with 16b, a patrol), which the
+  energy and opening-hours rules would refuse; it uses a playtest-only `__tld.rest()` before the march. The march's
+  bearing is the straight line to the next checkpoint, not the street route, so on a winding leg the GPS line can
+  set off in a different direction from the right answer (the prompt asks which way the checkpoint is, so this is
+  intended, but worth a hint if players find it confusing).
 - 20a: building heights in the OSM data aren't whole storeys, so the top row of windows can be cut by the roof
   line; the cornice hides most of it. Snapping the facade's v so the top storey ends on the roof would fix the rest.
   Awnings aren't solid (they're above head height, but the camera can pass through them), and the lit-window pattern
