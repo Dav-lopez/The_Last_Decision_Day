@@ -206,6 +206,20 @@ above is done or blocked; any item may be split into slices.
 - [ ] **18. Weather and sky**: rain and wet roads, fog, sunsets, clouds; weather changes by day.
 - [ ] **19. Cinematic story**: camera-directed cutscenes with letterboxing and character animation for each
       chapter opening and the three endings.
+  - [x] 19a (partial slice). Directed story scenes: while a story scene plays, a camera director (`cutscene.mjs`)
+        gives every line a shot from who is speaking and where they stand — a wide establishing shot that pushes in
+        when a chapter opens, a slow drift for narration, close over the shoulder onto the phone for texts and the
+        note from "A.", over-the-shoulder shots and reverse angles (eyelines kept on one side) when the speaker is
+        standing near you, a three-quarter close-up on your own lines, a listening shot when someone speaks who isn't
+        there, and a rising crane over Maple Street for the endings. Shots move slowly inside and cut between lines;
+        lines from the same speaker hold the shot. Neighbours in the scene turn to you and lip-sync their lines, your
+        character plays the talk animation on yours and turns to face whoever is talking. Chapter openings and the
+        epilogue get wider bars and a title card ("Chapter 2 · The Note", "Ending · The Maple Street Garden"); the
+        minimap and objective step aside. Indoors the shots stay tight and high under the cutaway; under reduced
+        motion every shot holds still. The camera is handed back exactly as it was. The guest playtest checks the
+        opening's title card, establishing shot and first cut, the camera's return, and the range of shots across all
+        three endings. Still to do: authored camera moves and staging for set pieces (the note under the door, the
+        clubhouse photo, the street changing on Last Decision Day), character gestures beyond Talk.
 - [ ] **20. Visual quality pass**: better materials and lighting downtown, higher-detail characters (with the
       facial work), screen-space reflections on wet roads where the device can afford it.
   - [x] 20a (partial slice). Downtown facades: five facade styles (red brick with stone lintels and sash windows,
@@ -221,6 +235,11 @@ above is done or blocked; any item may be split into slices.
         ambient), higher-detail characters and reflections on wet roads.
 
 ## Found along the way
+
+- 19a: story scenes can't be checked frame by frame in the sandbox (no npm install, so no Babylon); the shots are
+  judged by `cutscene.test.mjs` (geometry) and the playtest's camera readings. Some neighbours keep walking while a
+  scene plays unless they are the one speaking, so a two-shot partner can drift out of the 9 m "in the scene" range;
+  the plan is made once when the scene opens. Camera collisions can nudge an over-the-shoulder shot near a wall.
 
 - 14b: photo filters are applied to the pixels with the CSS filter formulas rather than canvas `ctx.filter`, because
   Safari has no `ctx.filter`; the live preview is a CSS filter on the 3D canvas, so both match. Photos are not
