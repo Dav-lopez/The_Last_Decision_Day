@@ -202,6 +202,16 @@ above is done or blocked; any item may be split into slices.
     you're out of the car, so you tune in mid-song; the choice is remembered.
 - [ ] **16. Career missions**: police patrol calls (traffic stop, lost child, noise complaint), fire calls with
       the hose, army route march with checkpoints; timed, scored, and paid better than a plain shift.
+  - [x] 16a (partial slice). Fire calls with the hose: the call-out now starts at a real fire, a skip burning on the
+        pavement a few metres from the stop (placed from the street data, on open ground), its smoke up as soon as the
+        duty starts so you can see it down the street. The run waits there until it's out: hold Space (or HOSE on
+        touch) to spray a water arc; standing still, a soft aim assist turns you onto the flames; too far, too close or
+        facing away is called out on the duty card under a "fire left" meter. Left alone it flares back up; missed
+        water is counted, and the sign-off line grades the job ("Clean knockdown: 40 litres of water"). Flames, smoke,
+        steam and water are particles on one procedural texture (no downloads, no extra lights), sized by adaptive
+        quality and loaded on demand (`fireCallScene.ts`); the hose is a looping sound on the effects bus, with
+        crackle, whoosh and hiss cues and captions. Rules in `fireHose.mjs`; the playtest puts a fire out with Space.
+        Still to do: police calls (traffic stop, lost child, noise complaint) and scored army checkpoints.
 - [ ] **17. Seamless road**: drive from Maple Street to downtown and back without a fade (streamed world).
 - [ ] **18. Weather and sky**: rain and wet roads, fog, sunsets, clouds; weather changes by day.
 - [ ] **19. Cinematic story**: camera-directed cutscenes with letterboxing and character animation for each
@@ -260,6 +270,11 @@ above is done or blocked; any item may be split into slices.
 - Car damage (13b) is kept per car for the session and cleared when you sleep; it isn't saved. Traffic downtown
   only stops for you rather than hitting you, so only your own knocks mark the car. The impact spot is inferred from
   speed and steering, not from which footprint point touched; `stepVehicle` could report the contact point instead.
+- 16a: the skip on a fire call isn't solid (you can walk through it), and the water arc passes through walls and
+  parked cars; a collider entry for the skip and a ray for the jet would fix both. With the fire engine (13c) parked
+  nearby, spraying from the engine's hose reel would be a natural next step.
+- 16a: Babylon particle shaders compile the first time a fire is shown, which can hitch a frame on slow devices; the
+  fire is lit when the duty starts (at the station door), not when you arrive, so the hitch lands somewhere harmless.
 - Merging 13b and 13c: the cruiser and fire engine take dents and scratches too, but the impact spot is laid out on
   the family car's footprint, so on the 7.8 m engine a nose or tail mark lands nearer the middle than the bumper.
   `impactSpot` could take the vehicle's length from `vehicleSpecs.mjs`.
