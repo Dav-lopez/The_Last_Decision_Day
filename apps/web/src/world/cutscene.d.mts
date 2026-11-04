@@ -1,0 +1,15 @@
+import type { SpeakerId, StoryLine, StoryState } from './storyChapters.mjs';
+export type ShotKind = 'establish' | 'crane' | 'narration' | 'phone' | 'speaker' | 'reverse' | 'close' | 'listen';
+export type SceneMood = 'opening' | 'ending' | 'scene';
+export type Shot = Readonly<{ kind: ShotKind; speaker: SpeakerId; subject: SpeakerId | null; hold: boolean }>;
+export type Point = Readonly<{ x: number; z: number }>;
+export type ShotPose = { target: { x: number; y: number; z: number }; alpha: number; beta: number; radius: number };
+export declare const SHOT_SECONDS: number;
+export declare const NEAR_METRES: number;
+export declare const SHOT_KINDS: ReadonlyArray<ShotKind>;
+export declare const SPEAKER_RESIDENTS: Readonly<Partial<Record<SpeakerId, string>>>;
+export declare function sceneMood(state: StoryState): SceneMood;
+export declare function sceneCard(state: StoryState): { kicker: string; title: string } | null;
+export declare function planShots(lines: ReadonlyArray<StoryLine>, options?: { mood?: SceneMood; near?: (speaker: SpeakerId) => boolean }): Shot[];
+export declare function orbitFrom(camera: { x: number; y: number; z: number }, target: { x: number; y: number; z: number }): ShotPose;
+export declare function shotPose(shot: Shot | null, ctx: { player: Point; other?: Point | null; baseAlpha?: number; indoor?: boolean; reduced?: boolean }, seconds: number): ShotPose;
