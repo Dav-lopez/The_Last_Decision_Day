@@ -232,6 +232,17 @@ above is done or blocked; any item may be split into slices.
         clubhouse photo, the street changing on Last Decision Day), character gestures beyond Talk.
 - [ ] **20. Visual quality pass**: better materials and lighting downtown, higher-detail characters (with the
       facial work), screen-space reflections on wet roads where the device can afford it.
+  - [x] 20a (partial slice). Downtown facades: five facade styles (red brick with stone lintels and sash windows,
+        stucco with string courses, painted siding with shutters, ashlar stone with tall windows, glass curtain walls
+        with spandrels) drawn as one texture of four bays by four storeys each (`facadeDesign.mjs`), so windows no
+        longer repeat bay by bay. Every building gets its own slight tint and window-grid offset (vertex colours, so a
+        style is still one draw call); glass catches the sun and street lamps while walls stay matte (a gloss map);
+        cornices stand proud of the wall and rise into a parapet; 420 air-conditioning units and stair housings sit on
+        the flat roofs; 255 striped canvas awnings hang over shopfronts that face a street. After dark about two in
+        five windows light up (warm tungsten to cool LED, some with blinds half down) and shop glass glows. All of it is
+        procedural (no downloads) and frozen into three extra merged meshes. The guest playtest checks the details and
+        switches the lights to see the windows come on. Still to do: lighting downtown (light probes or a baked
+        ambient), higher-detail characters and reflections on wet roads.
 
 ## Found along the way
 
@@ -256,6 +267,10 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- 20a: building heights in the OSM data aren't whole storeys, so the top row of windows can be cut by the roof
+  line; the cornice hides most of it. Snapping the facade's v so the top storey ends on the roof would fix the rest.
+  Awnings aren't solid (they're above head height, but the camera can pass through them), and the lit-window pattern
+  repeats every four bays and storeys per style (the per-building offset hides most of it).
 - Fixed (13c): a car you drove downtown and got out of could never be got back into (downtown, E only looked for
   the bus, workplaces, people and the ball), and parked cars downtown were walk-through. Any car standing downtown is
   now solid on foot, to your car and to the traffic, and E gets you back in.

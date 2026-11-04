@@ -993,6 +993,7 @@ export default function WorldScene({
       };
       decorRef.current();
       let cityLights: ReturnType<typeof buildCityLights> | null = null;
+      let cityLook: (() => { styles: number; awnings: number; rooftop: number; lit: boolean }) | null = null;
       // Downtown views run hundreds of metres down real streets: thinner haze there than on Maple Street.
       const applyFog = () => { scene.fogDensity = locationRef.current === 'city' ? 0.0032 : 0.009; };
       let eveningNow = false;
@@ -1170,8 +1171,10 @@ export default function WorldScene({
         const disposeCity = buildCityScene(scene, city);
         // Street lamps on every downtown street (clustered lights at night).
         const lights = buildCityLights(scene, city, collider);
-        lights.setEvening(eveningNow);
-        cityLights = lights;
+        // Lamps and lit windows switch on together.
+        cityLights = { ...lights, setEvening: (on: boolean) => { lights.setEvening(on); disposeCity.setEvening(on); } };
+        cityLights.setEvening(eveningNow);
+        cityLook = disposeCity.look;
         // A caged five-a-side pitch in Central Park.
         const pitch = buildFootballPitch(scene);
         football = { pitch, ball: newBall(), goals: 0, resetIn: 0 };
@@ -1679,6 +1682,7 @@ export default function WorldScene({
             car: drivenIndex() >= 0 ? { kind: cars[drivenIndex()].kind ?? 'sedan', siren: beaconsOn, x: cars[drivenIndex()].x, z: cars[drivenIndex()].z, speed: cars[drivenIndex()].speed, gear: driveFeel?.gear ?? null, rpm: driveFeel?.rpm ?? null, slip: driveFeel?.slip ?? 0, horn: carHorn, skidMarks: driveFeel?.marks ?? 0, body: carDamage?.condition(drivenIndex()) ?? 100, damageMarks: carDamage?.marks(drivenIndex()) ?? 0 } : null,
             loading: !worldReadyRef.current,
             downtownBuilt: downtown !== null, downtownBuildMs,
+            cityLook: cityLook?.() ?? null,
             career: { id: careerRef.current.career, shifts: careerRef.current.shifts, money: careerRef.current.money },
             duty: activeTask ? { id: activeTask.task.id, next: activeTask.task.next, stops: activeTask.task.stops.length, elapsed: activeTask.task.elapsed, par: activeTask.task.par, beat: activeTask.task.beat } : null,
             fire: callFire ? { heat: callFire.fire.heat, out: callFire.fire.out, spraying: callFire.spraying, water: callFire.fire.water, drawn: fireView !== null } : null,
