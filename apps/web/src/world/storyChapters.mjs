@@ -40,8 +40,14 @@ export const DECISIONS = Object.freeze({
 });
 const DECISION_IDS = Object.freeze(Object.values(DECISIONS).map(decision => decision.id));
 
-const line = (speaker, text) => Object.freeze({ speaker, text });
-const lines = scene => scene && Object.freeze(scene.map(([speaker, text]) => line(speaker, text)));
+/**
+ * A line may carry a `beat` (open-world 19b): a staged moment the scene acts out — 'note' (you pick the note up),
+ * 'photo' (you reach for the old team photo and the camera looks past you at it), 'reveal' (a slow push-in on your
+ * face) or 'celebrate' (the street changes and you can't help dancing).
+ */
+export const STORY_BEATS = Object.freeze(['note', 'photo', 'reveal', 'celebrate']);
+const line = (speaker, text, beat) => Object.freeze(beat ? { speaker, text, beat } : { speaker, text });
+const lines = scene => scene && Object.freeze(scene.map(([speaker, text, beat]) => line(speaker, text, beat)));
 /**
  * `scene` plays when the step starts. It may instead be { default, garden, … }:
  * the version for the decision you made (see DECISIONS).
@@ -94,7 +100,7 @@ export const CHAPTERS = Object.freeze([
     title: 'Chapter 2 · The Note',
     steps: Object.freeze([
       step('ask-around', 'Find Maya on the school lawn and ask about the note', ['talked-maya'], [
-        ['narrator', 'Morning. A folded note has been slipped under your front door. No stamp. No name.'],
+        ['narrator', 'Morning. A folded note has been slipped under your front door. No stamp. No name.', 'note'],
         ['stranger', '"Everyone on Maple Street gets one last decision. Choose carefully. — A."'],
         ['you', '…Who is A?'],
         ['narrator', 'Somebody on this street knows something.'],
@@ -152,9 +158,9 @@ export const CHAPTERS = Object.freeze([
         ['jordan', 'Bring your boots. The old team photo is in the clubhouse by the pitch, by the way.'],
       ]),
       step('head-home', 'Head home to Maple Street', ['entered-home'], [
-        ['narrator', 'Full time. In the clubhouse, a faded photo: the Maple Street team, 1998. A banner reads LAST DECISION DAY.'],
-        ['narrator', 'Under it, one name is underlined: Association secretary, A. Rivera.'],
-        ['you', 'A. Rivera. Ms. Rivera?'],
+        ['narrator', 'Full time. In the clubhouse, a faded photo: the Maple Street team, 1998. A banner reads LAST DECISION DAY.', 'photo'],
+        ['narrator', 'Under it, one name is underlined: Association secretary, A. Rivera.', 'photo'],
+        ['you', 'A. Rivera. Ms. Rivera?', 'reveal'],
       ]),
     ]),
   }),
@@ -191,17 +197,17 @@ export const CHAPTERS = Object.freeze([
       step('epilogue', 'The story is complete. Keep living your life on Maple Street', [], {
         default: [['narrator', 'Last Decision Day.']],
         garden: [
-          ['narrator', 'Last Decision Day. Neighbours you have never met dig planters in front of the houses.'],
+          ['narrator', 'Last Decision Day. Neighbours you have never met dig planters in front of the houses.', 'celebrate'],
           ['okafor', 'Every choice adds up, young one. This one will grow.'],
           ['rivera', 'Welcome to Maple Street. Properly, this time.'],
         ],
         crossing: [
-          ['narrator', 'Last Decision Day. Fresh white stripes appear across Maple Street, and new slow signs go up.'],
+          ['narrator', 'Last Decision Day. Fresh white stripes appear across Maple Street, and new slow signs go up.', 'celebrate'],
           ['marcus', 'Look at that. Even the bus slows down.'],
           ['rivera', 'Welcome to Maple Street. Properly, this time.'],
         ],
         football: [
-          ['narrator', 'Last Decision Day. A banner goes up over the road: MAPLE STREET FC. Training Saturdays.'],
+          ['narrator', 'Last Decision Day. A banner goes up over the road: MAPLE STREET FC. Training Saturdays.', 'celebrate'],
           ['tess', 'Laps first. Then the fun stuff.'],
           ['rivera', 'Welcome to Maple Street. Properly, this time.'],
         ],

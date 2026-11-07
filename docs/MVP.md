@@ -213,6 +213,18 @@ above is done or blocked; any item may be split into slices.
         crackle, whoosh and hiss cues and captions. Rules in `fireHose.mjs`; the playtest puts a fire out with Space.
         Still to do: police calls (traffic stop, lost child, noise complaint) and scored army checkpoints.
 - [ ] **17. Seamless road**: drive from Maple Street to downtown and back without a fade (streamed world).
+  - [x] 17a (partial slice). The open road: downtown now sits north of the town (`CITY_ORIGIN` moved from 1 km east
+        to 620 m north), and the road past the barrier at the top of Maple Street carries on for ~370 m, bends onto
+        Broadway and drives straight into downtown with no fade; Broadway south (reversing out works too) brings you
+        home the same way. The route is worked out from the street data (`openRoad.mjs`: the drivable street that
+        crosses downtown's south edge nearest the town); only its tarmac is drivable out of town, the fog thins from
+        Maple Street's haze to downtown's along it, and downtown is built while you wait at the barrier. Tarmac,
+        edge lines, centre dashes, gravel shoulders, reflector posts, a grass verge over the gap and two road signs are
+        a few frozen meshes in the downtown chunk (`openRoadScene.ts`). Other edges of downtown still use the quick
+        fade, and the bus and taxi are unchanged. The home interior moved south (it stood on the road at z = 60). The
+        guest playtest drives into downtown on the road, reverses out and back in, and fails on any fade.
+        Still to do: a faster open-road speed (cars are capped at 32 km/h for residential streets; it is a ~40 s drive),
+        traffic on the road, and streaming the town and downtown in and out instead of keeping both built.
 - [ ] **18. Weather and sky**: rain and wet roads, fog, sunsets, clouds; weather changes by day.
 - [ ] **19. Cinematic story**: camera-directed cutscenes with letterboxing and character animation for each
       chapter opening and the three endings.
@@ -230,6 +242,16 @@ above is done or blocked; any item may be split into slices.
         opening's title card, establishing shot and first cut, the camera's return, and the range of shots across all
         three endings. Still to do: authored camera moves and staging for set pieces (the note under the door, the
         clubhouse photo, the street changing on Last Decision Day), character gestures beyond Talk.
+  - [x] 19b (partial slice). Acted set pieces (`storyActing.mjs`, story lines can carry a staged `beat`): you bend
+        to pick up the note slipped under the door while the opening establishes, and look uneasy reading it; at the
+        clubhouse the camera drops low over your shoulder and creeps towards the old team photo on the wall while you
+        reach for it (one move held over both lines), then pushes in slowly on your face for "A. Rivera. Ms. Rivera?";
+        when the street changes on Last Decision Day you break into a dance under the crane shot, in all three
+        endings. Your face follows the line (wide-eyed at the note and the reveal, happy through the endings), and
+        neighbours speak in the line's mood. Gestures stop when someone else speaks and when the scene closes, and in a
+        car your hands stay on the wheel. The guest playtest checks the new shots and that the pick-up, reach, dance,
+        talk and both faces all play across the three endings. Still to do: new clips for nods, shrugs and pointing
+        (the action library has none yet), staging a neighbour beside you for two-person set pieces.
 - [ ] **20. Visual quality pass**: better materials and lighting downtown, higher-detail characters (with the
       facial work), screen-space reflections on wet roads where the device can afford it.
   - [x] 20a (partial slice). Downtown facades: five facade styles (red brick with stone lintels and sash windows,
@@ -257,6 +279,14 @@ above is done or blocked; any item may be split into slices.
 
 ## Found along the way
 
+- Fixed (19b): after a story scene where you spoke, your character kept the looping Talk animation going after the
+  scene closed (nothing stopped it), and a scene that played while driving swapped the Drive pose for Talk, taking
+  your hands off the wheel. Scene gestures are now stopped when the next speaker isn't you and when the scene ends,
+  and none play in a car.
+- 19b: the "clubhouse" photo shot looks at the wall ahead of wherever you stand when the scene opens (usually by the
+  pitch after full time); there is no clubhouse interior or photo prop yet, so the shot frames you and the sky line
+  rather than a picture. A small clubhouse with the 1998 photo would make this land properly.
+
 - 19a: story scenes can't be checked frame by frame in the sandbox (no npm install, so no Babylon); the shots are
   judged by `cutscene.test.mjs` (geometry) and the playtest's camera readings. Some neighbours keep walking while a
   scene plays unless they are the one speaking, so a two-shot partner can drift out of the 9 m "in the scene" range;
@@ -278,6 +308,13 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- 17a: the home interior was built at (0, 60), right on the road north of Maple Street, so it was visible up the
+  exit road and would have been driven into; it now sits south at (0, −110), where the south road is closed.
+- 17a: you can't get out of the car on the open road (there's nowhere for the player to walk out of town; a notice
+  says so), and downtown traffic is only drawn once you're in the city, so it appears as you arrive. The open-road
+  speed limit can now build on #246 (per-vehicle specs in `stepVehicle`, merged); the cruiser and engine stop at downtown's edge rather than take the road.
+- 17a merged with 16a and 20a: a fire call's smoke and the new facades are built with the rest of downtown, so both
+  are already standing when you drive in on the open road; the road's fog blend replaces 20a's fixed downtown haze.
 - 20b: the canyon shade looks out from the middle of each wall only, so a long wall half-facing an alley and
   half-facing a square gets one value; sampling a few points along the wall (and splitting it there) would fix it.
   Contact strips double up slightly at outside corners (they overlap), which reads as a darker corner. Party walls
