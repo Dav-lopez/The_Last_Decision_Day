@@ -1,0 +1,26 @@
+import type { City } from './cityLayout.mjs';
+import type { PlanarPosition } from './movement.mjs';
+import type { CarState } from './vehicleDrive.mjs';
+export type RoadPoint = Readonly<{ x: number; z: number; half: number }>;
+export type RoadEntry = Readonly<{ x: number; z: number; dir: PlanarPosition; name: string; width: number; world: PlanarPosition }>;
+export type OpenRoad = Readonly<{
+  points: ReadonlyArray<RoadPoint>; along: ReadonlyArray<number>; length: number;
+  bounds: Readonly<{ minX: number; maxX: number; minZ: number; maxZ: number }>;
+  entry: RoadEntry; street: string; halfSize: ReadonlyArray<number>;
+}>;
+export type RoadPose = { x: number; z: number; rotation: number };
+export declare const ROAD_START: Readonly<PlanarPosition>;
+export declare const ROAD_STRAIGHT_TO: number;
+export declare const TOWN_HALF_WIDTH: number;
+export declare const CITY_ENTER_MARGIN: number;
+export declare const CITY_LEAVE_MARGIN: number;
+export declare function findSouthEntry(city: City): Omit<RoadEntry, 'world'> | null;
+export declare function buildOpenRoad(city: City): OpenRoad | null;
+export declare function roadProgress(road: OpenRoad, point: PlanarPosition): { distance: number; half: number; along: number; t: number; index: number };
+export declare function onOpenRoad(road: OpenRoad, point: PlanarPosition): boolean;
+export declare function roadPose(road: OpenRoad, t: number): RoadPose;
+export declare function insideCity(road: OpenRoad, point: PlanarPosition, margin: number): boolean;
+export declare function streetOrRoadBlocked(road: OpenRoad | null, car: CarState, otherCars?: ReadonlyArray<CarState>,
+  people?: ReadonlyArray<{ x: number; z: number; radius?: number }>): boolean;
+export declare function roadFog(road: OpenRoad, point: PlanarPosition, streetFog: number, cityFog: number): number;
+export declare function centreDashes(road: OpenRoad, from?: number, dash?: number, gap?: number): Array<[RoadPose, RoadPose]>;

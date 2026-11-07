@@ -539,6 +539,41 @@ await step('quick travel to the pitch and back home', async () => {
   await shot('07-home');
 });
 
+await step('the open road: drive into downtown and out again with no fade (item 17)', async () => {
+  // In the family car on Maple Street, then near the downtown end of the road (all of it is ~40 s of game time,
+  // several minutes in CI's software renderer).
+  if (!(await page.evaluate(() => window.__tld.place('car')))) throw new Error('no parked car to get into');
+  const getIn = page.locator('.world-car-action', { hasText: /^Get in car/ });
+  await waitFor('get-in prompt', timeout => getIn.waitFor({ timeout }), 60000);
+  await getIn.click();
+  await waitFor('in the car', timeout => page.waitForFunction(() => window.__tld.read().driving, null, { timeout }), 15000);
+  await waitFor('car on the open road', timeout => page.waitForFunction(() => window.__tld.openRoad(0.9), null, { timeout, polling: 1000 }), 60000);
+  // Any fade (the old "Driving to…" screen) on the way counts as a failure.
+  await page.evaluate(() => {
+    window.__roadFaded = false;
+    window.__roadWatch = setInterval(() => { if (window.__tld.read().taxi || document.querySelector('.world-bus')) window.__roadFaded = true; }, 100);
+  });
+  const drive = async (key, label, until) => {
+    await page.keyboard.down(key);
+    try { await waitFor(label, timeout => page.waitForFunction(until, null, { timeout, polling: 250 }), 240000); }
+    finally { await page.keyboard.up(key); }
+  };
+  await drive('w', 'drive into downtown on the road', () => { const s = window.__tld.read(); return s.location === 'city' && s.driving; });
+  await shot('07b-open-road-arrive');
+  const arrived = await read();
+  notes.push(`open road: arrived downtown at road progress ${arrived.road}, ${arrived.car.speed.toFixed(1)} m/s`);
+  await drive('s', 'reverse back out onto the road', () => { const s = window.__tld.read(); return s.location === 'street' && s.driving; });
+  await drive('w', 'drive into downtown again', () => { const s = window.__tld.read(); return s.location === 'city' && s.driving; });
+  await drive('s', 'stop the car', () => (window.__tld.read().car?.speed ?? 9) < 0.3);
+  const faded = await page.evaluate(() => { clearInterval(window.__roadWatch); return window.__roadFaded; });
+  if (faded) throw new Error('a fade screen showed while driving the open road');
+  for (let tries = 0; tries < 10 && (await read()).driving; tries++) { await page.keyboard.press('e'); await page.waitForTimeout(1500); }
+  if ((await read()).driving) throw new Error('could not get out of the car downtown');
+  await page.evaluate(() => window.__tld.travel('maple'));
+  await page.waitForFunction(() => window.__tld.read().location === 'street', null, { timeout: 180000 });
+  await dismissDialogue();
+});
+
 // MVP 9b: the whole story, chapter 1 to the epilogue, once for each of the three endings. Every step's gameplay
 // event goes through the game's own story code (the systems that raise them — school, sleep, downtown, careers,
 // the match — are played for real above), every scene is clicked through and checked line by line, the last
@@ -554,10 +589,16 @@ const playScene = () => page.evaluate(async () => {
     if (seen.at(-1) !== text) seen.push(text);
     // Open-world 19a: wait for the director to frame this line, and note which shot it used.
     const index = Number(/^(\d+)\//.exec(scene.querySelector('.story-continue')?.textContent ?? '')?.[1] ?? 0) - 1;
-    for (let wait = 0; wait < 60 && window.__tld.read().cutscene?.index !== index; wait++) await sleep(50);
+    // Match the line's text too: a scene that opens as another closes would otherwise still show the old line 0.
+    const framed = () => { const shot = window.__tld.read().cutscene; return shot?.index === index && shot.text === text; };
+    for (let wait = 0; wait < 60 && !framed(); wait++) await sleep(50);
     const kind = window.__tld.read().cutscene?.kind;
     window.__shotKinds = window.__shotKinds ?? {};
     window.__shotKinds[kind ?? 'none'] = (window.__shotKinds[kind ?? 'none'] ?? 0) + 1;
+    // Open-world 19b: what your character acted on this line (gesture and face).
+    const acted = window.__tld.read().cutscene;
+    window.__acting = window.__acting ?? {};
+    for (const key of [acted?.gesture && `gesture:${acted.gesture}`, acted?.emotion && `face:${acted.emotion}`]) if (key) window.__acting[key] = (window.__acting[key] ?? 0) + 1;
     scene.click();
     for (let wait = 0; wait < 60; wait++) {
       await sleep(50);
@@ -637,6 +678,17 @@ await step('story scenes are directed with a range of shots (open-world 19a)', a
   const missing = ['establish', 'narration', 'phone', 'crane'].filter(kind => !kinds[kind]);
   if (missing.length) throw new Error(`no ${missing.join(', ')} shots across the story`);
   if ((kinds.none ?? 0) > 3) throw new Error(`${kinds.none} story lines had no directed shot`);
+});
+await step('story scenes are acted: the note, the photo, the reveal and the celebrations (open-world 19b)', async () => {
+  const kinds = await page.evaluate(() => window.__shotKinds ?? {});
+  const acting = await page.evaluate(() => window.__acting ?? {});
+  notes.push(`story acting: ${Object.entries(acting).map(([key, count]) => `${key} ${count}`).join(', ') || 'none'}`);
+  const missingShots = ['detail', 'push'].filter(kind => !kinds[kind]);
+  if (missingShots.length) throw new Error(`no ${missingShots.join(', ')} shots across the story`);
+  const missing = ['gesture:Talk', 'gesture:PickUp', 'gesture:Interact', 'gesture:Dance', 'face:happy', 'face:fear'].filter(key => !acting[key]);
+  if (missing.length) throw new Error(`story scenes never showed ${missing.join(', ')}`);
+  // Three endings, three celebrations.
+  if ((acting['gesture:Dance'] ?? 0) < 3) throw new Error(`only ${acting['gesture:Dance'] ?? 0} of 3 endings celebrated`);
 });
 
 await step('a crash shows the error screen with a working reload button', async () => {

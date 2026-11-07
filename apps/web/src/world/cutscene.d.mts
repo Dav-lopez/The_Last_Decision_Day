@@ -1,5 +1,5 @@
 import type { SpeakerId, StoryLine, StoryState } from './storyChapters.mjs';
-export type ShotKind = 'establish' | 'crane' | 'narration' | 'phone' | 'speaker' | 'reverse' | 'close' | 'listen';
+export type ShotKind = 'establish' | 'crane' | 'narration' | 'phone' | 'speaker' | 'reverse' | 'close' | 'listen' | 'detail' | 'push';
 export type SceneMood = 'opening' | 'ending' | 'scene';
 export type Shot = Readonly<{ kind: ShotKind; speaker: SpeakerId; subject: SpeakerId | null; hold: boolean }>;
 export type Point = Readonly<{ x: number; z: number }>;
