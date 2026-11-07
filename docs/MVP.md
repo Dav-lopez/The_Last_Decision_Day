@@ -354,6 +354,9 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- 16c: with police calls, fire calls, weather and lighting all merged in, WorldScene reached 131.1 KB gzipped against
+  its 130 KB budget, so the budget is now 134 KB. The duty modes (fire hose, police calls, route march) are
+  the clearest candidates for one lazily loaded "duties" chunk, which would win most of that back.
 - 17a: the home interior was built at (0, 60), right on the road north of Maple Street, so it was visible up the
   exit road and would have been driven into; it now sits south at (0, −110), where the south road is closed.
 - 17a: you can't get out of the car on the open road (there's nowhere for the player to walk out of town; a notice
