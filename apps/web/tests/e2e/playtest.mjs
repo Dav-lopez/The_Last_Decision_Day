@@ -329,19 +329,25 @@ await step('quick travel downtown', async () => {
   await shot('05-downtown');
   await checkContrast('downtown');
 });
-await step('downtown facades: cornices, rooftop plant, awnings and lit windows after dark', async () => {
+await step('downtown facades and ambient light: cornices, rooftop plant, awnings, contact shadows, lamp pools and lit windows after dark', async () => {
   const look = (await read()).cityLook;
   if (!look) throw new Error('downtown reports no facade details');
   if (look.styles < 4) throw new Error(`only ${look.styles} facade styles downtown`);
   if (look.awnings < 30 || look.rooftop < 60) throw new Error(`too few details: ${look.awnings} awnings, ${look.rooftop} rooftop units`);
+  // Baked ambient light (open-world 20b): contact shadows along the walls, darker alleys, lamp pools at night.
+  if (look.contactShadows < 500) throw new Error(`only ${look.contactShadows} contact shadows along the walls`);
+  if (look.canyonWalls < 100) throw new Error(`only ${look.canyonWalls} walls shaded by a neighbour`);
+  if (look.pools < 40) throw new Error(`only ${look.pools} lamp pools`);
+  if (look.poolsOn !== look.lit) throw new Error(`lamp pools ${look.poolsOn ? 'on' : 'off'} while windows are ${look.lit ? 'lit' : 'dark'}`);
   const lighting = page.getByRole('button', { name: /Switch lighting/ });
   const startedLit = look.lit;
   await lighting.click();
   await waitFor('windows switch with the lights', timeout => page.waitForFunction(lit => window.__tld.read().cityLook?.lit === !lit, startedLit, { timeout }));
+  if ((await read()).cityLook?.poolsOn !== !startedLit) throw new Error('lamp pools did not follow the street lights');
   if (!startedLit) await shot('05a-downtown-night');
   await lighting.click();
   await waitFor('windows switch back', timeout => page.waitForFunction(lit => window.__tld.read().cityLook?.lit === lit, startedLit, { timeout }));
-  notes.push(`downtown: ${look.styles} facade styles, ${look.awnings} awnings, ${look.rooftop} rooftop units`);
+  notes.push(`downtown: ${look.styles} facade styles, ${look.awnings} awnings, ${look.rooftop} rooftop units, ${look.contactShadows} contact shadows, ${look.canyonWalls} canyon-shaded walls, ${look.pools} lamp pools`);
 });
 await step('downtown traffic drives', async () => {
   await page.waitForFunction(() => window.__tld.read().traffic.length > 0, null, { timeout: 120000 });
@@ -352,6 +358,29 @@ await step('downtown traffic drives', async () => {
   await waitFor('people walking downtown', timeout => page.waitForFunction(() => window.__tld.read().walkers > 0, null, { timeout }), 120000);
   notes.push(`${(await read()).walkers} people walking downtown`);
   await shot('05b-traffic');
+});
+await step('weather: rain falls downtown, roads get wet, then fog (open-world 18a)', async () => {
+  // Day 1 is always clear, so the playtest forces the weather through the real weather code.
+  await page.evaluate(() => window.__tld.weather('showers'));
+  await waitFor('rain caption', timeout => page.waitForSelector('.world-sound-captions li:has-text("Rain starts falling")', { timeout }), 15000);
+  await waitFor('rain drops falling', timeout => page.waitForFunction(() => { const w = window.__tld.read().weather; return w.loaded && w.drops > 0 && w.wet > 0; }, null, { timeout, polling: 500 }), 120000);
+  const hud = await page.locator('.world-weather').first().textContent();
+  if (!/rain/i.test(hud ?? '')) throw new Error(`HUD weather says "${hud}"`);
+  const fps = await page.evaluate(() => new Promise(resolve => {
+    let frames = 0; const start = performance.now();
+    const tick = () => { frames++; if (performance.now() - start < 2000) requestAnimationFrame(tick); else resolve(frames / 2); };
+    requestAnimationFrame(tick);
+  }));
+  notes.push(`rain: ${(await read()).weather.drops} drops alive, ~${Math.round(fps)} fps in software rendering`);
+  await page.waitForTimeout(1500);
+  await shot('05c-rain');
+  await checkContrast('rain downtown');
+  await page.evaluate(() => window.__tld.weather('fog'));
+  await waitFor('dry caption', timeout => page.waitForSelector('.world-sound-captions li:has-text("The rain stops")', { timeout }), 15000);
+  await waitFor('rain stops in fog', timeout => page.waitForFunction(() => { const w = window.__tld.read().weather; return w.fog === 1 && w.rain === 0; }, null, { timeout }), 10000);
+  await page.waitForTimeout(1500);
+  await shot('05d-fog');
+  await page.evaluate(() => window.__tld.weather(null));
 });
 await step('talk to a downtown regular (guide, coach or fire captain)', async () => {
   // The regulars load just after the city; stand beside whoever is out now.

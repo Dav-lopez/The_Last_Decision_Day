@@ -131,4 +131,7 @@ export const CUES = Object.freeze({
   knock: [[180,.05,.05,0], N(.03,.03,900,0), [175,.05,.05,.17], N(.03,.03,900,.17), [182,.05,.05,.34], N(.03,.03,900,.34)],
   thump: [[55,.16,.05,0], [82,.08,.02,0], N(.05,.012,300,.25)],
   reunite: [[392,.3,.03,0],[494,.3,.03,.12],[587,.6,.035,.24],[784,.7,.025,.36]],
+  // Weather: the rain itself is a continuous loop; these cues carry the captions when it starts and stops.
+  rain: [],
+  dry: [],
 });

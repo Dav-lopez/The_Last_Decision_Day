@@ -40,6 +40,8 @@ export const SOUND_CAPTIONS = Object.freeze({
   shutter: 'Camera shutter clicks',
   knock: 'Knocking on a door',
   reunite: 'Happy reunion',
+  rain: 'Rain starts falling',
+  dry: 'The rain stops',
 });
 
 export const CAPTION_SECONDS = 3.5;
