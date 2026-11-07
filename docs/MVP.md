@@ -226,6 +226,17 @@ above is done or blocked; any item may be split into slices.
         Still to do: a faster open-road speed (cars are capped at 32 km/h for residential streets; it is a ~40 s drive),
         traffic on the road, and streaming the town and downtown in and out instead of keeping both built.
 - [ ] **18. Weather and sky**: rain and wet roads, fog, sunsets, clouds; weather changes by day.
+  - [x] 18a (partial slice). Weather by day (`weather.mjs`, the same on every device, nothing saved): day 1 clear,
+        day 2 an afternoon shower, day 3 a foggy morning, then a mix (about 40 % clear, 25 % cloudy, 22 % showers,
+        13 % fog). Rain falls around the camera as streaks with splashes at your feet (fewer drops at lower adaptive
+        quality, none indoors), builds up and dies away over 15 minutes, and soaks the roads and pavements, which turn
+        darker and glossy under the sun and street lamps and dry over two and a half hours. Overcast days fade in a grey
+        cloud layer, hide the sun's glow, dim the sun and soften shadows; fog thickens and greys the haze and lifts by
+        late morning. A rain loop on the ambience bus (muffled indoors), captions when rain starts and stops, the
+        weather on the day clock ("Day 2 · 14:20 · Heavy rain", forecast on hover), and Mom's morning text warns of
+        rain or fog. The scene code loads the first time a day isn't clear. The guest playtest forces showers and fog
+        downtown and checks drops, wet roads, the HUD and both captions. Still to do: sunsets (a dusk sky between day
+        and evening), moving clouds, puddles and reflections (item 20), wet-road grip.
 - [ ] **19. Cinematic story**: camera-directed cutscenes with letterboxing and character animation for each
       chapter opening and the three endings.
   - [x] 19a (partial slice). Directed story scenes: while a story scene plays, a camera director (`cutscene.mjs`)
@@ -265,6 +276,17 @@ above is done or blocked; any item may be split into slices.
         procedural (no downloads) and frozen into three extra merged meshes. The guest playtest checks the details and
         switches the lights to see the windows come on. Still to do: lighting downtown (light probes or a baked
         ambient), higher-detail characters and reflections on wet roads.
+  - [x] 20b (partial slice). Baked ambient light downtown (`downtownLighting.mjs`), worked out once from the street
+        data when downtown is built, so it costs nothing per frame: walls darken towards the pavement, and where the
+        building across an alley or a narrow street hides the sky they darken by how much of it is hidden (the
+        neighbour's real height and distance, so the upper storeys above a low neighbour stay bright). The shading
+        rides on the facades' vertex colours (walls are cut into bands where it bends), so each style is still one draw
+        call. Soft contact shadows lie on the pavement along the foot of every free wall and under the shop awnings (one
+        alpha-blended mesh, about 1,000 strips). After dark every street lamp throws a warm pool of light on the ground
+        under its head (one additive mesh): subtle where the device also has real clustered lamp lights, stronger
+        where it doesn't, so lamps light the street on every device. The guest playtest checks the shadow and canyon
+        counts and that the pools follow the street lights. Still to do: higher-detail characters and reflections on
+        wet roads.
 
 ## Found along the way
 
@@ -276,6 +298,10 @@ above is done or blocked; any item may be split into slices.
   pitch after full time); there is no clubhouse interior or photo prop yet, so the shot frames you and the sky line
   rather than a picture. A small clubhouse with the 1998 photo would make this land properly.
 
+- 18a: the sky still switches straight from day to evening (`isEvening`); a sunset slice needs a gradual dusk
+  (sun angle and colour by minute) rather than the boolean `setEvening`, which the weather now multiplies on top of.
+  Wet roads only change the look; cars grip the same, and NPCs don't carry umbrellas or hurry in the rain yet.
+  Rain particles aren't fogged, so in thick fog plus rain the near drops read a little bright.
 - 19a: story scenes can't be checked frame by frame in the sandbox (no npm install, so no Babylon); the shots are
   judged by `cutscene.test.mjs` (geometry) and the playtest's camera readings. Some neighbours keep walking while a
   scene plays unless they are the one speaking, so a two-shot partner can drift out of the 9 m "in the scene" range;
@@ -304,6 +330,12 @@ above is done or blocked; any item may be split into slices.
   speed limit can now build on #246 (per-vehicle specs in `stepVehicle`, merged); the cruiser and engine stop at downtown's edge rather than take the road.
 - 17a merged with 16a and 20a: a fire call's smoke and the new facades are built with the rest of downtown, so both
   are already standing when you drive in on the open road; the road's fog blend replaces 20a's fixed downtown haze.
+- 20b: the canyon shade looks out from the middle of each wall only, so a long wall half-facing an alley and
+  half-facing a square gets one value; sampling a few points along the wall (and splitting it there) would fix it.
+  Contact strips double up slightly at outside corners (they overlap), which reads as a darker corner. Party walls
+  that touch a neighbour are cut into bands too although they're hidden; skipping them would save ~40% of wall
+  vertices. Lamp pools are flat at road height and draw over the kerb onto the pavement; the 3D view in the sandbox
+  still can't be rendered (no Babylon), so the look was checked as a top-down map of the same data.
 - 20a: building heights in the OSM data aren't whole storeys, so the top row of windows can be cut by the roof
   line; the cornice hides most of it. Snapping the facade's v so the top storey ends on the roof would fix the rest.
   Awnings aren't solid (they're above head height, but the camera can pass through them), and the lit-window pattern

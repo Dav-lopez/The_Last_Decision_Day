@@ -71,7 +71,7 @@ function paintSunGlow(scene: Scene) {
   return texture;
 }
 
-export type Atmosphere = { setEvening: (evening: boolean) => void; dispose: () => void };
+export type Atmosphere = { setEvening: (evening: boolean) => void; setSunGlow: (amount: number) => void; dispose: () => void };
 
 /**
  * A painted sky dome with clouds and a sun glow, and fog matched to the
@@ -110,11 +110,14 @@ export function createAtmosphere(scene: Scene, sunDirection: Vector3): Atmospher
   glow.applyFog = false;
   glow.position = sunDirection.normalizeToNew().scale(-700);
 
+  let glowBase = 0.9;
+  let glowWeather = 1;
   const setEvening = (evening: boolean) => {
     const palette = evening ? DUSK : DAY;
     skyMaterial.emissiveTexture = evening ? duskTexture : dayTexture;
     glowMaterial.emissiveColor = Color3.FromHexString(palette.sun);
-    glow.visibility = evening ? 0.55 : 0.9;
+    glowBase = evening ? 0.55 : 0.9;
+    glow.visibility = glowBase * glowWeather;
     // Fog fades distant buildings and trees into the horizon colour.
     const haze = Color3.FromHexString(palette.haze);
     scene.fogColor = haze;
@@ -123,6 +126,12 @@ export function createAtmosphere(scene: Scene, sunDirection: Vector3): Atmospher
   setEvening(false);
   return {
     setEvening,
+    /** Clouds hide the sun: 1 shows the glow, 0 hides it. */
+    setSunGlow(amount: number) {
+      glowWeather = Math.max(0, Math.min(1, amount));
+      glow.visibility = glowBase * glowWeather;
+      glow.setEnabled(glowWeather > 0.02);
+    },
     dispose() {
       dome.dispose();
       glow.dispose();
