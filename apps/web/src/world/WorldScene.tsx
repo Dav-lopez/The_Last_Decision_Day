@@ -1002,7 +1002,7 @@ export default function WorldScene({
       };
       decorRef.current();
       let cityLights: ReturnType<typeof buildCityLights> | null = null;
-      let cityLook: (() => { styles: number; awnings: number; rooftop: number; lit: boolean }) | null = null;
+      let cityLook: (() => { styles: number; awnings: number; rooftop: number; lit: boolean; contactShadows: number; canyonWalls: number; pools: number; poolsOn: boolean }) | null = null;
       // Rain, wet roads, overcast skies and fog: loaded the first time a day isn't clear.
       let weatherView: WeatherView | null = null;
       let weatherLoading = false;
@@ -1200,7 +1200,7 @@ export default function WorldScene({
         // Lamps and lit windows switch on together.
         cityLights = { ...lights, setEvening: (on: boolean) => { lights.setEvening(on); disposeCity.setEvening(on); } };
         cityLights.setEvening(eveningNow);
-        cityLook = disposeCity.look;
+        cityLook = () => ({ ...disposeCity.look(), ...lights.look() });
         // A caged five-a-side pitch in Central Park.
         const pitch = buildFootballPitch(scene);
         football = { pitch, ball: newBall(), goals: 0, resetIn: 0 };
