@@ -24,6 +24,8 @@ export const SOUND_CAPTIONS = Object.freeze({
   crunch: 'Metal crunch: the car is dented',
   scrape: 'Paint scrapes',
   checkpoint: 'Checkpoint reached',
+  compass: 'Bearing correct',
+  wrong: 'Bearing wrong',
   dispatch: 'Radio: duty call',
   map: 'Map unfolds',
   chat: 'Chat message',
@@ -38,6 +40,10 @@ export const SOUND_CAPTIONS = Object.freeze({
   skid: 'Tyres screech',
   siren: 'Siren wails',
   shutter: 'Camera shutter clicks',
+  knock: 'Knocking on a door',
+  reunite: 'Happy reunion',
+  rain: 'Rain starts falling',
+  dry: 'The rain stops',
 });
 
 export const CAPTION_SECONDS = 3.5;

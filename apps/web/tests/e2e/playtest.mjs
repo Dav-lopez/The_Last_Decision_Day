@@ -329,19 +329,25 @@ await step('quick travel downtown', async () => {
   await shot('05-downtown');
   await checkContrast('downtown');
 });
-await step('downtown facades: cornices, rooftop plant, awnings and lit windows after dark', async () => {
+await step('downtown facades and ambient light: cornices, rooftop plant, awnings, contact shadows, lamp pools and lit windows after dark', async () => {
   const look = (await read()).cityLook;
   if (!look) throw new Error('downtown reports no facade details');
   if (look.styles < 4) throw new Error(`only ${look.styles} facade styles downtown`);
   if (look.awnings < 30 || look.rooftop < 60) throw new Error(`too few details: ${look.awnings} awnings, ${look.rooftop} rooftop units`);
+  // Baked ambient light (open-world 20b): contact shadows along the walls, darker alleys, lamp pools at night.
+  if (look.contactShadows < 500) throw new Error(`only ${look.contactShadows} contact shadows along the walls`);
+  if (look.canyonWalls < 100) throw new Error(`only ${look.canyonWalls} walls shaded by a neighbour`);
+  if (look.pools < 40) throw new Error(`only ${look.pools} lamp pools`);
+  if (look.poolsOn !== look.lit) throw new Error(`lamp pools ${look.poolsOn ? 'on' : 'off'} while windows are ${look.lit ? 'lit' : 'dark'}`);
   const lighting = page.getByRole('button', { name: /Switch lighting/ });
   const startedLit = look.lit;
   await lighting.click();
   await waitFor('windows switch with the lights', timeout => page.waitForFunction(lit => window.__tld.read().cityLook?.lit === !lit, startedLit, { timeout }));
+  if ((await read()).cityLook?.poolsOn !== !startedLit) throw new Error('lamp pools did not follow the street lights');
   if (!startedLit) await shot('05a-downtown-night');
   await lighting.click();
   await waitFor('windows switch back', timeout => page.waitForFunction(lit => window.__tld.read().cityLook?.lit === lit, startedLit, { timeout }));
-  notes.push(`downtown: ${look.styles} facade styles, ${look.awnings} awnings, ${look.rooftop} rooftop units`);
+  notes.push(`downtown: ${look.styles} facade styles, ${look.awnings} awnings, ${look.rooftop} rooftop units, ${look.contactShadows} contact shadows, ${look.canyonWalls} canyon-shaded walls, ${look.pools} lamp pools`);
 });
 await step('downtown traffic drives', async () => {
   await page.waitForFunction(() => window.__tld.read().traffic.length > 0, null, { timeout: 120000 });
@@ -352,6 +358,29 @@ await step('downtown traffic drives', async () => {
   await waitFor('people walking downtown', timeout => page.waitForFunction(() => window.__tld.read().walkers > 0, null, { timeout }), 120000);
   notes.push(`${(await read()).walkers} people walking downtown`);
   await shot('05b-traffic');
+});
+await step('weather: rain falls downtown, roads get wet, then fog (open-world 18a)', async () => {
+  // Day 1 is always clear, so the playtest forces the weather through the real weather code.
+  await page.evaluate(() => window.__tld.weather('showers'));
+  await waitFor('rain caption', timeout => page.waitForSelector('.world-sound-captions li:has-text("Rain starts falling")', { timeout }), 15000);
+  await waitFor('rain drops falling', timeout => page.waitForFunction(() => { const w = window.__tld.read().weather; return w.loaded && w.drops > 0 && w.wet > 0; }, null, { timeout, polling: 500 }), 120000);
+  const hud = await page.locator('.world-weather').first().textContent();
+  if (!/rain/i.test(hud ?? '')) throw new Error(`HUD weather says "${hud}"`);
+  const fps = await page.evaluate(() => new Promise(resolve => {
+    let frames = 0; const start = performance.now();
+    const tick = () => { frames++; if (performance.now() - start < 2000) requestAnimationFrame(tick); else resolve(frames / 2); };
+    requestAnimationFrame(tick);
+  }));
+  notes.push(`rain: ${(await read()).weather.drops} drops alive, ~${Math.round(fps)} fps in software rendering`);
+  await page.waitForTimeout(1500);
+  await shot('05c-rain');
+  await checkContrast('rain downtown');
+  await page.evaluate(() => window.__tld.weather('fog'));
+  await waitFor('dry caption', timeout => page.waitForSelector('.world-sound-captions li:has-text("The rain stops")', { timeout }), 15000);
+  await waitFor('rain stops in fog', timeout => page.waitForFunction(() => { const w = window.__tld.read().weather; return w.fog === 1 && w.rain === 0; }, null, { timeout }), 10000);
+  await page.waitForTimeout(1500);
+  await shot('05d-fog');
+  await page.evaluate(() => window.__tld.weather(null));
 });
 await step('talk to a downtown regular (guide, coach or fire captain)', async () => {
   // The regulars load just after the city; stand beside whoever is out now.
@@ -475,6 +504,102 @@ await step('station vehicles: a firefighter drives the fire engine with lights a
   await getOut.click();
   await waitFor('out of the engine', timeout => page.waitForFunction(() => !window.__tld.read().driving, null, { timeout }));
   notes.push('fire engine: driven, lights and siren on and off');
+});
+await step('police patrol with a call: a lost child walked back to his dad (open-world 16b)', async () => {
+  if (!(await page.evaluate(() => window.__tld.place('police')))) throw new Error('police station sign not found downtown');
+  const apply = page.locator('.world-car-action', { hasText: /Apply: Police Officer/ });
+  await waitFor('apply button at the police station', timeout => apply.waitFor({ timeout }));
+  await apply.click();
+  await waitFor('joined the police', timeout => page.waitForFunction(() => window.__tld.read().career.id === 'police', null, { timeout }));
+  await dismissDialogue();
+  const start = page.locator('.world-car-action', { hasText: /Start duty: Patrol route/ });
+  await waitFor('start-patrol button', timeout => start.waitFor({ timeout }));
+  const before = await read();
+  notes.push(`before the patrol: ${Math.floor(before.minute / 60)}:${String(Math.floor(before.minute % 60)).padStart(2, '0')}, energy ${Math.round(before.energy)}`);
+  await start.click();
+  await waitFor('patrol starts with a call', timeout => page.waitForFunction(() => Boolean(window.__tld.read().duty && window.__tld.read().call), null, { timeout }));
+  const { duty, call, career } = await read();
+  if (call.kind !== 'lost-child') throw new Error(`the first patrol's call is ${call.kind}, expected lost-child`);
+  await waitFor('call people drawn', timeout => page.waitForFunction(() => window.__tld.read().call?.drawn, null, { timeout }));
+  notes.push(`patrol: ${duty.stops} stops, call "${call.kind}" at stop ${call.stop + 1}, par ${duty.par}s`);
+  for (let i = 0; i < duty.stops + 3; i++) {
+    const state = await read();
+    if (!state.duty) break;
+    if (state.call?.phase === 'talk') {
+      // Answer with the keyboard: 1 is the kind answer.
+      await waitFor('call answers shown', timeout => page.locator('.world-duty-answers button').first().waitFor({ timeout }));
+      await page.waitForTimeout(800);
+      await shot('05g-police-call');
+      await checkContrast('a police call');
+      await page.locator('canvas').first().focus();
+      await page.keyboard.press('1');
+      await waitFor('call answered, escort starts', timeout => page.waitForFunction(() => window.__tld.read().call?.phase === 'escort', null, { timeout }));
+      continue;
+    }
+    const at = `${state.duty.next}/${state.call?.phase}`;
+    if (!(await page.evaluate(() => window.__tld.place('duty')))) throw new Error(`could not stand at patrol stop ${state.duty.next + 1}`);
+    await waitFor(`patrol moves on from ${at}`, timeout => page.waitForFunction(was => {
+      const s = window.__tld.read();
+      return !s.duty || `${s.duty.next}/${s.call?.phase}` !== was;
+    }, at, { timeout }));
+    if (state.call?.phase === 'escort') {
+      const after = await read();
+      if (after.call?.phase !== 'done') throw new Error(`the boy wasn't handed over (call ${after.call?.phase}, ${after.call?.child?.toFixed(1)} m from you)`);
+      await page.waitForTimeout(800);
+      await shot('05h-police-reunited');
+    }
+  }
+  await waitFor('patrol signed off and paid', timeout => page.waitForFunction(shifts => { const s = window.__tld.read(); return !s.duty && !s.busy && s.career.shifts > shifts; }, career.shifts, { timeout }));
+  const after = (await read()).career;
+  // Rank-1 police pay is $60; on time plus a commended call pays more than a plain shift.
+  if (!(after.money - career.money > 60)) throw new Error(`the patrol with a call paid only $${after.money - career.money}`);
+  notes.push(`patrol with a call paid $${after.money - career.money}`);
+  await dismissDialogue();
+});
+await step('route march: scored checkpoints, a split and a map-and-compass call at each (open-world 16c)', async () => {
+  if (!(await page.evaluate(() => window.__tld.place('soldier')))) throw new Error('recruiting office sign not found downtown');
+  const apply = page.locator('.world-car-action', { hasText: /Apply: Soldier/ });
+  await waitFor('apply button at the recruiting office', timeout => apply.waitFor({ timeout }));
+  await apply.click();
+  await waitFor('joined the army', timeout => page.waitForFunction(() => window.__tld.read().career.id === 'soldier', null, { timeout }));
+  await dismissDialogue();
+  // Another shift on the same playtest day: rested and inside opening hours.
+  await page.evaluate(() => window.__tld.rest());
+  const start = page.locator('.world-car-action', { hasText: /Start duty: Route march/ });
+  await waitFor('start-march button', timeout => start.waitFor({ timeout }));
+  await start.click();
+  await waitFor('march starts with a scorecard', timeout => page.waitForFunction(() => Boolean(window.__tld.read().duty && window.__tld.read().march), null, { timeout }));
+  const { duty, career } = await read();
+  notes.push(`route march: ${duty.stops - 1} checkpoints, par ${duty.par}s`);
+  for (let i = 0; i < duty.stops - 1; i++) {
+    const at = (await read()).duty?.next;
+    if (at !== i) throw new Error(`march at stop ${at}, expected ${i}`);
+    if (!(await page.evaluate(() => window.__tld.place('duty')))) throw new Error(`could not stand at checkpoint ${i + 1}`);
+    await waitFor(`checkpoint ${i + 1} holds for a bearing`, timeout => page.waitForFunction(() => window.__tld.read().march?.drill, null, { timeout }));
+    const answers = page.locator('.world-duty-bearings button');
+    await waitFor('bearing answers shown', timeout => answers.first().waitFor({ timeout }));
+    const texts = await answers.allInnerTexts();
+    if (texts.length !== 3) throw new Error(`expected three bearings, got ${JSON.stringify(texts)}`);
+    const { march } = await read();
+    if (!march.legs[i].pace) throw new Error(`no split recorded at checkpoint ${i + 1}`);
+    // Call the right bearing with the keyboard on every checkpoint but the second; tap a wrong one there.
+    const right = texts.findIndex(t => t.replace(/^\s*\d\s*/, '').startsWith(`${march.legs[i].answer} `));
+    if (right < 0) throw new Error(`right bearing ${march.legs[i].answer} not offered: ${JSON.stringify(texts)}`);
+    if (i === 0) { await page.waitForTimeout(800); await shot('05i-route-march-bearing'); await checkContrast('a route march bearing call'); }
+    if (i === 1) await answers.nth((right + 1) % 3).click();
+    else { await page.locator('canvas').first().focus(); await page.keyboard.press(String(right + 1)); }
+    await waitFor(`checkpoint ${i + 1} done`, timeout => page.waitForFunction(n => window.__tld.read().duty?.next === n + 1, i, { timeout }));
+    const called = (await read()).march.legs[i];
+    if (called.correct !== (i !== 1)) throw new Error(`bearing at checkpoint ${i + 1} scored ${called.correct}`);
+  }
+  if (!(await page.evaluate(() => window.__tld.place('duty')))) throw new Error('could not stand at the recruiting office door');
+  await waitFor('march signed off and paid', timeout => page.waitForFunction(shifts => { const s = window.__tld.read(); return !s.duty && !s.busy && s.career.shifts > shifts; }, career.shifts, { timeout }));
+  const { lastMarch } = await read();
+  if (!lastMarch || lastMarch.bearings !== lastMarch.legs - 1) throw new Error(`march scorecard ${JSON.stringify(lastMarch)}`);
+  const after = (await read()).career;
+  if (!(after.money > career.money)) throw new Error(`no pay for the march (savings ${career.money} → ${after.money})`);
+  notes.push(`route march ${lastMarch.title} ${lastMarch.score}/${lastMarch.max}, ${lastMarch.bearings}/${lastMarch.legs} bearings, paid $${after.money - career.money}`);
+  await dismissDialogue();
 });
 await step('quick travel to the pitch and back home', async () => {
   await page.evaluate(() => window.__tld.travel('pitch'));

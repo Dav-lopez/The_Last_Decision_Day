@@ -1,0 +1,26 @@
+export type CompassPoint = 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW';
+export type MarchPace = 'sharp' | 'on-pace' | 'steady' | 'behind';
+export type MarchGrade = 'distinction' | 'pass' | 'needs-work';
+export type MarchLeg = {
+  par: number; split: number | null; pace: MarchPace | null; points: number; answer: CompassPoint; toFinal: boolean;
+  called: CompassPoint | null; correct: boolean | null;
+};
+export type RouteMarch = { legs: MarchLeg[]; legStart: number; score: number };
+type Point = { x: number; z: number };
+export declare const PACE: number;
+export declare const STOP_SECONDS: number;
+export declare const DRILL_SECONDS: number;
+export declare const BEARING_POINTS: number;
+export declare const COMPASS: readonly CompassPoint[];
+export declare const COMPASS_NAMES: Readonly<Record<CompassPoint, string>>;
+export declare const PACES: readonly Readonly<{ id: MarchPace; title: string; within: number; points: number }>[];
+export declare const GRADES: readonly Readonly<{ id: MarchGrade; title: string; share: number; rate: number }>[];
+export declare function bearingIndex(from: Point, to: Point): number;
+export declare function createMarch(task: { stops: (Point & { final: boolean })[] } | null | undefined): RouteMarch | null;
+export declare function paceFor(split: number, par: number): Readonly<{ id: MarchPace; title: string; within: number; points: number }>;
+export declare function markLeg(march: RouteMarch, index: number, elapsed: number): { march: RouteMarch; leg: (MarchLeg & { title: string }) | null };
+export declare function bearingOptions(march: RouteMarch | null, index: number): CompassPoint[];
+export declare function drillStatus(march: RouteMarch | null, index: number): { index: number; prompt: string; options: string[]; split: number | null; par: number; pace: MarchPace | null } | null;
+export declare function callBearing(march: RouteMarch, index: number, choice: number): { march: RouteMarch; correct: boolean | null; line: string | null };
+export declare function startLeg(march: RouteMarch, elapsed: number): RouteMarch;
+export declare function marchResult(march: RouteMarch | null): { score: number; max: number; grade: MarchGrade; title: string; rate: number; bearings: number; legs: number };

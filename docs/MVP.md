@@ -200,7 +200,7 @@ above is done or blocked; any item may be split into slices.
     outro. Between songs a station jingle plays and the DJ reads a rotating ident (browser speech where available,
     and the line is always shown on the dial). R / Shift+R or the ‹ › buttons tune; stations keep playing while
     you're out of the car, so you tune in mid-song; the choice is remembered.
-- [ ] **16. Career missions**: police patrol calls (traffic stop, lost child, noise complaint), fire calls with
+- [x] **16. Career missions**: police patrol calls (traffic stop, lost child, noise complaint), fire calls with
       the hose, army route march with checkpoints; timed, scored, and paid better than a plain shift.
   - [x] 16a (partial slice). Fire calls with the hose: the call-out now starts at a real fire, a skip burning on the
         pavement a few metres from the stop (placed from the street data, on open ground), its smoke up as soon as the
@@ -211,7 +211,31 @@ above is done or blocked; any item may be split into slices.
         steam and water are particles on one procedural texture (no downloads, no extra lights), sized by adaptive
         quality and loaded on demand (`fireCallScene.ts`); the hose is a looping sound on the effects bus, with
         crackle, whoosh and hiss cues and captions. Rules in `fireHose.mjs`; the playtest puts a fire out with Space.
-        Still to do: police calls (traffic stop, lost child, noise complaint) and scored army checkpoints.
+        Police calls are 16b and scored army checkpoints 16c, below.
+  - [x] 16b (partial slice). Police calls: every patrol now carries a call from dispatch on its second stop, in turn
+        a lost child, a traffic stop and a noise complaint (`policeCalls.mjs`). The patrol waits at the call until
+        it's handled on foot: the duty card offers three ways to handle it (keys 1–3 or tap) — kind and clear, by the
+        book, or curt — and the reply plays out. A lost boy then walks behind you, at your heels, up the street to his
+        dad in a red hoodie (the beam and GPS move to the dad; he only counts as handed over when you're both there);
+        the traffic stop is a yellow hatchback pulled in at the kerb, hazards blinking, that drives off after you've
+        spoken; the noise complaint is a party flat whose window glows to the beat with notes drifting up and a bass
+        thump you hear from down the street, until a knock and a word quieten it. How you treated people is graded
+        (Commended +40 %, Handled +20 %, Complaint filed +0 % of the shift's pay) on top of the time bonus, and shown on
+        the sign-off line; the call adds its own time to par. People and car are the game's own models, built only when
+        a patrol has a call (`policeCallScene.ts`, loaded on demand; fewer notes at lower adaptive quality); new knock,
+        thump and reunion sounds with captions. The guest playtest joins the police, walks the lost boy back with the
+        keyboard and checks the pay.
+  - [x] 16c (partial slice). Scored route march: every checkpoint on a soldier's march is scored (`routeMarch.mjs`).
+        Each leg has its own split par from the distance walked; arriving shows the split and a band (Sharp inside
+        85 % of par, On pace, Steady, Behind), and the duty card's stop pips turn green, amber or orange to match. The
+        march then holds for a map-and-compass call: which way is the next checkpoint (or the Recruiting Office)?
+        Three compass points are offered — the right one and the two at right angles, in a fixed order per checkpoint
+        — on keys 1–3 or as buttons; the minimap's N is the compass. A right call rings a rising chime, a wrong one a
+        soft falling pair and says which way it was (new `compass` / `wrong` cues with captions). Up to 3 points per
+        split and 2 per bearing grade the march (Distinction from 80 % +40 % of the shift's pay, Pass from 55 % +20 %,
+        Needs work +0 %) on top of the time bonus, shown on the sign-off line; par allows 4 s per call. The guest
+        playtest joins the army, walks the five checkpoints, calls four bearings by keyboard and taps one wrong, and
+        checks the scorecard and pay.
 - [ ] **17. Seamless road**: drive from Maple Street to downtown and back without a fade (streamed world).
   - [x] 17a (partial slice). The open road: downtown now sits north of the town (`CITY_ORIGIN` moved from 1 km east
         to 620 m north), and the road past the barrier at the top of Maple Street carries on for ~370 m, bends onto
@@ -237,6 +261,17 @@ above is done or blocked; any item may be split into slices.
         you can't see it, or after waiting 8 s at the end like a car at a junction. 5 new tests; the open-road
         playtest checks the speed sign and the road traffic.
 - [ ] **18. Weather and sky**: rain and wet roads, fog, sunsets, clouds; weather changes by day.
+  - [x] 18a (partial slice). Weather by day (`weather.mjs`, the same on every device, nothing saved): day 1 clear,
+        day 2 an afternoon shower, day 3 a foggy morning, then a mix (about 40 % clear, 25 % cloudy, 22 % showers,
+        13 % fog). Rain falls around the camera as streaks with splashes at your feet (fewer drops at lower adaptive
+        quality, none indoors), builds up and dies away over 15 minutes, and soaks the roads and pavements, which turn
+        darker and glossy under the sun and street lamps and dry over two and a half hours. Overcast days fade in a grey
+        cloud layer, hide the sun's glow, dim the sun and soften shadows; fog thickens and greys the haze and lifts by
+        late morning. A rain loop on the ambience bus (muffled indoors), captions when rain starts and stops, the
+        weather on the day clock ("Day 2 · 14:20 · Heavy rain", forecast on hover), and Mom's morning text warns of
+        rain or fog. The scene code loads the first time a day isn't clear. The guest playtest forces showers and fog
+        downtown and checks drops, wet roads, the HUD and both captions. Still to do: sunsets (a dusk sky between day
+        and evening), moving clouds, puddles and reflections (item 20), wet-road grip.
 - [ ] **19. Cinematic story**: camera-directed cutscenes with letterboxing and character animation for each
       chapter opening and the three endings.
   - [x] 19a (partial slice). Directed story scenes: while a story scene plays, a camera director (`cutscene.mjs`)
@@ -276,6 +311,17 @@ above is done or blocked; any item may be split into slices.
         procedural (no downloads) and frozen into three extra merged meshes. The guest playtest checks the details and
         switches the lights to see the windows come on. Still to do: lighting downtown (light probes or a baked
         ambient), higher-detail characters and reflections on wet roads.
+  - [x] 20b (partial slice). Baked ambient light downtown (`downtownLighting.mjs`), worked out once from the street
+        data when downtown is built, so it costs nothing per frame: walls darken towards the pavement, and where the
+        building across an alley or a narrow street hides the sky they darken by how much of it is hidden (the
+        neighbour's real height and distance, so the upper storeys above a low neighbour stay bright). The shading
+        rides on the facades' vertex colours (walls are cut into bands where it bends), so each style is still one draw
+        call. Soft contact shadows lie on the pavement along the foot of every free wall and under the shop awnings (one
+        alpha-blended mesh, about 1,000 strips). After dark every street lamp throws a warm pool of light on the ground
+        under its head (one additive mesh): subtle where the device also has real clustered lamp lights, stronger
+        where it doesn't, so lamps light the street on every device. The guest playtest checks the shadow and canyon
+        counts and that the pools follow the street lights. Still to do: higher-detail characters and reflections on
+        wet roads.
 
 ## Found along the way
 
@@ -286,7 +332,18 @@ above is done or blocked; any item may be split into slices.
 - 19b: the "clubhouse" photo shot looks at the wall ahead of wherever you stand when the scene opens (usually by the
   pitch after full time); there is no clubhouse interior or photo prop yet, so the shot frames you and the sky line
   rather than a picture. A small clubhouse with the 1998 photo would make this land properly.
+- 16b: the pulled-over car on a traffic stop sits in the traffic lane but isn't an obstacle to downtown traffic (AI
+  cars pass through it) or solid to you; making it a traffic obstacle would queue the lane behind it, so it needs a
+  pull-over bay or lane-change logic. The lost boy follows you on the pavement without the city collider, so on a
+  tight corner he can clip a wall; he catches up at once if you get more than 25 m ahead. Calls aren't saved: a patrol
+  given up or left mid-call starts over with the next shift's call.
+- 16b and 16a both touch the duty card and `endTask`: merged with `clearCall()` and `clearFire()` side by side in
+  `endTask` (a patrol never has both).
 
+- 18a: the sky still switches straight from day to evening (`isEvening`); a sunset slice needs a gradual dusk
+  (sun angle and colour by minute) rather than the boolean `setEvening`, which the weather now multiplies on top of.
+  Wet roads only change the look; cars grip the same, and NPCs don't carry umbrellas or hurry in the rain yet.
+  Rain particles aren't fogged, so in thick fog plus rain the near drops read a little bright.
 - 19a: story scenes can't be checked frame by frame in the sandbox (no npm install, so no Babylon); the shots are
   judged by `cutscene.test.mjs` (geometry) and the playtest's camera readings. Some neighbours keep walking while a
   scene plays unless they are the one speaking, so a two-shot partner can drift out of the 9 m "in the scene" range;
@@ -310,6 +367,9 @@ above is done or blocked; any item may be split into slices.
 - 17b: road cars that reach an end while you're standing right there wait up to 8 s and then swap ends in view;
   a side road or junction prop at each end would hide it. Road cars don't use indicators or overtake.
 - (add bugs and small follow-ups here)
+- 16c: with police calls, fire calls, weather and lighting all merged in, WorldScene reached 131.1 KB gzipped against
+  its 130 KB budget, so the budget is now 134 KB. The duty modes (fire hose, police calls, route march) are
+  the clearest candidates for one lazily loaded "duties" chunk, which would win most of that back.
 - 17a: the home interior was built at (0, 60), right on the road north of Maple Street, so it was visible up the
   exit road and would have been driven into; it now sits south at (0, −110), where the south road is closed.
 - 17a: you can't get out of the car on the open road (there's nowhere for the player to walk out of town; a notice
@@ -317,6 +377,17 @@ above is done or blocked; any item may be split into slices.
   speed limit can now build on #246 (per-vehicle specs in `stepVehicle`, merged); the cruiser and engine stop at downtown's edge rather than take the road.
 - 17a merged with 16a and 20a: a fire call's smoke and the new facades are built with the rest of downtown, so both
   are already standing when you drive in on the open road; the road's fog blend replaces 20a's fixed downtown haze.
+- 20b: the canyon shade looks out from the middle of each wall only, so a long wall half-facing an alley and
+  half-facing a square gets one value; sampling a few points along the wall (and splitting it there) would fix it.
+  Contact strips double up slightly at outside corners (they overlap), which reads as a darker corner. Party walls
+  that touch a neighbour are cut into bands too although they're hidden; skipping them would save ~40% of wall
+  vertices. Lamp pools are flat at road height and draw over the kerb onto the pavement; the 3D view in the sandbox
+  still can't be rendered (no Babylon), so the look was checked as a top-down map of the same data.
+- 16c: the playtest works three shifts in one game day (fire call, route march and, with 16b, a patrol), which the
+  energy and opening-hours rules would refuse; it uses a playtest-only `__tld.rest()` before the march. The march's
+  bearing is the straight line to the next checkpoint, not the street route, so on a winding leg the GPS line can
+  set off in a different direction from the right answer (the prompt asks which way the checkpoint is, so this is
+  intended, but worth a hint if players find it confusing).
 - 20a: building heights in the OSM data aren't whole storeys, so the top row of windows can be cut by the roof
   line; the cornice hides most of it. Snapping the facade's v so the top storey ends on the roof would fix the rest.
   Awnings aren't solid (they're above head height, but the camera can pass through them), and the lit-window pattern

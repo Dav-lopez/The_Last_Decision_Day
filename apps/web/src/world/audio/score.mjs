@@ -126,4 +126,15 @@ export const CUES = Object.freeze({
   phone: [[740,.05,.022,0],[988,.08,.018,.05]],
   // Phone camera: a crisp two-part shutter click.
   shutter: [N(.025,.05,5200,0,'highpass'), N(.04,.035,2600,.07,'bandpass')],
+  // Route march (16c): a rising three-note chime for a right bearing, a soft falling pair for a wrong one.
+  compass: [[659,.08,.03,0],[988,.1,.03,.08],[1319,.2,.025,.16]],
+  wrong: [[311,.14,.03,0],[233,.22,.03,.12]],
+  // Police calls (16b): three knuckle raps on a door, the muffled kick drum of a party through a wall (repeated while
+  // it plays, so no caption of its own), and a warm rising chord when a lost child is back with his dad.
+  knock: [[180,.05,.05,0], N(.03,.03,900,0), [175,.05,.05,.17], N(.03,.03,900,.17), [182,.05,.05,.34], N(.03,.03,900,.34)],
+  thump: [[55,.16,.05,0], [82,.08,.02,0], N(.05,.012,300,.25)],
+  reunite: [[392,.3,.03,0],[494,.3,.03,.12],[587,.6,.035,.24],[784,.7,.025,.36]],
+  // Weather: the rain itself is a continuous loop; these cues carry the captions when it starts and stops.
+  rain: [],
+  dry: [],
 });
