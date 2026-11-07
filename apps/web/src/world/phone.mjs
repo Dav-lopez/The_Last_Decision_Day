@@ -12,6 +12,7 @@ import { NPC_DIALOGUES } from './npcConversations.mjs';
 import { CAREERS, rankOf } from './careers.mjs';
 import { RANGE_DRILLS, gradeFor } from './trainingRange.mjs';
 import { EVENING_START, TIRED_ENERGY, WAKE_MINUTE } from './lifeClock.mjs';
+import { weatherTip } from './weather.mjs';
 
 export const PHONE_APPS = Object.freeze([
   Object.freeze({ id: 'messages', title: 'Messages' }),
@@ -109,6 +110,13 @@ const storyMessages = story => {
   return out;
 };
 
+/** Mom's morning text, with a weather tip on rainy or foggy days. */
+const momMorning = day => {
+  const text = MOM_MORNING[(day - 1) % MOM_MORNING.length];
+  const tip = weatherTip(day);
+  return tip ? `${text} ${tip}` : text;
+};
+
 /**
  * Every message that should be on the phone right now.
  * `now` is the life clock ({ day, minute, energy }); `location` is 'street' | 'home' | 'school' | 'city'.
@@ -120,7 +128,7 @@ export function phoneMessages({ story, relations, career, now, location = 'stree
   const minute = clampInt(now?.minute, 0, 1439, WAKE_MINUTE);
   for (let d = Math.max(1, day - DAILY_HISTORY_DAYS + 1); d <= day; d++) {
     const today = d === day;
-    if (!today || minute >= WAKE_MINUTE) messages.push({ id: `mom:morning:${d}`, from: 'mom', name: 'Mom', text: MOM_MORNING[(d - 1) % MOM_MORNING.length], kind: 'daily', day: d });
+    if (!today || minute >= WAKE_MINUTE) messages.push({ id: `mom:morning:${d}`, from: 'mom', name: 'Mom', text: momMorning(d), kind: 'daily', day: d });
     if (today && minute >= EVENING_START && location !== 'home') messages.push({ id: `mom:evening:${d}`, from: 'mom', name: 'Mom', text: MOM_EVENING[(d - 1) % MOM_EVENING.length], kind: 'daily', day: d });
   }
   if ((now?.energy ?? 100) <= TIRED_ENERGY && minute >= WAKE_MINUTE) messages.push({ id: `mom:tired:${day}`, from: 'mom', name: 'Mom', text: MOM_TIRED, kind: 'daily', day });

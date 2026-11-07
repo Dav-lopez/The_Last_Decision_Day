@@ -91,6 +91,8 @@ import { CAST, NEW_STORY, advanceStory, currentStep, markSceneSeen, pendingScene
   type StoryEvent, type StoryLine, type StoryState } from './storyChapters.mjs';
 import { buildSurroundings } from './worldSurroundings';
 import { createAtmosphere } from './sceneAtmosphere';
+import { forecastLine, weatherAt, weatherStatus, type WeatherKind } from './weather.mjs';
+import type { WeatherView } from './weatherScene';
 import { createCameraOcclusionGuard, createRenderPipeline, pickRenderQuality } from './renderQuality';
 import { createQuality, stepQuality } from './adaptiveQuality.mjs';
 import { loadNeighbors, type Neighbors, type Person } from './npcPeople';
@@ -635,6 +637,9 @@ export default function WorldScene({
   const [atSchool, setAtSchool] = useState(false);
   const [inClass, setInClass] = useState<string | null>(null);
   const [lifeView, setLifeView] = useState<Life>(() => readLife(characterId));
+  // Weather by day (weather.mjs); the playtest can force a kind to see rain or fog on day 1.
+  const [weatherOverride, setWeatherOverride] = useState<WeatherKind | null>(null);
+  const weatherOverrideRef = useRef<WeatherKind | null>(null);
   const [sleeping, setSleeping] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'saving' | 'saved' | 'offline'>('idle');
   const lifeSyncRef = useRef(lifeSync);
@@ -998,6 +1003,10 @@ export default function WorldScene({
       decorRef.current();
       let cityLights: ReturnType<typeof buildCityLights> | null = null;
       let cityLook: (() => { styles: number; awnings: number; rooftop: number; lit: boolean; contactShadows: number; canyonWalls: number; pools: number; poolsOn: boolean }) | null = null;
+      // Rain, wet roads, overcast skies and fog: loaded the first time a day isn't clear.
+      let weatherView: WeatherView | null = null;
+      let weatherLoading = false;
+      let wasRaining = false;
       // The open road north from Maple Street to downtown (item 17): drive there and back without a fade.
       let openRoad: OpenRoad | null = null;
       let disposeOpenRoad: (() => void) | null = null;
@@ -1005,9 +1014,11 @@ export default function WorldScene({
       let roadLeg: 'out' | 'home' | null = null;
       let roadFogOn = false;
       // Fog: thick on Maple Street, lighter downtown (its views run hundreds of metres down real streets), and blended along the open road between them (item 17).
+      // Weather then applies its own fog on top of whichever base this sets.
       const STREET_FOG = 0.009, CITY_FOG = 0.0032;
       const applyFog = (onRoadAt?: PlanarPosition) => {
         scene.fogDensity = onRoadAt && openRoad ? roadFog(openRoad, onRoadAt, STREET_FOG, CITY_FOG) : locationRef.current === 'city' ? CITY_FOG : STREET_FOG;
+        weatherView?.rebase('fog');
       };
       let eveningNow = false;
       let workDoors = new Map<CareerId, PlanarPosition>();
@@ -1353,6 +1364,7 @@ export default function WorldScene({
           atmosphere.setEvening(evening);
           cityLights?.setEvening(evening);
           applyFog();
+          weatherView?.rebase();
         },
       };
       lighting.setEvening(false);
@@ -1736,9 +1748,12 @@ export default function WorldScene({
             fire: callFire ? { heat: callFire.fire.heat, out: callFire.fire.out, spraying: callFire.spraying, water: callFire.fire.water, drawn: fireView !== null } : null,
             busy: pendingShift !== null,
             decor: decorShownRef.current,
+            weather: { ...weatherAt(life.day, life.minute, weatherOverrideRef.current), loaded: weatherView !== null, drops: weatherView?.drops() ?? 0 },
             cutscene: cutsceneShotRef.current, camera: { alpha: camera.alpha, beta: camera.beta, radius: camera.radius },
             stationVehicles: stationVehicles.map(parked => ({ kind: parked.kind, x: cars[parked.index].x, z: cars[parked.index].z })),
           }),
+          // Force a day's weather (or null for the real forecast) to see rain or fog without waiting for day 2.
+          weather: (kind: WeatherKind | null) => { weatherOverrideRef.current = kind; setWeatherOverride(kind); return true; },
           // The endings playthrough (MVP 9b) reports each step's gameplay event through the real story code,
           // so every scene, the decision and Maple Street's change play exactly as they do for a player.
           story: {
@@ -2413,6 +2428,18 @@ export default function WorldScene({
         const audioDistance = Math.hypot(position.x-lastAudioPosition.x, position.z-lastAudioPosition.z);
         lastAudioPosition = { ...position };
         const audioCar = drivenIndex();
+        const weatherNow = weatherAt(life.day, life.minute, weatherOverrideRef.current);
+        const outdoors = locationRef.current === 'street' || locationRef.current === 'city';
+        if (!weatherView && !weatherLoading && (weatherNow.cloud > 0.15 || weatherNow.wet > 0 || weatherNow.fog > 0)) {
+          weatherLoading = true;
+          void import('./weatherScene').then(module => {
+            if (disposed) return;
+            weatherView = module.createWeatherView(scene, { sun: directional, sky: sun, shadows, setSunGlow: atmosphere.setSunGlow });
+          }).catch(() => { weatherLoading = false; });
+        }
+        weatherView?.update(weatherNow, { evening: eveningNow, outdoors, camera, quality });
+        const rainingNow = weatherNow.rain > 0.05;
+        if (rainingNow !== wasRaining) { wasRaining = rainingNow; audioRef.current?.cue(rainingNow ? 'rain' : 'dry'); }
         const atPitch = locationRef.current === 'city' && (Boolean(match) || Math.hypot(position.x - PITCH.x, position.z - PITCH.z) < PITCH.halfLength + 8);
         audioRef.current?.setRadio(radioRef.current);
         audioRef.current?.update({ location: atPitch ? 'pitch' : locationRef.current,
@@ -2422,7 +2449,7 @@ export default function WorldScene({
           car: audioCar>=0 ? { ...driveFeel?.sound(), hornPitch: vehicleSpec(cars[audioCar]).hornPitch } : null,
           reading: schoolOpenRef.current || dialogueRef.current || npcActiveRef.current || Boolean(rangeOpenRef.current) || menuOpenRef.current,
           paused: Boolean(pendingRide || pendingFood || pendingShift || pendingTaxi || pendingDrive || interaction.mode==='sleeping' || interaction.mode==='sitting'),
-          evening: isEvening(life.minute) });
+          evening: isEvening(life.minute), rain: weatherNow.rain });
         if (locationRef.current !== storyLocation) {
           if (locationRef.current === 'city') storyActionsRef.current.reportStory('went-downtown');
           storyLocation = locationRef.current;
@@ -3013,6 +3040,7 @@ export default function WorldScene({
         npcSceneRef.current = null;
         renderPipeline.dispose();
         atmosphere.dispose();
+        weatherView?.dispose();
         lighting.dispose();
         housePainter.dispose();
         housePainterRef.current = null;
@@ -3139,8 +3167,8 @@ export default function WorldScene({
         onGrid={() => photoAction('grid')} onExit={closeCamera} />}
       {error ? <p className="world-fallback" role="status">{error}</p> : <>
         <LoadingScreen tracker={loadTracker} onReady={() => { worldReadyRef.current = true; void loadWorldMap().catch(() => {}); }} />
-        <div className="world-life" role="status" aria-label={`Day ${lifeView.day}, ${formatClock(lifeView.minute)}, energy ${Math.round(lifeView.energy)} percent`}>
-          <span>Day {lifeView.day} · {formatClock(lifeView.minute)}{lifeSync && syncStatus !== 'idle' &&
+        <div className="world-life" role="status" aria-label={`Day ${lifeView.day}, ${formatClock(lifeView.minute)}, ${weatherStatus(weatherAt(lifeView.day, lifeView.minute, weatherOverride))}, energy ${Math.round(lifeView.energy)} percent`}>
+          <span>Day {lifeView.day} · {formatClock(lifeView.minute)}<span className="world-weather" title={`Today: ${forecastLine(lifeView.day)}`}> · {weatherStatus(weatherAt(lifeView.day, lifeView.minute, weatherOverride))}</span>{lifeSync && syncStatus !== 'idle' &&
             <small className="world-sync"> · {syncStatus === 'offline' ? 'Saved in this browser' : syncStatus === 'saving' ? 'Saving…' : 'Saved to your account'}</small>}</span>
           <span className="world-energy" data-low={lifeView.energy <= TIRED_ENERGY ? 'true' : undefined}>
             Energy <span className="world-energy-bar" aria-hidden="true"><span style={{ width: `${Math.round(lifeView.energy)}%` }} /></span> {Math.round(lifeView.energy)}%
