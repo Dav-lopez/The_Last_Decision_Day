@@ -211,7 +211,20 @@ above is done or blocked; any item may be split into slices.
         steam and water are particles on one procedural texture (no downloads, no extra lights), sized by adaptive
         quality and loaded on demand (`fireCallScene.ts`); the hose is a looping sound on the effects bus, with
         crackle, whoosh and hiss cues and captions. Rules in `fireHose.mjs`; the playtest puts a fire out with Space.
-        Still to do: police calls (traffic stop, lost child, noise complaint) and scored army checkpoints.
+        Police calls are 16b below.
+  - [x] 16b (partial slice). Police calls: every patrol now carries a call from dispatch on its second stop, in turn
+        a lost child, a traffic stop and a noise complaint (`policeCalls.mjs`). The patrol waits at the call until
+        it's handled on foot: the duty card offers three ways to handle it (keys 1–3 or tap) — kind and clear, by the
+        book, or curt — and the reply plays out. A lost boy then walks behind you, at your heels, up the street to his
+        dad in a red hoodie (the beam and GPS move to the dad; he only counts as handed over when you're both there);
+        the traffic stop is a yellow hatchback pulled in at the kerb, hazards blinking, that drives off after you've
+        spoken; the noise complaint is a party flat whose window glows to the beat with notes drifting up and a bass
+        thump you hear from down the street, until a knock and a word quieten it. How you treated people is graded
+        (Commended +40 %, Handled +20 %, Complaint filed +0 % of the shift's pay) on top of the time bonus, and shown on
+        the sign-off line; the call adds its own time to par. People and car are the game's own models, built only when
+        a patrol has a call (`policeCallScene.ts`, loaded on demand; fewer notes at lower adaptive quality); new knock,
+        thump and reunion sounds with captions. The guest playtest joins the police, walks the lost boy back with the
+        keyboard and checks the pay. Still to do: scored army checkpoints.
 - [ ] **17. Seamless road**: drive from Maple Street to downtown and back without a fade (streamed world).
   - [x] 17a (partial slice). The open road: downtown now sits north of the town (`CITY_ORIGIN` moved from 1 km east
         to 620 m north), and the road past the barrier at the top of Maple Street carries on for ~370 m, bends onto
@@ -297,6 +310,13 @@ above is done or blocked; any item may be split into slices.
 - 19b: the "clubhouse" photo shot looks at the wall ahead of wherever you stand when the scene opens (usually by the
   pitch after full time); there is no clubhouse interior or photo prop yet, so the shot frames you and the sky line
   rather than a picture. A small clubhouse with the 1998 photo would make this land properly.
+- 16b: the pulled-over car on a traffic stop sits in the traffic lane but isn't an obstacle to downtown traffic (AI
+  cars pass through it) or solid to you; making it a traffic obstacle would queue the lane behind it, so it needs a
+  pull-over bay or lane-change logic. The lost boy follows you on the pavement without the city collider, so on a
+  tight corner he can clip a wall; he catches up at once if you get more than 25 m ahead. Calls aren't saved: a patrol
+  given up or left mid-call starts over with the next shift's call.
+- 16b and 16a both touch the duty card and `endTask`: merged with `clearCall()` and `clearFire()` side by side in
+  `endTask` (a patrol never has both).
 
 - 18a: the sky still switches straight from day to evening (`isEvening`); a sunset slice needs a gradual dusk
   (sun angle and colour by minute) rather than the boolean `setEvening`, which the weather now multiplies on top of.

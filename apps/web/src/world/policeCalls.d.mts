@@ -1,0 +1,33 @@
+import type { RoadGraph } from './cityTraffic.mjs';
+import type { CareerTask } from './careerTasks.mjs';
+export type CallKind = 'lost-child' | 'traffic-stop' | 'noise-complaint';
+export type CallTone = 'best' | 'ok' | 'poor';
+export type CallSpec = Readonly<{ id: CallKind; title: string; dispatch: string; arrive: string; escort?: string; resolved: string | null;
+  options: readonly Readonly<{ tone: CallTone; text: string; reply: string }>[] }>;
+export type Spot = { x: number; z: number; heading: number };
+export type PoliceCall = {
+  kind: CallKind; stop: number; phase: 'travel' | 'talk' | 'escort' | 'done'; x: number; z: number; tone: CallTone | null;
+  warnedOnFoot: boolean; done: boolean;
+  child: (Spot & { moving: boolean }) | null; parent: Spot | null;
+  car: { x: number; z: number; rotation: number } | null; door: Spot | null;
+};
+export type CallEvent = { type: 'arrive'; line: string } | { type: 'on-foot' } | { type: 'resolved'; line: string; tone?: CallTone }
+  | { type: 'escort'; line: string; tone: CallTone };
+export declare const CALL_REACH: number;
+export declare const CALL_SECONDS: number;
+export declare const ESCORT_PACE: number;
+export declare const FOLLOW_GAP: number;
+export declare const CONDUCT: Readonly<Record<CallTone, Readonly<{ id: CallTone; title: string; share: number }>>>;
+export declare const CALLS: Readonly<Record<CallKind, CallSpec>>;
+export declare const CALL_ORDER: readonly CallKind[];
+export declare function callFor(shiftNumber: number): CallKind;
+export declare function nearestStreet(graph: RoadGraph | null | undefined, x: number, z: number): { x: number; z: number; dx: number; dz: number; lane: number; distance: number } | null;
+export declare function planCall(task: CareerTask | null, kind: CallKind, graph?: RoadGraph | null): { task: CareerTask; call: PoliceCall } | null;
+export declare function holdsTask(task: CareerTask | null, call: PoliceCall | null): boolean;
+export declare function stepFollower(child: Spot & { moving?: boolean }, leader: Spot, seconds: number): Spot & { moving: boolean };
+export declare function stepCall(call: PoliceCall, at: { x: number; z: number; heading?: number; seconds?: number; driving?: boolean }): { call: PoliceCall; event: CallEvent | null };
+export declare function chooseCall(call: PoliceCall, index: number): { call: PoliceCall; event: { type: 'resolved' | 'escort'; line: string; tone: CallTone } | null };
+export declare function resolveCall(task: CareerTask, call: PoliceCall | null): CareerTask;
+export declare function callTarget(call: PoliceCall | null): { x: number; z: number; label: string } | null;
+export declare function callResult(call: PoliceCall | null, basePay: number): { grade: CallTone | null; title: string; bonus: number };
+export declare function callStatus(call: PoliceCall | null): { kind: CallKind; title: string; phase: PoliceCall['phase']; stop: number; prompt: string | null; options: string[]; grade: string | null } | null;

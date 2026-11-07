@@ -505,6 +505,57 @@ await step('station vehicles: a firefighter drives the fire engine with lights a
   await waitFor('out of the engine', timeout => page.waitForFunction(() => !window.__tld.read().driving, null, { timeout }));
   notes.push('fire engine: driven, lights and siren on and off');
 });
+await step('police patrol with a call: a lost child walked back to his dad (open-world 16b)', async () => {
+  if (!(await page.evaluate(() => window.__tld.place('police')))) throw new Error('police station sign not found downtown');
+  const apply = page.locator('.world-car-action', { hasText: /Apply: Police Officer/ });
+  await waitFor('apply button at the police station', timeout => apply.waitFor({ timeout }));
+  await apply.click();
+  await waitFor('joined the police', timeout => page.waitForFunction(() => window.__tld.read().career.id === 'police', null, { timeout }));
+  await dismissDialogue();
+  const start = page.locator('.world-car-action', { hasText: /Start duty: Patrol route/ });
+  await waitFor('start-patrol button', timeout => start.waitFor({ timeout }));
+  const before = await read();
+  notes.push(`before the patrol: ${Math.floor(before.minute / 60)}:${String(Math.floor(before.minute % 60)).padStart(2, '0')}, energy ${Math.round(before.energy)}`);
+  await start.click();
+  await waitFor('patrol starts with a call', timeout => page.waitForFunction(() => Boolean(window.__tld.read().duty && window.__tld.read().call), null, { timeout }));
+  const { duty, call, career } = await read();
+  if (call.kind !== 'lost-child') throw new Error(`the first patrol's call is ${call.kind}, expected lost-child`);
+  await waitFor('call people drawn', timeout => page.waitForFunction(() => window.__tld.read().call?.drawn, null, { timeout }));
+  notes.push(`patrol: ${duty.stops} stops, call "${call.kind}" at stop ${call.stop + 1}, par ${duty.par}s`);
+  for (let i = 0; i < duty.stops + 3; i++) {
+    const state = await read();
+    if (!state.duty) break;
+    if (state.call?.phase === 'talk') {
+      // Answer with the keyboard: 1 is the kind answer.
+      await waitFor('call answers shown', timeout => page.locator('.world-duty-answers button').first().waitFor({ timeout }));
+      await page.waitForTimeout(800);
+      await shot('05g-police-call');
+      await checkContrast('a police call');
+      await page.locator('canvas').first().focus();
+      await page.keyboard.press('1');
+      await waitFor('call answered, escort starts', timeout => page.waitForFunction(() => window.__tld.read().call?.phase === 'escort', null, { timeout }));
+      continue;
+    }
+    const at = `${state.duty.next}/${state.call?.phase}`;
+    if (!(await page.evaluate(() => window.__tld.place('duty')))) throw new Error(`could not stand at patrol stop ${state.duty.next + 1}`);
+    await waitFor(`patrol moves on from ${at}`, timeout => page.waitForFunction(was => {
+      const s = window.__tld.read();
+      return !s.duty || `${s.duty.next}/${s.call?.phase}` !== was;
+    }, at, { timeout }));
+    if (state.call?.phase === 'escort') {
+      const after = await read();
+      if (after.call?.phase !== 'done') throw new Error(`the boy wasn't handed over (call ${after.call?.phase}, ${after.call?.child?.toFixed(1)} m from you)`);
+      await page.waitForTimeout(800);
+      await shot('05h-police-reunited');
+    }
+  }
+  await waitFor('patrol signed off and paid', timeout => page.waitForFunction(shifts => { const s = window.__tld.read(); return !s.duty && !s.busy && s.career.shifts > shifts; }, career.shifts, { timeout }));
+  const after = (await read()).career;
+  // Rank-1 police pay is $60; on time plus a commended call pays more than a plain shift.
+  if (!(after.money - career.money > 60)) throw new Error(`the patrol with a call paid only $${after.money - career.money}`);
+  notes.push(`patrol with a call paid $${after.money - career.money}`);
+  await dismissDialogue();
+});
 await step('quick travel to the pitch and back home', async () => {
   await page.evaluate(() => window.__tld.travel('pitch'));
   // Already downtown, so wait for the taxi ride itself to finish: a new trip is refused while one is under way.
