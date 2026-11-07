@@ -260,7 +260,7 @@ above is done or blocked; any item may be split into slices.
         to your car. They loop at the ends of the stretch (95 m past the barrier, 60 m short of downtown) only when
         you can't see it, or after waiting 8 s at the end like a car at a junction. 5 new tests; the open-road
         playtest checks the speed sign and the road traffic.
-- [ ] **18. Weather and sky**: rain and wet roads, fog, sunsets, clouds; weather changes by day.
+- [x] **18. Weather and sky**: rain and wet roads, fog, sunsets, clouds; weather changes by day.
   - [x] 18a (partial slice). Weather by day (`weather.mjs`, the same on every device, nothing saved): day 1 clear,
         day 2 an afternoon shower, day 3 a foggy morning, then a mix (about 40 % clear, 25 % cloudy, 22 % showers,
         13 % fog). Rain falls around the camera as streaks with splashes at your feet (fewer drops at lower adaptive
@@ -278,6 +278,14 @@ above is done or blocked; any item may be split into slices.
         colours, the ground bounce, the sky dome (a sunset dome blended over the day dome, dimmed at night), the sun
         glow and the haze all follow it; street lamps still switch with the evening at 19:00, and weather still layers
         on top. The manual lighting switch shows a just-after-sunset or midday look. 4 tests.
+  - [x] 18c. Moving clouds, puddles and wet-road grip: the painted clouds drift round the sky (a slow breeze on a
+        clear day, faster when cloudy or raining, nearly still in fog) and the overcast layer slides across a little
+        faster. Puddles fill on the soaked ground once the roads are properly wet (fixed spots, so the same puddles come
+        back every rain; found by casting down onto the wet road and pavement materials near you, a few per frame), pick
+        up the sky's colour and shine, and shrink and vanish as the roads dry. Wet roads grip less (`wetGrip` 1 dry →
+        0.72 soaked in heavy rain): longer braking, a wider line at speed and a looser handbrake slide, while slow tight
+        turns are unchanged; the speed sign shows "Wet". 4 tests; the rain playtest checks puddles and grip. Item 18 is
+        complete apart from reflections on wet roads, which stay with item 20.
 - [ ] **19. Cinematic story**: camera-directed cutscenes with letterboxing and character animation for each
       chapter opening and the three endings.
   - [x] 19a (partial slice). Directed story scenes: while a story scene plays, a camera director (`cutscene.mjs`)

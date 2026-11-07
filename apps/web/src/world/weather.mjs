@@ -156,3 +156,69 @@ export function wetSurface(wet) {
   const w = clamp01(wet);
   return { darken: 1 - 0.32 * w, specular: 0.55 * w, power: lerp(16, 96, w) };
 }
+
+/**
+ * Wet roads grip less (open-world 18c): brakes and cornering grip scale by this,
+ * 1 on a dry road down to 0.72 on a soaked road in heavy rain.
+ */
+export function wetGrip(state) {
+  return 1 - 0.2 * clamp01(state?.wet) - 0.08 * clamp01(state?.rain);
+}
+
+/**
+ * How fast the clouds drift across the sky, in sky-texture widths per second: a slow breeze on a clear day,
+ * a stronger wind when it's cloudy or raining, almost still in fog.
+ */
+export function cloudDrift(state) {
+  const wind = 0.6 + 0.9 * clamp01(state?.cloud) + 0.8 * clamp01(state?.rain) - 0.5 * clamp01(state?.fog);
+  return Math.max(0.15, wind) / 1200;
+}
+
+/**
+ * Puddles: the ground is cut into cells; a fixed share of cells hold one puddle at a fixed spot, so the
+ * same puddles come back every rain. They fill once the roads are properly wet and shrink as they dry.
+ */
+export const PUDDLES = Object.freeze({ cell: 7, chance: 0.3, minRadius: 0.45, maxRadius: 1.5, range: 32, max: 72, fillFrom: 0.3, fillTo: 0.8 });
+
+function hashCell(cx, cz, salt) {
+  let h = (Math.imul(cx | 0, 374761393) + Math.imul(cz | 0, 668265263) + Math.imul(salt, 2246822519)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+
+/** The puddle in grid cell (cx, cz), or null when the cell has none. World metres. */
+export function puddleInCell(cx, cz) {
+  if (hashCell(cx, cz, 1) >= PUDDLES.chance) return null;
+  const { cell, minRadius, maxRadius } = PUDDLES;
+  return {
+    x: (cx + 0.15 + hashCell(cx, cz, 2) * 0.7) * cell,
+    z: (cz + 0.15 + hashCell(cx, cz, 3) * 0.7) * cell,
+    radius: minRadius + hashCell(cx, cz, 4) * (maxRadius - minRadius),
+    stretch: 1 + hashCell(cx, cz, 5) * 0.9,
+    rotation: hashCell(cx, cz, 6) * Math.PI,
+  };
+}
+
+/** Every puddle within `range` of (x, z), nearest first, at most PUDDLES.max. */
+export function puddlesNear(x, z, range = PUDDLES.range) {
+  const { cell } = PUDDLES;
+  const found = [];
+  const reach = Math.ceil(range / cell);
+  const ox = Math.floor(x / cell), oz = Math.floor(z / cell);
+  for (let cx = ox - reach; cx <= ox + reach; cx++) {
+    for (let cz = oz - reach; cz <= oz + reach; cz++) {
+      const puddle = puddleInCell(cx, cz);
+      if (!puddle) continue;
+      const distance = Math.hypot(puddle.x - x, puddle.z - z);
+      if (distance <= range) found.push({ ...puddle, key: `${cx},${cz}`, distance });
+    }
+  }
+  found.sort((a, b) => a.distance - b.distance);
+  return found.slice(0, PUDDLES.max);
+}
+
+/** How full the puddles are, 0 (none) … 1 (full), from how wet the ground is. */
+export function puddleLevel(state) {
+  return clamp01((clamp01(state?.wet) - PUDDLES.fillFrom) / (PUDDLES.fillTo - PUDDLES.fillFrom));
+}

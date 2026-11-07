@@ -16,11 +16,11 @@ type People = ReadonlyArray<{ x: number; z: number; radius?: number }>;
 export type VehicleBlocker = (car: CarState, otherCars: ReadonlyArray<CarState>, people: People) => boolean;
 export declare function stepVehicle(car: CarState, input: DriveInput, seconds: number,
   otherCars?: ReadonlyArray<CarState>, people?: People, blocked?: VehicleBlocker, zone?: SpeedZone): CarState & { collided: boolean };
-export type SpeedZone = Readonly<{ id: 'street' | 'city' | 'road'; scale: number; pull: number; label: string }>;
+export type SpeedZone = Readonly<{ id: 'street' | 'city' | 'road'; scale: number; pull: number; label: string; /** Road grip 0.5–1 (wet roads, 18c); 1 when left out. */ grip?: number }>;
 export declare const SPEED_ZONES: Readonly<{ street: SpeedZone; city: SpeedZone; road: SpeedZone }>;
 export declare function speedZone(id: string | null | undefined): SpeedZone;
 export declare const MAX_LATERAL_GRIP: number;
-export declare function steerAngle(steer: number, speed: number, spec?: { maxSteerAngle: number; wheelbase: number }): number;
+export declare function steerAngle(steer: number, speed: number, spec?: { maxSteerAngle: number; wheelbase: number }, surface?: number): number;
 export declare const TOWN_EXIT: Readonly<{ halfWidth: number; beyond: number; leaveAt: number; gateRange: number }>;
 export declare function onExitRoad(point: PlanarPosition): boolean;
 export declare function leavingTown(car: CarState): boolean;

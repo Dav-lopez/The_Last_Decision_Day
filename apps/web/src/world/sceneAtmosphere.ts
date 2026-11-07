@@ -77,6 +77,8 @@ export type Atmosphere = {
   /** The gradual day (18b): blend the sunset sky over the day sky, dim it at night, colour the sun and haze. */
   setDayLight: (light: AtmosphereLight) => void;
   setSunGlow: (amount: number) => void;
+  /** Moving clouds (18c): slide the painted clouds round the sky at `rate` texture widths per second. */
+  drift: (seconds: number, rate: number) => void;
   dispose: () => void;
 };
 
@@ -162,9 +164,16 @@ export function createAtmosphere(scene: Scene, sunDirection: Vector3): Atmospher
     scene.fogColor = haze;
     scene.clearColor = new Color4(haze.r, haze.g, haze.b, 1);
   };
+  let cloudOffset = 0;
   return {
     setEvening,
     setDayLight,
+    drift(seconds: number, rate: number) {
+      if (!(seconds > 0) || !(rate > 0)) return;
+      cloudOffset = (cloudOffset + Math.min(seconds, 0.25) * rate) % 1;
+      dayTexture.uOffset = cloudOffset;
+      duskTexture.uOffset = cloudOffset;
+    },
     /** Clouds hide the sun: 1 shows the glow, 0 hides it. */
     setSunGlow(amount: number) {
       glowWeather = Math.max(0, Math.min(1, amount));

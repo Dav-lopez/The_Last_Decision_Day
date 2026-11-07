@@ -1,6 +1,6 @@
-import { Color3, Color4, DynamicTexture, Mesh, MeshBuilder, ParticleSystem, StandardMaterial, Vector3,
+import { type AbstractMesh, Color3, Color4, DynamicTexture, Matrix, Mesh, MeshBuilder, ParticleSystem, Quaternion, Ray, StandardMaterial, Vector3,
   type DirectionalLight, type HemisphericLight, type Scene, type ShadowGenerator, type TargetCamera } from '@babylonjs/core';
-import { rainDropCount, weatherLook, wetSurface, type WeatherState } from './weather.mjs';
+import { PUDDLES, cloudDrift, puddleLevel, puddlesNear, rainDropCount, weatherLook, wetSurface, type WeatherState } from './weather.mjs';
 
 /**
  * Weather in the 3D world (open-world 18a): rain that falls around the camera
@@ -22,9 +22,13 @@ const DROP_SPEED = 17;
 export type WeatherView = {
   /** Call after the day/evening lighting ('all') or only the fog density ('fog') changes, so the weather applies on top. */
   rebase(part?: 'all' | 'fog'): void;
-  update(state: WeatherState, frame: { evening: boolean; outdoors: boolean; camera: TargetCamera; quality: { scale: number; base: number } }): void;
+  update(state: WeatherState, frame: { evening: boolean; outdoors: boolean; camera: TargetCamera; quality: { scale: number; base: number };
+    /** Seconds since the last frame (moves the clouds) and where you are (puddles are found again in a new place). */
+    seconds?: number; place?: string; player?: { x: number; z: number } }): void;
   /** Rain drops alive right now (the playtest reads it). */
   drops(): number;
+  /** Puddles drawn right now and how full they are (the playtest reads it). */
+  puddles(): { count: number; level: number };
   dispose(): void;
 };
 
@@ -180,6 +184,64 @@ export function createWeatherView(scene: Scene, lights: { sun: DirectionalLight;
     }
   };
 
+  // Puddles (18c): flat glossy pools at fixed spots on the wet ground near you, one thin-instanced mesh.
+  const puddleMaterial = new StandardMaterial('rain puddle', scene);
+  puddleMaterial.diffuseColor = new Color3(0.05, 0.06, 0.08);
+  puddleMaterial.specularColor = new Color3(0.9, 0.93, 0.98);
+  puddleMaterial.specularPower = 160;
+  puddleMaterial.alpha = 0;
+  puddleMaterial.zOffset = -3;
+  puddleMaterial.backFaceCulling = false;
+  const puddle = MeshBuilder.CreateDisc('rain puddles', { radius: 1, tessellation: 22 }, scene);
+  puddle.rotation.x = Math.PI / 2;
+  puddle.bakeCurrentTransformIntoVertices();
+  puddle.material = puddleMaterial;
+  puddle.isPickable = false;
+  puddle.receiveShadows = true;
+  puddle.alwaysSelectAsActiveMesh = true;
+  puddle.setEnabled(false);
+  const groundY = new Map<string, number | null>();
+  const isWetGround = (mesh: { material: { name: string } | null }) => Boolean(mesh.material && WET_MATERIALS.includes(mesh.material.name));
+  const down = new Ray(new Vector3(), new Vector3(0, -1, 0), 12);
+  let puddlePlace = '';
+  let puddleCell = '';
+  let puddleShown = -1;
+  let puddleCount = 0;
+  let puddleFill = 0;
+  let overcastOffset = 0;
+  const layPuddles = (player: { x: number; z: number }, level: number, place: string) => {
+    if (place !== puddlePlace) { groundY.clear(); puddlePlace = place; puddleCell = ''; }
+    const cell = `${Math.floor(player.x / 4)},${Math.floor(player.z / 4)}`;
+    const rounded = Math.round(level * 40) / 40;
+    if (cell === puddleCell && rounded === puddleShown) return;
+    const near = puddlesNear(player.x, player.z);
+    let casts = 0;
+    let pending = false;
+    const matrices: number[] = [];
+    const size = 0.45 + 0.55 * rounded;
+    for (const spot of near) {
+      if (!groundY.has(spot.key)) {
+        // Only look up a few new spots per frame, so walking into fresh ground never stalls a frame.
+        if (casts >= 6) { pending = true; continue; }
+        casts += 1;
+        down.origin.set(spot.x, 6, spot.z);
+        const hit = scene.pickWithRay(down, (mesh: AbstractMesh) => isWetGround(mesh));
+        groundY.set(spot.key, hit?.hit && hit.pickedPoint ? hit.pickedPoint.y : null);
+      }
+      const y = groundY.get(spot.key);
+      if (y === null || y === undefined) continue;
+      const matrix = Matrix.Compose(new Vector3(spot.radius * spot.stretch * size, 1, spot.radius * size),
+        Quaternion.RotationAxis(Vector3.Up(), spot.rotation), new Vector3(spot.x, y + 0.025, spot.z));
+      matrices.push(...matrix.toArray());
+    }
+    puddleCount = matrices.length / 16;
+    puddle.thinInstanceSetBuffer('matrix', puddleCount ? new Float32Array(matrices) : null, 16, false);
+    puddle.setEnabled(puddleCount > 0);
+    // Try again next frame while spots are still being looked up.
+    puddleCell = pending ? '' : cell;
+    puddleShown = rounded;
+  };
+
   const view: WeatherView = {
     rebase(part = 'all') {
       base = part === 'fog' ? { ...base, fog: scene.fogDensity }
@@ -204,6 +266,27 @@ export function createWeatherView(scene: Scene, lights: { sun: DirectionalLight;
         overcast.setEnabled(look.overcast > 0.01);
         lights.setSunGlow?.(look.sunGlow);
       }
+      // Clouds move: the overcast layer drifts a little faster than the painted clouds behind it.
+      if (frame.seconds && frame.seconds > 0 && overcast.isEnabled()) {
+        overcastOffset = (overcastOffset + Math.min(frame.seconds, 0.25) * cloudDrift(state) * 1.4) % 1;
+        (overcastMaterial.emissiveTexture as DynamicTexture).uOffset = overcastOffset;
+      }
+      const level = frame.outdoors ? puddleLevel(state) : 0;
+      puddleFill = level;
+      if (level > 0.01 && frame.player) {
+        // Puddles pick up the sky's colour (a cheap reflection) and fade in as they fill.
+        const sky = scene.fogColor;
+        puddleMaterial.emissiveColor.set(sky.r * 0.28, sky.g * 0.3, sky.b * 0.34);
+        puddleMaterial.alpha = 0.82 * Math.min(1, level * 1.6);
+        if (groundY.size > PUDDLES.max * 40) groundY.clear();
+        layPuddles(frame.player, level, frame.place ?? '');
+      } else if (puddleCount > 0 || puddleShown !== -1) {
+        puddle.thinInstanceSetBuffer('matrix', null, 16, false);
+        puddle.setEnabled(false);
+        puddleCount = 0;
+        puddleShown = -1;
+        puddleCell = '';
+      }
       wetScan -= 1;
       // Downtown's ground materials appear on the first trip there: look again every few hundred frames.
       applyWet(state.wet, wetScan <= 0 && state.wet > 0);
@@ -227,11 +310,14 @@ export function createWeatherView(scene: Scene, lights: { sun: DirectionalLight;
       }
     },
     drops: () => rain.getActiveCount(),
+    puddles: () => ({ count: puddleCount, level: Math.round(puddleFill * 100) / 100 }),
     dispose() {
       applyWet(0, true);
       rain.dispose();
       splash.dispose();
       overcast.dispose();
+      puddle.dispose();
+      puddleMaterial.dispose();
       overcastMaterial.emissiveTexture?.dispose();
       overcastMaterial.dispose();
     },
