@@ -32,8 +32,16 @@ export function createStreetLighting(scene, sun, sky) {
     if (lens instanceof StandardMaterial) lens.emissiveColor = evening ? new Color3(1, 0.8, 0.45) : new Color3(0.2, 0.18, 0.13);
   }
   setEvening(false);
+  /** The gradual day (18b): sun and sky light follow the clock (lamps still switch with setEvening). */
+  function setDayLight(light) {
+    sun.intensity = light.sun;
+    sun.diffuse = Color3.FromHexString(light.sunColour);
+    sky.intensity = light.sky;
+    sky.groundColor = Color3.FromHexString(light.ground);
+  }
   return {
     setEvening,
+    setDayLight,
     dispose() {
       scene.onNewMaterialAddedObservable.remove(materialObserver);
       for (const lamp of lamps) lamp.dispose();

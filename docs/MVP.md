@@ -272,6 +272,12 @@ above is done or blocked; any item may be split into slices.
         rain or fog. The scene code loads the first time a day isn't clear. The guest playtest forces showers and fog
         downtown and checks drops, wet roads, the HUD and both captions. Still to do: sunsets (a dusk sky between day
         and evening), moving clouds, puddles and reflections (item 20), wet-road grip.
+  - [x] 18b. Sunsets and a gradual day: instead of one switch at 19:00, `dayCycle.mjs` shapes the light through the
+        day — night lifts 05:00–06:00, sunrise colours fade by 07:30, a golden hour warms and lowers the sun from 16:30,
+        the sunset sky fades in over the day sky 18:30–19:30 and night falls by 21:00. Sun and ambient light, their
+        colours, the ground bounce, the sky dome (a sunset dome blended over the day dome, dimmed at night), the sun
+        glow and the haze all follow it; street lamps still switch with the evening at 19:00, and weather still layers
+        on top. The manual lighting switch shows a just-after-sunset or midday look. 4 tests.
 - [ ] **19. Cinematic story**: camera-directed cutscenes with letterboxing and character animation for each
       chapter opening and the three endings.
   - [x] 19a (partial slice). Directed story scenes: while a story scene plays, a camera director (`cutscene.mjs`)

@@ -88,6 +88,7 @@ import './story.css';
 import './worldMap.css';
 import './football.css';
 import { buildDecisionDecor } from './storyDecor';
+import { dayLight, lightKey } from './dayCycle.mjs';
 import { NEAR_METRES, SPEAKER_RESIDENTS, planShots, sceneCard, sceneMood, shotPose, type SceneMood, type Shot } from './cutscene.mjs';
 import { lineActing, type StoryEmotion } from './storyActing.mjs';
 import { CAST, NEW_STORY, advanceStory, currentStep, markSceneSeen, pendingScene, readStory, storyComplete, writeStory,
@@ -607,7 +608,7 @@ export default function WorldScene({
   const [cameraMode, setCameraMode] = useState<'follow' | 'overhead'>('follow');
   const cameraModeRef = useRef<'follow' | 'overhead'>('follow');
   const cameraControlsRef = useRef<ReturnType<typeof createCameraControls> | null>(null);
-  const lightingRef = useRef<ReturnType<typeof createStreetLighting> | null>(null);
+  const lightingRef = useRef<{ setEvening: (evening: boolean) => void; setDayLight: (minute: number) => void } | null>(null);
   const [evening, setEvening] = useState(false);
   const [driving, setDriving] = useState(false);
   const [driveSpeed, setDriveSpeed] = useState(0);
@@ -1458,6 +1459,14 @@ export default function WorldScene({
           applyFog();
           weatherView?.rebase();
         },
+        /** The gradual day (18b): sky, sun, ambient light and haze follow the clock between the lamp switches. */
+        setDayLight(minute: number) {
+          const light = dayLight(minute);
+          streetLighting.setDayLight(light);
+          atmosphere.setDayLight(light);
+          applyFog();
+          weatherView?.rebase();
+        },
       };
       lighting.setEvening(false);
       lightingRef.current = lighting;
@@ -1710,6 +1719,7 @@ export default function WorldScene({
         }).catch(() => { if (!disposed) setSyncStatus('offline'); })
           .finally(() => { saveInFlight = false; });
       };
+      let lastLightKey = '';
       const syncLighting = () => {
         const nowEvening = isEvening(life.minute);
         // Follow the clock only when day turns to evening (or back), so the manual switch still works in between.
@@ -1717,7 +1727,13 @@ export default function WorldScene({
           lastEvening = nowEvening;
           lighting.setEvening(nowEvening);
           setEvening(nowEvening);
+          lastLightKey = '';
         }
+        // Between the switches the light changes gradually. If the evening switch was flipped by hand,
+        // show a typical look for it (dusk just after sunset, or midday) instead of the clock's.
+        const minute = eveningNow === nowEvening ? life.minute : eveningNow ? 20 * 60 : 12 * 60;
+        const key = lightKey(minute);
+        if (key !== lastLightKey) { lastLightKey = key; lighting.setDayLight(minute); }
       };
       syncLighting();
       const tickLife = (seconds: number, activity: LifeActivity) => {
@@ -3583,6 +3599,8 @@ export default function WorldScene({
       <button type="button" aria-pressed={evening} onClick={event => {
         const next = !evening;
         lightingRef.current?.setEvening(next);
+        // Show the switched look straight away (just after sunset, or midday); the clock takes over at the next switch.
+        lightingRef.current?.setDayLight(next ? 20 * 60 : 12 * 60);
         setEvening(next);
         focusWorld(event);
       }}>{evening ? 'Evening lights' : 'Daylight'} · Switch lighting</button>
