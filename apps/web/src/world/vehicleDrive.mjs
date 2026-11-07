@@ -88,6 +88,29 @@ export function vehicleBlocked(car, otherCars = [], people = []) {
   return otherCars.some(other => footprintPoints(other).some(point => carContains(car, point.x, point.z)));
 }
 
+/**
+ * Speed zones (item 17b). Maple Street keeps each vehicle's own top speed; downtown's real streets allow a bit
+ * more, and the open road between them is a proper road. A zone scales the vehicle's top speed and lets it pull a
+ * little harder towards it. Over the limit (say, arriving in town from the open road) the car eases down rather than
+ * being clamped, so it never stops dead at a sign.
+ */
+export const SPEED_ZONES = Object.freeze({
+  street: Object.freeze({ id: 'street', scale: 1, pull: 1, label: 'Maple Street' }),
+  city: Object.freeze({ id: 'city', scale: 1.45, pull: 1.15, label: 'Downtown' }),
+  road: Object.freeze({ id: 'road', scale: 2.45, pull: 1.35, label: 'Open road' }),
+});
+export function speedZone(id) {
+  return SPEED_ZONES[id] ?? SPEED_ZONES.street;
+}
+/** Over the limit, a car loses this much speed per second (a gentle lift-off, not the brakes). */
+const OVER_LIMIT_EASE = 4.5;
+/**
+ * Steering is gentler at speed (above Maple Street's top speed): the turn never asks for more than this
+ * sideways grip, in m/s². Below 8 m/s you keep full lock, so tight residential turns are unchanged.
+ */
+export const MAX_LATERAL_GRIP = 20;
+const GRIP_FROM = 8, GRIP_FULL = 12;
+
 function nextSpeed(speed, throttle, seconds, v = VEHICLE) {
   let next = speed;
   if (throttle > 0) {
@@ -98,20 +121,35 @@ function nextSpeed(speed, throttle, seconds, v = VEHICLE) {
     const drop = v.coastDeceleration * seconds;
     next = Math.abs(speed) <= drop ? 0 : speed - Math.sign(speed) * drop;
   }
-  return Math.max(-v.maxReverseSpeed, Math.min(v.maxForwardSpeed, next));
+  if (next > v.maxForwardSpeed) next = speed > v.maxForwardSpeed ? Math.max(v.maxForwardSpeed, Math.min(next, speed - OVER_LIMIT_EASE * seconds)) : v.maxForwardSpeed;
+  return Math.max(-v.maxReverseSpeed, next);
+}
+
+/** Steering angle for a given input and speed: full lock when slow, gentler at speed (grip-limited). */
+export function steerAngle(steer, speed, spec = VEHICLE) {
+  const full = steer * spec.maxSteerAngle;
+  const v = Math.abs(speed);
+  if (v <= GRIP_FROM || full === 0) return full;
+  const grip = Math.min(Math.abs(full), Math.atan((MAX_LATERAL_GRIP * spec.wheelbase) / (v * v)));
+  const t = Math.min(1, (v - GRIP_FROM) / (GRIP_FULL - GRIP_FROM));
+  const blend = t * t * (3 - 2 * t);
+  return Math.sign(full) * (Math.abs(full) + (grip - Math.abs(full)) * blend);
 }
 
 /**
  * Advance one frame with a kinematic bicycle model. Movement is swept in short
  * steps; on contact the car stops at its last free position instead of tunneling.
  */
-export function stepVehicle(car, input, seconds, otherCars = [], people = [], blocked = vehicleBlocked) {
+export function stepVehicle(car, input, seconds, otherCars = [], people = [], blocked = vehicleBlocked, zone = SPEED_ZONES.street) {
   if (!Number.isFinite(seconds) || seconds <= 0) return { ...car, collided: false };
   const dt = Math.min(seconds, 0.05);
   const throttle = Math.max(-1, Math.min(1, Number(input?.throttle) || 0));
   const steer = Math.max(-1, Math.min(1, Number(input?.steer) || 0));
   const handbrake = Boolean(input?.handbrake);
-  const spec = vehicleSpec(car);
+  const base = vehicleSpec(car);
+  const z = zone ?? SPEED_ZONES.street;
+  const spec = z.scale === 1 && z.pull === 1 ? base
+    : { ...base, maxForwardSpeed: base.maxForwardSpeed * z.scale, acceleration: base.acceleration * z.pull };
   let speed;
   if (handbrake) {
     // The handbrake overrides the gas: the car slows and, if you steer, the back slides round.
@@ -120,7 +158,9 @@ export function stepVehicle(car, input, seconds, otherCars = [], people = [], bl
     speed = Math.abs(before) <= drop ? 0 : before - Math.sign(before) * drop;
   } else speed = nextSpeed(car.speed ?? 0, throttle, dt, spec);
   const slide = handbrake && Math.abs(speed) > 2 ? spec.handbrakeYaw : 1;
-  const yawRate = speed * Math.tan(steer * spec.maxSteerAngle) / spec.wheelbase * slide;
+  // The handbrake slide ignores grip (that's the point of it).
+  const angle = handbrake ? steer * spec.maxSteerAngle : steerAngle(steer, speed, spec);
+  const yawRate = speed * Math.tan(angle) / spec.wheelbase * slide;
   const steps = Math.max(1, Math.ceil(Math.abs(speed) * dt / 0.1));
   const slice = dt / steps;
   let state = { ...car, speed };

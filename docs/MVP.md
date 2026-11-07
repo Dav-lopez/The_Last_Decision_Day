@@ -223,8 +223,19 @@ above is done or blocked; any item may be split into slices.
         a few frozen meshes in the downtown chunk (`openRoadScene.ts`). Other edges of downtown still use the quick
         fade, and the bus and taxi are unchanged. The home interior moved south (it stood on the road at z = 60). The
         guest playtest drives into downtown on the road, reverses out and back in, and fails on any fade.
-        Still to do: a faster open-road speed (cars are capped at 32 km/h for residential streets; it is a ~40 s drive),
-        traffic on the road, and streaming the town and downtown in and out instead of keeping both built.
+        Still to do: streaming the town and downtown in and out instead of keeping both built (17b below did speed
+        and traffic).
+  - [x] 17b (partial slice). Speed zones and traffic on the open road: each vehicle's top speed now depends on where
+        you drive (`SPEED_ZONES` in `vehicleDrive.mjs`): Maple Street unchanged (32 km/h in the family car), downtown
+        ×1.45 (about 47 km/h) and the open road ×2.45 (about 80 km/h), with a stronger pull towards it. Over a zone's
+        limit (arriving in town at 80) the car lifts off gently instead of being clamped. Steering is grip-limited
+        above street speed (blending in from 8 to 12 m/s), so full lock stays tight on Maple Street but the car
+        holds a stable line at 80. The driving HUD shows the zone and its limit as a speed sign. Six cars drive
+        the road both ways in their right-hand lanes (`roadTraffic.mjs`, rendered in `roadTrafficScene.ts` with the
+        downtown kit), 60–74 km/h, following at a gap and braking for you or your car in their lane; they're solid
+        to your car. They loop at the ends of the stretch (95 m past the barrier, 60 m short of downtown) only when
+        you can't see it, or after waiting 8 s at the end like a car at a junction. 5 new tests; the open-road
+        playtest checks the speed sign and the road traffic.
 - [ ] **18. Weather and sky**: rain and wet roads, fog, sunsets, clouds; weather changes by day.
 - [ ] **19. Cinematic story**: camera-directed cutscenes with letterboxing and character animation for each
       chapter opening and the three endings.
@@ -296,6 +307,8 @@ above is done or blocked; any item may be split into slices.
   other there; traffic lights (item 12) should add explicit junctions. Cars have no headlights at night yet.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
+- 17b: road cars that reach an end while you're standing right there wait up to 8 s and then swap ends in view;
+  a side road or junction prop at each end would hide it. Road cars don't use indicators or overtake.
 - (add bugs and small follow-ups here)
 - 17a: the home interior was built at (0, 60), right on the road north of Maple Street, so it was visible up the
   exit road and would have been driven into; it now sits south at (0, −110), where the south road is closed.

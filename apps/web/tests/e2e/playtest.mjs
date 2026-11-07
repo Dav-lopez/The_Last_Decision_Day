@@ -497,6 +497,11 @@ await step('the open road: drive into downtown and out again with no fade (item 
   await getIn.click();
   await waitFor('in the car', timeout => page.waitForFunction(() => window.__tld.read().driving, null, { timeout }), 15000);
   await waitFor('car on the open road', timeout => page.waitForFunction(() => window.__tld.openRoad(0.9), null, { timeout, polling: 1000 }), 60000);
+  // 17b: the HUD shows the open road's speed limit, and there is traffic on the road.
+  await waitFor('open-road speed sign on the HUD', timeout => page.locator('.world-drive-zone', { hasText: /Open road/ }).waitFor({ timeout }), 60000);
+  notes.push(`open road limit: ${await page.locator('.world-drive-zone').innerText()}`);
+  await waitFor('cars on the open road', timeout => page.waitForFunction(() => window.__tld.read().roadTraffic.length > 0, null, { timeout, polling: 1000 }), 120000);
+  notes.push(`${(await read()).roadTraffic.length} cars on the open road`);
   // Any fade (the old "Driving to…" screen) on the way counts as a failure.
   await page.evaluate(() => {
     window.__roadFaded = false;

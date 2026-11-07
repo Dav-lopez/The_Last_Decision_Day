@@ -122,7 +122,8 @@ import type { DriveFeel } from './driveFeel';
 import type { CarDamageView } from './carDamageScene';
 import { conditionLabel } from './carDamage.mjs';
 import { CITY_ENTER_MARGIN, CITY_LEAVE_MARGIN, buildOpenRoad, insideCity, onOpenRoad, roadFog, roadPose, roadProgress, streetOrRoadBlocked, type OpenRoad } from './openRoad.mjs';
-import { TOWN_EXIT, canExitVehicle, chaseCameraAlpha, driveInput, footprintPoints, leavingTown, speedKmh, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
+import { TOWN_EXIT, canExitVehicle, chaseCameraAlpha, driveInput, footprintPoints, leavingTown, speedKmh, speedZone, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
+import { vehicleSpec } from './vehicleSpecs.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
 import { activeCaptions, captionLabel, CAPTION_SECONDS, chapterCaption, pushCaption, storyLineCaption, storyLineCue, type SoundCaption } from './soundCaptions.mjs';
 import { arrowKeys, trapTab, useDialogFocus } from './dialogFocus';
@@ -606,6 +607,8 @@ export default function WorldScene({
   const [evening, setEvening] = useState(false);
   const [driving, setDriving] = useState(false);
   const [driveSpeed, setDriveSpeed] = useState(0);
+  // The speed zone you're driving in (17b): Maple Street, downtown or the open road, and its limit.
+  const [driveZone, setDriveZone] = useState<{ label: string; limit: number } | null>(null);
   const [driveGear, setDriveGear] = useState<Gear>(1);
   // Bodywork of the car you're in (100 % = clean); scratches and dents are cosmetic.
   const [driveBody, setDriveBody] = useState(100);
@@ -1001,6 +1004,8 @@ export default function WorldScene({
       // The open road north from Maple Street to downtown (item 17): drive there and back without a fade.
       let openRoad: OpenRoad | null = null;
       let disposeOpenRoad: (() => void) | null = null;
+      // Traffic on the open road (17b): a few cars each way, built with the road.
+      let roadTraffic: import('./downtownKit').RoadTrafficView | null = null;
       // Which way you're heading on it, for the "open road" and "back on Maple Street" notices.
       let roadLeg: 'out' | 'home' | null = null;
       let roadFogOn = false;
@@ -1144,7 +1149,16 @@ export default function WorldScene({
           stop: { ...world, rotation: movementHeading(local.dx, local.dz), dx: local.dx, dz: local.dz, awayX: local.awayX, awayZ: local.awayZ, street: local.street },
         };
         openRoad = buildOpenRoad(city);
-        if (openRoad) disposeOpenRoad = downtownKit.buildOpenRoadScene(scene, openRoad, city.name);
+        if (openRoad) {
+          const disposeRoad = downtownKit.buildOpenRoadScene(scene, openRoad, city.name);
+          const kit = downtownKit;
+          const builtRoad = openRoad;
+          let roadDisposed = false;
+          void kit.loadRoadTraffic(scene, builtRoad, shadows).then(view => {
+            if (roadDisposed || disposed || scene.isDisposed) view?.dispose(); else roadTraffic = view;
+          }).catch(() => { /* No road traffic: the road still works. */ });
+          disposeOpenRoad = () => { roadDisposed = true; roadTraffic?.dispose(); roadTraffic = null; disposeRoad(); };
+        }
         // A link with ?play=football takes the bus straight to the pitch.
         if (playFootball) window.setTimeout(() => { if (!disposed && locationRef.current === 'street') boardBus('downtown'); }, 600);
       };
@@ -1722,6 +1736,7 @@ export default function WorldScene({
             x: position.x, z: position.z, location: locationRef.current, minute: life.minute, energy: life.energy,
             story: storyRef.current, driving: drivenIndex() >= 0, dialogue: dialogueRef.current, npcChat: npcActiveRef.current,
             traffic: cityTraffic?.cars().slice(0, 30).map(car => ({ x: car.x, z: car.z, speed: car.speed })) ?? [],
+            roadTraffic: roadTraffic?.cars().map(car => ({ x: car.x, z: car.z, speed: car.speed })) ?? [],
             walkers: cityTraffic?.people().length ?? 0,
             taxi: Boolean(pendingTaxi) || Boolean(pendingDrive),
             travelling: pendingTaxi !== null,
@@ -2430,6 +2445,12 @@ export default function WorldScene({
         // The training range covers the screen: freeze the world (and its clock) underneath.
         if (rangeOpenRef.current || menuOpenRef.current) return;
         driveFeel?.update(delta, clock);
+        // Open-road traffic (17b): drives both ways between town and downtown, braking for you and your car.
+        if (roadTraffic) {
+          const drivingNow = drivenIndex();
+          const viewer = drivingNow >= 0 ? cars[drivingNow] : position;
+          roadTraffic.update(delta, viewer, [{ x: viewer.x, z: viewer.z, radius: drivingNow >= 0 ? 1.3 : 0.9 }]);
+        }
         // Downtown traffic: drives around you, stops for you and your car.
         if (cityTraffic) {
           const inCityNow = locationRef.current === 'city';
@@ -2715,7 +2736,12 @@ export default function WorldScene({
               : undefined;
           // Downtown, the other cars are the traffic around you.
           const controls = driveInput(keys);
-          const next = stepVehicle(before, controls, delta, locationRef.current === 'city' ? cityTraffic?.cars() ?? [] : others, locationRef.current === 'city' ? cityTraffic?.people() ?? [] : peopleOut, cityBlock);
+          // Speed zones: the open road between town and downtown is fast, downtown a little quicker than Maple Street.
+          const zone = speedZone(road && onOpenRoad(road, before) && !insideCity(road, before, CITY_ENTER_MARGIN) ? 'road'
+            : locationRef.current === 'city' ? 'city' : 'street');
+          // The open road's traffic is solid too, wherever you are.
+          const roadCars = roadTraffic?.cars().filter(car => Math.hypot(car.x - before.x, car.z - before.z) < 20) ?? [];
+          const next = stepVehicle(before, controls, delta, [...(locationRef.current === 'city' ? cityTraffic?.cars() ?? [] : others), ...roadCars], locationRef.current === 'city' ? cityTraffic?.people() ?? [] : peopleOut, cityBlock, zone);
           cars[driven] = { ...before, x: next.x, z: next.z, rotation: next.rotation, speed: next.speed };
           if (locationRef.current === 'street') {
             const atGate = Math.hypot(next.x, next.z - TOWN_EXIT.beyond) < TOWN_EXIT.gateRange;
@@ -2776,6 +2802,8 @@ export default function WorldScene({
             hudTimer = 0;
             const kmh = speedKmh(next.speed);
             setDriveSpeed(previous => previous === kmh ? previous : kmh);
+            const limit = Math.round(speedKmh(vehicleSpec(next).maxForwardSpeed * zone.scale) / 5) * 5;
+            setDriveZone(previous => previous?.label === zone.label && previous.limit === limit ? previous : { label: zone.label, limit });
             const gear = driveFeel?.gear ?? 1;
             setDriveGear(previous => previous === gear ? previous : gear);
             if (next.collided) notify(peopleOut.some(person => Math.hypot(person.x - next.x, person.z - next.z) < 2.6)
@@ -3246,6 +3274,7 @@ export default function WorldScene({
         </div>}
         {driving && <div className="world-drive-hud" role="status" aria-live="polite">
           <strong>{driveSpeed}</strong>km/h <span className="world-drive-gear" aria-label={driveGear === 'R' ? 'Reverse gear' : `Gear ${driveGear}`}>{driveGear}</span>{driveBody < 100 && <span className="world-drive-body" aria-label={`Bodywork ${driveBody} percent, ${conditionLabel(driveBody).toLowerCase()}`}>{conditionLabel(driveBody)} {driveBody}%</span>}<span className="world-drive-help"> · W/S gas, brake, reverse · A/D steer · Space handbrake · H horn{drivingKind !== 'sedan' ? ' · L lights and siren' : ''} · E to get out when stopped</span>
+          {driveZone && <span className="world-drive-zone" aria-label={`${driveZone.label}, limit ${driveZone.limit} kilometres an hour`}>{driveZone.label} · <b>{driveZone.limit}</b></span>}
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
         </div>}
         {driving && <Suspense fallback={null}><RadioHud placement="overlay" station={radioStation} onTune={tuneRadio} onFocusWorld={() => canvasRef.current?.focus({ preventScroll: true })} /></Suspense>}
