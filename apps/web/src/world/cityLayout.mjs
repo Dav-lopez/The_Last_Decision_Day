@@ -8,7 +8,8 @@
 import { HUMAN_RUN_SPEED, HUMAN_WALK_SPEED, classifyHumanMotion } from './humanMotion.mjs';
 import { movementVector } from './movement.mjs';
 
-export const CITY_ORIGIN = Object.freeze({ x: 1000, z: 0 });
+// North of Maple Street, where the open road (openRoad.mjs) runs onto Broadway; x lines Broadway up with the exit road.
+export const CITY_ORIGIN = Object.freeze({ x: -90, z: 620 });
 const PLAYER_RADIUS = 0.38;
 const EDGE_MARGIN = 6;
 const CELL = 25;
