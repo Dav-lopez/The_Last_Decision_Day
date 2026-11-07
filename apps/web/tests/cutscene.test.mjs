@@ -101,9 +101,17 @@ test('shots move slowly, hold after their move, keep the player in frame and sta
       const later = shotPose(shot, { ...ctx, indoor }, SHOT_SECONDS * 3);
       assert.deepEqual(later, end, `${kind} holds after its move`);
       for (const pose of [start, end]) {
-        assert.ok(Math.hypot(pose.target.x - 5, pose.target.z + 2) < 0.01, `${kind} looks at the player`);
-        assert.ok(pose.beta > 0.4 && pose.beta < 1.5, `${kind} beta ${pose.beta}`);
-        assert.ok(pose.radius >= 2 && pose.radius <= (indoor ? 10 : 22), `${kind} radius ${pose.radius}`);
+        if (kind === 'detail') {
+          // Looks past the player at the wall ahead, with the player's shoulder in the frame.
+          const eye = position(pose);
+          const toTarget = [pose.target.x - eye.x, pose.target.y - eye.y, pose.target.z - eye.z];
+          const toPlayer = [5 - eye.x, 1.4 - eye.y, -2 - eye.z];
+          const cos = toTarget.reduce((sum, v, i) => sum + v * toPlayer[i], 0) / Math.hypot(...toTarget) / Math.hypot(...toPlayer);
+          assert.ok(Math.acos(cos) < 0.55, `detail keeps the player in frame (${Math.acos(cos).toFixed(2)} rad off-centre)`);
+          assert.ok(Math.hypot(...toPlayer) < Math.hypot(...toTarget), 'the player is between the camera and what they look at');
+        } else assert.ok(Math.hypot(pose.target.x - 5, pose.target.z + 2) < 0.01, `${kind} looks at the player`);
+        assert.ok(pose.beta > 0.4 && pose.beta < (kind === 'detail' ? 1.8 : 1.6), `${kind} beta ${pose.beta}`);
+        assert.ok(pose.radius >= (kind === 'push' ? 1.4 : 2) && pose.radius <= (indoor ? 10 : 22), `${kind} radius ${pose.radius}`);
         assert.ok(position(pose).y > 1, `${kind} camera above the ground`);
       }
       if (indoor) assert.ok(start.radius <= 10 && end.radius <= 10, 'indoor shots stay under the cutaway');
@@ -119,4 +127,22 @@ test('shots move slowly, hold after their move, keep the player in frame and sta
   // Two-person shots with nobody to look at fall back to a shot of the player.
   const lonely = shotPose({ kind: 'speaker', speaker: 'maya', subject: 'maya', hold: false }, ctx, 1);
   assert.ok(Math.hypot(lonely.target.x - 5, lonely.target.z + 2) < 0.01);
+});
+
+test('staged beats (19b): the photo is shot past your shoulder, the reveal pushes in on your face', () => {
+  const ch4 = CHAPTERS.find(chapter => chapter.id === 'downtown');
+  const lines = ch4.steps.find(step => step.id === 'head-home').scene;
+  const shots = planShots(lines, { mood: 'scene' });
+  assert.deepEqual(shots.map(shot => shot.kind), ['detail', 'detail', 'push']);
+  assert.equal(shots[1].hold, true, 'the second photo line carries the same move on');
+  const ctx = { player: { x: 0, z: 0 }, baseAlpha: Math.PI / 2 };
+  const push = { kind: 'push', speaker: 'you', subject: null, hold: false };
+  assert.ok(shotPose(push, ctx, SHOT_SECONDS).radius < shotPose(push, ctx, 0).radius - 1, 'a real push-in');
+  // The detail shot looks the way the player's camera was looking (ahead = -z for alpha π/2).
+  const detail = shotPose({ kind: 'detail', speaker: 'narrator', subject: null, hold: false }, ctx, 0);
+  assert.ok(detail.target.z < -1.5 && detail.target.y > 1.6, 'at the wall ahead, at picture height');
+  // A chapter opening still establishes first, even on a staged line (the note under the door).
+  const ch2 = CHAPTERS.find(chapter => chapter.id === 'the-note').steps[0].scene;
+  assert.equal(ch2[0].beat, 'note');
+  assert.equal(planShots(ch2, { mood: 'opening' })[0].kind, 'establish');
 });

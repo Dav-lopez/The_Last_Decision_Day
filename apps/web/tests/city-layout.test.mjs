@@ -35,10 +35,11 @@ test('downtown sits far from the street, the home and the classroom', () => {
 
 test('downtown is clear of the town ground and the hills around Maple Street', async () => {
   const { GROUND_SIZE, HILLS } = await import('../src/world/surroundingsLayout.mjs');
-  const [hx] = city.halfSize;
-  const west = CITY_ORIGIN.x - hx - 40; // the city ground's west edge
-  assert.ok(west > GROUND_SIZE / 2 + 20);
-  for (const hill of HILLS) assert.ok(hill.x + hill.radius < west, 'no hill pokes into downtown');
+  const [, hz] = city.halfSize;
+  // Downtown sits north of the town, at the far end of the open road (item 17).
+  const south = CITY_ORIGIN.z - hz - 40; // the city ground's south edge
+  assert.ok(south > GROUND_SIZE / 2 + 20);
+  for (const hill of HILLS) assert.ok(hill.z + hill.radius < south, 'no hill pokes into downtown');
 });
 
 test('triangulation covers each footprint exactly, including concave real buildings', () => {
