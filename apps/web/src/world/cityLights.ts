@@ -1,5 +1,45 @@
-import { ClusteredLightContainer, Color3, Mesh, MeshBuilder, PointLight, StandardMaterial, Vector3, type Scene } from '@babylonjs/core';
+import { ClusteredLightContainer, Color3, Constants, DynamicTexture, Mesh, MeshBuilder, PointLight, StandardMaterial, Vector3, VertexData, type Scene } from '@babylonjs/core';
 import { CITY_ORIGIN, streetLampSpots, type City, type CityCollider } from './cityLayout.mjs';
+import { lampPools, poolFalloff, type LampPool } from './downtownLighting.mjs';
+
+/** A soft round pool of light, white at the centre (emissive, added on top of the ground). */
+function poolTexture(scene: Scene) {
+  const size = 64;
+  const texture = new DynamicTexture('city lamp pool', { width: size, height: size }, scene, true);
+  const c = texture.getContext() as unknown as CanvasRenderingContext2D;
+  const image = c.createImageData(size, size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const r = Math.hypot(x + 0.5 - size / 2, y + 0.5 - size / 2) / (size / 2);
+      const v = Math.round(255 * poolFalloff(r, 1));
+      const at = (y * size + x) * 4;
+      image.data[at] = image.data[at + 1] = image.data[at + 2] = v; image.data[at + 3] = 255;
+    }
+  }
+  c.putImageData(image, 0, 0);
+  texture.update();
+  return texture;
+}
+
+/** Every lamp's pool of light as one merged mesh of flat quads just above the pavement. */
+function poolMesh(scene: Scene, pools: LampPool[]) {
+  const positions: number[] = []; const normals: number[] = []; const uvs: number[] = []; const indices: number[] = [];
+  for (const pool of pools) {
+    const start = positions.length / 3;
+    const x = CITY_ORIGIN.x + pool.x; const z = CITY_ORIGIN.z + pool.z; const r = pool.radius;
+    positions.push(x - r, 0.06, z - r, x + r, 0.06, z - r, x + r, 0.06, z + r, x - r, 0.06, z + r);
+    normals.push(0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0);
+    uvs.push(0, 0, 1, 0, 1, 1, 0, 1);
+    indices.push(start, start + 2, start + 1, start, start + 3, start + 2);
+  }
+  const mesh = new Mesh('city lamp pools', scene);
+  const data = new VertexData();
+  Object.assign(data, { positions, normals, uvs, indices });
+  data.applyToMesh(mesh);
+  mesh.isPickable = false;
+  mesh.freezeWorldMatrix();
+  return mesh;
+}
 
 /** Clustered lighting needs WebGPU, or WebGL 2 with blendable float colour buffers. */
 function clusteredLightingSupported(scene: Scene) {
@@ -60,17 +100,41 @@ export function buildCityLights(scene: Scene, city: City, collider: CityCollider
     }
   }
 
+  // A warm pool of light on the pavement under each lamp after dark (open-world 20b): it reads the light
+  // on the ground at a distance, and where clustered lighting isn't supported it is the only lamp light.
+  const pools = lampPools(spots, Boolean(container));
+  const pool = poolMesh(scene, pools);
+  const poolGlow = new StandardMaterial('city lamp pool glow', scene);
+  poolGlow.disableLighting = true;
+  poolGlow.diffuseColor = Color3.Black();
+  poolGlow.emissiveColor = Color3.FromHexString('#ffcf8a');
+  poolGlow.emissiveTexture = poolTexture(scene);
+  poolGlow.alpha = pools[0]?.strength ?? 0;
+  poolGlow.alphaMode = Constants.ALPHA_ADD;
+  poolGlow.zOffset = -3;
+  poolGlow.backFaceCulling = false;
+  pool.material = poolGlow;
+  pool.setEnabled(false);
+  let lit = false;
+
   return {
     lamps: spots.length,
     clustered: Boolean(container),
     setEvening(evening: boolean) {
+      lit = evening;
       glass.emissiveColor = evening ? new Color3(1, 0.86, 0.55) : new Color3(0.12, 0.11, 0.09);
       container?.setEnabled(evening);
+      pool.setEnabled(evening);
     },
+    /** What the playtest checks: lamp pools on the ground, and whether they're showing. */
+    look: () => ({ pools: pools.length, poolsOn: lit && pool.isEnabled() }),
     dispose() {
       container?.dispose();
       for (const light of lights) light.dispose();
       for (const mesh of templates) mesh.dispose();
+      pool.dispose();
+      poolGlow.emissiveTexture?.dispose();
+      poolGlow.dispose();
       steel.dispose(); glass.dispose();
     },
   };
