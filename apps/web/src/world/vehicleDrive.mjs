@@ -126,11 +126,11 @@ function nextSpeed(speed, throttle, seconds, v = VEHICLE) {
 }
 
 /** Steering angle for a given input and speed: full lock when slow, gentler at speed (grip-limited). */
-export function steerAngle(steer, speed, spec = VEHICLE) {
+export function steerAngle(steer, speed, spec = VEHICLE, surface = 1) {
   const full = steer * spec.maxSteerAngle;
   const v = Math.abs(speed);
   if (v <= GRIP_FROM || full === 0) return full;
-  const grip = Math.min(Math.abs(full), Math.atan((MAX_LATERAL_GRIP * spec.wheelbase) / (v * v)));
+  const grip = Math.min(Math.abs(full), Math.atan((MAX_LATERAL_GRIP * surface * spec.wheelbase) / (v * v)));
   const t = Math.min(1, (v - GRIP_FROM) / (GRIP_FULL - GRIP_FROM));
   const blend = t * t * (3 - 2 * t);
   return Math.sign(full) * (Math.abs(full) + (grip - Math.abs(full)) * blend);
@@ -148,8 +148,11 @@ export function stepVehicle(car, input, seconds, otherCars = [], people = [], bl
   const handbrake = Boolean(input?.handbrake);
   const base = vehicleSpec(car);
   const z = zone ?? SPEED_ZONES.street;
-  const spec = z.scale === 1 && z.pull === 1 ? base
-    : { ...base, maxForwardSpeed: base.maxForwardSpeed * z.scale, acceleration: base.acceleration * z.pull };
+  // Wet roads (18c): the brakes and the cornering grip both scale by the surface's grip.
+  const surface = Number.isFinite(z.grip) ? Math.max(0.5, Math.min(1, z.grip)) : 1;
+  const spec = z.scale === 1 && z.pull === 1 && surface === 1 ? base
+    : { ...base, maxForwardSpeed: base.maxForwardSpeed * z.scale, acceleration: base.acceleration * z.pull,
+      brakeDeceleration: base.brakeDeceleration * surface, handbrakeYaw: base.handbrakeYaw * (2 - surface) };
   let speed;
   if (handbrake) {
     // The handbrake overrides the gas: the car slows and, if you steer, the back slides round.
@@ -159,7 +162,7 @@ export function stepVehicle(car, input, seconds, otherCars = [], people = [], bl
   } else speed = nextSpeed(car.speed ?? 0, throttle, dt, spec);
   const slide = handbrake && Math.abs(speed) > 2 ? spec.handbrakeYaw : 1;
   // The handbrake slide ignores grip (that's the point of it).
-  const angle = handbrake ? steer * spec.maxSteerAngle : steerAngle(steer, speed, spec);
+  const angle = handbrake ? steer * spec.maxSteerAngle : steerAngle(steer, speed, spec, surface);
   const yawRate = speed * Math.tan(angle) / spec.wheelbase * slide;
   const steps = Math.max(1, Math.ceil(Math.abs(speed) * dt / 0.1));
   const slice = dt / steps;

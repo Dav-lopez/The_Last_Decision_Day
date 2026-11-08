@@ -372,6 +372,11 @@ await step('weather: rain falls downtown, roads get wet, then fog (open-world 18
     requestAnimationFrame(tick);
   }));
   notes.push(`rain: ${(await read()).weather.drops} drops alive, ~${Math.round(fps)} fps in software rendering`);
+  // 18c: puddles lie on the soaked ground around you, and the roads grip less.
+  await waitFor('puddles on the wet ground', timeout => page.waitForFunction(() => { const w = window.__tld.read().weather; return w.puddles.count > 0 && w.puddles.level > 0.5; }, null, { timeout, polling: 500 }), 30000);
+  const wetRead = (await read()).weather;
+  if (!(wetRead.grip < 0.85)) throw new Error(`wet roads should grip less, grip is ${wetRead.grip}`);
+  notes.push(`${wetRead.puddles.count} puddles, road grip ${wetRead.grip.toFixed(2)}`);
   await page.waitForTimeout(1500);
   await shot('05c-rain');
   await checkContrast('rain downtown');

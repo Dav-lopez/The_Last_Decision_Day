@@ -95,7 +95,7 @@ import { CAST, NEW_STORY, advanceStory, currentStep, markSceneSeen, pendingScene
   type StoryEvent, type StoryLine, type StoryState } from './storyChapters.mjs';
 import { buildSurroundings } from './worldSurroundings';
 import { createAtmosphere } from './sceneAtmosphere';
-import { forecastLine, weatherAt, weatherStatus, type WeatherKind } from './weather.mjs';
+import { cloudDrift, forecastLine, weatherAt, weatherStatus, wetGrip, type WeatherKind } from './weather.mjs';
 import type { WeatherView } from './weatherScene';
 import { createCameraOcclusionGuard, createRenderPipeline, pickRenderQuality } from './renderQuality';
 import { createQuality, stepQuality } from './adaptiveQuality.mjs';
@@ -613,7 +613,7 @@ export default function WorldScene({
   const [driving, setDriving] = useState(false);
   const [driveSpeed, setDriveSpeed] = useState(0);
   // The speed zone you're driving in (17b): Maple Street, downtown or the open road, and its limit.
-  const [driveZone, setDriveZone] = useState<{ label: string; limit: number } | null>(null);
+  const [driveZone, setDriveZone] = useState<{ label: string; limit: number; wet: boolean } | null>(null);
   const [driveGear, setDriveGear] = useState<Gear>(1);
   // Bodywork of the car you're in (100 % = clean); scratches and dents are cosmetic.
   const [driveBody, setDriveBody] = useState(100);
@@ -1861,7 +1861,7 @@ export default function WorldScene({
             fire: callFire ? { heat: callFire.fire.heat, out: callFire.fire.out, spraying: callFire.spraying, water: callFire.fire.water, drawn: fireView !== null } : null,
             busy: pendingShift !== null,
             decor: decorShownRef.current,
-            weather: { ...weatherAt(life.day, life.minute, weatherOverrideRef.current), loaded: weatherView !== null, drops: weatherView?.drops() ?? 0 },
+            weather: { ...weatherAt(life.day, life.minute, weatherOverrideRef.current), loaded: weatherView !== null, drops: weatherView?.drops() ?? 0, puddles: weatherView?.puddles() ?? { count: 0, level: 0 }, grip: wetGrip(weatherAt(life.day, life.minute, weatherOverrideRef.current)) },
             cutscene: cutsceneShotRef.current, camera: { alpha: camera.alpha, beta: camera.beta, radius: camera.radius },
             stationVehicles: stationVehicles.map(parked => ({ kind: parked.kind, x: cars[parked.index].x, z: cars[parked.index].z })),
           }),
@@ -2563,7 +2563,9 @@ export default function WorldScene({
             weatherView = module.createWeatherView(scene, { sun: directional, sky: sun, shadows, setSunGlow: atmosphere.setSunGlow });
           }).catch(() => { weatherLoading = false; });
         }
-        weatherView?.update(weatherNow, { evening: eveningNow, outdoors, camera, quality });
+        weatherView?.update(weatherNow, { evening: eveningNow, outdoors, camera, quality, seconds: frameSeconds, place: locationRef.current, player: position });
+        // Moving clouds (18c): the painted clouds slide round the sky with the day's wind.
+        atmosphere.drift(frameSeconds, cloudDrift(weatherNow));
         const rainingNow = weatherNow.rain > 0.05;
         if (rainingNow !== wasRaining) { wasRaining = rainingNow; audioRef.current?.cue(rainingNow ? 'rain' : 'dry'); }
         const atPitch = locationRef.current === 'city' && (Boolean(match) || Math.hypot(position.x - PITCH.x, position.z - PITCH.z) < PITCH.halfLength + 8);
@@ -2929,8 +2931,10 @@ export default function WorldScene({
           // Downtown, the other cars are the traffic around you.
           const controls = driveInput(keys);
           // Speed zones: the open road between town and downtown is fast, downtown a little quicker than Maple Street.
-          const zone = speedZone(road && onOpenRoad(road, before) && !insideCity(road, before, CITY_ENTER_MARGIN) ? 'road'
-            : locationRef.current === 'city' ? 'city' : 'street');
+          // Wet roads (18c) grip less: longer braking, wider lines at speed, a looser handbrake slide.
+          const grip = wetGrip(weatherAt(life.day, life.minute, weatherOverrideRef.current));
+          const zone = { ...speedZone(road && onOpenRoad(road, before) && !insideCity(road, before, CITY_ENTER_MARGIN) ? 'road'
+            : locationRef.current === 'city' ? 'city' : 'street'), grip };
           // The open road's traffic is solid too, wherever you are.
           const roadCars = roadTraffic?.cars().filter(car => Math.hypot(car.x - before.x, car.z - before.z) < 20) ?? [];
           const next = stepVehicle(before, controls, delta, [...(locationRef.current === 'city' ? cityTraffic?.cars() ?? [] : others), ...roadCars], locationRef.current === 'city' ? cityTraffic?.people() ?? [] : peopleOut, cityBlock, zone);
@@ -2995,7 +2999,8 @@ export default function WorldScene({
             const kmh = speedKmh(next.speed);
             setDriveSpeed(previous => previous === kmh ? previous : kmh);
             const limit = Math.round(speedKmh(vehicleSpec(next).maxForwardSpeed * zone.scale) / 5) * 5;
-            setDriveZone(previous => previous?.label === zone.label && previous.limit === limit ? previous : { label: zone.label, limit });
+            const wet = grip < 0.92;
+            setDriveZone(previous => previous?.label === zone.label && previous.limit === limit && previous.wet === wet ? previous : { label: zone.label, limit, wet });
             const gear = driveFeel?.gear ?? 1;
             setDriveGear(previous => previous === gear ? previous : gear);
             if (next.collided) notify(peopleOut.some(person => Math.hypot(person.x - next.x, person.z - next.z) < 2.6)
@@ -3488,7 +3493,7 @@ export default function WorldScene({
         </div>}
         {driving && <div className="world-drive-hud" role="status" aria-live="polite">
           <strong>{driveSpeed}</strong>km/h <span className="world-drive-gear" aria-label={driveGear === 'R' ? 'Reverse gear' : `Gear ${driveGear}`}>{driveGear}</span>{driveBody < 100 && <span className="world-drive-body" aria-label={`Bodywork ${driveBody} percent, ${conditionLabel(driveBody).toLowerCase()}`}>{conditionLabel(driveBody)} {driveBody}%</span>}<span className="world-drive-help"> · W/S gas, brake, reverse · A/D steer · Space handbrake · H horn{drivingKind !== 'sedan' ? ' · L lights and siren' : ''} · E to get out when stopped</span>
-          {driveZone && <span className="world-drive-zone" aria-label={`${driveZone.label}, limit ${driveZone.limit} kilometres an hour`}><span className="world-drive-zone-name">{driveZone.label}</span> <b>{driveZone.limit}</b></span>}
+          {driveZone && <span className="world-drive-zone" aria-label={`${driveZone.label}, limit ${driveZone.limit} kilometres an hour${driveZone.wet ? ', wet road' : ''}`}><span className="world-drive-zone-name">{driveZone.label}</span> <b>{driveZone.limit}</b>{driveZone.wet && <span className="world-drive-zone-wet" title="Wet road: brake earlier">Wet</span>}</span>}
           {driveNotice && <span className="world-drive-notice">{driveNotice}</span>}
         </div>}
         {driving && <Suspense fallback={null}><RadioHud placement="overlay" station={radioStation} onTune={tuneRadio} onFocusWorld={() => canvasRef.current?.focus({ preventScroll: true })} /></Suspense>}
