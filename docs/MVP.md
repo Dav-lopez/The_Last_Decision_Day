@@ -260,6 +260,15 @@ above is done or blocked; any item may be split into slices.
         to your car. They loop at the ends of the stretch (95 m past the barrier, 60 m short of downtown) only when
         you can't see it, or after waiting 8 s at the end like a car at a junction. 5 new tests; the open-road
         playtest checks the speed sign and the road traffic.
+  - [x] 17c (partial slice). Streaming what's drawn: Maple Street's scenery (the street, houses, the surrounding
+        town to the horizon, the bus stop) and downtown's (buildings, facades, lamps, signs, the pitch, the bus stop)
+        are each drawn only when you're near them (`worldStreaming.mjs`): a place appears 240 m before you reach it
+        and goes again once you're 270 m away (the gap stops flicker), and being in a place always shows it, so a bus
+        or taxi never arrives in an empty world. Hidden scenery moves to a layer the camera doesn't draw
+        (`worldStreamingScene.ts`), so it costs no culling, draw calls or shadow passes and never fights the game's
+        own switches; the open road is always drawn. 4 tests; the open-road playtest checks that downtown hides
+        Maple Street and Maple Street hides downtown. Still to do: freeing the hidden place's memory (it stays loaded,
+        so coming back is instant) and the quick fade at downtown's other edges.
 - [x] **18. Weather and sky**: rain and wet roads, fog, sunsets, clouds; weather changes by day.
   - [x] 18a (partial slice). Weather by day (`weather.mjs`, the same on every device, nothing saved): day 1 clear,
         day 2 an afternoon shower, day 3 a foggy morning, then a mix (about 40 % clear, 25 % cloudy, 22 % showers,

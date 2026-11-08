@@ -651,11 +651,17 @@ await step('the open road: drive into downtown and out again with no fade (item 
   await drive('s', 'stop the car', () => (window.__tld.read().car?.speed ?? 9) < 0.3);
   const faded = await page.evaluate(() => { clearInterval(window.__roadWatch); return window.__roadFaded; });
   if (faded) throw new Error('a fade screen showed while driving the open road');
+  // 17c: downtown is drawn and Maple Street isn't, once you're in town.
+  await waitFor('Maple Street streamed out downtown', timeout => page.waitForFunction(() => { const s = window.__tld.read().streaming; return s.city && !s.town && s.hidden > 0; }, null, { timeout, polling: 500 }), 30000);
+  notes.push(`streaming downtown: ${(await read()).streaming.hidden} Maple Street meshes not drawn`);
   for (let tries = 0; tries < 10 && (await read()).driving; tries++) { await page.keyboard.press('e'); await page.waitForTimeout(1500); }
   if ((await read()).driving) throw new Error('could not get out of the car downtown');
   await page.evaluate(() => window.__tld.travel('maple'));
   await page.waitForFunction(() => window.__tld.read().location === 'street', null, { timeout: 180000 });
   await dismissDialogue();
+  // …and back home, downtown isn't drawn.
+  await waitFor('downtown streamed out on Maple Street', timeout => page.waitForFunction(() => { const s = window.__tld.read().streaming; return s.town && !s.city && s.hidden > 0; }, null, { timeout, polling: 500 }), 30000);
+  notes.push(`streaming at home: ${(await read()).streaming.hidden} downtown meshes not drawn`);
 });
 
 // MVP 9b: the whole story, chapter 1 to the epilogue, once for each of the three endings. Every step's gameplay

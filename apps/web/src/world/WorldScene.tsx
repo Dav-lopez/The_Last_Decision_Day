@@ -95,6 +95,8 @@ import { CAST, NEW_STORY, advanceStory, currentStep, markSceneSeen, pendingScene
   type StoryEvent, type StoryLine, type StoryState } from './storyChapters.mjs';
 import { buildSurroundings } from './worldSurroundings';
 import { createAtmosphere } from './sceneAtmosphere';
+import { cityRect, streamVisibility, type Rect, type StreamShown } from './worldStreaming.mjs';
+import { createWorldStreaming } from './worldStreamingScene';
 import { cloudDrift, forecastLine, weatherAt, weatherStatus, wetGrip, type WeatherKind } from './weather.mjs';
 import type { WeatherView } from './weatherScene';
 import { createCameraOcclusionGuard, createRenderPipeline, pickRenderQuality } from './renderQuality';
@@ -1000,9 +1002,13 @@ export default function WorldScene({
       const directional = new DirectionalLight('sun', new Vector3(-0.5, -0.78, -0.42), scene);
       directional.intensity = 1.35;
       directional.position.set(12, 22, 10);
-      const schoolMarker = createNeighborhood(scene);
+      // Streaming (17c): Maple Street's and downtown's scenery are each drawn only when you're near them.
+      const streaming = createWorldStreaming(scene);
+      let streamShown: StreamShown = { town: true, city: true };
+      let downtownRect: Rect | null = null;
+      const schoolMarker = streaming.capture('town', () => createNeighborhood(scene));
       // The bus stop at the north end of Maple Street; the bus runs to a real downtown (OpenStreetMap).
-      const disposeMapleStop = buildBusStop(scene, MAPLE_BUS_STOP.x - 1.05, MAPLE_BUS_STOP.z, Math.PI / 2);
+      const disposeMapleStop = streaming.capture('town', () => buildBusStop(scene, MAPLE_BUS_STOP.x - 1.05, MAPLE_BUS_STOP.z, Math.PI / 2));
       let decor: ReturnType<typeof buildDecisionDecor> | null = null;
       let decorFor: string | null = null;
       decorRef.current = () => {
@@ -1287,18 +1293,19 @@ export default function WorldScene({
         const { city, collider, stop, heading } = downtownSite;
         const { buildCityScene, buildCityLights, buildFootballPitch, loadCityTraffic } = downtownKit;
         const builtAt = performance.now();
-        const disposeCity = buildCityScene(scene, city);
+        const disposeCity = streaming.capture('city', () => buildCityScene(scene, city));
+        downtownRect = cityRect(city.halfSize);
         // Street lamps on every downtown street (clustered lights at night).
-        const lights = buildCityLights(scene, city, collider);
+        const lights = streaming.capture('city', () => buildCityLights(scene, city, collider));
         // Lamps and lit windows switch on together.
         cityLights = { ...lights, setEvening: (on: boolean) => { lights.setEvening(on); disposeCity.setEvening(on); } };
         cityLights.setEvening(eveningNow);
         cityLook = () => ({ ...disposeCity.look(), ...lights.look() });
         // A caged five-a-side pitch in Central Park.
-        const pitch = buildFootballPitch(scene);
+        const pitch = streaming.capture('city', () => buildFootballPitch(scene));
         football = { pitch, ball: newBall(), goals: 0, resetIn: 0 };
         // Signs over the police station, army recruiting office and fire station, at real downtown buildings.
-        const workplaces = buildWorkplaces(scene, workDoors);
+        const workplaces = streaming.capture('city', () => buildWorkplaces(scene, workDoors));
         void loadCityTraffic(scene, city, 28, shadows, collider.insideLocal).then(traffic => {
           if (disposed || scene.isDisposed) traffic?.dispose();
           else cityTraffic = traffic;
@@ -1314,7 +1321,7 @@ export default function WorldScene({
         }).catch(error => console.warn('Downtown regulars unavailable', error));
         const disposeVehicles = parkStationVehicles(city, collider);
         pitch.show(football.ball);
-        const disposeStop = buildBusStop(scene, stop.x + stop.awayX * 0.9, stop.z + stop.awayZ * 0.9, heading);
+        const disposeStop = streaming.capture('city', () => buildBusStop(scene, stop.x + stop.awayX * 0.9, stop.z + stop.awayZ * 0.9, heading));
         downtown = { city, collider, stop, dispose: () => { disposeCity(); disposeStop(); disposeVehicles(); lights.dispose(); pitch.dispose(); workplaces.dispose(); cityTraffic?.dispose(); cityTraffic = null; regulars?.dispose(); regulars = null; } };
         downtownBuildMs = Math.round(performance.now() - builtAt);
         return downtown;
@@ -1325,7 +1332,7 @@ export default function WorldScene({
       loadDowntown().then(() => loadTracker.finish('downtown'),
         () => loadTracker.fail('downtown') /* Downtown is optional; Maple Street plays without it. */);
       // The town around the street, so the world reaches the horizon instead of ending at a cliff edge.
-      buildSurroundings(scene);
+      streaming.capture('town', () => buildSurroundings(scene));
       // The barrier at the north end lifts for a car: the road out of town leads downtown.
       const gateMeshes = scene.meshes.filter(mesh => mesh.name === 'town barricade stripe' || mesh.name === 'town road closed sign');
       let gateOpen = false;
@@ -1338,7 +1345,7 @@ export default function WorldScene({
       const school = buildSchoolScene(scene);
       let schoolAsset: Awaited<ReturnType<typeof loadSchoolEnvironment>> = null;
       let schoolAssetCancelled = false;
-      addPlayableNeighborhoodDetails(scene);
+      streaming.capture('town', () => addPlayableNeighborhoodDetails(scene));
       // Your house wears the colours from your photo (re-applied when the detailed house model arrives).
       const housePainter = createHousePainter(scene);
       housePainterRef.current = housePainter;
@@ -1861,6 +1868,7 @@ export default function WorldScene({
             fire: callFire ? { heat: callFire.fire.heat, out: callFire.fire.out, spraying: callFire.spraying, water: callFire.fire.water, drawn: fireView !== null } : null,
             busy: pendingShift !== null,
             decor: decorShownRef.current,
+            streaming: streaming.read(),
             weather: { ...weatherAt(life.day, life.minute, weatherOverrideRef.current), loaded: weatherView !== null, drops: weatherView?.drops() ?? 0, puddles: weatherView?.puddles() ?? { count: 0, level: 0 }, grip: wetGrip(weatherAt(life.day, life.minute, weatherOverrideRef.current)) },
             cutscene: cutsceneShotRef.current, camera: { alpha: camera.alpha, beta: camera.beta, radius: camera.radius },
             stationVehicles: stationVehicles.map(parked => ({ kind: parked.kind, x: cars[parked.index].x, z: cars[parked.index].z })),
@@ -2563,6 +2571,9 @@ export default function WorldScene({
             weatherView = module.createWeatherView(scene, { sun: directional, sky: sun, shadows, setSunGlow: atmosphere.setSunGlow });
           }).catch(() => { weatherLoading = false; });
         }
+        // Only draw the places you're near (17c).
+        streamShown = streamVisibility(streamShown, position, downtown ? downtownRect : null, locationRef.current);
+        streaming.apply(streamShown);
         weatherView?.update(weatherNow, { evening: eveningNow, outdoors, camera, quality, seconds: frameSeconds, place: locationRef.current, player: position });
         // Moving clouds (18c): the painted clouds slide round the sky with the day's wind.
         atmosphere.drift(frameSeconds, cloudDrift(weatherNow));
