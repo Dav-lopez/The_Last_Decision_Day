@@ -10,7 +10,7 @@ const staticImports = [...scene.matchAll(/^import (?!type )[^;]*? from '([^']+)'
 test('downtown 3D builders, the football match and the big map load on demand', () => {
   for (const lazyOnly of ['./cityScene', './cityLights', './footballScene', './cityTrafficScene', './cityPedestriansScene',
     './trafficLightsScene', './footballMatch.mjs', './footballPlayers', './WorldMap', './downtownKit', './footballMatchKit',
-    './TrainingRange', './Phone', './audio/RadioHud', './audio/radio.mjs', './driveFeel', './carDamageScene', './careerVehiclesScene', './weatherScene', './openRoadScene', './fireCallScene']) {
+    './TrainingRange', './Phone', './audio/RadioHud', './audio/radio.mjs', './driveFeel', './carDamageScene', './careerVehiclesScene', './openRoadScene', './roadTrafficScene', './fireCallScene', './weatherScene']) {
     assert.ok(!staticImports.includes(lazyOnly), `${lazyOnly} is imported eagerly by WorldScene`);
   }
   for (const kit of ['./downtownKit', './footballMatchKit', './WorldMap']) assert.match(scene, new RegExp(`import\\('${kit.replace('.', '\\.')}'\\)`));

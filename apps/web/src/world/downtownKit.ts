@@ -8,4 +8,5 @@ export { buildCityLights } from './cityLights';
 export { buildFootballPitch } from './footballScene';
 export { loadCityTraffic, type CityTraffic } from './cityTrafficScene';
 export { buildOpenRoadScene } from './openRoadScene';
+export { loadRoadTraffic, type RoadTrafficView } from './roadTrafficScene';
 export { buildCareerVehicle, type CareerVehicleModel } from './careerVehiclesScene';
