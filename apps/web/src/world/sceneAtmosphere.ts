@@ -71,7 +71,14 @@ function paintSunGlow(scene: Scene) {
   return texture;
 }
 
-export type Atmosphere = { setEvening: (evening: boolean) => void; setSunGlow: (amount: number) => void; dispose: () => void };
+export type AtmosphereLight = { skyBlend: number; skyBrightness: number; sunColour: string; glow: number; haze: string };
+export type Atmosphere = {
+  setEvening: (evening: boolean) => void;
+  /** The gradual day (18b): blend the sunset sky over the day sky, dim it at night, colour the sun and haze. */
+  setDayLight: (light: AtmosphereLight) => void;
+  setSunGlow: (amount: number) => void;
+  dispose: () => void;
+};
 
 /**
  * A painted sky dome with clouds and a sun glow, and fog matched to the
@@ -95,6 +102,23 @@ export function createAtmosphere(scene: Scene, sunDirection: Vector3): Atmospher
   dome.applyFog = false;
   // Render behind everything else.
   dome.renderingGroupId = 0;
+
+  // The sunset sky, faded in over the day sky as the evening comes on (and out again at sunrise).
+  const duskMaterial = new StandardMaterial('sky dome dusk', scene);
+  duskMaterial.disableLighting = true;
+  duskMaterial.backFaceCulling = false;
+  duskMaterial.fogEnabled = false;
+  duskMaterial.emissiveTexture = duskTexture;
+  duskMaterial.diffuseColor = Color3.Black();
+  duskMaterial.specularColor = Color3.Black();
+  const duskDome = MeshBuilder.CreateSphere('sky dome dusk', { diameter: 1590, segments: 24, sideOrientation: Mesh.BACKSIDE }, scene);
+  duskDome.material = duskMaterial;
+  duskDome.infiniteDistance = true;
+  duskDome.isPickable = false;
+  duskDome.applyFog = false;
+  duskDome.renderingGroupId = 0;
+  duskDome.visibility = 0;
+  duskDome.setEnabled(false);
 
   const glowMaterial = new StandardMaterial('sky sun glow', scene);
   glowMaterial.disableLighting = true;
@@ -124,8 +148,23 @@ export function createAtmosphere(scene: Scene, sunDirection: Vector3): Atmospher
     scene.clearColor = new Color4(haze.r, haze.g, haze.b, 1);
   };
   setEvening(false);
+  const setDayLight = (light: AtmosphereLight) => {
+    skyMaterial.emissiveTexture = dayTexture;
+    dayTexture.level = light.skyBrightness;
+    duskTexture.level = light.skyBrightness;
+    duskDome.visibility = light.skyBlend;
+    duskDome.setEnabled(light.skyBlend > 0.01);
+    glowMaterial.emissiveColor = Color3.FromHexString(light.sunColour);
+    glowBase = light.glow;
+    glow.visibility = glowBase * glowWeather;
+    glow.setEnabled(glowBase * glowWeather > 0.02);
+    const haze = Color3.FromHexString(light.haze);
+    scene.fogColor = haze;
+    scene.clearColor = new Color4(haze.r, haze.g, haze.b, 1);
+  };
   return {
     setEvening,
+    setDayLight,
     /** Clouds hide the sun: 1 shows the glow, 0 hides it. */
     setSunGlow(amount: number) {
       glowWeather = Math.max(0, Math.min(1, amount));
@@ -134,6 +173,8 @@ export function createAtmosphere(scene: Scene, sunDirection: Vector3): Atmospher
     },
     dispose() {
       dome.dispose();
+      duskDome.dispose();
+      duskMaterial.dispose();
       glow.dispose();
       skyMaterial.dispose();
       glowMaterial.dispose();
