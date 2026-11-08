@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { HOSE_SECONDS, TASKS, TASK_REACH, finishBeat, formatClock, planTask, stepTask, taskResult, taskStatus } from '../src/world/careerTasks.mjs';
+import { DRILL_SECONDS, HOSE_SECONDS, TASKS, TASK_REACH, finishBeat, formatClock, planTask, stepTask, taskResult, taskStatus } from '../src/world/careerTasks.mjs';
 import { CAREERS, workplaceDoors } from '../src/world/careers.mjs';
 import { CITY_ORIGIN, createCityCollider, readCity } from '../src/world/cityLayout.mjs';
 import { buildRoadGraph } from '../src/world/cityTraffic.mjs';
@@ -82,7 +82,10 @@ test('a route march only counts on foot, and says so once', () => {
   r = stepTask(r.task, { ...s, driving: true, seconds: 0.1 });
   assert.equal(r.event, null);
   r = stepTask(r.task, { ...s, seconds: 0.1 });
-  assert.equal(r.event.type, 'stop');
+  // On foot the checkpoint counts, and holds for the bearing call (open-world 16c).
+  assert.equal(r.event.type, 'beat');
+  assert.equal(r.event.beat, 'bearing');
+  assert.equal(finishBeat(r.task).event.type, 'stop');
   // Police can drive the beat.
   task = planTask('police', graph, localDoor('police'), { seed: 1, collider });
   let step = stepTask(task, { ...task.stops[0], driving: true });
@@ -151,4 +154,26 @@ test('a fire call starts at a real fire: the run waits there until the hose has 
   assert.equal(done.task.beat, null);
   assert.equal(done.task.next, 1);
   assert.equal(finishBeat(done.task).event, null, 'nothing to finish without a beat');
+});
+
+test('route march checkpoints hold for a bearing call; the sign-off does not (open-world 16c)', () => {
+  let task = planTask('soldier', graph, localDoor('soldier'), { seed: 4, collider });
+  assert.ok(task.stops.slice(0, -1).every(stop => stop.drill), 'every checkpoint has a drill');
+  assert.equal(task.stops.at(-1).drill, undefined);
+  assert.ok(task.par >= DRILL_SECONDS * (task.stops.length - 1), 'par allows for the calls');
+  const stop = task.stops[0];
+  let r = stepTask(task, { ...stop, seconds: 1 });
+  assert.deepEqual(r.event, { type: 'beat', beat: 'bearing', index: 0, line: TASKS.soldier.drill.arrive });
+  assert.equal(taskStatus(r.task).next, 'Call the bearing');
+  assert.equal(taskStatus(r.task).beat, 'bearing');
+  // The clock runs while you think, but walking on doesn't skip the call.
+  const held = stepTask(r.task, { ...task.stops[1], seconds: 1 });
+  assert.equal(held.event, null);
+  assert.equal(held.task.next, 0);
+  assert.equal(held.task.elapsed, 2);
+  const done = finishBeat(held.task);
+  assert.equal(done.task.next, 1);
+  assert.equal(done.event.line, TASKS.soldier.stops[0]);
+  // Patrols and fire calls don't get drills.
+  assert.ok(planTask('police', graph, localDoor('police'), { seed: 4, collider }).stops.every(s => !s.drill));
 });

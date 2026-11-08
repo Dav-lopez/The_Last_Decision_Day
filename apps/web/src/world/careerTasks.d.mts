@@ -1,10 +1,11 @@
 import type { RoadGraph } from './cityTraffic.mjs';
 import type { CareerId } from './careers.mjs';
 export type TaskSpec = Readonly<{ id: string; title: string; spacing: number; onFoot: boolean; brief: string; stops: readonly string[]; signOff: string;
-  hose?: Readonly<{ stop: number; arrive: string }> }>;
+  hose?: Readonly<{ stop: number; arrive: string }>; drill?: Readonly<{ arrive: string }> }>;
 /** `hose`: this stop is a fire to put out at (x, z), city-local. */
-export type TaskStop = { x: number; z: number; line: string; final: boolean; hose?: { x: number; z: number; arrive: string } };
-export type TaskBeat = 'hose';
+/** `drill`: a route-march checkpoint where you call the bearing to the next one (routeMarch.mjs). */
+export type TaskStop = { x: number; z: number; line: string; final: boolean; hose?: { x: number; z: number; arrive: string }; drill?: { arrive: string } };
+export type TaskBeat = 'hose' | 'bearing';
 export type CareerTask = {
   career: CareerId; id: string; title: string; brief: string; onFoot: boolean; stops: TaskStop[]; next: number;
   elapsed: number; par: number; length: number; done: boolean; warnedOnFoot: boolean; beat: TaskBeat | null;
@@ -12,6 +13,7 @@ export type CareerTask = {
 export type TaskEvent = { type: 'stop'; index: number; line: string } | { type: 'done' } | { type: 'beat'; beat: TaskBeat; index: number; line: string }
   | { type: 'on-foot'; reason: 'march' | 'hose' | 'sign-off' };
 export declare const HOSE_SECONDS: number;
+export declare const DRILL_SECONDS: number;
 export declare const TASK_REACH: number;
 export declare const TASK_REACH_CAR: number;
 export declare const TASKS: Readonly<Record<CareerId, TaskSpec>>;

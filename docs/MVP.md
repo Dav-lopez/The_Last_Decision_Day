@@ -200,7 +200,7 @@ above is done or blocked; any item may be split into slices.
     outro. Between songs a station jingle plays and the DJ reads a rotating ident (browser speech where available,
     and the line is always shown on the dial). R / Shift+R or the ‹ › buttons tune; stations keep playing while
     you're out of the car, so you tune in mid-song; the choice is remembered.
-- [ ] **16. Career missions**: police patrol calls (traffic stop, lost child, noise complaint), fire calls with
+- [x] **16. Career missions**: police patrol calls (traffic stop, lost child, noise complaint), fire calls with
       the hose, army route march with checkpoints; timed, scored, and paid better than a plain shift.
   - [x] 16a (partial slice). Fire calls with the hose: the call-out now starts at a real fire, a skip burning on the
         pavement a few metres from the stop (placed from the street data, on open ground), its smoke up as soon as the
@@ -211,7 +211,7 @@ above is done or blocked; any item may be split into slices.
         steam and water are particles on one procedural texture (no downloads, no extra lights), sized by adaptive
         quality and loaded on demand (`fireCallScene.ts`); the hose is a looping sound on the effects bus, with
         crackle, whoosh and hiss cues and captions. Rules in `fireHose.mjs`; the playtest puts a fire out with Space.
-        Police calls are 16b below.
+        Police calls are 16b and scored army checkpoints 16c, below.
   - [x] 16b (partial slice). Police calls: every patrol now carries a call from dispatch on its second stop, in turn
         a lost child, a traffic stop and a noise complaint (`policeCalls.mjs`). The patrol waits at the call until
         it's handled on foot: the duty card offers three ways to handle it (keys 1–3 or tap) — kind and clear, by the
@@ -224,7 +224,18 @@ above is done or blocked; any item may be split into slices.
         the sign-off line; the call adds its own time to par. People and car are the game's own models, built only when
         a patrol has a call (`policeCallScene.ts`, loaded on demand; fewer notes at lower adaptive quality); new knock,
         thump and reunion sounds with captions. The guest playtest joins the police, walks the lost boy back with the
-        keyboard and checks the pay. Still to do: scored army checkpoints.
+        keyboard and checks the pay.
+  - [x] 16c (partial slice). Scored route march: every checkpoint on a soldier's march is scored (`routeMarch.mjs`).
+        Each leg has its own split par from the distance walked; arriving shows the split and a band (Sharp inside
+        85 % of par, On pace, Steady, Behind), and the duty card's stop pips turn green, amber or orange to match. The
+        march then holds for a map-and-compass call: which way is the next checkpoint (or the Recruiting Office)?
+        Three compass points are offered — the right one and the two at right angles, in a fixed order per checkpoint
+        — on keys 1–3 or as buttons; the minimap's N is the compass. A right call rings a rising chime, a wrong one a
+        soft falling pair and says which way it was (new `compass` / `wrong` cues with captions). Up to 3 points per
+        split and 2 per bearing grade the march (Distinction from 80 % +40 % of the shift's pay, Pass from 55 % +20 %,
+        Needs work +0 %) on top of the time bonus, shown on the sign-off line; par allows 4 s per call. The guest
+        playtest joins the army, walks the five checkpoints, calls four bearings by keyboard and taps one wrong, and
+        checks the scorecard and pay.
 - [ ] **17. Seamless road**: drive from Maple Street to downtown and back without a fade (streamed world).
   - [x] 17a (partial slice). The open road: downtown now sits north of the town (`CITY_ORIGIN` moved from 1 km east
         to 620 m north), and the road past the barrier at the top of Maple Street carries on for ~370 m, bends onto
@@ -343,6 +354,9 @@ above is done or blocked; any item may be split into slices.
 - Fixed: the big map's "you" arrow pointed backwards while walking (walking and driving headings used
   opposite conventions).
 - (add bugs and small follow-ups here)
+- 16c: with police calls, fire calls, weather and lighting all merged in, WorldScene reached 131.1 KB gzipped against
+  its 130 KB budget, so the budget is now 134 KB. The duty modes (fire hose, police calls, route march) are
+  the clearest candidates for one lazily loaded "duties" chunk, which would win most of that back.
 - 17a: the home interior was built at (0, 60), right on the road north of Maple Street, so it was visible up the
   exit road and would have been driven into; it now sits south at (0, −110), where the south road is closed.
 - 17a: you can't get out of the car on the open road (there's nowhere for the player to walk out of town; a notice
@@ -356,6 +370,11 @@ above is done or blocked; any item may be split into slices.
   that touch a neighbour are cut into bands too although they're hidden; skipping them would save ~40% of wall
   vertices. Lamp pools are flat at road height and draw over the kerb onto the pavement; the 3D view in the sandbox
   still can't be rendered (no Babylon), so the look was checked as a top-down map of the same data.
+- 16c: the playtest works three shifts in one game day (fire call, route march and, with 16b, a patrol), which the
+  energy and opening-hours rules would refuse; it uses a playtest-only `__tld.rest()` before the march. The march's
+  bearing is the straight line to the next checkpoint, not the street route, so on a winding leg the GPS line can
+  set off in a different direction from the right answer (the prompt asks which way the checkpoint is, so this is
+  intended, but worth a hint if players find it confusing).
 - 20a: building heights in the OSM data aren't whole storeys, so the top row of windows can be cut by the roof
   line; the cornice hides most of it. Snapping the facade's v so the top storey ends on the roof would fix the rest.
   Awnings aren't solid (they're above head height, but the camera can pass through them), and the lit-window pattern

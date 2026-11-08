@@ -72,6 +72,7 @@ import { CAREERS, SHIFT_HOURS, joinCareer, workplaceDoors, quitCareer, rankOf, r
 import { buildWorkplaces, createTaskMarker } from './careersScene';
 import { TASKS, finishBeat, formatClock as formatDutyClock, planTask, stepTask, taskResult, taskStatus, type CareerTask } from './careerTasks.mjs';
 import { aimAt, createFire, hoseReport, hoseStatus, stepFire, type Fire } from './fireHose.mjs';
+import { callBearing, createMarch, drillStatus, markLeg, marchResult, startLeg, type MarchPace, type RouteMarch } from './routeMarch.mjs';
 import type { FireCallView } from './fireCallScene';
 import { callFor, callResult, callStatus, callTarget, chooseCall, holdsTask, planCall, resolveCall, stepCall, type PoliceCall } from './policeCalls.mjs';
 import type { PoliceCallView } from './policeCallScene';
@@ -639,6 +640,11 @@ export default function WorldScene({
   const callActionsRef = useRef<{ choose: (index: number) => void; answering: () => boolean }>({ choose: () => {}, answering: () => false });
   // The fire on a fire call (16a): how much is left, what to fix, and whether the hose is in reach (HOSE button).
   const [hose, setHose] = useState<{ left: number; line: string; ready: boolean; spraying: boolean } | null>(null);
+  // A route march's map-and-compass call at a checkpoint (16c): the question, three answers (keys 1–3 or tap),
+  // and each leg's pace on the stop pips.
+  const [drill, setDrill] = useState<ReturnType<typeof drillStatus>>(null);
+  const [marchPaces, setMarchPaces] = useState<(MarchPace | null)[] | null>(null);
+  const drillActionsRef = useRef<{ choose: (index: number) => void; answering: () => boolean }>({ choose: () => {}, answering: () => false });
   const [atSchool, setAtSchool] = useState(false);
   const [inClass, setInClass] = useState<string | null>(null);
   const [lifeView, setLifeView] = useState<Life>(() => readLife(characterId));
@@ -1084,15 +1090,36 @@ export default function WorldScene({
       // The hose is in your hands on foot near a burning fire on a call: Space (or HOSE) sprays instead of jumping.
       const hoseReady = () => Boolean(callFire && !callFire.fire.out && interaction.mode === 'walking' && !pendingShift
         && locationRef.current === 'city' && Math.hypot(callFire.at.x - position.x, callFire.at.z - position.z) < 14);
+      // A route march's scorecard (routeMarch.mjs): a split per leg and a bearing called at each checkpoint.
+      let march: RouteMarch | null = null;
+      let lastMarch: ReturnType<typeof marchResult> | null = null;
       const endTask = (message: string | null) => {
         activeTask = null;
         clearCall();
         clearFire();
+        march = null;
+        setDrill(null);
+        setMarchPaces(null);
         showTaskStop();
         setDuty(null);
         if (message) notify(message);
       };
       dutyActionsRef.current.giveUp = () => { if (activeTask) endTask('Duty given up: no pay for this shift.'); };
+      drillActionsRef.current.answering = () => Boolean(activeTask?.task.beat === 'bearing' && march && !pendingShift);
+      drillActionsRef.current.choose = (choice: number) => {
+        if (!activeTask || activeTask.task.beat !== 'bearing' || !march) return;
+        const call = callBearing(march, activeTask.task.next, choice);
+        if (call.correct === null) return;
+        const finished = finishBeat(activeTask.task);
+        // The next leg's split starts as you set off from the checkpoint.
+        march = startLeg(call.march, finished.task.elapsed);
+        activeTask = { ...activeTask, task: finished.task };
+        setDrill(null);
+        setDuty(taskStatus(finished.task));
+        showTaskStop();
+        notify(`${finished.event?.type === 'stop' ? finished.event.line : ''} ${call.line}`.trim());
+        audioRef.current?.cue(call.correct ? 'compass' : 'wrong');
+      };
       callActionsRef.current.answering = () => Boolean(activeTask && policeCall?.phase === 'talk');
       callActionsRef.current.choose = (index: number) => {
         if (!activeTask || !policeCall) return;
@@ -1139,6 +1166,8 @@ export default function WorldScene({
         }
         if (task) {
           activeTask = { task, result };
+          march = task.career === 'soldier' ? createMarch(task) : null;
+          setMarchPaces(march ? march.legs.map(() => null) : null);
           // The GPS follows the duty: a map waypoint of your own gives way to it.
           if (waypoint?.manual) waypoint = null;
           setLook(look => ({ ...look, ...CAREERS[id].uniform }));
@@ -1795,6 +1824,8 @@ export default function WorldScene({
             cityLook: cityLook?.() ?? null,
             career: { id: careerRef.current.career, shifts: careerRef.current.shifts, money: careerRef.current.money },
             duty: activeTask ? { id: activeTask.task.id, next: activeTask.task.next, stops: activeTask.task.stops.length, elapsed: activeTask.task.elapsed, par: activeTask.task.par, beat: activeTask.task.beat } : null,
+            march: march ? { score: march.score, drill: activeTask?.task.beat === 'bearing', legs: march.legs.map(leg => ({ pace: leg.pace, answer: leg.answer, called: leg.called, correct: leg.correct })) } : null,
+            lastMarch,
             call: policeCall ? { kind: policeCall.kind, stop: policeCall.stop, phase: policeCall.phase, tone: policeCall.tone, drawn: callScene !== null,
               child: policeCall.child ? Math.hypot(policeCall.child.x - toLocal(position)[0], policeCall.child.z - toLocal(position)[1]) : null } : null,
             fire: callFire ? { heat: callFire.fire.heat, out: callFire.fire.out, spraying: callFire.spraying, water: callFire.fire.water, drawn: fireView !== null } : null,
@@ -1829,6 +1860,9 @@ export default function WorldScene({
           // Knock the car you're driving as if it hit something at this speed (m/s), through the real damage code.
           knock: (speed: number, steer = 0) => Boolean(knockCar(drivenIndex(), speed, steer)),
           route: () => mapReadRef.current().routeLength ?? 0,
+          // A rested mid-day player for duties late in the run (several shifts in one playtest day would hit the
+          // energy and opening-hours rules, which careers.test.mjs covers on their own).
+          rest: () => { life = { ...life, energy: 100, minute: life.minute >= 6 * 60 && life.minute < 18 * 60 ? life.minute : 12 * 60 }; writeLife(characterId, life); syncLighting(); setLifeView({ ...life }); return true; },
           waypoint: () => mapReadRef.current().waypoint,
           // Stand the player beside something to try by touch: a neighbour, a parked car, or a workplace sign.
           place: (spot: 'neighbour' | 'car' | 'duty' | 'cruiser' | 'fire-engine' | `talk:${NpcId}` | CareerId) => {
@@ -2388,6 +2422,10 @@ export default function WorldScene({
           // In a car, H holds the horn and Space holds the handbrake.
           event.preventDefault();
           inputRef.current.press(`keyboard:${key}`, key);
+        } else if (/^[1-3]$/.test(key) && !event.repeat && drillActionsRef.current.answering()) {
+          // A route march checkpoint: 1–3 calls the bearing.
+          event.preventDefault();
+          drillActionsRef.current.choose(Number(key) - 1);
         } else if (/^[1-3]$/.test(key) && !event.repeat && callActionsRef.current.answering()) {
           // A police call: 1–3 picks an answer.
           event.preventDefault();
@@ -2676,17 +2714,34 @@ export default function WorldScene({
               } else if (callFire) setHose(previous => previous && previous.left === 0 ? previous : { left: 0, line: 'Fire out', ready: false, spraying: false });
             }
             if (event?.type === 'stop') { showTaskStop(); notify(event.line); audioRef.current?.cue('checkpoint'); }
+            else if (event?.type === 'beat' && event.beat === 'bearing') {
+              // A march checkpoint: the leg's split, then a bearing to call before moving on.
+              march ??= createMarch(task);
+              const marked = march ? markLeg(march, event.index, task.elapsed) : null;
+              if (marked) march = marked.march;
+              setMarchPaces(march ? march.legs.map(leg => leg.pace) : null);
+              setDrill(drillStatus(march, event.index));
+              const split = marked?.leg ? ` Split ${formatDutyClock(marked.leg.split ?? 0)} (par ${formatDutyClock(marked.leg.par)}): ${marked.leg.title}.` : '';
+              notify(`${event.line}${split}`);
+              audioRef.current?.cue('checkpoint');
+            }
             else if (event?.type === 'beat') { notify(event.line); audioRef.current?.cue('blaze'); }
             else if (event?.type === 'on-foot') notify(event.reason === 'march' ? 'A route march is on foot: leave the car.'
               : event.reason === 'hose' ? 'Park up and run the hose out on foot.' : 'Park up and sign off on foot at the door.');
             else if (event?.type === 'done') {
               const { result } = activeTask;
               const outcome = taskResult(task, result.pay);
-              // A police call is paid on top, by how you treated people.
+              // A route march is scored too: splits and bearings grade it, and the grade pays on top (16c).
+              const scored = march ? marchResult(march) : null;
+              const marchBonus = scored ? Math.round(result.pay * scored.rate) : 0;
+              // A police call is paid on top, by how you treated people (16b).
               const conduct = policeCall ? callResult(policeCall, result.pay) : null;
-              const bonus = outcome.bonus + (conduct?.bonus ?? 0);
+              const bonus = outcome.bonus + marchBonus + (conduct?.bonus ?? 0);
               const paid = { ...result, pay: result.pay + bonus, state: { ...result.state, money: result.state.money + bonus } };
-              const timing = `${outcome.title} (${formatDutyClock(outcome.seconds)}, par ${formatDutyClock(outcome.par)})${conduct?.grade ? ` · call: ${conduct.title}` : ''}`;
+              const timing = `${outcome.title} (${formatDutyClock(outcome.seconds)}, par ${formatDutyClock(outcome.par)})`
+                + (scored ? ` · ${scored.title}, ${scored.score}/${scored.max} points` : '')
+                + (conduct?.grade ? ` · call: ${conduct.title}` : '');
+              lastMarch = scored;
               endTask(null);
               audioRef.current?.cue('checkpoint');
               pendingShift = { result: paid, timer: 0, note: `${task.title}: ${timing}. +$${paid.pay}${bonus ? ` with a $${bonus} bonus` : ''}.` };
@@ -3277,8 +3332,17 @@ export default function WorldScene({
           <header><strong>{duty.title}</strong><span className={duty.left < 0 ? 'world-duty-late' : undefined}
             aria-label={duty.left < 0 ? `${formatDutyClock(duty.left)} over par` : `${formatDutyClock(duty.left)} left on par`}>{formatDutyClock(duty.left)}</span></header>
           <ol className="world-duty-pips" aria-hidden="true">{Array.from({ length: duty.total + 1 }, (_, i) => <li key={i}
-            className={i < duty.done ? 'done' : i === duty.done ? 'next' : undefined} data-final={i === duty.total ? '' : undefined} />)}</ol>
-          {duty.beat === 'hose' && hose
+            className={i < duty.done ? 'done' : i === duty.done ? 'next' : undefined} data-final={i === duty.total ? '' : undefined}
+            data-pace={marchPaces?.[i] ?? undefined} />)}</ol>
+          {duty.beat === 'bearing' && drill
+            ? <div className="world-duty-drill">
+                <p role="status" aria-live="polite">{drill.prompt}</p>
+                <ol className="world-duty-bearings" aria-label="Call the bearing">
+                  {drill.options.map((text, i) => <li key={text}><button type="button" onClick={event => { drillActionsRef.current.choose(i); focusWorld(event); }}>
+                    <kbd aria-hidden="true">{i + 1}</kbd> {text}</button></li>)}
+                </ol>
+              </div>
+            : duty.beat === 'hose' && hose
             ? <div className="world-duty-fire">
                 <div className="world-duty-fire-bar" role="meter" aria-label="Fire left" aria-valuemin={0} aria-valuemax={100} aria-valuenow={hose.left}>
                   <span style={{ width: `${hose.left}%` }} />
