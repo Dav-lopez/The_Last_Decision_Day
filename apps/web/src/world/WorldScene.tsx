@@ -2572,9 +2572,11 @@ export default function WorldScene({
           }).catch(() => { weatherLoading = false; });
         }
         // Only draw the places you're near (17c).
-        streamShown = streamVisibility(streamShown, position, downtown ? downtownRect : null, locationRef.current);
+        // While driving, you're where the car is (your own position stays where you got in).
+        const streamFrom = audioCar >= 0 && cars[audioCar] ? cars[audioCar] : position;
+        streamShown = streamVisibility(streamShown, streamFrom, downtown ? downtownRect : null, locationRef.current);
         streaming.apply(streamShown);
-        weatherView?.update(weatherNow, { evening: eveningNow, outdoors, camera, quality, seconds: frameSeconds, place: locationRef.current, player: position });
+        weatherView?.update(weatherNow, { evening: eveningNow, outdoors, camera, quality, seconds: frameSeconds, place: locationRef.current, player: streamFrom });
         // Moving clouds (18c): the painted clouds slide round the sky with the day's wind.
         atmosphere.drift(frameSeconds, cloudDrift(weatherNow));
         const rainingNow = weatherNow.rain > 0.05;
