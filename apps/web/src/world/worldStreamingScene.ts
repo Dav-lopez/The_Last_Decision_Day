@@ -32,12 +32,12 @@ export function createWorldStreaming(scene: Scene): WorldStreaming {
   };
   return {
     capture(group, build) {
-      const added: AbstractMesh[] = [];
-      const watch = scene.onNewMeshAddedObservable.add(mesh => { added.push(mesh); });
+      // Babylon announces new meshes on the next tick, so compare the scene's mesh list before and after instead.
+      const before = new Set(scene.meshes);
       try {
         return build();
       } finally {
-        scene.onNewMeshAddedObservable.remove(watch);
+        const added = scene.meshes.filter(mesh => !before.has(mesh));
         groups[group].push(...added);
         if (!shown[group]) for (const mesh of added) mesh.layerMask = HIDDEN_LAYER;
       }
