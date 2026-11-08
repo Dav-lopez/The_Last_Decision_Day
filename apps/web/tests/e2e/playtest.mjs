@@ -652,7 +652,12 @@ await step('the open road: drive into downtown and out again with no fade (item 
   const faded = await page.evaluate(() => { clearInterval(window.__roadWatch); return window.__roadFaded; });
   if (faded) throw new Error('a fade screen showed while driving the open road');
   // 17c: downtown is drawn and Maple Street isn't, once you're in town.
-  await waitFor('Maple Street streamed out downtown', timeout => page.waitForFunction(() => { const s = window.__tld.read().streaming; return s.city && !s.town && s.hidden > 0; }, null, { timeout, polling: 500 }), 30000);
+  try {
+    await page.waitForFunction(() => { const s = window.__tld.read().streaming; return s.city && !s.town && s.hidden > 0; }, null, { timeout: 30000, polling: 500 });
+  } catch {
+    const now = await read();
+    throw new Error(`Maple Street still drawn downtown: streaming ${JSON.stringify(now.streaming)}, driving ${now.driving}, car ${JSON.stringify(now.car && { x: now.car.x, z: now.car.z })}, location ${now.location}`);
+  }
   notes.push(`streaming downtown: ${(await read()).streaming.hidden} Maple Street meshes not drawn`);
   for (let tries = 0; tries < 10 && (await read()).driving; tries++) { await page.keyboard.press('e'); await page.waitForTimeout(1500); }
   if ((await read()).driving) throw new Error('could not get out of the car downtown');
@@ -660,7 +665,12 @@ await step('the open road: drive into downtown and out again with no fade (item 
   await page.waitForFunction(() => window.__tld.read().location === 'street', null, { timeout: 180000 });
   await dismissDialogue();
   // …and back home, downtown isn't drawn.
-  await waitFor('downtown streamed out on Maple Street', timeout => page.waitForFunction(() => { const s = window.__tld.read().streaming; return s.town && !s.city && s.hidden > 0; }, null, { timeout, polling: 500 }), 30000);
+  try {
+    await page.waitForFunction(() => { const s = window.__tld.read().streaming; return s.town && !s.city && s.hidden > 0; }, null, { timeout: 30000, polling: 500 });
+  } catch {
+    const now = await read();
+    throw new Error(`downtown still drawn on Maple Street: streaming ${JSON.stringify(now.streaming)}, location ${now.location}`);
+  }
   notes.push(`streaming at home: ${(await read()).streaming.hidden} downtown meshes not drawn`);
 });
 
