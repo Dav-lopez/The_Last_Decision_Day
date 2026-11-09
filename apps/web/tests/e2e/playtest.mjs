@@ -674,6 +674,26 @@ await step('the open road: drive into downtown and out again with no fade (item 
   notes.push(`streaming at home: ${(await read()).streaming.hidden} downtown meshes not drawn`);
 });
 
+await step('downtown is freed after a minute away and rebuilt when you go back (open-world 17d)', async () => {
+  try {
+    await page.waitForFunction(() => !window.__tld.read().streaming.downtownLoaded, null, { timeout: 120000, polling: 1000 });
+  } catch {
+    const now = await read();
+    throw new Error(`downtown was never freed on Maple Street: streaming ${JSON.stringify(now.streaming)}, location ${now.location}`);
+  }
+  const freed = (await read()).streaming;
+  if (freed.unloads < 1) throw new Error(`no unload counted: ${JSON.stringify(freed)}`);
+  // Back downtown by taxi: everything is built again, lamps and all.
+  await page.evaluate(() => window.__tld.travel('pitch'));
+  await page.waitForFunction(() => { const s = window.__tld.read(); return s.location === 'city' && !s.dialogue && !s.travelling; }, null, { timeout: 180000 });
+  const back = await read();
+  if (!back.streaming.downtownLoaded || !back.cityLook || !back.streaming.city) throw new Error(`downtown not rebuilt: ${JSON.stringify(back.streaming)}, cityLook ${JSON.stringify(back.cityLook)}`);
+  notes.push(`downtown freed ${freed.unloads}× on Maple Street and rebuilt on return (${back.cityLook.styles} facade styles)`);
+  await page.evaluate(() => window.__tld.travel('maple'));
+  await page.waitForFunction(() => window.__tld.read().location === 'street', null, { timeout: 180000 });
+  await dismissDialogue();
+});
+
 // MVP 9b: the whole story, chapter 1 to the epilogue, once for each of the three endings. Every step's gameplay
 // event goes through the game's own story code (the systems that raise them — school, sleep, downtown, careers,
 // the match — are played for real above), every scene is clicked through and checked line by line, the last

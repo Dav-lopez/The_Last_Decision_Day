@@ -267,8 +267,15 @@ above is done or blocked; any item may be split into slices.
         or taxi never arrives in an empty world. Hidden scenery moves to a layer the camera doesn't draw
         (`worldStreamingScene.ts`), so it costs no culling, draw calls or shadow passes and never fights the game's
         own switches; the open road is always drawn. 4 tests; the open-road playtest checks that downtown hides
-        Maple Street and Maple Street hides downtown. Still to do: freeing the hidden place's memory (it stays loaded,
-        so coming back is instant) and the quick fade at downtown's other edges.
+        Maple Street and Maple Street hides downtown.
+  - [x] 17d. Freeing downtown's memory: once downtown hasn't been drawn for a minute and nothing needs it (you're not
+        there; no duty, police call, match or ride under way), its scenery, lamps, pitch, signs, traffic and regulars
+        are disposed (`stepUnload`). The map data, collider, bus stop position and the station cruiser and engine stay
+        (you may be driving one), so the GPS, map and road keep working; downtown is built again at Maple Street's
+        barrier or behind a ride's fade, and late-arriving traffic or regulars from a freed build are thrown away.
+        1 test; a playtest step waits for downtown to be freed on Maple Street and checks it's rebuilt, lamps and all,
+        when you take a taxi back. Still to do for item 17: the quick fade at downtown's other edges (Maple Street
+        itself is small and stays loaded).
 - [x] **18. Weather and sky**: rain and wet roads, fog, sunsets, clouds; weather changes by day.
   - [x] 18a (partial slice). Weather by day (`weather.mjs`, the same on every device, nothing saved): day 1 clear,
         day 2 an afternoon shower, day 3 a foggy morning, then a mix (about 40 % clear, 25 % cloudy, 22 % showers,

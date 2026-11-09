@@ -95,7 +95,7 @@ import { CAST, NEW_STORY, advanceStory, currentStep, markSceneSeen, pendingScene
   type StoryEvent, type StoryLine, type StoryState } from './storyChapters.mjs';
 import { buildSurroundings } from './worldSurroundings';
 import { createAtmosphere } from './sceneAtmosphere';
-import { cityRect, streamVisibility, type Rect, type StreamShown } from './worldStreaming.mjs';
+import { cityRect, stepUnload, streamVisibility, type Rect, type StreamShown } from './worldStreaming.mjs';
 import { createWorldStreaming } from './worldStreamingScene';
 import { cloudDrift, forecastLine, weatherAt, weatherStatus, wetGrip, type WeatherKind } from './weather.mjs';
 import type { WeatherView } from './weatherScene';
@@ -1217,6 +1217,12 @@ export default function WorldScene({
       let routeTimer = 0;
       let viewHeading = 0;
       let downtownKit: DowntownKit | null = null;
+      // 17d: downtown's scenery can be freed and rebuilt; `downtown` (map data, collider, stop) stays once built.
+      let downtownScenery: (() => void) | null = null;
+      let downtownGeneration = 0;
+      let downtownIdle = 0;
+      let downtownUnloads = 0;
+      let disposeVehicles = () => {};
       // The police cruiser and fire engine (13c): parked outside their stations once downtown is built; their
       // states live in `cars` (at `index`) like the family cars, so driving, collisions and the HUD are shared.
       const stationVehicles: { index: number; kind: Exclude<VehicleKind, 'sedan'>; model: CareerVehicleModel }[] = [];
@@ -1289,7 +1295,11 @@ export default function WorldScene({
       };
       /** Builds the 3D downtown the first time it's needed; afterwards (or with no map data yet) returns what there is. */
       const ensureDowntown = () => {
-        if (downtown || !downtownSite || !downtownKit || disposed || scene.isDisposed) return downtown;
+        if ((downtown && downtownScenery) || !downtownSite || !downtownKit || disposed || scene.isDisposed) return downtown;
+        downtownIdle = 0;
+        const generation = ++downtownGeneration;
+        // A load that finishes after downtown was freed again (or rebuilt) throws its result away.
+        const stale = () => disposed || scene.isDisposed || generation !== downtownGeneration || !downtownScenery;
         const { city, collider, stop, heading } = downtownSite;
         const { buildCityScene, buildCityLights, buildFootballPitch, loadCityTraffic } = downtownKit;
         const builtAt = performance.now();
@@ -1307,7 +1317,7 @@ export default function WorldScene({
         // Signs over the police station, army recruiting office and fire station, at real downtown buildings.
         const workplaces = streaming.capture('city', () => buildWorkplaces(scene, workDoors));
         void loadCityTraffic(scene, city, 28, shadows, collider.insideLocal).then(traffic => {
-          if (disposed || scene.isDisposed) traffic?.dispose();
+          if (stale()) traffic?.dispose();
           else cityTraffic = traffic;
         }).catch(() => { /* No traffic: downtown still works. */ });
         // Three regulars at real downtown landmarks; they share the neighbours' rigged people.
@@ -1316,18 +1326,32 @@ export default function WorldScene({
           isFree: (x, z) => { const [lx, lz] = toLocal({ x, z }); return !collider.blockedLocal(lx, lz) && offTraffic(city.roads, lx, lz); },
         });
         void loadNeighbors(scene, shadows, regularSpots).then(loaded => {
-          if (disposed || scene.isDisposed) loaded?.dispose();
+          if (stale()) loaded?.dispose();
           else regulars = loaded;
         }).catch(error => console.warn('Downtown regulars unavailable', error));
-        const disposeVehicles = parkStationVehicles(city, collider);
+        // The cruiser and engine are parked once and kept when downtown is freed (you may be driving one).
+        if (!stationVehicles.length) disposeVehicles = parkStationVehicles(city, collider);
         pitch.show(football.ball);
         const disposeStop = streaming.capture('city', () => buildBusStop(scene, stop.x + stop.awayX * 0.9, stop.z + stop.awayZ * 0.9, heading));
-        downtown = { city, collider, stop, dispose: () => { disposeCity(); disposeStop(); disposeVehicles(); lights.dispose(); pitch.dispose(); workplaces.dispose(); cityTraffic?.dispose(); cityTraffic = null; regulars?.dispose(); regulars = null; } };
+        downtownScenery = () => { disposeCity(); disposeStop(); lights.dispose(); pitch.dispose(); workplaces.dispose(); cityTraffic?.dispose(); cityTraffic = null; regulars?.dispose(); regulars = null; };
+        downtown ??= { city, collider, stop, dispose: () => { downtownScenery?.(); downtownScenery = null; disposeVehicles(); } };
         downtownBuildMs = Math.round(performance.now() - builtAt);
         return downtown;
       };
+      /** Free downtown's scenery, traffic and regulars (17d); the map data, collider and station vehicles stay. */
+      const unloadDowntown = () => {
+        if (!downtownScenery) return;
+        downtownScenery();
+        downtownScenery = null;
+        downtownGeneration += 1;
+        cityLights = null;
+        cityLook = null;
+        football = null;
+        regularSpots = [];
+        downtownUnloads += 1;
+      };
       // Start building on the next tick, so the ride's "Riding…" fade paints before the work begins.
-      const prepareDowntown = () => { if (!downtown) window.setTimeout(() => { ensureDowntown(); }, 60); };
+      const prepareDowntown = () => { downtownIdle = 0; if (!downtownScenery) window.setTimeout(() => { ensureDowntown(); }, 60); };
       let downtownBuildMs: number | null = null;
       loadDowntown().then(() => loadTracker.finish('downtown'),
         () => loadTracker.fail('downtown') /* Downtown is optional; Maple Street plays without it. */);
@@ -1793,7 +1817,7 @@ export default function WorldScene({
       };
       /** Driving into downtown on the open road: no fade, you're simply there. */
       const arriveByRoad = () => {
-        if (!downtown) return;
+        if (!ensureDowntown() || !downtown) return;
         locationRef.current = 'city';
         setInCity(downtown.city.name);
         cityCameraRadius = null;
@@ -1868,7 +1892,7 @@ export default function WorldScene({
             fire: callFire ? { heat: callFire.fire.heat, out: callFire.fire.out, spraying: callFire.spraying, water: callFire.fire.water, drawn: fireView !== null } : null,
             busy: pendingShift !== null,
             decor: decorShownRef.current,
-            streaming: streaming.read(),
+            streaming: { ...streaming.read(), downtownLoaded: downtownScenery !== null, unloads: downtownUnloads },
             weather: { ...weatherAt(life.day, life.minute, weatherOverrideRef.current), loaded: weatherView !== null, drops: weatherView?.drops() ?? 0, puddles: weatherView?.puddles() ?? { count: 0, level: 0 }, grip: wetGrip(weatherAt(life.day, life.minute, weatherOverrideRef.current)) },
             cutscene: cutsceneShotRef.current, camera: { alpha: camera.alpha, beta: camera.beta, radius: camera.radius },
             stationVehicles: stationVehicles.map(parked => ({ kind: parked.kind, x: cars[parked.index].x, z: cars[parked.index].z })),
@@ -2576,6 +2600,13 @@ export default function WorldScene({
         const streamFrom = audioCar >= 0 && cars[audioCar] ? cars[audioCar] : position;
         streamShown = streamVisibility(streamShown, streamFrom, downtown ? downtownRect : null, locationRef.current);
         streaming.apply(streamShown);
+        // Free downtown's memory once it's been out of sight for a minute and nothing needs it (17d).
+        const unloadStep = stepUnload(downtownIdle, {
+          loaded: downtownScenery !== null, shown: streamShown.city, seconds: frameSeconds,
+          busy: locationRef.current === 'city' || activeTask !== null || policeCall !== null || match !== null || pendingDrive !== null || pendingTaxi !== null,
+        });
+        downtownIdle = unloadStep.timer;
+        if (unloadStep.unload) unloadDowntown();
         weatherView?.update(weatherNow, { evening: eveningNow, outdoors, camera, quality, seconds: frameSeconds, place: locationRef.current, player: streamFrom });
         // Moving clouds (18c): the painted clouds slide round the sky with the day's wind.
         atmosphere.drift(frameSeconds, cloudDrift(weatherNow));

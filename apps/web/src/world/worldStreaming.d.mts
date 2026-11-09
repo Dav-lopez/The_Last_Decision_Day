@@ -4,3 +4,5 @@ export declare const STREAMING: Readonly<{ showWithin: number; hideBeyond: numbe
 export declare function rectDistance(rect: Rect, point: { x: number; z: number }): number;
 export declare function cityRect(halfSize: readonly number[], margin?: number): Rect;
 export declare function streamVisibility(previous: StreamShown | null, point: { x: number; z: number }, city: Rect | null, place: string): StreamShown;
+export declare const UNLOAD: Readonly<{ afterSeconds: number }>;
+export declare function stepUnload(timer: number, state: { loaded: boolean; shown: boolean; busy: boolean; seconds: number }): { timer: number; unload: boolean };
