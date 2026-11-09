@@ -686,6 +686,8 @@ await step('downtown is freed after a minute away and rebuilt when you go back (
   // Back downtown by taxi: everything is built again, lamps and all.
   await page.evaluate(() => window.__tld.travel('pitch'));
   await page.waitForFunction(() => { const s = window.__tld.read(); return s.location === 'city' && !s.dialogue && !s.travelling; }, null, { timeout: 180000 });
+  // The stream catches up on the next frame after the taxi drops you off.
+  await page.waitForFunction(() => { const s = window.__tld.read().streaming; return s.city && s.downtownLoaded; }, null, { timeout: 15000, polling: 250 }).catch(() => {});
   const back = await read();
   if (!back.streaming.downtownLoaded || !back.cityLook || !back.streaming.city) throw new Error(`downtown not rebuilt: ${JSON.stringify(back.streaming)}, cityLook ${JSON.stringify(back.cityLook)}`);
   notes.push(`downtown freed ${freed.unloads}× on Maple Street and rebuilt on return (${back.cityLook.styles} facade styles)`);
