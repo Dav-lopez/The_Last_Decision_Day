@@ -49,7 +49,8 @@ export function createWorldStreaming(scene: Scene): WorldStreaming {
       for (const group of changed) paint(group);
     },
     read() {
-      const hidden = (shown.town ? 0 : groups.town.length) + (shown.city ? 0 : groups.city.length);
+      const live = (group: StreamGroup) => groups[group].filter(mesh => !mesh.isDisposed()).length;
+      const hidden = (shown.town ? 0 : live('town')) + (shown.city ? 0 : live('city'));
       return { ...shown, hidden };
     },
   };

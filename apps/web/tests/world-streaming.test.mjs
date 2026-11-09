@@ -49,3 +49,21 @@ test('before downtown is built only Maple Street is drawn, and somewhere in betw
   const far = { x: 900, z: -900 };
   assert.deepEqual(streamVisibility({ town: false, city: true }, far, city, 'road'), { town: false, city: true });
 });
+
+test('downtown is freed after a minute out of sight, and never while it is needed', async () => {
+  const { UNLOAD, stepUnload } = await import('../src/world/worldStreaming.mjs');
+  let timer = 0; let freedAt = null;
+  for (let t = 0; t < 120; t += 0.5) {
+    const step = stepUnload(timer, { loaded: true, shown: false, busy: false, seconds: 0.5 });
+    timer = step.timer;
+    if (step.unload) { freedAt = t + 0.5; break; }
+  }
+  assert.equal(freedAt, UNLOAD.afterSeconds);
+  // Seeing it, being busy (a duty, a match, a ride) or it not being built all reset the clock.
+  for (const blocker of [{ shown: true }, { busy: true }, { loaded: false }]) {
+    const step = stepUnload(UNLOAD.afterSeconds - 1, { loaded: true, shown: false, busy: false, seconds: 5, ...blocker });
+    assert.deepEqual(step, { timer: 0, unload: false });
+  }
+  // A long frame (a stall, a backgrounded tab) counts as at most a second.
+  assert.equal(stepUnload(0, { loaded: true, shown: false, busy: false, seconds: 30 }).timer, 1);
+});

@@ -48,3 +48,17 @@ export function streamVisibility(previous, point, city, place) {
   if (!town && !downtown) return { town: previous?.town ?? true, city: previous?.city ?? Boolean(city) };
   return { town, city: downtown };
 }
+
+/**
+ * Freeing downtown's memory (17d): once downtown hasn't been drawn for `afterSeconds` and nothing needs it (you're
+ * not there, no duty, call or match is running), its scenery, traffic and regulars are disposed. It's built again
+ * the next time you head that way (at Maple Street's barrier, or behind a ride's fade).
+ */
+export const UNLOAD = Object.freeze({ afterSeconds: 60 });
+
+/** Advance the idle timer; `unload` is true on the step it should go. */
+export function stepUnload(timer, { loaded, shown, busy, seconds }) {
+  if (!loaded || shown || busy) return { timer: 0, unload: false };
+  const next = timer + (Number.isFinite(seconds) ? Math.max(0, Math.min(seconds, 1)) : 0);
+  return next >= UNLOAD.afterSeconds ? { timer: 0, unload: true } : { timer: next, unload: false };
+}
