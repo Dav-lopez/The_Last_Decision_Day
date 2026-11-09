@@ -1,4 +1,4 @@
-import { Color3, DynamicTexture, Mesh, MeshBuilder, Scene, StandardMaterial } from '@babylonjs/core';
+import { Color3, DynamicTexture, Mesh, MeshBuilder, Scene, StandardMaterial } from '../babylon';
 import { HOME_WALLS, type WallId } from './homeInterior.mjs';
 
 export type RoomSize = { halfWidth: number; halfDepth: number; wallHeight: number; wallThickness: number };

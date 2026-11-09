@@ -1,7 +1,7 @@
 import {
   Color4, DefaultRenderingPipeline, ImageProcessingConfiguration, Ray, SSAO2RenderingPipeline,
   type AbstractMesh, type ArcRotateCamera, type Scene,
-} from '@babylonjs/core';
+} from '../babylon';
 
 export type RenderQuality = 'high' | 'standard';
 

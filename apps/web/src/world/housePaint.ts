@@ -1,4 +1,4 @@
-import { Color3, PBRMaterial, StandardMaterial, type AbstractMesh, type Material, type Scene } from '@babylonjs/core';
+import { Color3, PBRMaterial, StandardMaterial, type AbstractMesh, type Material, type Scene } from '../babylon';
 import { roleForMaterial, type HouseStyle } from './photoPalette.mjs';
 
 /** The player's house (the left one) on Maple Street, and the walls inside it. */

@@ -1,4 +1,4 @@
-import { Color3, MeshBuilder, Scene, StandardMaterial, Vector3 } from '@babylonjs/core';
+import { Color3, MeshBuilder, Scene, StandardMaterial, Vector3 } from '../babylon';
 
 /** Decorative details for the neighborhood preview; keep meshes lightweight for mobile browsers. */
 export function addNeighborhoodDetails(scene: Scene) {

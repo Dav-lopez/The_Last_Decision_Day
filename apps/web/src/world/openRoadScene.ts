@@ -1,4 +1,4 @@
-import { Color3, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, Vector3, type Scene } from '@babylonjs/core';
+import { Color3, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, Vector3, type Scene } from '../babylon';
 import { ROAD_STRAIGHT_TO, centreDashes, roadPose, roadProgress, type OpenRoad } from './openRoad.mjs';
 
 /**

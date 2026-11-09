@@ -1,5 +1,5 @@
 import { type AbstractMesh, Color3, Color4, DynamicTexture, FresnelParameters, Matrix, Mesh, MeshBuilder, MirrorTexture, ParticleSystem, Plane, Quaternion, Ray, StandardMaterial, Vector3,
-  type DirectionalLight, type HemisphericLight, type Scene, type ShadowGenerator, type TargetCamera } from '@babylonjs/core';
+  type DirectionalLight, type HemisphericLight, type Scene, type ShadowGenerator, type TargetCamera } from '../babylon';
 import { PUDDLES, REFLECTIONS, cloudDrift, puddleLevel, puddlesNear, rainDropCount, weatherLook, wetReflection, wetSurface, type WeatherState } from './weather.mjs';
 
 /**
@@ -156,8 +156,9 @@ export function createWeatherView(scene: Scene, lights: { sun: DirectionalLight;
   splash.maxEmitPower = 0.5;
   splash.minSize = 0.05;
   splash.maxSize = 0.12;
-  splash.addSizeGradient(0, 0.4);
-  splash.addSizeGradient(1, 1.6);
+  // Size gradients are sizes in metres, not multipliers of minSize/maxSize: a splash grows from 3 cm to 13 cm.
+  splash.addSizeGradient(0, 0.03);
+  splash.addSizeGradient(1, 0.13);
   splash.minLifeTime = 0.18;
   splash.maxLifeTime = 0.32;
   splash.color1 = new Color4(0.85, 0.9, 0.95, 0.5);

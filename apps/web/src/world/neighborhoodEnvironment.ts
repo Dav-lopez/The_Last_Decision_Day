@@ -1,4 +1,4 @@
-import { Color3, MeshBuilder, Scene, StandardMaterial } from '@babylonjs/core';
+import { Color3, MeshBuilder, Scene, StandardMaterial } from '../babylon';
 import { HOUSE_SITES, SIDEWALK_WIDTH, streetFurniture } from './suburbLayout.mjs';
 import { DRIVEWAY_Z, STREET_LIGHTS } from './streetLayout.mjs';
 

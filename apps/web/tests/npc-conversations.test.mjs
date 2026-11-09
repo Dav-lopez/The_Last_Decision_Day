@@ -105,3 +105,13 @@ test('talkSpot can look for one person (the playtest picks who hears the last de
   // Mr. Okafor isn't out before 08:00, so there is no spot beside him even though Tess is jogging.
   assert.equal(talkSpot('street', 7 * 60, live, null, 0.8, 'okafor'), null);
 });
+
+test('nobody can be asked about the note before it arrives', () => {
+  for (const id of Object.keys(NPC_DIALOGUES)) {
+    const early = beginNpcConversation(id, newNpcRelations(), false);
+    assert.ok(early.choices.length >= 2, `${id} still has something to say`);
+    assert.ok(!early.choices.some(choice => choice.id === 'note'), `${id} offers the note early`);
+    assert.ok(!early.choices.some(choice => /\bnote\b/i.test(choice.label)), `${id} mentions the note early`);
+  }
+  assert.ok(beginNpcConversation('ruth', newNpcRelations(), true).choices.some(choice => choice.id === 'note'));
+});

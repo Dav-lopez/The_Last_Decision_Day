@@ -2,6 +2,12 @@ name: CI
 on:
   push:
   pull_request:
+# Read-only token; a newer push to the same branch or PR cancels the run it replaces.
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   facial-asset-contract:
     runs-on: ubuntu-latest
@@ -39,7 +45,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install
+      - run: npm ci
       - run: npm run typecheck
       - run: npm run test:movement
       - run: npm run test:appearance
@@ -71,7 +77,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install
+      - run: npm ci
       - run: npx vite build
       - run: npm install --no-save playwright@1.49.1
       - run: npx playwright install --with-deps chromium

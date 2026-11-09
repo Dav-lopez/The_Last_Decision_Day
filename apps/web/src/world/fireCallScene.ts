@@ -1,4 +1,4 @@
-import { Color3, Color4, DynamicTexture, MeshBuilder, ParticleSystem, StandardMaterial, Vector3, type Scene } from '@babylonjs/core';
+import { Color3, Color4, DynamicTexture, MeshBuilder, ParticleSystem, StandardMaterial, Vector3, type Scene } from '../babylon';
 import { HOSE, particleBudget } from './fireHose.mjs';
 import type { PlanarPosition } from './movement.mjs';
 

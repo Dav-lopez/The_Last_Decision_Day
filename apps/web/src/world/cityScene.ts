@@ -1,4 +1,4 @@
-import { type BaseTexture, Color3, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, Texture, VertexData, type Scene } from '@babylonjs/core';
+import { type BaseTexture, Color3, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, Texture, VertexData, type Scene } from '../babylon';
 import { CITY_ORIGIN, laneDashes, pointInRing, triangulate, type City } from './cityLayout.mjs';
 import { awningSpans, drawFacade, FACADE_STYLES, FACADE_TILE, facadeVariant, litWindows, rooftopUnits } from './facadeDesign.mjs';
 import { AMBIENT, awningShadow, buildingIndex, contactFalloff, contactStrips, edgeNormal, facingNeighbour, wallBreaks, wallShade, type GroundQuad } from './downtownLighting.mjs';

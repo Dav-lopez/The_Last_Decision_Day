@@ -1,6 +1,6 @@
 # Free cloud development deployment (manual provisioning)
 
-Architecture: Cloudflare Pages (React/Phaser and same-origin /api and /hubs proxies) → HTTPS → Oracle Cloud Always Free VM (Caddy → ASP.NET Core 10) → TLS → Neon PostgreSQL. No local Docker required. The optional Docker CI checks remain unchanged.
+Architecture: Cloudflare Pages (React/Babylon.js and same-origin /api and /hubs proxies) → HTTPS → Oracle Cloud Always Free VM (Caddy → ASP.NET Core 10) → TLS → Neon PostgreSQL. No local Docker required. The optional Docker CI checks remain unchanged.
 
 **Not production certified:** Invitation-only registration, session security, browser tests, real-time SignalR, full gameplay, database backup/restore, and deployment hardening still require verification. Do not advertise a public playable release.
 

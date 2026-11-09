@@ -1,4 +1,5 @@
-import { Quaternion } from '@babylonjs/core';
+// Deep imports (with .js so Node's tests resolve them too) keep the rest of the engine out of the bundle.
+import { Quaternion } from '@babylonjs/core/Maths/math.vector.js';
 
 /**
  * Add emotional pitch/roll to the animated Head bone without replacing the

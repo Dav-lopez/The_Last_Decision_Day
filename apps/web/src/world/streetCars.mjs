@@ -1,4 +1,8 @@
-import { Color3, MeshBuilder, StandardMaterial, TransformNode } from '@babylonjs/core';
+// Deep imports (with .js so Node's tests resolve them too) keep the rest of the engine out of the bundle.
+import { Color3 } from '@babylonjs/core/Maths/math.color.js';
+import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder.js';
+import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial.js';
+import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import { PARKED_CARS } from './streetLayout.mjs';
 
 /** Visible, collision-sized fallback remains if a sedan download fails. */

@@ -1,6 +1,6 @@
 # The Last Decision
 
-An in-development life-simulation prototype using ASP.NET Core 10, EF Core, PostgreSQL, SignalR, React, TypeScript and Phaser. Current features include invitation-based identity, character creation, starter attributes and audit records, and **school activity previews**. A complete playable gameplay loop is not yet implemented.
+An in-development 3D life-simulation game using ASP.NET Core 10, EF Core, PostgreSQL, SignalR, React, TypeScript and Babylon.js. A guest can play the five-chapter story on Maple Street and in downtown Boulder in the browser, with driving, careers, a training range, football and neighbour conversations as side activities. Signed-in players (invitation only) also get character creation, saved progress, school activities and two-player rooms. See [the MVP roadmap](docs/MVP.md) for what is done and what is next.
 
 ## Cloud development (no local Docker required)
 

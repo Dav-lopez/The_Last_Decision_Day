@@ -377,6 +377,21 @@ above is done or blocked; any item may be split into slices.
 
 ## Found along the way
 
+- Fixed (playability review, 2026-11-09): on a desktop the game appeared about 1,500 px above the screen after
+  "Try the 3D demo" (only phones scrolled to it); the view now scrolls into place on every screen, is taller
+  (up to 620 px) and has a full-screen button (⤢) beside ☰ Menu, and the start page has a "Play now" button
+  in the hero. Neighbours offered "ask about the mysterious note" on day 1, before the note arrives in
+  chapter 2; `beginNpcConversation` now hides it until then. Rain splashes were 0.4–1.6 m wide (Babylon size
+  gradients are sizes, not multipliers) and are now 3–13 cm. Settings radio buttons stretched to full width,
+  the caption could run under the directions chip, the car radio covered the directions, and the Poly Haven
+  credit link under the view was default blue on navy (1.3:1).
+- Loading (same review): the game imported Babylon.js from the package root, which bundles the whole engine.
+  Classes now come from their own modules through `src/babylon.ts` (side-effect imports listed there;
+  `babylon-imports.test.mjs` keeps it that way): babylon 1,617 → 957 KB gzipped, all JavaScript 2,001 → 1,341 KB.
+  The game menu loads on demand (WorldScene 135.7 → 133.0 KB). Budgets lowered to match.
+- Still open from that review: the school entrance is 10 m from where you start, so chapter 1's first objective
+  is over in seconds; quick travel to downtown and the pitch is open from minute one while the objective still
+  says "head for school"; downtown streets look bare beside Maple Street.
 - Fixed (19b): after a story scene where you spoke, your character kept the looping Talk animation going after the
   scene closed (nothing stopped it), and a scene that played while driving swapped the Drive pose for Talk, taking
   your hands off the wheel. Scene gestures are now stopped when the next speaker isn't you and when the scene ends,

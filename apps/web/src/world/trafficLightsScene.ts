@@ -1,4 +1,4 @@
-import { Color3, Matrix, MeshBuilder, Quaternion, StandardMaterial, Vector3, type Mesh, type Scene } from '@babylonjs/core';
+import { Color3, Matrix, MeshBuilder, Quaternion, StandardMaterial, Vector3, type Mesh, type Scene } from '../babylon';
 import { CITY_ORIGIN } from './cityLayout.mjs';
 import { TRAFFIC, signalPhase, type LightState, type RoadGraph, type TrafficSignal } from './cityTraffic.mjs';
 

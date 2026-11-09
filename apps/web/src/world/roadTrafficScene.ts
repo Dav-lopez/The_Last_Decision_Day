@@ -1,4 +1,4 @@
-import { Color3, PBRMaterial, SceneLoader, StandardMaterial, TransformNode, type Scene, type ShadowGenerator } from '@babylonjs/core';
+import { Color3, PBRMaterial, SceneLoader, StandardMaterial, TransformNode, type Scene, type ShadowGenerator } from '../babylon';
 import '@babylonjs/loaders/glTF';
 import type { OpenRoad } from './openRoad.mjs';
 import { createRoadTraffic, roadTrafficPoses, stepRoadTraffic } from './roadTraffic.mjs';

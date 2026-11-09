@@ -1,4 +1,4 @@
-import { Color3, Color4, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, Vector3, type Scene } from '@babylonjs/core';
+import { Color3, Color4, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, Vector3, type Scene } from '../babylon';
 
 type SkyPalette = { zenith: string; upper: string; horizon: string; haze: string; clouds: string; cloudAlpha: number; sun: string };
 const DAY: SkyPalette = { zenith: '#3f7fc8', upper: '#78ace0', horizon: '#cfe2f0', haze: '#dbe7ee', clouds: '#ffffff', cloudAlpha: 0.75, sun: '#fff6dc' };

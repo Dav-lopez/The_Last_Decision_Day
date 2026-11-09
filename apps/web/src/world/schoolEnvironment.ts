@@ -1,4 +1,4 @@
-import { Scene, SceneLoader, TransformNode, type AbstractMesh } from '@babylonjs/core';
+import { Scene, SceneLoader, TransformNode, type AbstractMesh } from '../babylon';
 import '@babylonjs/loaders/glTF';
 
 const SCHOOL_ORIGINALS = new Set(['school building', 'school roof', 'school entrance']);

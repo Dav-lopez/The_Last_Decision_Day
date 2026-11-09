@@ -2,7 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type
 import {
   ArcRotateCamera, Color3, Color4, DirectionalLight, DynamicTexture, Engine, HemisphericLight,
   MeshBuilder, Scene, ShadowGenerator, StandardMaterial, TransformNode, Vector3,
-} from '@babylonjs/core';
+} from '../babylon';
 import { createRemotePlayers } from './multiplayer/remotePlayers';
 import type { RoomClient } from './multiplayer/roomClient.mjs';
 import { loadRiggedAvatar, type RiggedAvatar } from './riggedAvatar';
@@ -49,7 +49,9 @@ import type { CityTraffic } from './cityTrafficScene';
 import { buildRoadGraph, type RoadGraph } from './cityTraffic.mjs';
 import { nearestOnRoads, routeBetween } from './gps.mjs';
 import { Minimap } from './Minimap';
-import { GameMenu, type MenuTab } from './GameMenu';
+import type { MenuTab } from './GameMenu';
+const loadGameMenu = () => import('./GameMenu');
+const GameMenu = lazy(() => loadGameMenu().then(module => ({ default: module.GameMenu })));
 import type { PhoneMessage, PhoneState } from './phone.mjs';
 import type { Photo } from './photoMode.mjs';
 // The phone and its messages are their own small download, fetched just after the world starts.
@@ -83,6 +85,8 @@ import { PARKED_CARS } from './streetLayout.mjs';
 import { addWorldProps } from './polyHavenProps';
 import { buildHomeScene } from './homeScene';
 import './story.css';
+// The menu itself loads on demand; its stylesheet also styles the HUD (menu button, first hint, captions).
+import './gameMenu.css';
 // Styles of the on-demand map and match stay in the main stylesheet: as separate files they'd cost more in gzip
 // overhead than they save, and the map/scoreboard never flash unstyled while their code loads.
 import './worldMap.css';
@@ -456,10 +460,10 @@ export default function WorldScene({
 }: WorldProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
-  // On a phone, bring the 3D view to the top of the screen once, so the view and the touch pad under it
-  // are both on screen without scrolling between them.
+  // Bring the 3D view to the top of the screen once: the button that starts the game sits further down the
+  // page, and on a phone the view and the touch pad under it must both be on screen without scrolling.
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia?.('(max-width: 640px)').matches) return;
+    if (typeof window === 'undefined') return;
     const timer = window.setTimeout(() => viewportRef.current?.scrollIntoView({ block: 'start', behavior: 'auto' }), 150);
     return () => window.clearTimeout(timer);
   }, []);
@@ -923,7 +927,7 @@ export default function WorldScene({
   const npcActiveRef = useRef(false);
   const openNpcChat = (id: NpcId) => {
     if (dialogueRef.current || npcActiveRef.current) return;
-    const conversation = beginNpcConversation(id, npcRelationsRef.current);
+    const conversation = beginNpcConversation(id, npcRelationsRef.current, storyRef.current.chapter > 0);
     if (!conversation) return;
     setSchoolOpen(false);
     schoolOpenRef.current = false;
@@ -3462,7 +3466,7 @@ export default function WorldScene({
         onFilter={step => photoAction(step > 0 ? 'filter' : 'filter-back')} onZoom={step => photoAction(step > 0 ? 'zoom-in' : 'zoom-out')}
         onGrid={() => photoAction('grid')} onExit={closeCamera} />}
       {error ? <p className="world-fallback" role="status">{error}</p> : <>
-        <LoadingScreen tracker={loadTracker} onReady={() => { worldReadyRef.current = true; void loadWorldMap().catch(() => {}); }} />
+        <LoadingScreen tracker={loadTracker} onReady={() => { worldReadyRef.current = true; void loadWorldMap().catch(() => {}); void loadGameMenu().catch(() => {}); }} />
         <div className="world-life" role="status" aria-label={`Day ${lifeView.day}, ${formatClock(lifeView.minute)}, ${weatherStatus(weatherAt(lifeView.day, lifeView.minute, weatherOverride))}, energy ${Math.round(lifeView.energy)} percent`}>
           <span>Day {lifeView.day} · {formatClock(lifeView.minute)}<span className="world-weather" title={`Today: ${forecastLine(lifeView.day)}`}> · {weatherStatus(weatherAt(lifeView.day, lifeView.minute, weatherOverride))}</span>{lifeSync && syncStatus !== 'idle' &&
             <small className="world-sync"> · {syncStatus === 'offline' ? 'Saved in this browser' : syncStatus === 'saving' ? 'Saving…' : 'Saved to your account'}</small>}</span>
@@ -3508,7 +3512,8 @@ export default function WorldScene({
         </section>}
         {inClass && <div className="world-sleep world-class" role="status" aria-live="polite"><span>{inClass} class…</span></div>}
         <div className="world-caption"><button type="button" className="world-menu-button" aria-label="Open the game menu (Escape)" aria-expanded={menuOpen}
-          onClick={() => openMenu()}>☰ Menu</button> <strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : inCity ? inCity : demoMode ? 'Guest preview · progress not saved' : 'Neighborhood demo'}</div>
+          onClick={() => openMenu()}>☰ Menu</button><button type="button" className="world-menu-button world-fs"
+          onClick={event => { if (document.fullscreenElement) void document.exitFullscreen(); else void viewportRef.current?.requestFullscreen?.()?.catch(() => {}); focusWorld(event); }} aria-label="Full screen on or off" title="Full screen">⤢</button> <strong>{displayName}</strong> · {inHome ? 'At home' : atSchool ? 'At school' : inCity ? inCity : demoMode ? 'Guest · not saved' : 'Neighborhood demo'}</div>
         {wayfinding && <div className="world-wayfinding" aria-label="School directions">{wayfinding}</div>}
         {(mapOpen || mapMounted) && <Suspense fallback={null}><WorldMap open={mapOpen} onClose={() => setMapOpen(false)} read={readMap} travel={travelTo} waypoint={waypointControl} /></Suspense>}
         <Minimap read={readMap} hidden={mapOpen || menuOpen || phoneOpen || Boolean(rangeOpen) || inHome || atSchool || Boolean(dialogue)} />
@@ -3553,11 +3558,11 @@ export default function WorldScene({
             <button type="button" onClick={() => { updateSettings({ ...playerSettings, hintDismissed: true }); canvasRef.current?.focus({ preventScroll: true }); }}>Got it</button>
           </span>
         </div>}
-        <GameMenu open={menuOpen} tab={menuTab} setTab={setMenuTab} onClose={closeMenu} story={story}
+        <Suspense fallback={null}><GameMenu open={menuOpen} tab={menuTab} setTab={setMenuTab} onClose={closeMenu} story={story}
           graphics={playerSettings.graphics} setGraphics={mode => updateSettings({ ...playerSettings, graphics: mode })}
           access={playerSettings} setAccess={change => updateSettings({ ...playerSettings, ...change })}
           onReset={() => { resetProgress(characterId); window.location.reload(); }}
-          audio={<AudioPanel director={audioRef} onCue={captionCue} />} />
+          audio={<AudioPanel director={audioRef} onCue={captionCue} />} /></Suspense>
         {playerSettings.captions && <ul className="world-sound-captions" aria-live="polite" aria-label="Sound captions">
           {soundCaptions.map(caption => <li key={caption.id}>{captionLabel(caption)}</li>)}
         </ul>}

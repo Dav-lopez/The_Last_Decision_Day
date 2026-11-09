@@ -1,4 +1,4 @@
-import { Color3, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, type Scene } from '@babylonjs/core';
+import { Color3, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, type Scene } from '../babylon';
 import type { CareerId } from './careers.mjs';
 import type { PlanarPosition } from './movement.mjs';
 

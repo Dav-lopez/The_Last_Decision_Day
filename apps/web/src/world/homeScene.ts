@@ -1,4 +1,4 @@
-import { MeshBuilder, Scene } from '@babylonjs/core';
+import { MeshBuilder, Scene } from '../babylon';
 import { DOOR_HALF_WIDTH, HOME_ORIGIN, ROOM, type WallId } from './homeInterior.mjs';
 import { buildRoomShell } from './roomShell';
 

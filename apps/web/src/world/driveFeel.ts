@@ -1,4 +1,4 @@
-import type { Scene } from '@babylonjs/core';
+import type { Scene } from '../babylon';
 import { createGearbox, createSkidMarks, engineFrequency, skidCapacityFor, stepGearbox, tyreSlip, type Gear } from './carFeel.mjs';
 import { createSkidMarksMesh } from './skidMarksScene';
 export { createCarDamageView } from './carDamageScene';

@@ -1,4 +1,4 @@
-import { Color3, DynamicTexture, MeshBuilder, Ray, StandardMaterial, Vector3, type AbstractMesh, type Mesh, type Scene, type TransformNode } from '@babylonjs/core';
+import { Color3, DynamicTexture, MeshBuilder, Ray, StandardMaterial, Vector3, type AbstractMesh, type Mesh, type Scene, type TransformNode } from '../babylon';
 import { applyImpact, bodyCondition, createCarDamage, marksForQuality, type CarDamage, type DamageMark } from './carDamage.mjs';
 import { carLocalToWorld, type CarState } from './vehicleDrive.mjs';
 

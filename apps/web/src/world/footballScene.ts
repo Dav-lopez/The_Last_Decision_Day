@@ -1,4 +1,4 @@
-import { Color3, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, Texture, type Scene } from '@babylonjs/core';
+import { Color3, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, Texture, type Scene } from '../babylon';
 import { BALL_RADIUS, PITCH, type Ball } from './football.mjs';
 
 /** Turf with five-a-side markings, drawn once. */

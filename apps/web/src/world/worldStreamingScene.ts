@@ -1,4 +1,4 @@
-import type { AbstractMesh, Scene } from '@babylonjs/core';
+import type { AbstractMesh, Scene } from '../babylon';
 import type { StreamShown } from './worldStreaming.mjs';
 
 /** The layer bit a hidden place's meshes move to; the camera never draws it (the default camera mask is 0x0FFFFFFF). */

@@ -1,4 +1,4 @@
-import { Color3, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, type Scene } from '@babylonjs/core';
+import { Color3, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, type Scene } from '../babylon';
 import {
   DISTANT_HOUSES, DISTANT_TREES, FENCES, GROUND_SIZE, HILLS, PLAYABLE_HALF, ROAD_BARRICADE, ROAD_HALF, ROAD_REACH,
   SIDEWALK_CENTER, SIDEWALK_WIDTH,

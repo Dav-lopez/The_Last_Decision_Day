@@ -1,4 +1,4 @@
-import { Color3, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, TransformNode, type ShadowGenerator, type Scene } from '@babylonjs/core';
+import { Color3, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, TransformNode, type ShadowGenerator, type Scene } from '../babylon';
 import { beaconPhase, vehicleSize, type VehicleKind } from './vehicleSpecs.mjs';
 
 /**

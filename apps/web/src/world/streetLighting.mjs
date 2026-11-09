@@ -1,4 +1,10 @@
-import { Color3, Color4, PBRMaterial, PointLight, Scene, StandardMaterial, Vector3 } from '@babylonjs/core';
+// Deep imports (with .js so Node's tests resolve them too) keep the rest of the engine out of the bundle.
+import { Color3, Color4 } from '@babylonjs/core/Maths/math.color.js';
+import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial.js';
+import { PointLight } from '@babylonjs/core/Lights/pointLight.js';
+import { Scene } from '@babylonjs/core/scene.js';
+import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial.js';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector.js';
 import { STREET_LIGHTS } from './streetLayout.mjs';
 
 /** Three bounded, non-shadow-casting lamps; daylight uses only sun and sky. */

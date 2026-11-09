@@ -244,14 +244,15 @@ export function talkSpot(location, minute, live = null, from = null, gap = 0.8, 
   return { id: best.id, x: best.x, z: best.z };
 }
 
-export function beginNpcConversation(id, relations) {
+/** `noteKnown` is false until the note arrives (chapter 2): nobody can be asked about it before then. */
+export function beginNpcConversation(id, relations, noteKnown = true) {
   const npc = NPC_DIALOGUES[id];
   if (!npc) return null;
   const relation = normalizeNpcRelations(relations).people[id] ?? emptyRelation();
   const greeting = relation.conversations === 0 ? npc.first : relation.trust < 0 ? npc.wary : npc.again;
   return {
     id, name: npc.name, speaker: npc.speaker, resident: npc.resident,
-    greeting, choices: npc.choices.map(({ id: choiceId, label }) => ({ id: choiceId, label })),
+    greeting, choices: npc.choices.filter(choice => noteKnown || choice.id !== 'note').map(({ id: choiceId, label }) => ({ id: choiceId, label })),
   };
 }
 

@@ -1,4 +1,4 @@
-import { Color3, DynamicTexture, MeshBuilder, StandardMaterial, type Scene } from '@babylonjs/core';
+import { Color3, DynamicTexture, MeshBuilder, StandardMaterial, type Scene } from '../babylon';
 
 /** A bus stop: pole with a sign and a small bench, on the grass beside the sidewalk. */
 export function buildBusStop(scene: Scene, x: number, z: number, facing = 0) {

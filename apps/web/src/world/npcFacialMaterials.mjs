@@ -4,7 +4,9 @@
  * response (watery eyes, complexion-aware cheeks, tears, sweat, skin sheen).
  * Every controller owns only the materials and morphs of its NPC clone.
  */
-import { Color3, PBRMaterial } from '@babylonjs/core';
+// Deep imports (with .js so Node's tests resolve them too) keep the rest of the engine out of the bundle.
+import { Color3 } from '@babylonjs/core/Maths/math.color.js';
+import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial.js';
 import { dressZones } from './appearance.mjs';
 import { skinSurface, hairSurface, skinRoughness } from './surfaceShading.mjs';
 import { calculateFacialEffectTargets, stepFacialEffectWeights } from './facialEffectDynamics.mjs';
