@@ -720,7 +720,7 @@ const playScene = () => page.evaluate(async () => {
     // Open-world 19b: what your character acted on this line (gesture and face).
     const acted = window.__tld.read().cutscene;
     window.__acting = window.__acting ?? {};
-    for (const key of [acted?.gesture && `gesture:${acted.gesture}`, acted?.emotion && `face:${acted.emotion}`]) if (key) window.__acting[key] = (window.__acting[key] ?? 0) + 1;
+    for (const key of [acted?.gesture && `gesture:${acted.gesture}`, acted?.emotion && `face:${acted.emotion}`, acted?.head && `head:${acted.head}`]) if (key) window.__acting[key] = (window.__acting[key] ?? 0) + 1;
     scene.click();
     for (let wait = 0; wait < 60; wait++) {
       await sleep(50);
@@ -811,6 +811,13 @@ await step('story scenes are acted: the note, the photo, the reveal and the cele
   if (missing.length) throw new Error(`story scenes never showed ${missing.join(', ')}`);
   // Three endings, three celebrations.
   if ((acting['gesture:Dance'] ?? 0) < 3) throw new Error(`only ${acting['gesture:Dance'] ?? 0} of 3 endings celebrated`);
+});
+
+await step('speakers nod and tilt their heads on their lines (open-world 19c)', async () => {
+  const acting = await page.evaluate(() => window.__acting ?? {});
+  const missing = ['head:nod', 'head:tilt'].filter(key => !acting[key]);
+  if (missing.length) throw new Error(`story lines never played ${missing.join(', ')}`);
+  notes.push(`head gestures: nod ${acting['head:nod']}, tilt ${acting['head:tilt']}, shake ${acting['head:shake'] ?? 0}`);
 });
 
 await step('a crash shows the error screen with a working reload button', async () => {

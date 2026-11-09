@@ -91,6 +91,8 @@ import { buildDecisionDecor } from './storyDecor';
 import { dayLight, lightKey } from './dayCycle.mjs';
 import { NEAR_METRES, SPEAKER_RESIDENTS, planShots, sceneCard, sceneMood, shotPose, type SceneMood, type Shot } from './cutscene.mjs';
 import { lineActing, type StoryEmotion } from './storyActing.mjs';
+import { headGestureFor, headGestureOffset, type HeadGesture } from './headGestures.mjs';
+import { createNpcHeadRig } from './npcHeadRig.mjs';
 import { CAST, NEW_STORY, advanceStory, currentStep, markSceneSeen, pendingScene, readStory, storyComplete, writeStory,
   type StoryEvent, type StoryLine, type StoryState } from './storyChapters.mjs';
 import { buildSurroundings } from './worldSurroundings';
@@ -673,7 +675,7 @@ export default function WorldScene({
   // Directed story scenes (open-world 19a): the render loop's camera director reads the open scene from here.
   const cutsceneRef = useRef<Dialogue | null>(null);
   cutsceneRef.current = dialogue;
-  const cutsceneShotRef = useRef<{ kind: Shot['kind']; index: number; text: string; subject: string | null; gesture: string | null; emotion: string | null } | null>(null);
+  const cutsceneShotRef = useRef<{ kind: Shot['kind']; index: number; text: string; subject: string | null; gesture: string | null; emotion: string | null; head: string | null } | null>(null);
   // The face your character pulls on the current story line (open-world 19b); null for the usual one.
   const cutsceneEmotionRef = useRef<StoryEmotion | null>(null);
   const [storyBanner, setStoryBanner] = useState('');
@@ -1223,6 +1225,8 @@ export default function WorldScene({
       let downtownIdle = 0;
       let downtownUnloads = 0;
       let disposeVehicles = () => {};
+      let playerHead: { root: TransformNode; rig: ReturnType<typeof createNpcHeadRig> } | null = null;
+      let playerGesture: { name: HeadGesture | null; elapsed: number } = { name: null, elapsed: 0 };
       // The police cruiser and fire engine (13c): parked outside their stations once downtown is built; their
       // states live in `cars` (at `index`) like the family cars, so driving, collisions and the HUD are shared.
       const stationVehicles: { index: number; kind: Exclude<VehicleKind, 'sedan'>; model: CareerVehicleModel }[] = [];
@@ -1680,7 +1684,11 @@ export default function WorldScene({
             directed.gesture = null;
           }
           cutsceneEmotionRef.current = acting.emotion;
-          cutsceneShotRef.current = shot ? { kind: shot.kind, index: open.index, text: line?.text ?? '', subject: shot.subject, gesture: directed.gesture, emotion: acting.emotion } : null;
+          // 19c: the speaker's head acts the line too (a nod, a head shake, a tilt on a question).
+          const head = line?.speaker === 'you' && drivenIndex() < 0 ? headGestureFor(line.text)
+            : directed.speaking && shot?.kind === 'speaker' ? headGestureFor(line?.text) : null;
+          playerGesture = { name: line?.speaker === 'you' ? head : null, elapsed: 0 };
+          cutsceneShotRef.current = shot ? { kind: shot.kind, index: open.index, text: line?.text ?? '', subject: shot.subject, gesture: directed.gesture, emotion: acting.emotion, head } : null;
         } else directed.seconds += frame;
         const me = directorPlayer();
         const other = shot?.subject ? residentNear(shot.subject) : null;
@@ -2600,6 +2608,17 @@ export default function WorldScene({
         const streamFrom = audioCar >= 0 && cars[audioCar] ? cars[audioCar] : position;
         streamShown = streamVisibility(streamShown, streamFrom, downtown ? downtownRect : null, locationRef.current);
         streaming.apply(streamShown);
+        // Your own head gestures on your story lines (19c), on the same head rig the neighbours use.
+        const bodyNow = riggedRef.current;
+        if (bodyNow && playerHead?.root !== bodyNow.root) {
+          playerHead?.rig.dispose();
+          playerHead = { root: bodyNow.root, rig: createNpcHeadRig(scene, bodyNow.root) };
+        }
+        if (playerGesture.name) {
+          playerGesture.elapsed += frameSeconds;
+          playerHead?.rig.setGesture(headGestureOffset(playerGesture.name, playerGesture.elapsed));
+          if (playerGesture.elapsed > 2) { playerGesture = { name: null, elapsed: 0 }; playerHead?.rig.setGesture(null); }
+        }
         // Free downtown's memory once it's been out of sight for a minute and nothing needs it (17d).
         const unloadStep = stepUnload(downtownIdle, {
           loaded: downtownScenery !== null, shown: streamShown.city, seconds: frameSeconds,
@@ -3281,6 +3300,7 @@ export default function WorldScene({
         downtown?.dispose();
         disposeOpenRoad?.();
         neighbors?.dispose();
+        playerHead?.rig.dispose();
         npcSceneRef.current = null;
         renderPipeline.dispose();
         atmosphere.dispose();

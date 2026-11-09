@@ -185,3 +185,30 @@ test('hidden or headless NPCs never receive an attention transform', t => {
   noHead.setYaw(0.2);
   noHead.dispose();
 });
+
+test('a spoken head gesture layers on the head and never accumulates (19c)', t => {
+  const engine = new NullEngine();
+  const scene = new Scene(engine);
+  t.after(() => { scene.dispose(); engine.dispose(); });
+  const holder = new TransformNode('npc nod', scene);
+  const head = new TransformNode('npc nod Head', scene);
+  head.parent = holder;
+  head.rotationQuaternion = Quaternion.FromEulerAngles(0.1, 0, 0);
+  const original = head.rotationQuaternion.clone();
+  const rig = createNpcHeadRig(scene, holder);
+  const same = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y) + Math.abs(a.z - b.z) + Math.abs(a.w - b.w) < 1e-8;
+  rig.setGesture({ yaw: 0, pitch: 0.17, roll: 0 });
+  scene.onBeforeAnimationsObservable.notifyObservers(scene);
+  scene.onAfterAnimationsObservable.notifyObservers(scene);
+  const nodded = head.rotationQuaternion.clone();
+  assert.equal(same(nodded, original), false, 'the nod moves the head');
+  scene.onBeforeAnimationsObservable.notifyObservers(scene);
+  scene.onAfterAnimationsObservable.notifyObservers(scene);
+  assert.ok(same(head.rotationQuaternion, nodded), 'held gesture does not accumulate');
+  rig.setGesture({ yaw: 5, pitch: -5, roll: 5 });
+  rig.setGesture(null);
+  scene.onBeforeAnimationsObservable.notifyObservers(scene);
+  scene.onAfterAnimationsObservable.notifyObservers(scene);
+  assert.ok(same(head.rotationQuaternion, original), 'clearing the gesture restores the authored pose');
+  rig.dispose();
+});

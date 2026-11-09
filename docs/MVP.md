@@ -326,8 +326,15 @@ above is done or blocked; any item may be split into slices.
         endings. Your face follows the line (wide-eyed at the note and the reveal, happy through the endings), and
         neighbours speak in the line's mood. Gestures stop when someone else speaks and when the scene closes, and in a
         car your hands stay on the wheel. The guest playtest checks the new shots and that the pick-up, reach, dance,
-        talk and both faces all play across the three endings. Still to do: new clips for nods, shrugs and pointing
-        (the action library has none yet), staging a neighbour beside you for two-person set pieces.
+        talk and both faces all play across the three endings.
+  - [x] 19c (partial slice). Head gestures: whoever is speaking (a neighbour, or you on your own lines) nods when
+        they agree, greet you or own up ("Yes, I left the note"), shakes their head at a refusal, and tilts it on a
+        question or when unsure ("…Who is A?", "Maybe Ms. Rivera can help"), read from the line (`headGestures.mjs`).
+        It plays once at the start of the line, layered on the existing head rig on top of the attention, the
+        conversation nod and the authored clip, and walking or flinching drops it; the same works in everyday
+        conversations, not just story scenes. 2 + 1 tests; the guest playtest checks nods and tilts play across the
+        story. Still to do: shrugs and pointing (arm clips; the action library has none yet), staging a neighbour
+        beside you for two-person set pieces.
 - [ ] **20. Visual quality pass**: better materials and lighting downtown, higher-detail characters (with the
       facial work), screen-space reflections on wet roads where the device can afford it.
   - [x] 20a (partial slice). Downtown facades: five facade styles (red brick with stone lintels and sash windows,
