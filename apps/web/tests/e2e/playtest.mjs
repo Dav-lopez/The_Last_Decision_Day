@@ -658,6 +658,19 @@ await step('the open road: drive into downtown and out again with no fade (item 
   await drive('s', 'reverse back out onto the road', () => { const s = window.__tld.read(); return s.location === 'street' && s.driving; });
   await drive('w', 'drive into downtown again', () => { const s = window.__tld.read(); return s.location === 'city' && s.driving; });
   await drive('s', 'stop the car', () => (window.__tld.read().car?.speed ?? 9) < 0.3);
+  // 17e: downtown's other edges hold the car (no fade home) and point the GPS at the road.
+  if (!(await page.evaluate(() => window.__tld.cityEdge()))) throw new Error('no street leaves downtown to the east');
+  const stopsBefore = (await read()).edgeStops;
+  await drive('w', 'drive into the east edge of downtown', () => window.__tld.read().edgeStops > 0);
+  await page.keyboard.down('w');
+  await page.waitForTimeout(2000);
+  await page.keyboard.up('w');
+  const held = await read();
+  if (held.location !== 'city' || !held.driving) throw new Error(`the east edge let the car out: location ${held.location}, driving ${held.driving}`);
+  const gps = await page.evaluate(() => window.__tld.waypoint());
+  if (!gps) throw new Error('the GPS has no road home after the edge stopped the car');
+  notes.push(`east edge held the car (${held.edgeStops - stopsBefore} stop(s)), GPS points at the road home`);
+  await shot('07c-downtown-edge');
   const faded = await page.evaluate(() => { clearInterval(window.__roadWatch); return window.__roadFaded; });
   if (faded) throw new Error('a fade screen showed while driving the open road');
   // 17c: downtown is drawn and Maple Street isn't, once you're in town.

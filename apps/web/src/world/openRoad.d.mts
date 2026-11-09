@@ -24,3 +24,7 @@ export declare function streetOrRoadBlocked(road: OpenRoad | null, car: CarState
   people?: ReadonlyArray<{ x: number; z: number; radius?: number }>): boolean;
 export declare function roadFog(road: OpenRoad, point: PlanarPosition, streetFog: number, cityFog: number): number;
 export declare function centreDashes(road: OpenRoad, from?: number, dash?: number, gap?: number): Array<[RoadPose, RoadPose]>;
+export declare function cityEdgeExcess(local: ReadonlyArray<number>, halfSize: ReadonlyArray<number>, margin?: number): number;
+export declare function cityEdgeStep(before: ReadonlyArray<number>, next: ReadonlyArray<number>, halfSize: ReadonlyArray<number>, margin?: number): { atEdge: boolean; hold: boolean };
+export declare function roadHomeWaypoint(road: OpenRoad, inset?: number): { x: number; z: number; label: string };
+export declare function findEastExit(city: City): { x: number; z: number; dir: PlanarPosition; name: string } | null;

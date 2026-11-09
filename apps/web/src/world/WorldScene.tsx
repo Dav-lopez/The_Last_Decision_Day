@@ -131,7 +131,7 @@ import type { Gear } from './carFeel.mjs';
 import type { DriveFeel } from './driveFeel';
 import type { CarDamageView } from './carDamageScene';
 import { conditionLabel } from './carDamage.mjs';
-import { CITY_ENTER_MARGIN, CITY_LEAVE_MARGIN, buildOpenRoad, insideCity, onOpenRoad, roadFog, roadPose, roadProgress, streetOrRoadBlocked, type OpenRoad } from './openRoad.mjs';
+import { CITY_ENTER_MARGIN, CITY_LEAVE_MARGIN, buildOpenRoad, cityEdgeStep, findEastExit, roadHomeWaypoint, insideCity, onOpenRoad, roadFog, roadPose, roadProgress, streetOrRoadBlocked, type OpenRoad } from './openRoad.mjs';
 import { TOWN_EXIT, canExitVehicle, chaseCameraAlpha, driveInput, footprintPoints, leavingTown, speedKmh, speedZone, stepVehicle, vehicleExitPosition, type CarState } from './vehicleDrive.mjs';
 import { closestInteraction, transitionInteraction, type InteractionState } from './worldInteractions.mjs';
 import { activeCaptions, captionLabel, CAPTION_SECONDS, chapterCaption, pushCaption, storyLineCaption, storyLineCue, type SoundCaption } from './soundCaptions.mjs';
@@ -1217,6 +1217,8 @@ export default function WorldScene({
       let waypoint: { x: number; z: number; label: string; manual: boolean } | null = null;
       let route: { points: [number, number][]; length: number } | null = null;
       let routeTimer = 0;
+      /** Times the car was held at one of downtown's edges (17e; the playtest reads it). */
+      let edgeStops = 0;
       let viewHeading = 0;
       let downtownKit: DowntownKit | null = null;
       // 17d: downtown's scenery can be freed and rebuilt; `downtown` (map data, collider, stop) stays once built.
@@ -1882,6 +1884,7 @@ export default function WorldScene({
             x: position.x, z: position.z, location: locationRef.current, minute: life.minute, energy: life.energy,
             story: storyRef.current, driving: drivenIndex() >= 0, dialogue: dialogueRef.current, npcChat: npcActiveRef.current,
             traffic: cityTraffic?.cars().slice(0, 30).map(car => ({ x: car.x, z: car.z, speed: car.speed })) ?? [],
+            edgeStops,
             roadTraffic: roadTraffic?.cars().map(car => ({ x: car.x, z: car.z, speed: car.speed })) ?? [],
             walkers: cityTraffic?.people().length ?? 0,
             taxi: Boolean(pendingTaxi) || Boolean(pendingDrive),
@@ -1916,6 +1919,21 @@ export default function WorldScene({
           },
           travel: (to: TravelTarget) => travelRef.current(to),
           // Move the car you're driving to a spot `t` of the way along the open road (0 Maple Street, 1 downtown).
+          /** Drop the car you're driving just inside downtown's east edge, heading out (17e). */
+          cityEdge: () => {
+            const index = drivenIndex();
+            if (index < 0 || !downtown || locationRef.current !== 'city') return false;
+            const exit = findEastExit(downtown.city);
+            if (!exit) return false;
+            const at = toWorld([exit.x - exit.dir.x * 5, exit.z - exit.dir.z * 5]);
+            const rotation = Math.atan2(exit.dir.x, exit.dir.z);
+            cars[index] = { ...cars[index], x: at.x, z: at.z, rotation, speed: 0 };
+            placeCar(index);
+            seatDriver(cars[index]);
+            camera.alpha = chaseCameraAlpha(rotation);
+            camera.setTarget(new Vector3(at.x, 1.25, at.z), false, false, true);
+            return true;
+          },
           openRoad: (t: number) => {
             const index = drivenIndex();
             if (index < 0 || !openRoad || locationRef.current !== 'street' || pendingDrive) return false;
@@ -2089,7 +2107,7 @@ export default function WorldScene({
           locationRef.current = 'city';
           setInCity(downtown.city.name);
           notify(openRoad
-            ? `${downtown.city.name}. ${openRoad.street} south is the road home; any other edge of downtown takes you straight there.`
+            ? `${downtown.city.name}. ${openRoad.street} south is the road home; downtown's other edges are its limits.`
             : `${downtown.city.name}. Drive around; head for the edge of downtown to drive home.`);
         } else {
           cars[drive.index] = { x: 0, z: TOWN_EXIT.beyond - 2.5, rotation: Math.PI, speed: 3 };
@@ -3027,15 +3045,25 @@ export default function WorldScene({
           } else if (locationRef.current === 'city' && downtown) {
             if (road && onOpenRoad(road, next) && !insideCity(road, next, CITY_ENTER_MARGIN)) { applyFog(next); roadFogOn = true; }
             else if (roadFogOn) { roadFogOn = false; applyFog(); }
-            const [lx, lz] = toLocal(next);
-            const [hx, hz] = downtown.city.halfSize;
-            if (Math.abs(lx) > hx - CITY_LEAVE_MARGIN || Math.abs(lz) > hz - CITY_LEAVE_MARGIN) {
+            const edge = cityEdgeStep(toLocal(before), toLocal(next), downtown.city.halfSize, CITY_LEAVE_MARGIN);
+            if (edge.atEdge) {
               // The cruiser and the engine belong to their stations: they turn back at the edge of downtown.
               if (stationOf(driven)) {
-                cars[driven] = { ...before, speed: 0 };
-                if (clock - noticeAt > 2.5) notify(`The ${vehicleSpec(before).name} stays downtown. Park it back at the station and take your own car or the bus home.`);
+                if (edge.hold) cars[driven] = { ...before, speed: 0 };
+                if (edge.hold && clock - noticeAt > 2.5) notify(`The ${vehicleSpec(before).name} stays downtown. Park it back at the station and take your own car or the bus home.`);
               } else if (road && onOpenRoad(road, next)) leaveByRoad();
-              else startDrive('home', driven);
+              else if (road) {
+                // Downtown's other edges are its limits (17e): no fade home, the car stops and the GPS shows the road.
+                if (edge.hold) {
+                  cars[driven] = { ...before, speed: 0 };
+                  if (clock - noticeAt > 2.5) {
+                    const home = roadHomeWaypoint(road);
+                    if (!waypoint || waypoint.label !== home.label) { waypoint = { ...home, manual: true }; routeTimer = Infinity; }
+                    edgeStops += 1;
+                    notify(`Downtown ends here. ${road.street} south is the road home: follow the GPS.`);
+                  }
+                }
+              } else startDrive('home', driven);
             }
           }
           placeCar(driven);
@@ -3074,10 +3102,10 @@ export default function WorldScene({
               ? 'Careful, someone is in the way! Give them a moment to step aside.'
               : 'Bump! Reverse with S to back away.');
             else if (clock - noticeAt > 2.5) setDriveNotice(previous => previous ? '' : previous);
-            const waypoint = schoolWaypoint(next, cameraForward);
+            const schoolWay = schoolWaypoint(next, cameraForward);
             const label = locationRef.current === 'city' && downtown
-              ? `${downtown.city.name} · drive to the edge of downtown to go home · map: N`
-              : waypoint.distance === null ? '' : 'School · ' + Math.ceil(waypoint.distance) + ' m · ' + waypoint.direction + ' · road to downtown: north';
+              ? `${downtown.city.name} · ${openRoad ? `${openRoad.street} south is the road home` : 'drive to the edge of downtown to go home'} · map: N`
+              : schoolWay.distance === null ? '' : 'School · ' + Math.ceil(schoolWay.distance) + ' m · ' + schoolWay.direction + ' · road to downtown: north';
             setWayfinding(previous => previous === label ? previous : label);
           }
           if (previousNear) { previousNear = false; nearSchoolRef.current = false; setNearSchool(false); }

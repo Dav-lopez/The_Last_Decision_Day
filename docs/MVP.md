@@ -276,6 +276,13 @@ above is done or blocked; any item may be split into slices.
         1 test; a playtest step waits for downtown to be freed on Maple Street and checks it's rebuilt, lamps and all,
         when you take a taxi back. Still to do for item 17: the quick fade at downtown's other edges (Maple Street
         itself is small and stays loaded).
+  - [x] 17e. Downtown's limits: its other edges no longer fade you home. Driving into one stops the car at the edge
+        (`cityEdgeStep`: only a move further out is held, so you can always turn or reverse back in, even if you were
+        dropped past it), says downtown ends there and sets the GPS to the road home on the open road's street
+        (`roadHomeWaypoint`). Only the open road leads out, so Maple Street and downtown are joined by one seamless
+        drive both ways; the quick fade is kept only for a city without an open road. The station cruiser and engine
+        use the same rule. 1 test; the open-road playtest drives into downtown's east edge (`findEastExit`) and checks
+        the car is held, the GPS points home and no fade showed.
 - [x] **18. Weather and sky**: rain and wet roads, fog, sunsets, clouds; weather changes by day.
   - [x] 18a (partial slice). Weather by day (`weather.mjs`, the same on every device, nothing saved): day 1 clear,
         day 2 an afternoon shower, day 3 a foggy morning, then a mix (about 40 % clear, 25 % cloudy, 22 % showers,

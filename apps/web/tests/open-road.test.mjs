@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { CITY_ORIGIN, createCityCollider, readCity, toLocal } from '../src/world/cityLayout.mjs';
 import {
+  cityEdgeExcess, cityEdgeStep, findEastExit, roadHomeWaypoint,
   CITY_ENTER_MARGIN, CITY_LEAVE_MARGIN, ROAD_START, buildOpenRoad, centreDashes, findSouthEntry, insideCity, onOpenRoad,
   roadFog, roadPose, roadProgress, streetOrRoadBlocked,
 } from '../src/world/openRoad.mjs';
@@ -123,4 +124,29 @@ test('the home and the classroom (built off-map) are not on the road', async () 
       }
     }
   }
+});
+
+test('downtown\'s other edges hold the car instead of fading home, and the GPS points at the road (17e)', () => {
+  const [hx, hz] = city.halfSize;
+  const half = city.halfSize;
+  assert.ok(cityEdgeExcess([0, 0], half) < 0, 'the centre is inside');
+  const east = hx - CITY_LEAVE_MARGIN;
+  // Driving east over the edge: held.
+  assert.deepEqual(cityEdgeStep([east - 0.2, 0], [east + 0.3, 0], half), { atEdge: true, hold: true });
+  // Already past it (dropped there), turning back in or sliding along it: free to move.
+  assert.deepEqual(cityEdgeStep([east + 0.5, 0], [east + 0.2, 0], half), { atEdge: true, hold: false });
+  assert.equal(cityEdgeStep([east + 0.5, 0], [east + 0.5, 3], half).hold, false);
+  // Inside: nothing happens.
+  assert.deepEqual(cityEdgeStep([0, 0], [1, 1], half), { atEdge: false, hold: false });
+  // North and west edges too.
+  assert.equal(cityEdgeStep([0, hz - CITY_LEAVE_MARGIN - 0.1], [0, hz - CITY_LEAVE_MARGIN + 0.4], half).hold, true);
+  assert.equal(cityEdgeStep([-east + 0.1, 5], [-east - 0.4, 5], half).hold, true);
+  const home = roadHomeWaypoint(road);
+  assert.match(home.label, new RegExp(road.street));
+  assert.ok(cityEdgeExcess([home.x, home.z], half) < 0, 'the waypoint is inside downtown');
+  const world = { x: CITY_ORIGIN.x + home.x, z: CITY_ORIGIN.z + home.z };
+  assert.ok(onOpenRoad(road, world), 'the waypoint is on the road home');
+  const exit = findEastExit(city);
+  assert.ok(exit && exit.dir.x > 0.7, 'a street leaves downtown to the east');
+  assert.ok(Math.abs(cityEdgeExcess([exit.x, exit.z], half)) < 1e-6, 'it crosses right at the edge');
 });
