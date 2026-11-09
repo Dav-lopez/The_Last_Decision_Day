@@ -166,3 +166,58 @@ export function centreDashes(road, from = ROAD_STRAIGHT_TO, dash = 3, gap = 4.5)
   }
   return dashes;
 }
+
+/**
+ * How far past downtown's driving edge a point (city-local) is, in metres: negative inside, positive beyond.
+ * Downtown's edges are its limits (open-world 17e): only the open road leads out.
+ */
+export function cityEdgeExcess(local, halfSize, margin = CITY_LEAVE_MARGIN) {
+  const [hx, hz] = halfSize;
+  return Math.max(Math.abs(local[0]) - (hx - margin), Math.abs(local[1]) - (hz - margin));
+}
+
+/**
+ * A car moving from `before` to `next` (city-local) at downtown's edge: `atEdge` once past it, `hold` when the move
+ * would take it further out (the car stops there), so it can always turn or reverse back in, even if it started
+ * past the edge.
+ */
+export function cityEdgeStep(before, next, halfSize, margin = CITY_LEAVE_MARGIN) {
+  const was = cityEdgeExcess(before, halfSize, margin);
+  const now = cityEdgeExcess(next, halfSize, margin);
+  const atEdge = now > 0;
+  return { atEdge, hold: atEdge && now > was + 1e-6 };
+}
+
+/** Where the GPS points to drive home from downtown: a little way in from the edge on the open road's street (city-local). */
+export function roadHomeWaypoint(road, inset = 12) {
+  const { x, z, dir } = road.entry;
+  return { x: x + dir.x * inset, z: z + dir.z * inset, label: `Road home: ${road.street} south` };
+}
+
+/**
+ * A drivable street that crosses downtown's east driving edge (city-local): where it crosses, and the unit
+ * direction out of the city. The playtest drives out along it to check the edge holds the car.
+ */
+export function findEastExit(city) {
+  const [hx] = city.halfSize;
+  const edge = hx - CITY_LEAVE_MARGIN;
+  let best = null;
+  for (const road of city.roads) {
+    if (!DRIVABLE.has(road.kind) || !(road.width >= 7)) continue;
+    for (let i = 1; i < road.points.length; i++) {
+      const [ax, az] = road.points[i - 1];
+      const [bx, bz] = road.points[i];
+      if ((ax - edge) * (bx - edge) >= 0) continue;
+      const f = (edge - ax) / (bx - ax);
+      const length = Math.hypot(bx - ax, bz - az);
+      const sign = bx > ax ? 1 : -1;
+      const dir = { x: sign * (bx - ax) / length, z: sign * (bz - az) / length };
+      // The straightest, widest crossing.
+      const score = dir.x * 10 + road.width;
+      if (!best || score > best.score) best = { score, x: edge, z: az + (bz - az) * f, dir, name: road.name || 'a side street' };
+    }
+  }
+  if (!best) return null;
+  const { score: _score, ...exit } = best;
+  return exit;
+}
