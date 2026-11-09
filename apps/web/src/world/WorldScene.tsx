@@ -1704,7 +1704,8 @@ export default function WorldScene({
       // Runs inside every scene.render(), after the frame's own follow / chase / clamp code, so the director wins.
       const cutsceneObserver = scene.onBeforeRenderObservable.add(directCutscene);
       // Filmic tone mapping, bloom, anti-aliasing and (on capable devices) ambient occlusion.
-      const renderPipeline = createRenderPipeline(scene, camera, pickRenderQuality(scene));
+      const renderQuality = pickRenderQuality(scene);
+      const renderPipeline = createRenderPipeline(scene, camera, renderQuality);
       // Dynamic resolution keeps the frame rate up on slower devices.
       const baseScale = () => 1 / Math.min(1.5, Math.max(1, window.devicePixelRatio || 1)) * graphicsRef.current.scale;
       let quality = createQuality(baseScale());
@@ -1901,7 +1902,7 @@ export default function WorldScene({
             busy: pendingShift !== null,
             decor: decorShownRef.current,
             streaming: { ...streaming.read(), downtownLoaded: downtownScenery !== null, unloads: downtownUnloads },
-            weather: { ...weatherAt(life.day, life.minute, weatherOverrideRef.current), loaded: weatherView !== null, drops: weatherView?.drops() ?? 0, puddles: weatherView?.puddles() ?? { count: 0, level: 0 }, grip: wetGrip(weatherAt(life.day, life.minute, weatherOverrideRef.current)) },
+            weather: { ...weatherAt(life.day, life.minute, weatherOverrideRef.current), loaded: weatherView !== null, drops: weatherView?.drops() ?? 0, puddles: weatherView?.puddles() ?? { count: 0, level: 0 }, reflections: { ...(weatherView?.reflections() ?? { on: false, road: 0, puddle: 0, meshes: 0 }), allowed: renderQuality === 'high' && graphicsRef.current.ambientOcclusion && quality.ambientOcclusion }, grip: wetGrip(weatherAt(life.day, life.minute, weatherOverrideRef.current)) },
             cutscene: cutsceneShotRef.current, camera: { alpha: camera.alpha, beta: camera.beta, radius: camera.radius },
             stationVehicles: stationVehicles.map(parked => ({ kind: parked.kind, x: cars[parked.index].x, z: cars[parked.index].z })),
           }),
@@ -2626,7 +2627,10 @@ export default function WorldScene({
         });
         downtownIdle = unloadStep.timer;
         if (unloadStep.unload) unloadDowntown();
-        weatherView?.update(weatherNow, { evening: eveningNow, outdoors, camera, quality, seconds: frameSeconds, place: locationRef.current, player: streamFrom });
+        // Mirrored wet roads (20c) only where ambient occlusion is affordable too: desktops, not the Performance
+        // preset, and not while automatic graphics are cutting back.
+        const reflections = renderQuality === 'high' && graphicsRef.current.ambientOcclusion && quality.ambientOcclusion;
+        weatherView?.update(weatherNow, { evening: eveningNow, outdoors, camera, quality, seconds: frameSeconds, place: locationRef.current, player: streamFrom, reflections });
         // Moving clouds (18c): the painted clouds slide round the sky with the day's wind.
         atmosphere.drift(frameSeconds, cloudDrift(weatherNow));
         const rainingNow = weatherNow.rain > 0.05;
