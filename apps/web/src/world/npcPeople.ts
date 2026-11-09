@@ -14,6 +14,7 @@ import { npcEyeVergence } from './npcEyeVergence.mjs';
 import { npcListeningAttention } from './npcListeningGaze.mjs';
 import { npcHeadAttentionTarget, stepNpcHeadAttention } from './npcHeadAttention.mjs';
 import { createNpcHeadRig } from './npcHeadRig.mjs';
+import { headGestureFor, headGestureOffset, type HeadGesture } from './headGestures.mjs';
 import { npcConversationHeadTarget, stepNpcConversationHead } from './npcConversationHead.mjs';
 import { beginNpcSpeech, advanceNpcSpeech, isNpcSpeaking, npcShouldArticulate } from './npcSpeechTimeline.mjs';
 import { createNpcFacialMaterials } from './npcFacialMaterials.mjs';
@@ -126,10 +127,12 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator, res
     hit.group.setWeightForAllAnimatables(0);
   };
   let speaker = beginNpcSpeech(null, 'neutral', '');
+  // The line's head gesture (19c): a nod, a head shake or a curious tilt, read from what they say.
+  let speakerGesture: HeadGesture | null = null;
   const live: Record<string, { x: number; z: number }> = {};
   return {
     positions: () => live,
-    setConversation(id, mood = 'neutral', line = '') { speaker = beginNpcSpeech(id, mood, line); },
+    setConversation(id, mood = 'neutral', line = '') { speaker = beginNpcSpeech(id, mood, line); speakerGesture = id ? headGestureFor(line) : null; },
     react(x, z) {
       let nearest: (typeof people)[number] | null = null;
       let best = 2.6;
@@ -245,6 +248,8 @@ export async function loadNeighbors(scene: Scene, shadows?: ShadowGenerator, res
         });
         person.headPose = stepNpcConversationHead(person.headPose, conversationPose, dt);
         person.headRig.setPose({ yaw: person.headYaw, ...person.headPose });
+        // Walking or flinching drops the gesture, like the rest of the conversation posture.
+        person.headRig.setGesture(speaking && person.walkWeight <= 0.15 && flinch.weight <= 0.15 ? headGestureOffset(speakerGesture, speaker.elapsed) : null);
         person.holder.position.set(pose.x, 0, pose.z);
         person.holder.rotation.y = person.heading;
         outside.push({ x: pose.x, z: pose.z, radius: PERSON_RADIUS });
