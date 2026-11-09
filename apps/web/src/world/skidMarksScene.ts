@@ -1,4 +1,4 @@
-import { Color3, Matrix, MeshBuilder, Quaternion, StandardMaterial, Vector3, type Scene } from '@babylonjs/core';
+import { Color3, Matrix, MeshBuilder, Quaternion, StandardMaterial, Vector3, type Scene } from '../babylon';
 import { SKID, type SkidMarks } from './carFeel.mjs';
 
 /**

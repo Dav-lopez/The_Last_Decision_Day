@@ -1,4 +1,4 @@
-import { Color3, DynamicTexture, MeshBuilder, Scene, StandardMaterial } from '@babylonjs/core';
+import { Color3, DynamicTexture, MeshBuilder, Scene, StandardMaterial } from '../babylon';
 import type { WallId } from './homeInterior.mjs';
 import { buildRoomShell } from './roomShell';
 import { CHALKBOARD, CLASSROOM, CLASSROOM_DOOR_HALF_WIDTH, SCHOOL_ORIGIN } from './schoolInterior.mjs';

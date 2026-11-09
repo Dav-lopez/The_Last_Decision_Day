@@ -1,4 +1,4 @@
-import { Color3, MeshBuilder, Scene, SceneLoader, ShadowGenerator, StandardMaterial, TransformNode } from '@babylonjs/core';
+import { Color3, MeshBuilder, Scene, SceneLoader, ShadowGenerator, StandardMaterial, TransformNode } from '../babylon';
 import '@babylonjs/loaders/glTF';
 import { cloneEnvironmentAtSites } from './environmentInstances.mjs';
 import { PROP_SITES, carFit, propScale, type PropSite, type PropType } from './propLayout.mjs';

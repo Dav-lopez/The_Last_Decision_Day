@@ -1,4 +1,4 @@
-import { ClusteredLightContainer, Color3, Constants, DynamicTexture, Mesh, MeshBuilder, PointLight, StandardMaterial, Vector3, VertexData, type Scene } from '@babylonjs/core';
+import { ClusteredLightContainer, Color3, Constants, DynamicTexture, Mesh, MeshBuilder, PointLight, StandardMaterial, Vector3, VertexData, type Scene } from '../babylon';
 import { CITY_ORIGIN, streetLampSpots, type City, type CityCollider } from './cityLayout.mjs';
 import { lampPools, poolFalloff, type LampPool } from './downtownLighting.mjs';
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { addNeighborhoodDetails } from './world/neighborhoodDetails';
-import { ArcRotateCamera, Color3, Color4, DirectionalLight, Engine, HemisphericLight, MeshBuilder, Scene, StandardMaterial, TransformNode, Vector3 } from '@babylonjs/core';
+import { ArcRotateCamera, Color3, Color4, DirectionalLight, Engine, HemisphericLight, MeshBuilder, Scene, StandardMaterial, TransformNode, Vector3 } from './babylon';
 
 /** A lightweight, real-time 3D neighborhood for visitors who have not signed in. */
 export default function LandingWorld({ onPlay }: { onPlay?: () => void }) {

@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent, type MutableRefObject } from 'react';
-import { SceneLoader, TransformNode, Vector3, type AbstractMesh, type Scene } from '@babylonjs/core';
+import { SceneLoader, TransformNode, Vector3, type AbstractMesh, type Scene } from '../babylon';
 import '@babylonjs/loaders/glTF';
 import '@babylonjs/loaders/SPLAT';
 import { SCAN_SPOT, fitScan, scanFormat } from './scanPlacement.mjs';

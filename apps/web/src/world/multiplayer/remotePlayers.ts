@@ -1,4 +1,4 @@
-import { Color3, DynamicTexture, Mesh, MeshBuilder, Scene, ShadowGenerator, StandardMaterial, TransformNode } from '@babylonjs/core';
+import { Color3, DynamicTexture, Mesh, MeshBuilder, Scene, ShadowGenerator, StandardMaterial, TransformNode } from '../../babylon';
 import { loadRiggedAvatar, type RiggedAvatar } from '../riggedAvatar';
 import { visibleRemotePose, stepRemotePose } from './remotePosePresentation.mjs';
 import { remoteAvatarPresentation } from './remoteAvatarPresentation.mjs';

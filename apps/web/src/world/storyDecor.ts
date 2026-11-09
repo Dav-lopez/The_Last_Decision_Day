@@ -1,4 +1,4 @@
-import { Color3, DynamicTexture, MeshBuilder, StandardMaterial, type Mesh, type Scene } from '@babylonjs/core';
+import { Color3, DynamicTexture, MeshBuilder, StandardMaterial, type Mesh, type Scene } from '../babylon';
 import { STREET_HALF_WIDTH } from './suburbLayout.mjs';
 
 export type Decision = 'garden' | 'crossing' | 'football';

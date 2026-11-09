@@ -2,7 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type
 import {
   ArcRotateCamera, Color3, Color4, DirectionalLight, DynamicTexture, Engine, HemisphericLight,
   MeshBuilder, Scene, ShadowGenerator, StandardMaterial, TransformNode, Vector3,
-} from '@babylonjs/core';
+} from '../babylon';
 import { createRemotePlayers } from './multiplayer/remotePlayers';
 import type { RoomClient } from './multiplayer/roomClient.mjs';
 import { loadRiggedAvatar, type RiggedAvatar } from './riggedAvatar';

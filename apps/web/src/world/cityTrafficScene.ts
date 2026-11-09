@@ -1,4 +1,4 @@
-import { Color3, PBRMaterial, SceneLoader, StandardMaterial, TransformNode, type Scene, type ShadowGenerator } from '@babylonjs/core';
+import { Color3, PBRMaterial, SceneLoader, StandardMaterial, TransformNode, type Scene, type ShadowGenerator } from '../babylon';
 import '@babylonjs/loaders/glTF';
 import { CITY_ORIGIN, type City } from './cityLayout.mjs';
 import { buildRoadGraph, createTraffic, stepTraffic, trafficPoses, type TrafficObstacle } from './cityTraffic.mjs';

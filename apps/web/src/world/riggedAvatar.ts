@@ -1,4 +1,4 @@
-import { Color3, Mesh, MultiMaterial, PBRMaterial, RawTexture, Scene, SceneLoader, Texture, TransformNode, VertexBuffer, type AbstractMesh, type AnimationGroup, type Material } from '@babylonjs/core';
+import { Color3, Mesh, MultiMaterial, PBRMaterial, RawTexture, Scene, SceneLoader, Texture, TransformNode, VertexBuffer, type AbstractMesh, type AnimationGroup, type Material } from '../babylon';
 import '@babylonjs/loaders/glTF';
 import { ZONE_MATERIALS, dressZones, type Look, type Zone } from './appearance.mjs';
 import { faceTarget, type Emotion } from './facialEmotions';

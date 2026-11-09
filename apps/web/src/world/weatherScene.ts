@@ -1,5 +1,5 @@
 import { type AbstractMesh, Color3, Color4, DynamicTexture, FresnelParameters, Matrix, Mesh, MeshBuilder, MirrorTexture, ParticleSystem, Plane, Quaternion, Ray, StandardMaterial, Vector3,
-  type DirectionalLight, type HemisphericLight, type Scene, type ShadowGenerator, type TargetCamera } from '@babylonjs/core';
+  type DirectionalLight, type HemisphericLight, type Scene, type ShadowGenerator, type TargetCamera } from '../babylon';
 import { PUDDLES, REFLECTIONS, cloudDrift, puddleLevel, puddlesNear, rainDropCount, weatherLook, wetReflection, wetSurface, type WeatherState } from './weather.mjs';
 
 /**

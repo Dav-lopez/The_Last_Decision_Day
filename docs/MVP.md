@@ -385,6 +385,10 @@ above is done or blocked; any item may be split into slices.
   gradients are sizes, not multipliers) and are now 3–13 cm. Settings radio buttons stretched to full width,
   the caption could run under the directions chip, the car radio covered the directions, and the Poly Haven
   credit link under the view was default blue on navy (1.3:1).
+- Loading (same review): the game imported Babylon.js from the package root, which bundles the whole engine.
+  Classes now come from their own modules through `src/babylon.ts` (side-effect imports listed there;
+  `babylon-imports.test.mjs` keeps it that way): babylon 1,617 → 957 KB gzipped, all JavaScript 2,001 → 1,341 KB.
+  The game menu loads on demand (WorldScene 135.7 → 133.0 KB). Budgets lowered to match.
 - Still open from that review: the school entrance is 10 m from where you start, so chapter 1's first objective
   is over in seconds; quick travel to downtown and the pitch is open from minute one while the objective still
   says "head for school"; downtown streets look bare beside Maple Street.

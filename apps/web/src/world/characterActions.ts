@@ -1,4 +1,4 @@
-import { AnimationGroup, SceneLoader, type AssetContainer, type Node, type Scene } from '@babylonjs/core';
+import { AnimationGroup, SceneLoader, type AssetContainer, type Node, type Scene } from '../babylon';
 import '@babylonjs/loaders/glTF';
 
 /** Action clips built for each body's rest pose by scripts/build-actions.py. */

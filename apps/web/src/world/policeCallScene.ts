@@ -1,7 +1,7 @@
 import {
   Color3, DynamicTexture, Mesh, MeshBuilder, PBRMaterial, SceneLoader, StandardMaterial, TransformNode, Vector3,
   type AnimationGroup, type Material, type Scene, type ShadowGenerator,
-} from '@babylonjs/core';
+} from '../babylon';
 import '@babylonjs/loaders/glTF';
 import { modelFor, normalizeLook } from './appearance.mjs';
 import { dressCharacter } from './riggedAvatar';

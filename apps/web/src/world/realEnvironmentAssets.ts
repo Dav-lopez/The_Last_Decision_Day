@@ -1,4 +1,4 @@
-import { Scene, SceneLoader, ShadowGenerator, TransformNode } from '@babylonjs/core';
+import { Scene, SceneLoader, ShadowGenerator, TransformNode } from '../babylon';
 import '@babylonjs/loaders/glTF';
 import { cloneEnvironmentAtSites } from './environmentInstances.mjs';
 import { PARKED_CARS } from './streetLayout.mjs';

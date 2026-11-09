@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { Engine } from '@babylonjs/core';
+import type { Engine } from '../babylon';
 import { ZOOM, applyPhotoFilter, captureSize, filterById, filterCss, type Photo, type PhotoFilterId } from './photoMode.mjs';
 import './photo.css';
 
