@@ -16,6 +16,8 @@ import { PUDDLES, REFLECTIONS, cloudDrift, puddleLevel, puddlesNear, rainDropCou
 const WET_MATERIALS = ['street', 'path', 'town asphalt', 'town sidewalk', 'city asphalt', 'city sidewalks', 'city brick pavers'];
 const GREY_DAY = new Color3(0.62, 0.65, 0.68);
 const GREY_EVENING = new Color3(0.2, 0.22, 0.26);
+/** Babylon types this as non-null, but a missing Fresnel is what it checks for. */
+const NO_FRESNEL = null as unknown as FresnelParameters;
 const RAIN_HEIGHT = 11;
 const DROP_SPEED = 17;
 
@@ -293,7 +295,7 @@ export function createWeatherView(scene: Scene, lights: { sun: DirectionalLight;
         material.reflectionFresnelParameters = fresnel(next.road);
       } else if (material.reflectionTexture === mirror) {
         material.reflectionTexture = null;
-        material.reflectionFresnelParameters = null;
+        material.reflectionFresnelParameters = NO_FRESNEL;
       }
     }
     if (texture && next.puddle > 0) {
@@ -301,7 +303,7 @@ export function createWeatherView(scene: Scene, lights: { sun: DirectionalLight;
       puddleMaterial.reflectionFresnelParameters = fresnel(next.puddle);
     } else {
       puddleMaterial.reflectionTexture = null;
-      puddleMaterial.reflectionFresnelParameters = null;
+      puddleMaterial.reflectionFresnelParameters = NO_FRESNEL;
     }
   };
 
