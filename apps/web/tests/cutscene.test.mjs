@@ -24,7 +24,7 @@ test('chapter openings and the endings are marked, with title cards', () => {
   assert.equal(sceneMood({ chapter: 0, step: 1, seen: false }), 'scene');
   assert.equal(sceneCard({ chapter: 0, step: 1, seen: false }), null);
   assert.deepEqual(sceneCard({ chapter: 1, step: 0, seen: false }), { kicker: 'Chapter 2', title: 'The Note' });
-  const last = CHAPTERS.length - 1;
+  const last = CHAPTERS.findIndex(chapter => chapter.id === 'last-decision-day');
   const steps = CHAPTERS[last].steps;
   const dayAfter = steps.findIndex((step, index) => steps[index - 1]?.decide);
   assert.ok(dayAfter > 0);
@@ -34,6 +34,11 @@ test('chapter openings and the endings are marked, with title cards', () => {
     assert.deepEqual(sceneCard({ chapter: last, step: epilogue, seen: false, decision: decision.id }), { kicker: 'Ending', title: decision.title });
   }
   assert.equal(sceneCard({ chapter: last, step: epilogue, seen: false }).title, 'The Last Decision Day');
+  // Book two opens like any chapter and ends on its own card, whatever you decided.
+  assert.deepEqual(sceneCard({ chapter: last + 1, step: 0, seen: false, decision: 'garden' }), { kicker: 'Chapter 6', title: 'The Letter' });
+  const finale = { chapter: CHAPTERS.length - 1, step: CHAPTERS.at(-1).steps.length - 1, seen: false, decision: 'football' };
+  assert.equal(sceneMood(finale), 'ending');
+  assert.deepEqual(sceneCard(finale), { kicker: 'Ending', title: 'Maple Street Stays' });
 });
 
 test('every scene in the story gets one known shot per line', () => {

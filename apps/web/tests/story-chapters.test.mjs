@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   CAST, CHAPTERS, DECISIONS, NEW_STORY, STORY_EVENTS, advanceStory, currentStep, markSceneSeen, normalizeStory, pendingScene, readStory,
-  storyComplete, writeStory,
+  storyComplete, decisionDayDone, writeStory,
 } from '../src/world/storyChapters.mjs';
 import { NPC_DIALOGUES, chooseNpcReply, newNpcRelations } from '../src/world/npcConversations.mjs';
 
@@ -99,7 +99,7 @@ test('chapters three to five solve the mystery and end on the decision you made'
     const { state, scenes } = playThrough(start, event);
     assert.equal(storyComplete(state), true);
     assert.equal(state.decision, decision.id);
-    assert.equal(currentStep(state).chapter.id, 'last-decision-day');
+    assert.equal(currentStep(state).chapter.id, 'the-hearing', 'book two follows on and ends at the hearing');
     const text = scenes.flat().map(line => line.text).join(' ');
     assert.ok(text.includes('A. Rivera'), 'the clue points to Ms. Rivera');
     assert.ok(text.includes('I left the note'), 'and she owns up');
@@ -109,6 +109,36 @@ test('chapters three to five solve the mystery and end on the decision you made'
   // The decision is saved and survives a reload, but junk is dropped.
   assert.equal(normalizeStory({ chapter: 4, step: 3, seen: true, decision: 'crossing' }).decision, 'crossing');
   assert.equal('decision' in normalizeStory({ chapter: 4, step: 3, seen: true, decision: 'casino' }), false);
+});
+
+test('book two starts the morning after Last Decision Day and follows the decision you made', () => {
+  const bookOne = CHAPTERS.findIndex(chapter => chapter.id === 'last-decision-day');
+  const epilogue = { chapter: bookOne, step: CHAPTERS[bookOne].steps.findIndex(step => step.final), seen: true, decision: 'crossing' };
+  assert.equal(storyComplete(epilogue), false, 'the first ending is no longer the end');
+  assert.equal(decisionDayDone(epilogue), true, 'but the street already shows your decision');
+  assert.equal(decisionDayDone({ chapter: bookOne, step: 1, seen: true }), false);
+  assert.equal(advanceStory(epilogue, 'talked-ruth').completed, null, 'you can stay on the epilogue as long as you like');
+  const next = advanceStory(epilogue, 'slept');
+  assert.equal(next.chapterDone?.id, 'last-decision-day');
+  assert.deepEqual(next.state, { chapter: bookOne + 1, step: 0, seen: false, decision: 'crossing' });
+  assert.equal(currentStep(next.state).chapter.id, 'the-letter');
+  assert.ok(pendingScene(next.state).some(line => /white stripes/.test(line.text)), 'the letter names what you built');
+  assert.ok(pendingScene({ ...next.state, decision: 'garden' }).some(line => /planters/.test(line.text)));
+  assert.ok(pendingScene({ chapter: bookOne + 1, step: 0, seen: false }).length > 0, 'and has a default');
+
+  const { state, scenes } = playThrough(next.state, 'talked-okafor');
+  assert.equal(storyComplete(state), true);
+  assert.equal(decisionDayDone(state), true);
+  assert.equal(state.decision, 'crossing', 'book two never changes the decision');
+  const text = scenes.flat().map(line => line.text).join(' ');
+  assert.ok(text.includes('B. Brooks'), 'the photo names the Captain');
+  assert.ok(/third sponsor/.test(text), 'and he signs in the end');
+  const speakers = new Set(scenes.flat().map(line => line.speaker));
+  for (const who of ['priya', 'dee', 'brooks']) assert.ok(speakers.has(who), `${who} has a part`);
+  // The three sponsors are met in person, downtown, in order.
+  const town = CHAPTERS.find(chapter => chapter.id === 'friends-in-town').steps.flatMap(step => step.completeOn);
+  assert.deepEqual(town.filter(event => /priya|dee|brooks/.test(event)), ['talked-priya', 'talked-dee', 'talked-brooks']);
+  assert.equal(CHAPTERS.filter(chapter => chapter.steps.some(step => step.decide)).length, 1, 'still one decision');
 });
 
 test('the new chapters only move on events the world really reports', () => {

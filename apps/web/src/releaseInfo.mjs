@@ -10,6 +10,15 @@ export const GAME_TAGLINE = 'Your life. Your choices. Your consequences.';
  */
 export const RELEASE_NOTES = Object.freeze([
   Object.freeze({
+    id: '2026-11-09', title: 'A new story: The Winter After',
+    items: Object.freeze([
+      'Three new chapters. Finish Last Decision Day, sleep, and a letter with a real stamp is waiting on your doormat.',
+      'What you built on Maple Street is under threat, and the story follows the decision you made: garden, crossing or club.',
+      'Priya, Coach Dee and Captain Brooks downtown now have parts in the story. One of them is in an old photo.',
+      'Also new: a full-screen button beside the menu, a bigger view, and a much smaller download.',
+    ]),
+  }),
+  Object.freeze({
     id: '2026-11-04', title: 'Route march, scored',
     items: Object.freeze([
       'Army route marches are scored: every checkpoint times your leg against its own par (Sharp, On pace, Steady, Behind).',

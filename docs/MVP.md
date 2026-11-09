@@ -35,6 +35,8 @@ A new player can:
 - [x] Football: free kick-about and a five-a-side match against the AI
 - [x] Music, sound effects and ambience; two-player online rooms with chat, voice and emotes
 - [x] Story chapters 1–5 with three endings that change Maple Street
+- [x] Book two, "The Winter After" (chapters 6–8): starts when you sleep after Last Decision Day, follows the
+      decision you made, and gives the downtown regulars (Priya, Coach Dee, Captain Brooks) parts in the story
 - [x] Adaptive graphics quality, clustered night lights
 
 ## To do (in order)

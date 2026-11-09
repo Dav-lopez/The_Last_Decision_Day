@@ -18,6 +18,7 @@ export const SHOT_SECONDS = 7;
 export const SPEAKER_RESIDENTS = Object.freeze({
   maya: 'student-a', jordan: 'student-b', rivera: 'teacher', okafor: 'neighbor-east',
   tess: 'jogger-west', marcus: 'walker-east', ruth: 'crosser',
+  priya: 'downtown-guide', dee: 'downtown-coach', brooks: 'downtown-captain',
 });
 /** Someone this close (metres) is "in the scene" and gets their own shots. */
 export const NEAR_METRES = 9;
@@ -49,6 +50,8 @@ export function sceneCard(state) {
   const step = chapter.steps[Number.isInteger(state?.step) ? state.step : 0];
   if (!step) return null;
   if (step.final) {
+    // Book two's ending has its own card; book one's names the decision you made.
+    if (step.card) return { kicker: 'Ending', title: step.card };
     const ending = Object.values(DECISIONS).find(decision => decision.id === state?.decision);
     return { kicker: 'Ending', title: ending ? ending.title : 'The Last Decision Day' };
   }

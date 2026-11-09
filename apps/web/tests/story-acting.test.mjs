@@ -19,8 +19,10 @@ test('beats are known, and each staged moment is in the story where it belongs',
   assert.ok(has('note', /under your front door/));
   assert.ok(has('photo', /faded photo/));
   assert.ok(has('reveal', /Ms\. Rivera\?/));
-  // All three endings get their celebration when the street changes.
-  assert.equal(beats.filter(line => line.beat === 'celebrate').length, 3);
+  assert.ok(has('note', /envelope on your doormat/), 'book two opens on the letter');
+  assert.ok(has('reveal', /played for Maple Street/));
+  // All three endings get their celebration when the street changes, and again when it is saved (plus its default).
+  assert.equal(beats.filter(line => line.beat === 'celebrate').length, 7);
 });
 
 test('you talk on your lines and stop when someone else speaks', () => {

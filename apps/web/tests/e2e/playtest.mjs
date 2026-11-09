@@ -806,7 +806,7 @@ for (const [event, ending] of Object.entries(DECISIONS)) {
       }
       state = advanceStory(state, current.decide ? event : current.completeOn[0]).state;
     }
-    if (!storyComplete(state)) throw new Error('the story never reached its epilogue');
+    if (!storyComplete(state)) throw new Error('the story never reached the end of book two');
     const final = (await read()).story;
     if (final.decision !== ending.id) throw new Error(`decision saved as ${final.decision}, expected ${ending.id}`);
     await waitFor(`Maple Street shows "${ending.title}"`, timeout => page.waitForFunction(id => window.__tld.read().decor === id, ending.id, { timeout }), 30000);

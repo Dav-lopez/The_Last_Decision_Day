@@ -97,7 +97,7 @@ import { NEAR_METRES, SPEAKER_RESIDENTS, planShots, sceneCard, sceneMood, shotPo
 import { lineActing, type StoryEmotion } from './storyActing.mjs';
 import { headGestureFor, headGestureOffset, type HeadGesture } from './headGestures.mjs';
 import { createNpcHeadRig } from './npcHeadRig.mjs';
-import { CAST, NEW_STORY, advanceStory, currentStep, markSceneSeen, pendingScene, readStory, storyComplete, writeStory,
+import { CAST, NEW_STORY, advanceStory, currentStep, markSceneSeen, pendingScene, readStory, storyComplete, decisionDayDone, writeStory,
   type StoryEvent, type StoryLine, type StoryState } from './storyChapters.mjs';
 import { buildSurroundings } from './worldSurroundings';
 import { createAtmosphere } from './sceneAtmosphere';
@@ -1019,7 +1019,7 @@ export default function WorldScene({
       let decorFor: string | null = null;
       decorRef.current = () => {
         const current = storyRef.current;
-        const want = storyComplete(current) && current.decision ? current.decision : null;
+        const want = decisionDayDone(current) && current.decision ? current.decision : null;
         if (want === decorFor || scene.isDisposed) return;
         decor?.dispose();
         decor = want ? buildDecisionDecor(scene, want) : null;

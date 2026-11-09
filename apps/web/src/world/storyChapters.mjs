@@ -30,6 +30,9 @@ export const CAST = Object.freeze({
   marcus: Object.freeze({ name: 'Marcus', tone: 'neighbour' }),
   elena: Object.freeze({ name: 'Elena (text message)', tone: 'phone' }),
   tess: Object.freeze({ name: 'Tess', tone: 'neighbour' }),
+  priya: Object.freeze({ name: 'Priya', tone: 'neighbour' }),
+  dee: Object.freeze({ name: 'Coach Dee', tone: 'neighbour' }),
+  brooks: Object.freeze({ name: 'Captain Brooks', tone: 'neighbour' }),
 });
 
 /** The last decision: who you tell decides what changes on Maple Street. */
@@ -194,7 +197,7 @@ export const CHAPTERS = Object.freeze([
           ['narrator', 'Word spreads. Jordan has already designed a kit.'],
         ],
       }),
-      step('epilogue', 'The story is complete. Keep living your life on Maple Street', [], {
+      step('epilogue', 'Last Decision Day is done. Enjoy your street, then sleep when you are ready for what comes next', ['slept'], {
         default: [['narrator', 'Last Decision Day.']],
         garden: [
           ['narrator', 'Last Decision Day. Neighbours you have never met dig planters in front of the houses.', 'celebrate'],
@@ -214,6 +217,134 @@ export const CHAPTERS = Object.freeze([
       }, [], { final: true }),
     ]),
   }),
+  // Book two, "The Winter After": what your decision costs, and who stands up for it. It starts the morning
+  // after Last Decision Day and its scenes follow the decision you made (see DECISIONS).
+  Object.freeze({
+    id: 'the-letter',
+    title: 'Chapter 6 · The Letter',
+    steps: Object.freeze([
+      step('the-letter', 'Show the letter to Mr. Okafor (he walks the east sidewalk)', ['talked-okafor'], {
+        default: [
+          ['narrator', 'A month later. First frost on Maple Street, and an envelope on your doormat. A real stamp, this time.', 'note'],
+          ['stranger', '"NOTICE. Unregistered street works on Maple Street must be removed by Friday. Fire Safety Office, Capt. B. Brooks."'],
+          ['you', 'Removed? We only just made it.'],
+        ],
+        garden: [
+          ['narrator', 'A month later. First frost on the new planters, and an envelope on your doormat. A real stamp, this time.', 'note'],
+          ['stranger', '"NOTICE. Unregistered planters on Maple Street must be removed by Friday. Fire Safety Office, Capt. B. Brooks."'],
+          ['you', 'Removed? The tomatoes have not even had a summer.'],
+        ],
+        crossing: [
+          ['narrator', 'A month later. First frost on the new white stripes, and an envelope on your doormat. A real stamp, this time.', 'note'],
+          ['stranger', '"NOTICE. Unregistered signs and markings on Maple Street must be removed by Friday. Fire Safety Office, Capt. B. Brooks."'],
+          ['you', 'Removed? The bus only just learned to slow down.'],
+        ],
+        football: [
+          ['narrator', 'A month later. First frost on the club banner, and an envelope on your doormat. A real stamp, this time.', 'note'],
+          ['stranger', '"NOTICE. Unregistered banners and goals on Maple Street must be removed by Friday. Fire Safety Office, Capt. B. Brooks."'],
+          ['you', 'Removed? We have not even played a home game.'],
+        ],
+      }),
+      step('ask-ruth-again', 'Ask Ruth what she knows about the Fire Safety Office (she uses the crossing by the school)', ['talked-ruth'], [
+        ['okafor', 'Unregistered. Hm. In the old days the Association held a permit for everything, even the bunting.'],
+        ['okafor', 'The Association stopped meeting, so the permit lapsed. On paper, young one, your decision belongs to nobody.'],
+        ['okafor', 'Ask Ruth who this Captain is. She will know his shoe size.'],
+      ]),
+      step('rivera-papers', 'Ask Ms. Rivera about the Association papers (inside the school)', ['talked-teacher'], [
+        ['ruth', 'Brooks? Fire station downtown, dear. Does everything by the book and reads the book twice.'],
+        ['ruth', 'Ana Rivera kept the Association papers. If anyone can make us official again, she can.'],
+      ]),
+      step('sleep-on-the-letter', 'Head home and sleep. Friday is four days away', ['slept'], [
+        ['rivera', 'I still have the charter. The Association can be registered again, and a registered street can apply for a permit.'],
+        ['rivera', 'But it needs three sponsors from outside Maple Street. People in town who will say this street is worth the paperwork.'],
+        ['you', 'Three people downtown, by Friday.'],
+        ['rivera', 'You met a whole street in a week. I like your chances.'],
+      ]),
+    ]),
+  }),
+  Object.freeze({
+    id: 'friends-in-town',
+    title: 'Chapter 7 · Friends in Town',
+    steps: Object.freeze([
+      step('back-downtown', 'Go downtown: bus from the Maple Street stop, a taxi from the map (N), or drive out past the gate', ['went-downtown'], [
+        ['narrator', 'Morning. Three blank lines on the form: Sponsor one. Sponsor two. Sponsor three.'],
+        ['mom', 'Ruth told me about the letter!! Go get your signatures. Wear a coat ❤️'],
+      ]),
+      step('meet-priya', 'Ask Priya at the downtown bus stop to be a sponsor', ['talked-priya'], [
+        ['elena', 'Start with Priya at the bus stop. She gives directions to half the town, and the other half asks her first.'],
+      ]),
+      step('earn-it', 'Work a shift: show the town that Maple Street pulls its weight (apply again at a station if you left your job)', ['worked-shift'], [
+        ['priya', 'Maple Street? You are the ones who changed your own street without waiting to be asked. I will sign.'],
+        ['priya', 'A tip, though. Town listens to people it has seen working. Do your shift today, and let them see you.'],
+      ]),
+      step('meet-dee', 'Ask Coach Dee at the Central Park pitch to be a sponsor', ['talked-dee'], [
+        ['narrator', 'End of shift. Your boss signs your timesheet, then looks at the form sticking out of your pocket.'],
+        ['narrator', '"Sponsors, is it? Try Dee at the pitch. She has coached half the council\'s children."'],
+      ]),
+      step('charity-match', 'Play a five-a-side match at the Central Park pitch (M on the pitch)', ['played-match'], [
+        ['dee', 'I sign for teams, not for speeches. Get Maple Street on this pitch and play. Then we talk.'],
+        ['jordan', 'Did somebody say match? I brought the kit. I always bring the kit.'],
+      ]),
+      step('meet-brooks', 'Find Captain Brooks at the fire station downtown and talk to him', ['talked-brooks'], [
+        ['dee', 'You play like you mean it. That is two signatures. For the third you will want somebody the council trusts.'],
+        ['narrator', 'In the clubhouse, the faded photo again: the Maple Street team, 1998. This time you read the back row.', 'photo'],
+        ['narrator', 'Goalkeeper, with the captain\'s armband: B. Brooks.', 'photo'],
+        ['you', 'The Captain who wrote the letter played for Maple Street.', 'reveal'],
+      ]),
+      step('home-from-town', 'Head home to Maple Street', ['entered-home'], [
+        ['brooks', 'I kept goal for that street for nine seasons. Then the Association stopped meeting and nobody rang.'],
+        ['brooks', 'I wrote that notice because the rule is the rule, and because I thought nobody was left there who cared.'],
+        ['brooks', 'An inspector cannot sponsor what he inspects. But there is a hearing on Friday. Show me a street, and I will see what I can do.'],
+      ]),
+    ]),
+  }),
+  Object.freeze({
+    id: 'the-hearing',
+    title: 'Chapter 8 · The Hearing',
+    steps: Object.freeze([
+      step('rally-tess', 'Ask Tess to get the whole street to the hearing (she jogs the west sidewalk)', ['talked-tess'], [
+        ['narrator', 'Thursday. Two signatures on the form, one empty line, and a hearing tomorrow.'],
+        ['you', 'Show him a street. Fine. Who can get a whole street out of bed?'],
+      ]),
+      step('rally-marcus', 'Tell Marcus about the hearing (he walks the east sidewalk)', ['talked-marcus'], [
+        ['tess', 'Everybody, town hall, nine sharp? I will knock on every door. Twice, if they pretend to be asleep.'],
+        ['tess', 'Tell Marcus. If he is driving, nobody has an excuse.'],
+      ]),
+      step('one-more-class', 'Attend one more class while the street gets ready', ['attended-class'], [
+        ['marcus', 'A hearing? I will borrow the minibus. Ruth rides up front, or we never hear the end of it.'],
+        ['maya', 'Jordan made badges. They say I AM A STREET. Please act like that is normal.'],
+      ]),
+      step('night-before', 'Head home and sleep. The hearing is in the morning', ['slept'], [
+        ['rivera', 'The charter is filed, and you are on it. The newest neighbour signs last. That is the tradition.'],
+        ['rivera', 'Whatever the council says tomorrow, you did this properly. Get some sleep.'],
+      ]),
+      step('the-winter-after', 'Both stories are complete. Keep living your life on Maple Street', [], {
+        default: [
+          ['narrator', 'Friday. The whole of Maple Street fills three rows of the council chamber.', 'celebrate'],
+          ['brooks', 'Notice withdrawn. And put me down as the third sponsor. I am off duty as of now.'],
+          ['rivera', 'The Association needs a new secretary. Next autumn, somebody new will find a note signed with your initial.'],
+        ],
+        garden: [
+          ['narrator', 'Friday. Maple Street fills three rows of the council chamber, and Mr. Okafor has brought tomatoes for the clerk.', 'celebrate'],
+          ['brooks', 'Planters moved one metre back from the hydrant, permit granted. Put me down as the third sponsor. I am off duty.'],
+          ['okafor', 'One metre. The tomatoes will forgive him.'],
+          ['rivera', 'The Association needs a new secretary. Next autumn, somebody new will find a note signed with your initial.'],
+        ],
+        crossing: [
+          ['narrator', 'Friday. Maple Street fills three rows of the council chamber, and Marcus has parked the minibus very legally.', 'celebrate'],
+          ['brooks', 'The crossing stays. Slow streets are easier for my engines, not harder. Put me down as the third sponsor. I am off duty.'],
+          ['marcus', 'Hear that? Even the fire engine slows down.'],
+          ['rivera', 'The Association needs a new secretary. Next autumn, somebody new will find a note signed with your initial.'],
+        ],
+        football: [
+          ['narrator', 'Friday. Maple Street fills three rows of the council chamber, in full kit. Jordan insisted.', 'celebrate'],
+          ['brooks', 'The banner stays, tied higher. Put me down as the third sponsor. And if the club needs a goalkeeper, I am off duty.'],
+          ['tess', 'Laps first, Captain. Same as everybody.'],
+          ['rivera', 'The Association needs a new secretary. Next autumn, somebody new will find a note signed with your initial.'],
+        ],
+      }, [], { final: true, card: 'Maple Street Stays' }),
+    ]),
+  }),
 ]);
 
 export const NEW_STORY = Object.freeze({ chapter: 0, step: 0, seen: false });
@@ -227,9 +358,17 @@ export function normalizeStory(value) {
   return { chapter, step: stepIndex, seen: safe.seen === true, ...(decision ? { decision } : {}) };
 }
 
-/** True once the final scene has been reached: nothing left to do but live. */
+/** True once the very last scene has been reached: nothing left to do but live. */
 export function storyComplete(state) {
-  return Boolean(currentStep(state).step.final);
+  const story = normalizeStory(state);
+  return story.chapter === CHAPTERS.length - 1 && Boolean(currentStep(story).step.final);
+}
+
+const DECISION_CHAPTER = CHAPTERS.findIndex(chapter => chapter.steps.some(step => step.decide));
+/** True once Last Decision Day has happened (book one's ending, and all of book two): the street shows your decision. */
+export function decisionDayDone(state) {
+  const story = normalizeStory(state);
+  return story.chapter > DECISION_CHAPTER || Boolean(currentStep(story).step.final);
 }
 
 export function currentStep(state) {
