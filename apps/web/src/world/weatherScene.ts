@@ -1,6 +1,6 @@
-import { type AbstractMesh, Color3, Color4, DynamicTexture, Matrix, Mesh, MeshBuilder, ParticleSystem, Quaternion, Ray, StandardMaterial, Vector3,
+import { type AbstractMesh, Color3, Color4, DynamicTexture, FresnelParameters, Matrix, Mesh, MeshBuilder, MirrorTexture, ParticleSystem, Plane, Quaternion, Ray, StandardMaterial, Vector3,
   type DirectionalLight, type HemisphericLight, type Scene, type ShadowGenerator, type TargetCamera } from '@babylonjs/core';
-import { PUDDLES, cloudDrift, puddleLevel, puddlesNear, rainDropCount, weatherLook, wetSurface, type WeatherState } from './weather.mjs';
+import { PUDDLES, REFLECTIONS, cloudDrift, puddleLevel, puddlesNear, rainDropCount, weatherLook, wetReflection, wetSurface, type WeatherState } from './weather.mjs';
 
 /**
  * Weather in the 3D world (open-world 18a): rain that falls around the camera
@@ -16,6 +16,8 @@ import { PUDDLES, cloudDrift, puddleLevel, puddlesNear, rainDropCount, weatherLo
 const WET_MATERIALS = ['street', 'path', 'town asphalt', 'town sidewalk', 'city asphalt', 'city sidewalks', 'city brick pavers'];
 const GREY_DAY = new Color3(0.62, 0.65, 0.68);
 const GREY_EVENING = new Color3(0.2, 0.22, 0.26);
+/** Babylon types this as non-null, but a missing Fresnel is what it checks for. */
+const NO_FRESNEL = null as unknown as FresnelParameters;
 const RAIN_HEIGHT = 11;
 const DROP_SPEED = 17;
 
@@ -24,11 +26,15 @@ export type WeatherView = {
   rebase(part?: 'all' | 'fog'): void;
   update(state: WeatherState, frame: { evening: boolean; outdoors: boolean; camera: TargetCamera; quality: { scale: number; base: number };
     /** Seconds since the last frame (moves the clouds) and where you are (puddles are found again in a new place). */
-    seconds?: number; place?: string; player?: { x: number; z: number } }): void;
+    seconds?: number; place?: string; player?: { x: number; z: number };
+    /** The device can afford mirrored wet roads (20c): a second, smaller view of the street. */
+    reflections?: boolean }): void;
   /** Rain drops alive right now (the playtest reads it). */
   drops(): number;
   /** Puddles drawn right now and how full they are (the playtest reads it). */
   puddles(): { count: number; level: number };
+  /** Wet-road reflections right now: on or off, their strength on the road and in puddles, and how many meshes are mirrored. */
+  reflections(): { on: boolean; road: number; puddle: number; meshes: number };
   dispose(): void;
 };
 
@@ -164,6 +170,7 @@ export function createWeatherView(scene: Scene, lights: { sun: DirectionalLight;
 
   // Wet ground: darker, glossier; the dry look is remembered per material.
   const dry = new Map<StandardMaterial, { diffuse: Color3; specular: Color3; power: number }>();
+  const isWetGround = (mesh: { material: { name: string } | null }) => Boolean(mesh.material && WET_MATERIALS.includes(mesh.material.name));
   let wetApplied = -1;
   let wetScan = 0;
   const applyWet = (wet: number, force: boolean) => {
@@ -201,7 +208,6 @@ export function createWeatherView(scene: Scene, lights: { sun: DirectionalLight;
   puddle.alwaysSelectAsActiveMesh = true;
   puddle.setEnabled(false);
   const groundY = new Map<string, number | null>();
-  const isWetGround = (mesh: { material: { name: string } | null }) => Boolean(mesh.material && WET_MATERIALS.includes(mesh.material.name));
   const down = new Ray(new Vector3(), new Vector3(0, -1, 0), 12);
   let puddlePlace = '';
   let puddleCell = '';
@@ -240,6 +246,65 @@ export function createWeatherView(scene: Scene, lights: { sun: DirectionalLight;
     // Try again next frame while spots are still being looked up.
     puddleCell = pending ? '' : cell;
     puddleShown = rounded;
+  };
+
+  // Reflections (20c): one planar mirror of the street at road height, drawn at a fraction of the screen's
+  // resolution every other frame, smeared down the screen like light on wet asphalt. Only what stands up off the
+  // ground nearby is mirrored (not the ground itself), and only while the device can afford it.
+  let mirror: MirrorTexture | null = null;
+  let reflecting = { on: false, road: 0, puddle: 0 };
+  let reflectKey = '';
+  const mirrorView = () => {
+    if (mirror) return mirror;
+    const texture = new MirrorTexture('wet road reflections', { ratio: REFLECTIONS.ratio }, scene, false);
+    texture.mirrorPlane = Plane.FromPositionAndNormal(new Vector3(0, REFLECTIONS.planeY, 0), new Vector3(0, -1, 0));
+    texture.refreshRate = REFLECTIONS.refreshRate;
+    texture.renderParticles = false;
+    texture.renderSprites = false;
+    texture.blurKernelX = 3;
+    texture.blurKernelY = 24;
+    const eye = new Vector3();
+    texture.renderListPredicate = (mesh: AbstractMesh) => {
+      if (mesh === puddle || !mesh.isEnabled() || !mesh.isVisible || mesh.visibility <= 0.05) return false;
+      if ((mesh.layerMask & 0x0fffffff) === 0 || isWetGround(mesh)) return false;
+      const bounds = mesh.getBoundingInfo();
+      if (bounds.boundingBox.maximumWorld.y < REFLECTIONS.minHeight) return false;
+      const sphere = bounds.boundingSphere;
+      const camera = scene.activeCamera;
+      if (camera) eye.copyFrom(camera.globalPosition);
+      return Vector3.Distance(sphere.centerWorld, eye) - sphere.radiusWorld < REFLECTIONS.range;
+    };
+    mirror = texture;
+    return texture;
+  };
+  const fresnel = (strength: number) => new FresnelParameters({
+    bias: 0.1, power: 2,
+    leftColor: new Color3(strength, strength, strength),
+    rightColor: new Color3(strength * REFLECTIONS.facing, strength * REFLECTIONS.facing, strength * REFLECTIONS.facing),
+  });
+  const applyReflection = (next: { on: boolean; road: number; puddle: number }, force: boolean) => {
+    const key = `${next.on}|${next.road}|${next.puddle}`;
+    if (!force && key === reflectKey) return;
+    reflectKey = key;
+    reflecting = next;
+    const texture = next.on ? mirrorView() : null;
+    for (const material of scene.materials) {
+      if (!(material instanceof StandardMaterial) || !WET_MATERIALS.includes(material.name)) continue;
+      if (texture && next.road > 0) {
+        material.reflectionTexture = texture;
+        material.reflectionFresnelParameters = fresnel(next.road);
+      } else if (material.reflectionTexture === mirror) {
+        material.reflectionTexture = null;
+        material.reflectionFresnelParameters = NO_FRESNEL;
+      }
+    }
+    if (texture && next.puddle > 0) {
+      puddleMaterial.reflectionTexture = texture;
+      puddleMaterial.reflectionFresnelParameters = fresnel(next.puddle);
+    } else {
+      puddleMaterial.reflectionTexture = null;
+      puddleMaterial.reflectionFresnelParameters = NO_FRESNEL;
+    }
   };
 
   const view: WeatherView = {
@@ -290,6 +355,7 @@ export function createWeatherView(scene: Scene, lights: { sun: DirectionalLight;
       wetScan -= 1;
       // Downtown's ground materials appear on the first trip there: look again every few hundred frames.
       applyWet(state.wet, wetScan <= 0 && state.wet > 0);
+      applyReflection(wetReflection(state, Boolean(frame.reflections) && frame.outdoors), wetScan <= 0 && reflecting.on);
       if (wetScan <= 0) wetScan = 300;
 
       const camera = frame.camera.globalPosition;
@@ -311,8 +377,11 @@ export function createWeatherView(scene: Scene, lights: { sun: DirectionalLight;
     },
     drops: () => rain.getActiveCount(),
     puddles: () => ({ count: puddleCount, level: Math.round(puddleFill * 100) / 100 }),
+    reflections: () => ({ ...reflecting, meshes: reflecting.on ? mirror?.renderList?.length ?? 0 : 0 }),
     dispose() {
       applyWet(0, true);
+      applyReflection({ on: false, road: 0, puddle: 0 }, true);
+      mirror?.dispose();
       rain.dispose();
       splash.dispose();
       overcast.dispose();

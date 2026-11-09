@@ -26,3 +26,5 @@ export type Puddle = { x: number; z: number; radius: number; stretch: number; ro
 export declare function puddleInCell(cx: number, cz: number): Puddle | null;
 export declare function puddlesNear(x: number, z: number, range?: number): Array<Puddle & { key: string; distance: number }>;
 export declare function puddleLevel(state: WeatherAmounts): number;
+export declare const REFLECTIONS: Readonly<{ fromWet: number; fullWet: number; road: number; puddle: number; facing: number; range: number; minHeight: number; ratio: number; refreshRate: number; planeY: number }>;
+export declare function wetReflection(state: WeatherAmounts, allowed?: boolean): { on: boolean; road: number; puddle: number };

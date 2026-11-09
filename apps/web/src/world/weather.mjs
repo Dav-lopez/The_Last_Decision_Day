@@ -222,3 +222,22 @@ export function puddlesNear(x, z, range = PUDDLES.range) {
 export function puddleLevel(state) {
   return clamp01((clamp01(state?.wet) - PUDDLES.fillFrom) / (PUDDLES.fillTo - PUDDLES.fillFrom));
 }
+
+/**
+ * Reflections on wet roads (open-world 20c): the street is mirrored in the wet ground, faint on damp asphalt and
+ * strong in puddles, stronger at a glancing angle (down the street) than looking straight down. `road` and `puddle`
+ * are reflection strengths 0–1 in steps of 0.05, so the materials are only touched when they change.
+ * `allowed` is false where the device can't afford a second view of the street (phones, the Performance preset,
+ * or while automatic graphics are holding the frame rate up).
+ */
+export const REFLECTIONS = Object.freeze({ fromWet: 0.15, fullWet: 0.7, road: 0.45, puddle: 0.9, facing: 0.25, range: 90, minHeight: 0.3, ratio: 0.4, refreshRate: 2, planeY: 0.01 });
+
+export function wetReflection(state, allowed = true) {
+  if (!allowed) return { on: false, road: 0, puddle: 0 };
+  const { fromWet, fullWet } = REFLECTIONS;
+  const soak = clamp01((clamp01(state?.wet) - fromWet) / (fullWet - fromWet));
+  const step = value => Math.round(value * 20) / 20;
+  const road = step(REFLECTIONS.road * soak);
+  const puddle = step(REFLECTIONS.puddle * Math.max(soak, puddleLevel(state)));
+  return { on: road > 0 || puddle > 0, road, puddle };
+}

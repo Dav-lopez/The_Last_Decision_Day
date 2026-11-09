@@ -377,6 +377,15 @@ await step('weather: rain falls downtown, roads get wet, then fog (open-world 18
   const wetRead = (await read()).weather;
   if (!(wetRead.grip < 0.85)) throw new Error(`wet roads should grip less, grip is ${wetRead.grip}`);
   notes.push(`${wetRead.puddles.count} puddles, road grip ${wetRead.grip.toFixed(2)}`);
+  // 20c: where the device can afford it, the soaked street is mirrored in the road and the puddles.
+  const mirrored = wetRead.reflections;
+  if (mirrored.allowed) {
+    await waitFor('wet roads reflect the street', timeout => page.waitForFunction(() => { const r = window.__tld.read().weather.reflections; return !r.allowed || (r.on && r.road > 0 && r.puddle >= r.road && r.meshes > 0); }, null, { timeout, polling: 500 }), 20000);
+  } else if (mirrored.on) {
+    throw new Error(`reflections are on although the device can't afford them: ${JSON.stringify(mirrored)}`);
+  }
+  const mirrorRead = (await read()).weather.reflections;
+  notes.push(`reflections ${mirrorRead.on ? `on (road ${mirrorRead.road}, puddles ${mirrorRead.puddle}, ${mirrorRead.meshes} meshes mirrored)` : `off (allowed: ${mirrorRead.allowed})`}`);
   await page.waitForTimeout(1500);
   await shot('05c-rain');
   await checkContrast('rain downtown');

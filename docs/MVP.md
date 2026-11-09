@@ -359,6 +359,14 @@ above is done or blocked; any item may be split into slices.
         where it doesn't, so lamps light the street on every device. The guest playtest checks the shadow and canyon
         counts and that the pools follow the street lights. Still to do: higher-detail characters and reflections on
         wet roads.
+  - [x] 20c (partial slice). Reflections on wet roads: once the ground is properly wet, the street is mirrored in the
+        asphalt, pavements and puddles (`wetReflection`): faint on damp roads, strong in puddles, and stronger looking
+        down the street than straight down. One planar mirror at road height, drawn at 40 % of the screen's resolution
+        every other frame and smeared down the screen like lamp light on wet asphalt; only what stands up off the
+        ground within 90 m is mirrored (buildings, cars, lamps, people, the sky), never the ground itself. It's on
+        where ambient occlusion is too: desktops, not the Performance preset, and it switches off while automatic
+        graphics are holding the frame rate up; phones keep the cheap sky tint on puddles. 2 tests; the guest playtest
+        checks the mirror comes on in the rain where the device allows it. Still to do: higher-detail characters.
 
 ## Found along the way
 
