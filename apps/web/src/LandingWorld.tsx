@@ -3,7 +3,7 @@ import { addNeighborhoodDetails } from './world/neighborhoodDetails';
 import { ArcRotateCamera, Color3, Color4, DirectionalLight, Engine, HemisphericLight, MeshBuilder, Scene, StandardMaterial, TransformNode, Vector3 } from '@babylonjs/core';
 
 /** A lightweight, real-time 3D neighborhood for visitors who have not signed in. */
-export default function LandingWorld() {
+export default function LandingWorld({ onPlay }: { onPlay?: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [unavailable, setUnavailable] = useState(false);
   useEffect(() => {
@@ -111,6 +111,7 @@ export default function LandingWorld() {
       <h2>One life. Infinite decisions.</h2>
       <p>Explore your neighborhood, build a future and watch your story unfold.</p>
       <span className="landing-hint" role={unavailable ? 'status' : undefined}>{unavailable ? '3D preview unavailable in this browser. Sign-in and account controls remain available below.' : 'Explore the neighborhood with your mouse or touch'}</span>
+      {onPlay && <button type="button" className="landing-play" onClick={onPlay}>Play now</button>}
     </div>
   </div>;
 }

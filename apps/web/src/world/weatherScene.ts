@@ -156,8 +156,9 @@ export function createWeatherView(scene: Scene, lights: { sun: DirectionalLight;
   splash.maxEmitPower = 0.5;
   splash.minSize = 0.05;
   splash.maxSize = 0.12;
-  splash.addSizeGradient(0, 0.4);
-  splash.addSizeGradient(1, 1.6);
+  // Size gradients are sizes in metres, not multipliers of minSize/maxSize: a splash grows from 3 cm to 13 cm.
+  splash.addSizeGradient(0, 0.03);
+  splash.addSizeGradient(1, 0.13);
   splash.minLifeTime = 0.18;
   splash.maxLifeTime = 0.32;
   splash.color1 = new Color4(0.85, 0.9, 0.95, 0.5);

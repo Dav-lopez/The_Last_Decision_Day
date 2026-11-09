@@ -336,7 +336,7 @@ function App() {
         preview={preview} lifeSync={profile ? accountLifeSync : undefined}
         progressSync={profile ? accountProgressSync : undefined} />
     </Suspense></GameErrorBoundary> :
-      <GameErrorBoundary><Suspense fallback={<div className="hero hero-placeholder" role="status">Preparing your neighborhood…</div>}><LandingWorld /></Suspense></GameErrorBoundary>}
+      <GameErrorBoundary><Suspense fallback={<div className="hero hero-placeholder" role="status">Preparing your neighborhood…</div>}><LandingWorld onPlay={session ? undefined : () => { setGuestDemo(true); setMessage(''); }} /></Suspense></GameErrorBoundary>}
     {profile && <OnlineRoomPanel key={profile.id} clientRef={onlineRef} />}
     <section className="panel" aria-live="polite">
       {loading ? <p>Loading your account…</p> : guestDemo && !session ? <>
@@ -348,7 +348,7 @@ function App() {
           <button type="button" aria-pressed={mode === 'login'} onClick={() => { setMode('login'); setMessage(''); }}>Sign in</button>
           <button type="button" aria-pressed={mode === 'register'} onClick={() => { setMode('register'); setMessage(''); }}>Create account</button>
         </div>
-        <button type="button" onClick={() => { setGuestDemo(true); setMessage(''); }}>Try the 3D demo without signing in</button>
+        <button type="button" className="demo-start" onClick={() => { setGuestDemo(true); setMessage(''); }}>Try the 3D demo without signing in</button>
         <form onSubmit={authenticate}>
           <h2>{mode === 'login' ? 'Welcome back' : 'Create your account'}</h2>
           <p>{mode === 'login' ? 'Sign in to continue your saved life.' : 'Registration is currently invite-only for adults aged 18 or older. Your date of birth stays private.'}</p>
