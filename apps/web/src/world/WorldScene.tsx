@@ -706,6 +706,10 @@ export default function WorldScene({
       return null;
     });
   };
+  // Clicking through a story scene leaves keyboard focus on nothing: hand it back to the 3D view when the scene ends.
+  useEffect(() => {
+    if (!dialogue && worldReadyRef.current && document.activeElement === document.body) canvasRef.current?.focus({ preventScroll: true });
+  }, [dialogue]);
   const reportStory = (event: StoryEvent) => {
     const result = advanceStory(storyRef.current, event);
     if (!result.completed) return;
