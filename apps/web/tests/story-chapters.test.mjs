@@ -26,7 +26,7 @@ test('every step has an objective, completes on real world events, and every lin
 
 test('chapter one plays from arrival to the note in order, one scene per step', () => {
   let state = { ...NEW_STORY };
-  const order = ['reached-school', 'entered-school', 'attended-class', 'talked-teacher', 'entered-home', 'ate', 'slept'];
+  const order = ['talked-ruth', 'reached-school', 'entered-school', 'attended-class', 'talked-teacher', 'entered-home', 'ate', 'slept'];
   const objectives = [];
   for (const event of order) {
     assert.ok(pendingScene(state), `a scene opens step ${currentStep(state).step.id}`);
@@ -42,7 +42,7 @@ test('chapter one plays from arrival to the note in order, one scene per step', 
     state = result.state;
     if (event === 'slept') assert.equal(result.chapterDone?.id, 'new-in-town');
   }
-  assert.equal(objectives.length, 7);
+  assert.equal(objectives.length, 8);
   assert.deepEqual(state, { chapter: 1, step: 0, seen: false }, 'chapter two begins');
   assert.equal(currentStep(state).chapter.id, 'the-note');
 });
@@ -169,6 +169,19 @@ test('story progress is saved per character and survives bad data', () => {
   assert.deepEqual(normalizeStory({ chapter: 99, step: -4, seen: 'yes' }), { chapter: 0, step: 0, seen: false });
   store.set('tld-story-v1:a', '{broken');
   assert.deepEqual(readStory('a', storage), { ...NEW_STORY });
+});
+
+test('saying hello is optional: walking straight to school skips it and you still arrive', () => {
+  const hello = currentStep(NEW_STORY).step;
+  assert.equal(hello.id, 'arrival');
+  assert.match(hello.objective, /hello/i);
+  for (const event of hello.completeOn) assert.match(event, /^talked-/);
+  assert.equal(advanceStory(NEW_STORY, 'talked-okafor').state.step, 1, 'any neighbour counts');
+  assert.equal(currentStep(advanceStory(NEW_STORY, 'talked-tess').state).step.id, 'to-school');
+  const direct = advanceStory(markSceneSeen(NEW_STORY), 'reached-school');
+  assert.equal(direct.completed?.id, 'to-school');
+  assert.equal(currentStep(direct.state).step.id, 'classmates');
+  assert.equal(advanceStory(NEW_STORY, 'talked-priya').completed, null, 'somebody downtown is not a neighbour');
 });
 
 test('dinner is optional: going straight to bed skips it and still completes the chapter', () => {

@@ -10,6 +10,14 @@ export const GAME_TAGLINE = 'Your life. Your choices. Your consequences.';
  */
 export const RELEASE_NOTES = Object.freeze([
   Object.freeze({
+    id: '2026-11-11', title: 'Say hello',
+    items: Object.freeze([
+      'Your first day now starts with a hello: walk up to a neighbour and press E before you head for school.',
+      'People keep up with the story. In The Winter After, everybody has something to say about the letter.',
+      'Nobody asks about the mysterious note before it has arrived.',
+    ]),
+  }),
+  Object.freeze({
     id: '2026-11-09', title: 'A new story: The Winter After',
     items: Object.freeze([
       'Three new chapters. Finish Last Decision Day, sleep, and a letter with a real stamp is waiting on your doormat.',

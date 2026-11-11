@@ -68,11 +68,17 @@ export const CHAPTERS = Object.freeze([
     id: 'new-in-town',
     title: 'Chapter 1 · New in Town',
     steps: Object.freeze([
-      step('arrival', 'Look around Maple Street, then head for school', ['reached-school'], [
-        ['narrator', 'Three weeks ago, your family packed everything into a rented van and drove four hundred miles to Maple Street.'],
-        ['narrator', 'New house. New town. Tomorrow, a new school — and nobody here knows your name yet.'],
-        ['mom', "Big day!! School's at the end of the street. Doors open 7:30. Be yourself ❤️"],
-        ['you', 'No pressure, then.'],
+      // Optional: walking straight to school skips the hello (and still counts as arriving).
+      step('arrival', 'Say hello to a neighbour on Maple Street (walk up to someone and press E)',
+        ['talked-ruth', 'talked-okafor', 'talked-marcus', 'talked-elena', 'talked-tess', 'talked-maya', 'talked-jordan'], [
+          ['narrator', 'Three weeks ago, your family packed everything into a rented van and drove four hundred miles to Maple Street.'],
+          ['narrator', 'New house. New town. Tomorrow, a new school — and nobody here knows your name yet.'],
+          ['mom', "Big day!! School's at the end of the street. Doors open 7:30. Say hi to the neighbours. Be yourself ❤️"],
+          ['you', 'No pressure, then.'],
+        ], ['reached-school']),
+      step('to-school', 'Head for school at the end of the street', ['reached-school'], [
+        ['you', 'Okay. One person on this street knows my name now.'],
+        ['narrator', 'The school is at the end of the street. The doors are already open.'],
       ]),
       step('classmates', 'Go inside the school (E at the entrance)', ['entered-school'], [
         ['maya', "Hey — you're the new kid from the blue house, right? I'm Maya."],

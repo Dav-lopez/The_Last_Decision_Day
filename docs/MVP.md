@@ -391,9 +391,12 @@ above is done or blocked; any item may be split into slices.
   Classes now come from their own modules through `src/babylon.ts` (side-effect imports listed there;
   `babylon-imports.test.mjs` keeps it that way): babylon 1,617 → 957 KB gzipped, all JavaScript 2,001 → 1,341 KB.
   The game menu loads on demand (WorldScene 135.7 → 133.0 KB). Budgets lowered to match.
-- Still open from that review: the school entrance is 10 m from where you start, so chapter 1's first objective
-  is over in seconds; quick travel to downtown and the pitch is open from minute one while the objective still
-  says "head for school"; downtown streets look bare beside Maple Street.
+- Done since (2026-11-11): chapter 1 opens with an optional "say hello to a neighbour" step, so the first objective
+  is no longer over in ten metres (walking straight to school skips it); conversations follow the story chapter
+  (no note before chapter 2, a line about the letter from everybody in book two); the panels under the view
+  load on demand (WorldScene 135.6 → 133.8 KB with all of the above in).
+- Still open from that review: quick travel to downtown and the pitch is open from minute one while the
+  objective still points at Maple Street; downtown streets look bare beside Maple Street.
 - Fixed (19b): after a story scene where you spoke, your character kept the looping Talk animation going after the
   scene closed (nothing stopped it), and a scene that played while driving swapped the Drive pose for Talk, taking
   your hands off the wheel. Scene gestures are now stopped when the next speaker isn't you and when the scene ends,

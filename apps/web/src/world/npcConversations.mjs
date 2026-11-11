@@ -20,6 +20,8 @@ export const NPC_DIALOGUES = Object.freeze({
       option('friend', 'Ask Maya if you can be friends', "Of course. Start by being yourself. I'll show you around after class.", 2, 'happy'),
       option('dismiss', 'Tell Maya to leave you alone', "All right. I'll give you some space.", -2, 'sad'),
     ]),
+    // Book two (chapter 6 on): takes the place of the first choice.
+    letter: option('letter', "Ask Maya what she makes of the letter", "Removed by Friday? No way. Jordan is already designing badges. If you need people at a hearing, you have the whole class.", 1, 'happy'),
   }),
   jordan: Object.freeze({
     name: 'Jordan', speaker: 'jordan', resident: 'student-b', place: 'street',
@@ -32,6 +34,8 @@ export const NPC_DIALOGUES = Object.freeze({
       option('school', 'Ask Jordan for school advice', "Show up on time, get some rest, and ask for help when you need it. The teachers notice the effort.", 2, 'happy'),
       option('dismiss', 'Mock Jordan for being too serious', "I was trying to help. Never mind.", -2, 'sad'),
     ]),
+    // Book two (chapter 6 on): takes the place of the first choice.
+    letter: option('letter', "Ask Jordan about the Fire Safety letter", "I read the rule it quotes. A registered street association can apply for a permit. So the question is who can register us.", 1, 'neutral'),
   }),
   rivera: Object.freeze({
     name: 'Ms. Rivera', speaker: 'rivera', resident: 'teacher', place: 'school',
@@ -44,6 +48,8 @@ export const NPC_DIALOGUES = Object.freeze({
       option('advice', 'Ask for advice on improving at school', "Be consistent: attend class, practice what you learn, and take enough time to rest. Improvement takes work.", 2, 'happy'),
       option('dismiss', 'Say the school rules are pointless', "You can disagree, but respect matters. Let's talk once you're ready to listen.", -2, 'sad'),
     ]),
+    // Book two (chapter 6 on): takes the place of the first choice.
+    letter: option('letter', "Ask Ms. Rivera about the Association", "The charter is in my desk, and it is older than I am. Three sponsors from outside the street and it lives again. I will handle the forms.", 2, 'happy'),
   }),
   // Maple Street neighbours, met out walking. They stop and turn to you while you talk.
   okafor: Object.freeze({
@@ -57,6 +63,8 @@ export const NPC_DIALOGUES = Object.freeze({
       option('football', 'Ask if he still plays football', "I played centre back in Lagos, forty years ago. The knees remember. There's five-a-side at Central Park downtown. Keep your passes simple and your head up.", 1, 'happy'),
       option('dismiss', 'Tell him you are busy', "Of course. Busy is a good problem to have. Go well.", -1, 'sad'),
     ]),
+    // Book two (chapter 6 on): takes the place of the first choice.
+    letter: option('letter', "Ask Mr. Okafor about the letter", "We had a permit for everything once, even the bunting. Paper matters, young one. But so do people who turn up. Bring both.", 2, 'neutral'),
   }),
   tess: Object.freeze({
     name: 'Tess', speaker: 'tess', resident: 'jogger-west', place: 'street',
@@ -69,6 +77,8 @@ export const NPC_DIALOGUES = Object.freeze({
       option('route', 'Ask where she runs', "Up and down Maple Street, and on weekends the trails by downtown. The hill by the school is my nemesis.", 1, 'happy'),
       option('dismiss', 'Laugh at how out of breath she is', "Wow, okay. Try it sometime!", -2, 'sad'),
     ]),
+    // Book two (chapter 6 on): takes the place of the first choice.
+    letter: option('letter', "Ask Tess to help with the hearing", "A hearing? I will have this street out of bed before the kettle boils. Give me a time and a door to knock on.", 2, 'happy'),
   }),
   marcus: Object.freeze({
     name: 'Marcus', speaker: 'marcus', resident: 'walker-east', place: 'street',
@@ -81,6 +91,8 @@ export const NPC_DIALOGUES = Object.freeze({
       option('car', 'Ask about the car on your driveway', "Good little sedan. Original paint. Treat it gently and it'll get you downtown and back for years.", 1, 'happy'),
       option('dismiss', 'Say mechanics are overpaid', "Ha. Say that when your engine's smoking.", -2, 'sad'),
     ]),
+    // Book two (chapter 6 on): takes the place of the first choice.
+    letter: option('letter', "Ask Marcus about getting everyone to town", "I know a man with a minibus. I am the man. Tell me the day, and Ruth gets the front seat or we never hear the end of it.", 2, 'happy'),
   }),
   elena: Object.freeze({
     name: 'Elena', speaker: 'elena', resident: 'commuter-west', place: 'street',
@@ -93,6 +105,8 @@ export const NPC_DIALOGUES = Object.freeze({
       option('bus', 'Ask how to get downtown', "Take the bus from the stop on Maple Street, or a taxi if you're in a hurry. Press N to see the map. Or drive, if you're feeling brave.", 1, 'happy'),
       option('dismiss', 'Tell her to slow down', "I'll slow down when the bus does!", -1, 'sad'),
     ]),
+    // Book two (chapter 6 on): takes the place of the first choice.
+    letter: option('letter', "Ask Elena who to talk to downtown", "Priya at the bus stop, Coach Dee at the pitch, and whoever is in charge at the fire station. Town runs on those three.", 1, 'happy'),
   }),
   ruth: Object.freeze({
     name: 'Ruth', speaker: 'ruth', resident: 'crosser', place: 'street',
@@ -105,6 +119,8 @@ export const NPC_DIALOGUES = Object.freeze({
       option('gossip', 'Ask what is new on the street', "The house on the corner sat empty for three years, you know. And Marcus swears he once raced a bus. He lost.", 1, 'happy'),
       option('dismiss', 'Tell her to mind her own business', "Well! Some of us are only being friendly.", -2, 'angry'),
     ]),
+    // Book two (chapter 6 on): takes the place of the first choice.
+    letter: option('letter', "Ask Ruth about the Fire Safety Office", "Captain Brooks runs it, dear. By the book, and he reads the book twice. But I knew his mother, and she raised him on this street.", 2, 'happy'),
   }),
   // Downtown regulars (see downtownPeople.mjs): always at the same spot during the day.
   priya: Object.freeze({
@@ -118,6 +134,8 @@ export const NPC_DIALOGUES = Object.freeze({
       option('around', 'Ask how to get around safely', "Stay on the pavements and cross at the lights when the traffic has stopped. Taxis run from the map, and the bus home leaves right here.", 1, 'happy'),
       option('dismiss', "Tell her you don't need a guide", "Fair enough! I'm here all day if you change your mind.", -1, 'sad'),
     ]),
+    // Book two (chapter 6 on): takes the place of the first choice.
+    letter: option('letter', "Ask Priya to sponsor Maple Street", "The street that fixed itself without waiting to be asked? Of course I will sign. Town could use a few more like it.", 2, 'happy'),
   }),
   dee: Object.freeze({
     name: 'Coach Dee', speaker: 'dee', resident: 'downtown-coach', place: 'city',
@@ -130,6 +148,8 @@ export const NPC_DIALOGUES = Object.freeze({
       option('league', 'Ask about the season league', "Step onto the pitch and start a match. Every result goes in the league table, and the top of the table gets bragging rights all season.", 1, 'happy'),
       option('dismiss', 'Say football is boring', "Boring? Come lose five-nil to the AI and say that again!", -2, 'angry'),
     ]),
+    // Book two (chapter 6 on): takes the place of the first choice.
+    letter: option('letter', "Ask Coach Dee to sponsor Maple Street", "I sign for teams, not for speeches. Bring Maple Street to this pitch, play a proper match, and you will have my name.", 1, 'neutral'),
   }),
   brooks: Object.freeze({
     name: 'Captain Brooks', speaker: 'brooks', resident: 'downtown-captain', place: 'city',
@@ -142,6 +162,8 @@ export const NPC_DIALOGUES = Object.freeze({
       option('safety', 'Ask for fire-safety advice', "Test your smoke alarm every month, keep your way out clear, and if there's ever a fire: get out, stay out and call for help.", 1, 'happy'),
       option('dismiss', 'Say firefighters just sit around', "We train when it's quiet so we're ready when it isn't. You'll be glad of that one day.", -1, 'angry'),
     ]),
+    // Book two (chapter 6 on): takes the place of the first choice.
+    letter: option('letter', "Ask Captain Brooks about the notice", "If a notice came from my office, it was written for a reason. A registered street can apply for a permit. Come to the hearing and make your case.", 1, 'neutral'),
   }),
 });
 
@@ -244,22 +266,32 @@ export function talkSpot(location, minute, live = null, from = null, gap = 0.8, 
   return { id: best.id, x: best.x, z: best.z };
 }
 
-/** `noteKnown` is false until the note arrives (chapter 2): nobody can be asked about it before then. */
-export function beginNpcConversation(id, relations, noteKnown = true) {
+/** The story chapter a conversation happens in: nothing about the note before it arrives, the letter in book two. */
+const LETTER_CHAPTER = 5;
+function choicesFor(npc, chapter) {
+  if (chapter >= LETTER_CHAPTER && npc.letter) return [npc.letter, ...npc.choices.slice(1)];
+  return chapter < 1 ? npc.choices.filter(choice => choice.id !== 'note') : npc.choices;
+}
+
+/**
+ * `chapter` is the story chapter (0-based) you are in. Before the note arrives (chapter 0) nobody can be asked
+ * about it; from book two on, everybody's first choice is about the letter instead.
+ */
+export function beginNpcConversation(id, relations, chapter = 1) {
   const npc = NPC_DIALOGUES[id];
   if (!npc) return null;
   const relation = normalizeNpcRelations(relations).people[id] ?? emptyRelation();
   const greeting = relation.conversations === 0 ? npc.first : relation.trust < 0 ? npc.wary : npc.again;
   return {
     id, name: npc.name, speaker: npc.speaker, resident: npc.resident,
-    greeting, choices: npc.choices.filter(choice => noteKnown || choice.id !== 'note').map(({ id: choiceId, label }) => ({ id: choiceId, label })),
+    greeting, choices: choicesFor(npc, chapter).map(({ id: choiceId, label }) => ({ id: choiceId, label })),
   };
 }
 
 /** Replaying a conversation is allowed but cannot escape the reputation bounds. */
 export function chooseNpcReply(relations, id, choiceId) {
   const npc = NPC_DIALOGUES[id];
-  const choice = npc?.choices.find(item => item.id === choiceId);
+  const choice = choiceId === 'letter' ? npc?.letter : npc?.choices.find(item => item.id === choiceId);
   if (!choice) return null;
   const state = normalizeNpcRelations(relations);
   const prior = state.people[id];

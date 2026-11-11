@@ -24,11 +24,8 @@ import { createMovementInput } from './inputState.mjs';
 import { addPlayableNeighborhoodDetails } from './neighborhoodEnvironment';
 import { upgradeNeighborhoodAssets } from './realEnvironmentAssets';
 import { createHousePainter, type HousePainter } from './housePaint';
-import { HousePhotoPaint } from './HousePhotoPaint';
-import { ScanImport } from './ScanImport';
 import { readHouseStyle } from './photoPalette.mjs';
 import { colorFor, modelFor, readLook, writeLook, type Look } from './appearance.mjs';
-import { Wardrobe } from './Wardrobe';
 import type { MapMarker, MapSnapshot, TravelTarget, WaypointControl } from './WorldMap';
 import type { RangeOutcome } from './TrainingRange';
 // The training range (its drawing code and styles) downloads the first time you train.
@@ -50,6 +47,11 @@ import { buildRoadGraph, type RoadGraph } from './cityTraffic.mjs';
 import { nearestOnRoads, routeBetween } from './gps.mjs';
 import { Minimap } from './Minimap';
 import type { MenuTab } from './GameMenu';
+// The panels under the 3D view (house paint, scan import, career record, wardrobe) are not needed to start playing.
+const HousePhotoPaint = lazy(() => import('./HousePhotoPaint').then(module => ({ default: module.HousePhotoPaint })));
+const ScanImport = lazy(() => import('./ScanImport').then(module => ({ default: module.ScanImport })));
+const CareersPanel = lazy(() => import('./CareersPanel').then(module => ({ default: module.CareersPanel })));
+const Wardrobe = lazy(() => import('./Wardrobe').then(module => ({ default: module.Wardrobe })));
 const loadGameMenu = () => import('./GameMenu');
 const GameMenu = lazy(() => loadGameMenu().then(module => ({ default: module.GameMenu })));
 import type { PhoneMessage, PhoneState } from './phone.mjs';
@@ -78,7 +80,6 @@ import { callBearing, createMarch, drillStatus, markLeg, marchResult, startLeg, 
 import type { FireCallView } from './fireCallScene';
 import { callFor, callResult, callStatus, callTarget, chooseCall, holdsTask, planCall, resolveCall, stepCall, type PoliceCall } from './policeCalls.mjs';
 import type { PoliceCallView } from './policeCallScene';
-import { CareersPanel } from './CareersPanel';
 import { bindActions, loadActionClips } from './characterActions';
 import { bodyLean, headingDelta, jumpFor, jumpHeight } from './actionMixer.mjs';
 import { PARKED_CARS } from './streetLayout.mjs';
@@ -927,7 +928,7 @@ export default function WorldScene({
   const npcActiveRef = useRef(false);
   const openNpcChat = (id: NpcId) => {
     if (dialogueRef.current || npcActiveRef.current) return;
-    const conversation = beginNpcConversation(id, npcRelationsRef.current, storyRef.current.chapter > 0);
+    const conversation = beginNpcConversation(id, npcRelationsRef.current, storyRef.current.chapter);
     if (!conversation) return;
     setSchoolOpen(false);
     schoolOpenRef.current = false;
@@ -3684,8 +3685,8 @@ export default function WorldScene({
         }}>{sprintEnabled ? 'RUN: ON' : 'RUN: OFF'}</button></div>}
       </div>
     </div>}
-    {!error && <HousePhotoPaint characterId={characterId} painterRef={housePainterRef} />}
-    {!error && <ScanImport sceneRef={sceneRef} />}
+    {!error && <Suspense fallback={null}><HousePhotoPaint characterId={characterId} painterRef={housePainterRef} />
+      <ScanImport sceneRef={sceneRef} /></Suspense>}
     {!error && <p role="status" style={{ fontSize: '0.8rem', opacity: 0.8 }}>{modelStatus}</p>}
     {!error && inCity && <p style={{ fontSize: '0.75rem', opacity: 0.7 }}>Downtown map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a> (ODbL).</p>}
     {!error && propCredit && <p style={{ fontSize: '0.75rem', opacity: 0.7 }}>Some 3D props by <a href="https://polyhaven.com" target="_blank" rel="noreferrer">Poly Haven</a> (CC0).</p>}
@@ -3722,10 +3723,10 @@ export default function WorldScene({
       </div>
       <p role="status" aria-live="polite">{previewEmotion === 'sad' ? 'Crying preview selected · tears pending detailed face integration' : previewEmotion === 'embarrassed' ? 'Blushing preview selected · cheek shading pending' : previewEmotion === 'exerted' ? 'Exertion preview selected · sweat rendering pending' : `Current expression: ${previewEmotion}`}. When Neutral is selected, sprinting automatically triggers exertion. Facial animation requires a model with compatible blendshapes.</p>
     </section>}
-    {!error && <CareersPanel career={career}
+    {!error && <Suspense fallback={null}><CareersPanel career={career}
       onWearUniform={() => { if (career.career) setLook(current => ({ ...current, ...CAREERS[career.career!].uniform })); }}
-      onQuit={() => saveCareer(quitCareer(career))} />}
-    {!error && <Wardrobe look={look} setLook={setLook}
-      note={`Outfit and appearance choices are saved in this browser only. ${demoMode ? 'Guest appearance is not linked to an account.' : 'Server-synced customization is coming later.'}`} />}
+      onQuit={() => saveCareer(quitCareer(career))} />
+      <Wardrobe look={look} setLook={setLook}
+      note={`Outfit and appearance choices are saved in this browser only. ${demoMode ? 'Guest appearance is not linked to an account.' : 'Server-synced customization is coming later.'}`} /></Suspense>}
   </div>;
 }

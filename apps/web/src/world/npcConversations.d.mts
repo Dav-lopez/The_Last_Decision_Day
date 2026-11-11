@@ -4,12 +4,12 @@ export type NpcRelation = { trust: number; conversations: number; lastChoice: st
 export type NpcRelations = { version: number; people: Record<NpcId, NpcRelation> };
 export type NpcConversation = { id: NpcId; name: string; speaker: NpcId; resident: string; greeting: string; choices: Array<{ id: string; label: string }> };
 export type NpcReply = { state: NpcRelations; reply: string; mood: NpcMood; trustDelta: number; event: 'talked-maya' | 'talked-jordan' | 'talked-teacher' | 'talked-ruth' | 'talked-okafor' | 'talked-marcus' | 'talked-elena' | 'talked-tess' | 'talked-priya' | 'talked-dee' | 'talked-brooks' };
-export declare const NPC_DIALOGUES: Readonly<Record<NpcId, { name: string; speaker: NpcId; resident: string; place: string; persona: string; first: string; again: string; wary: string; choices: ReadonlyArray<{ id: string; label: string; reply: string; trust: number; mood: NpcMood }> }>>;
+export declare const NPC_DIALOGUES: Readonly<Record<NpcId, { name: string; speaker: NpcId; resident: string; place: string; persona: string; first: string; again: string; wary: string; letter: { id: string; label: string; reply: string; trust: number; mood: string }; choices: ReadonlyArray<{ id: string; label: string; reply: string; trust: number; mood: NpcMood }> }>>;
 export declare function newNpcRelations(): NpcRelations;
 export declare function normalizeNpcRelations(value: unknown): NpcRelations;
 export declare function readNpcRelations(characterId: string, storage?: Storage): NpcRelations;
 export declare function writeNpcRelations(characterId: string, state: NpcRelations, storage?: Storage): boolean;
 export declare function nearbyNpc(position: { x: number; z: number }, location: string, minute: number, live?: Readonly<Record<string, { x: number; z: number }>> | null): NpcId | null;
 export declare function talkSpot(location: string, minute: number, live?: Readonly<Record<string, { x: number; z: number }>> | null, from?: { x: number; z: number } | null, gap?: number, only?: NpcId | null): { id: NpcId; x: number; z: number } | null;
-export declare function beginNpcConversation(id: NpcId, relations: NpcRelations, noteKnown?: boolean): NpcConversation | null;
+export declare function beginNpcConversation(id: NpcId, relations: NpcRelations, chapter?: number): NpcConversation | null;
 export declare function chooseNpcReply(relations: NpcRelations, id: NpcId, choiceId: string): NpcReply | null;

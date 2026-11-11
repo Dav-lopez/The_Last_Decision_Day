@@ -108,10 +108,25 @@ test('talkSpot can look for one person (the playtest picks who hears the last de
 
 test('nobody can be asked about the note before it arrives', () => {
   for (const id of Object.keys(NPC_DIALOGUES)) {
-    const early = beginNpcConversation(id, newNpcRelations(), false);
+    const early = beginNpcConversation(id, newNpcRelations(), 0);
     assert.ok(early.choices.length >= 2, `${id} still has something to say`);
     assert.ok(!early.choices.some(choice => choice.id === 'note'), `${id} offers the note early`);
     assert.ok(!early.choices.some(choice => /\bnote\b/i.test(choice.label)), `${id} mentions the note early`);
   }
-  assert.ok(beginNpcConversation('ruth', newNpcRelations(), true).choices.some(choice => choice.id === 'note'));
+  assert.ok(beginNpcConversation('ruth', newNpcRelations(), 1).choices.some(choice => choice.id === 'note'));
+});
+
+test('in book two everybody can be asked about the letter, in place of their first choice', () => {
+  for (const [id, npc] of Object.entries(NPC_DIALOGUES)) {
+    assert.ok(npc.letter.label && npc.letter.reply.length <= 260, id);
+    for (const chapter of [1, 4]) assert.ok(!beginNpcConversation(id, newNpcRelations(), chapter).choices.some(choice => choice.id === 'letter'), `${id} mentions the letter in chapter ${chapter + 1}`);
+    const started = beginNpcConversation(id, newNpcRelations(), 5);
+    assert.deepEqual(started.choices.map(choice => choice.id), ['letter', npc.choices[1].id, npc.choices[2].id]);
+    assert.ok(!started.choices.some(choice => choice.id === 'note'), 'the note is old news');
+    // Asking about the letter counts as talking to them, so the story moves on the same events.
+    const reply = chooseNpcReply(newNpcRelations(), id, 'letter');
+    assert.equal(reply.reply, npc.letter.reply);
+    assert.equal(reply.event, chooseNpcReply(newNpcRelations(), id, npc.choices[1].id).event);
+    assert.ok(reply.trustDelta > 0);
+  }
 });

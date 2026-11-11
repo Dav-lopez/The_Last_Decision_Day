@@ -55,10 +55,10 @@ test('every scene in the story gets one known shot per line', () => {
 test('shots follow who speaks: openings establish, texts go to the phone, people present get over-the-shoulder', () => {
   const opening = planShots(CHAPTERS[0].steps[0].scene, { mood: 'opening' });
   assert.deepEqual(opening.map(shot => shot.kind), ['establish', 'narration', 'phone', 'close']);
-  const lawn = planShots(CHAPTERS[0].steps[1].scene, { near: speaker => speaker === 'maya' || speaker === 'jordan' });
+  const lawn = planShots(CHAPTERS[0].steps.find(step => step.id === 'classmates').scene, { near: speaker => speaker === 'maya' || speaker === 'jordan' });
   assert.deepEqual(lawn.map(shot => [shot.kind, shot.subject]), [['speaker', 'maya'], ['speaker', 'jordan'], ['speaker', 'maya']]);
   // Nobody near: the player listens to a voice instead of the camera looking for someone who isn't there.
-  assert.deepEqual(planShots(CHAPTERS[0].steps[1].scene).map(shot => shot.kind), ['listen', 'listen', 'listen']);
+  assert.deepEqual(planShots(CHAPTERS[0].steps.find(step => step.id === 'classmates').scene).map(shot => shot.kind), ['listen', 'listen', 'listen']);
   // Answering someone present cuts to the reverse angle on the player; the same speaker twice holds the shot.
   const okafor = planShots(CHAPTERS[2].steps[3].scene, { near: speaker => speaker === 'okafor' });
   assert.deepEqual(okafor.map(shot => shot.kind), ['speaker', 'speaker', 'speaker', 'speaker', 'reverse']);
