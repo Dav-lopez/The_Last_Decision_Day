@@ -32,7 +32,7 @@ function signPlane(scene: Scene, name: string, text: string, width: number, heig
  * placed clear of the road, sidewalks, driveways and walking routes, so it
  * never changes collisions.
  */
-export function buildDecisionDecor(scene: Scene, decision: Decision) {
+export function buildDecisionDecor(scene: Scene, decision: Decision, phase: 'made' | 'notice' | 'saved' = 'made') {
   const meshes: Mesh[] = [];
   const disposables: { dispose: () => void }[] = [];
   const keep = <T extends Mesh>(mesh: T) => { mesh.isPickable = false; meshes.push(mesh); return mesh; };
@@ -98,6 +98,34 @@ export function buildDecisionDecor(scene: Scene, decision: Decision) {
     banner.plane.rotation.y = Math.PI;
     keep(banner.plane);
     disposables.push(banner.material, banner.texture);
+  }
+  // Book two: the Fire Safety notice is staked on the lawn until the hearing; afterwards the permit hangs there
+  // instead, and the street puts its bunting back up.
+  if (phase !== 'made') {
+    const saved = phase === 'saved';
+    const stake = keep(MeshBuilder.CreateCylinder('street notice post', { height: 1.7, diameter: 0.06 }, scene));
+    stake.position.set(-3.1, 0.85, 0.8);
+    const board = saved
+      ? signPlane(scene, 'street permit', 'PERMIT GRANTED', 2, 0.5, '#1f7a3d', '#ffffff')
+      : signPlane(scene, 'street notice', 'NOTICE', 1.2, 0.5, '#ffffff', '#c62828');
+    // Faces up the street, towards your house, like the club banner.
+    board.plane.position.set(-3.1, 1.6, 0.8);
+    board.plane.rotation.y = Math.PI;
+    keep(board.plane);
+    disposables.push(board.material, board.texture);
+    if (saved) {
+      const flags = ['#e85d75', '#f2c14e', '#4f9bd9', '#6fbf73'].map((hex, i) => paint(scene, `bunting ${i}`, hex));
+      disposables.push(...flags);
+      for (let i = 0; i < 13; i++) {
+        const flag = keep(MeshBuilder.CreatePlane('bunting flag', { size: 0.3 }, scene));
+        // A shallow sag between the two sides of the street, well above the cars and the bus.
+        flag.position.set(-3 + i * 0.5, 4.3 - Math.sin((i / 12) * Math.PI) * 0.35, 2.4);
+        flag.rotation.z = Math.PI / 4;
+        flag.material = flags[i % flags.length];
+        flags[i % flags.length].backFaceCulling = false;
+        flags[i % flags.length].emissiveColor = flags[i % flags.length].diffuseColor.scale(0.5);
+      }
+    }
   }
   return { dispose: () => { for (const mesh of meshes) mesh.dispose(); for (const item of disposables) item.dispose(); } };
 }

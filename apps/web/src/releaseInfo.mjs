@@ -15,6 +15,7 @@ export const RELEASE_NOTES = Object.freeze([
       'Your first day now starts with a hello: walk up to a neighbour and press E before you head for school.',
       'People keep up with the story. In The Winter After, everybody has something to say about the letter.',
       'Nobody asks about the mysterious note before it has arrived.',
+      'Maple Street shows where the story is: a notice on the lawn in The Winter After, and bunting once the street is saved.',
     ]),
   }),
   Object.freeze({

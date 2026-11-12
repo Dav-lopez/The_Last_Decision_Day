@@ -395,6 +395,8 @@ above is done or blocked; any item may be split into slices.
   is no longer over in ten metres (walking straight to school skips it); conversations follow the story chapter
   (no note before chapter 2, a line about the letter from everybody in book two); the panels under the view
   load on demand (WorldScene 135.6 → 133.8 KB with all of the above in).
+- Done (2026-11-12): Maple Street shows book two (`streetPhase`): a NOTICE board on the lawn from chapter 6, then a
+  PERMIT GRANTED board and bunting across the road after the hearing; the playtest checks the last one.
 - Still open from that review: quick travel to downtown and the pitch is open from minute one while the
   objective still points at Maple Street; downtown streets look bare beside Maple Street.
 - Fixed (19b): after a story scene where you spoke, your character kept the looping Talk animation going after the

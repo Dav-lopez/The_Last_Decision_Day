@@ -377,6 +377,17 @@ export function decisionDayDone(state) {
   return story.chapter > DECISION_CHAPTER || Boolean(currentStep(story).step.final);
 }
 
+/**
+ * How Maple Street looks for the story: null before Last Decision Day, 'made' once your decision is on the
+ * street, 'notice' while the Fire Safety notice hangs over it (book two), 'saved' after the hearing.
+ */
+export function streetPhase(state) {
+  const story = normalizeStory(state);
+  if (!story.decision || !decisionDayDone(story)) return null;
+  if (storyComplete(story)) return 'saved';
+  return story.chapter > DECISION_CHAPTER ? 'notice' : 'made';
+}
+
 export function currentStep(state) {
   const story = normalizeStory(state);
   const chapter = CHAPTERS[story.chapter];

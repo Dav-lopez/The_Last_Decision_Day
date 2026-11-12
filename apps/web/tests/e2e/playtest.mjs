@@ -810,6 +810,8 @@ for (const [event, ending] of Object.entries(DECISIONS)) {
     const final = (await read()).story;
     if (final.decision !== ending.id) throw new Error(`decision saved as ${final.decision}, expected ${ending.id}`);
     await waitFor(`Maple Street shows "${ending.title}"`, timeout => page.waitForFunction(id => window.__tld.read().decor === id, ending.id, { timeout }), 30000);
+    const phase = (await read()).decorPhase;
+    if (phase !== 'saved') throw new Error(`after the hearing the street should show its permit, but its phase is ${phase}`);
     await page.waitForTimeout(1500);
     await shot(`09-ending-${ending.id}`);
     endingScenes.push(`${ending.id}: ${scenes} scenes, ${lines} lines, decided ${inPerson ? `in person with ${CAST[who].name}` : `by event (${CAST[who].name} was not out)`}`);

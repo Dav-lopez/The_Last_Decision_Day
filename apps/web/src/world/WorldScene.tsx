@@ -98,7 +98,7 @@ import { NEAR_METRES, SPEAKER_RESIDENTS, planShots, sceneCard, sceneMood, shotPo
 import { lineActing, type StoryEmotion } from './storyActing.mjs';
 import { headGestureFor, headGestureOffset, type HeadGesture } from './headGestures.mjs';
 import { createNpcHeadRig } from './npcHeadRig.mjs';
-import { CAST, NEW_STORY, advanceStory, currentStep, markSceneSeen, pendingScene, readStory, storyComplete, decisionDayDone, writeStory,
+import { CAST, NEW_STORY, advanceStory, currentStep, markSceneSeen, pendingScene, readStory, storyComplete, streetPhase, writeStory,
   type StoryEvent, type StoryLine, type StoryState } from './storyChapters.mjs';
 import { buildSurroundings } from './worldSurroundings';
 import { createAtmosphere } from './sceneAtmosphere';
@@ -689,6 +689,7 @@ export default function WorldScene({
   // Once the story ends, Maple Street shows the change you chose.
   const decorRef = useRef<() => void>(() => {});
   const decorShownRef = useRef<string | null>(null);
+  const decorPhaseRef = useRef<string | null>(null);
   const openPendingScene = () => {
     const scene = pendingScene(storyRef.current);
     if (!scene || dialogueRef.current) return;
@@ -1024,12 +1025,15 @@ export default function WorldScene({
       let decorFor: string | null = null;
       decorRef.current = () => {
         const current = storyRef.current;
-        const want = decisionDayDone(current) && current.decision ? current.decision : null;
-        if (want === decorFor || scene.isDisposed) return;
+        const phase = streetPhase(current);
+        const want = phase && current.decision ? current.decision : null;
+        const key = want && `${want}:${phase}`;
+        if (key === decorFor || scene.isDisposed) return;
         decor?.dispose();
-        decor = want ? buildDecisionDecor(scene, want) : null;
-        decorFor = want;
+        decor = want && phase ? buildDecisionDecor(scene, want, phase) : null;
+        decorFor = key;
         decorShownRef.current = want;
+        decorPhaseRef.current = phase;
       };
       decorRef.current();
       let cityLights: ReturnType<typeof buildCityLights> | null = null;
@@ -1912,7 +1916,7 @@ export default function WorldScene({
               child: policeCall.child ? Math.hypot(policeCall.child.x - toLocal(position)[0], policeCall.child.z - toLocal(position)[1]) : null } : null,
             fire: callFire ? { heat: callFire.fire.heat, out: callFire.fire.out, spraying: callFire.spraying, water: callFire.fire.water, drawn: fireView !== null } : null,
             busy: pendingShift !== null,
-            decor: decorShownRef.current,
+            decor: decorShownRef.current, decorPhase: decorPhaseRef.current,
             streaming: { ...streaming.read(), downtownLoaded: downtownScenery !== null, unloads: downtownUnloads },
             weather: { ...weatherAt(life.day, life.minute, weatherOverrideRef.current), loaded: weatherView !== null, drops: weatherView?.drops() ?? 0, puddles: weatherView?.puddles() ?? { count: 0, level: 0 }, reflections: { ...(weatherView?.reflections() ?? { on: false, road: 0, puddle: 0, meshes: 0 }), allowed: renderQuality === 'high' && graphicsRef.current.ambientOcclusion && quality.ambientOcclusion }, grip: wetGrip(weatherAt(life.day, life.minute, weatherOverrideRef.current)) },
             cutscene: cutsceneShotRef.current, camera: { alpha: camera.alpha, beta: camera.beta, radius: camera.radius },

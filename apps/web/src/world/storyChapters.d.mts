@@ -17,6 +17,8 @@ export declare const CHAPTERS: ReadonlyArray<StoryChapter>;
 export declare const DECISIONS: Readonly<Record<string, Readonly<{ id: DecisionId; title: string }>>>;
 export declare function storyComplete(state: StoryState): boolean;
 export declare function decisionDayDone(state: StoryState): boolean;
+export type StreetPhase = 'made' | 'notice' | 'saved';
+export declare function streetPhase(state: StoryState): StreetPhase | null;
 export declare const NEW_STORY: Readonly<StoryState>;
 export declare function normalizeStory(value: unknown): StoryState;
 export declare function currentStep(state: StoryState): { chapter: StoryChapter; step: StoryStep; index: number };

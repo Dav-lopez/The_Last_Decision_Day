@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   CAST, CHAPTERS, DECISIONS, NEW_STORY, STORY_EVENTS, advanceStory, currentStep, markSceneSeen, normalizeStory, pendingScene, readStory,
-  storyComplete, decisionDayDone, writeStory,
+  storyComplete, decisionDayDone, streetPhase, writeStory,
 } from '../src/world/storyChapters.mjs';
 import { NPC_DIALOGUES, chooseNpcReply, newNpcRelations } from '../src/world/npcConversations.mjs';
 
@@ -169,6 +169,18 @@ test('story progress is saved per character and survives bad data', () => {
   assert.deepEqual(normalizeStory({ chapter: 99, step: -4, seen: 'yes' }), { chapter: 0, step: 0, seen: false });
   store.set('tld-story-v1:a', '{broken');
   assert.deepEqual(readStory('a', storage), { ...NEW_STORY });
+});
+
+test('the street shows where the story is: your decision, then the notice, then the permit', () => {
+  assert.equal(streetPhase(NEW_STORY), null);
+  const bookOne = CHAPTERS.findIndex(chapter => chapter.id === 'last-decision-day');
+  const decided = { chapter: bookOne, step: CHAPTERS[bookOne].steps.findIndex(step => step.final) - 1, seen: true, decision: 'garden' };
+  assert.equal(streetPhase(decided), null, 'nothing changes until Last Decision Day itself');
+  assert.equal(streetPhase({ ...decided, step: decided.step + 1 }), 'made');
+  assert.equal(streetPhase({ chapter: bookOne + 1, step: 0, seen: false, decision: 'garden' }), 'notice');
+  assert.equal(streetPhase({ chapter: CHAPTERS.length - 1, step: 0, seen: false, decision: 'garden' }), 'notice');
+  assert.equal(streetPhase({ chapter: CHAPTERS.length - 1, step: CHAPTERS.at(-1).steps.length - 1, seen: false, decision: 'garden' }), 'saved');
+  assert.equal(streetPhase({ chapter: bookOne + 1, step: 0, seen: false }), null, 'no decision, nothing to show');
 });
 
 test('saying hello is optional: walking straight to school skips it and you still arrive', () => {
